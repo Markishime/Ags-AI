@@ -1446,6 +1446,11 @@ def display_enhanced_step_result(step_result, step_number):
     if 'detailed_analysis' in analysis_data:
         logger.info(f"Step {step_number} detailed_analysis type: {type(analysis_data['detailed_analysis'])}, length: {len(str(analysis_data['detailed_analysis'])) if analysis_data['detailed_analysis'] else 0}")
     
+    # Special handling for STEP 3 - Solution Recommendations
+    if step_number == 3:
+        display_step3_solution_recommendations(analysis_data)
+        return
+    
     # 1. SUMMARY SECTION - Always show if available
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("### 📋 Summary")
@@ -1944,6 +1949,253 @@ def display_issue_diagnosis_content(analysis_data):
             st.markdown(f"- Severity: {issue.get('severity', 'Unknown')}")
             st.markdown(f"- Cause: {issue.get('cause', 'Unknown')}")
             st.markdown("---")
+
+def display_step3_solution_recommendations(analysis_data):
+    """Display Step 3: Solution Recommendations with enhanced structure and layout"""
+    
+    # 1. SUMMARY SECTION - Always show if available
+    if 'summary' in analysis_data and analysis_data['summary']:
+        st.markdown("### 📋 Summary")
+        summary_text = analysis_data['summary']
+        if isinstance(summary_text, str) and summary_text.strip():
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{summary_text.strip()}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+            st.markdown("")
+    
+    # 2. KEY FINDINGS SECTION - Always show if available
+    if 'key_findings' in analysis_data and analysis_data['key_findings']:
+        st.markdown("### 🎯 Key Findings")
+        key_findings = analysis_data['key_findings']
+        
+        # Handle both list and string formats
+        if isinstance(key_findings, list) and key_findings:
+            for i, finding in enumerate(key_findings, 1):
+                if isinstance(finding, str) and finding.strip():
+                    st.markdown(
+                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                        f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
+                        f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding.strip()}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+        elif isinstance(key_findings, str) and key_findings.strip():
+            # Split by lines or paragraphs for string format
+            findings_list = [f.strip() for f in key_findings.split('\n') if f.strip()]
+            for i, finding in enumerate(findings_list, 1):
+                st.markdown(
+                    f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
+                    f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+            st.markdown("")
+    
+    # 3. DETAILED ANALYSIS SECTION - Show if available
+    if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
+        st.markdown("### 📋 Detailed Analysis")
+        detailed_text = analysis_data['detailed_analysis']
+        
+        # Ensure detailed_text is a string
+        if isinstance(detailed_text, dict):
+            detailed_text = str(detailed_text)
+        elif not isinstance(detailed_text, str):
+            detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
+        
+        # Split into paragraphs for better formatting
+        paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
+        
+        for paragraph in paragraphs:
+            if isinstance(paragraph, str) and paragraph.strip():
+                st.markdown(
+                    f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+        st.markdown("")
+    
+    # 4. SOLUTION RECOMMENDATIONS SECTION - Enhanced layout
+    st.markdown("### 💡 Recommended Solutions")
+    
+    # Check for solution_options in the data
+    solution_options = analysis_data.get('solution_options', [])
+    
+    # If no solution_options, try to find solutions in other fields
+    if not solution_options:
+        # Look for solutions in other possible fields
+        for key in ['solutions', 'recommendations', 'solution_recommendations']:
+            if key in analysis_data and analysis_data[key]:
+                solution_options = analysis_data[key]
+                break
+    
+    if solution_options:
+        for i, solution in enumerate(solution_options, 1):
+            # Enhanced solution title with bigger font and prominent styling
+            parameter_name = solution.get('parameter', f'Solution {i}')
+            issue_title = solution.get('issue', solution.get('issue_description', ''))
+            if issue_title:
+                solution_title = f"{issue_title}"
+            else:
+                solution_title = parameter_name
+            
+            # Highlight the issue title with a box and underline
+            st.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, #28a745, #20c997);
+                color: white;
+                padding: 20px 25px;
+                border-radius: 12px;
+                margin: 25px 0 20px 0;
+                box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+                border: 2px solid rgba(255,255,255,0.1);
+            ">
+                <h2 style="margin: 0; font-size: 28px; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                    🔧 <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; border-bottom: 3px solid #fff; text-decoration: underline; text-decoration-thickness: 2px;">{solution_title}</span>
+                </h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Create columns for investment options
+            col1, col2, col3 = st.columns(3)
+            
+            # High investment
+            if 'high_investment' in solution:
+                with col1:
+                    high = solution['high_investment']
+                    st.markdown("""
+                    <div style="
+                        background: linear-gradient(135deg, #dc3545, #c82333);
+                        color: white;
+                        padding: 15px 18px;
+                        border-radius: 10px;
+                        margin: 10px 0;
+                        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+                        border: 1px solid rgba(255,255,255,0.1);
+                    ">
+                        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 700;">🔥 High Investment</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Create a card for high investment details
+                    st.markdown(f"""
+                    <div style="
+                        background: #fff5f5;
+                        border: 1px solid #fecaca;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-bottom: 15px;
+                    ">
+                        <p style="margin: 5px 0; font-weight: 600; color: #dc2626;">Product: {high.get('product', 'N/A')}</p>
+                        <p style="margin: 5px 0; color: #374151;">Rate: {high.get('rate', 'N/A')}</p>
+                        <p style="margin: 5px 0; color: #374151;">Timing: {high.get('timing', 'N/A')}</p>
+                        <p style="margin: 5px 0; font-weight: 600; color: #dc2626;">Cost: {high.get('cost', 'N/A')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Medium investment
+            if 'medium_investment' in solution:
+                with col2:
+                    medium = solution['medium_investment']
+                    st.markdown("""
+                    <div style="
+                        background: linear-gradient(135deg, #ffc107, #e0a800);
+                        color: #212529;
+                        padding: 15px 18px;
+                        border-radius: 10px;
+                        margin: 10px 0;
+                        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+                        border: 1px solid rgba(0,0,0,0.1);
+                    ">
+                        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 700;">⚡ Medium Investment</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Create a card for medium investment details
+                    st.markdown(f"""
+                    <div style="
+                        background: #fffbeb;
+                        border: 1px solid #fed7aa;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-bottom: 15px;
+                    ">
+                        <p style="margin: 5px 0; font-weight: 600; color: #d97706;">Product: {medium.get('product', 'N/A')}</p>
+                        <p style="margin: 5px 0; color: #374151;">Rate: {medium.get('rate', 'N/A')}</p>
+                        <p style="margin: 5px 0; color: #374151;">Timing: {medium.get('timing', 'N/A')}</p>
+                        <p style="margin: 5px 0; font-weight: 600; color: #d97706;">Cost: {medium.get('cost', 'N/A')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Low investment
+            if 'low_investment' in solution:
+                with col3:
+                    low = solution['low_investment']
+                    st.markdown("""
+                    <div style="
+                        background: linear-gradient(135deg, #6c757d, #5a6268);
+                        color: white;
+                        padding: 15px 18px;
+                        border-radius: 10px;
+                        margin: 10px 0;
+                        box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+                        border: 1px solid rgba(255,255,255,0.1);
+                    ">
+                        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 700;">💡 Low Investment</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Create a card for low investment details
+                    st.markdown(f"""
+                    <div style="
+                        background: #f8f9fa;
+                        border: 1px solid #dee2e6;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin-bottom: 15px;
+                    ">
+                        <p style="margin: 5px 0; font-weight: 600; color: #495057;">Product: {low.get('product', 'N/A')}</p>
+                        <p style="margin: 5px 0; color: #374151;">Rate: {low.get('rate', 'N/A')}</p>
+                        <p style="margin: 5px 0; color: #374151;">Timing: {low.get('timing', 'N/A')}</p>
+                        <p style="margin: 5px 0; font-weight: 600; color: #495057;">Cost: {low.get('cost', 'N/A')}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+    else:
+        # Fallback: show any other analysis results
+        st.info("📋 No specific solution recommendations found. Displaying general analysis results.")
+        
+        # Show other analysis fields
+        excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
+        other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
+        
+        if other_fields:
+            st.markdown("### 📊 Analysis Results")
+            for key in other_fields:
+                value = analysis_data.get(key)
+                title = key.replace('_', ' ').title()
+                
+                if isinstance(value, dict) and value:
+                    st.markdown(f"**{title}:**")
+                    for sub_k, sub_v in value.items():
+                        if sub_v is not None and sub_v != "":
+                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                elif isinstance(value, list) and value:
+                    st.markdown(f"**{title}:**")
+                    for idx, item in enumerate(value, 1):
+                        if isinstance(item, (dict, list)):
+                            st.markdown(f"- Item {idx}:")
+                            st.json(item)
+                        else:
+                            st.markdown(f"- {item}")
+                elif isinstance(value, str) and value.strip():
+                    st.markdown(f"**{title}:** {value}")
+                st.markdown("")
 
 def display_solution_recommendations_content(analysis_data):
     """Display Step 3: Solution Recommendations content"""
