@@ -1762,7 +1762,25 @@ def display_bar_chart(data, title):
             
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.warning(f"Bar chart data format not recognized. Expected 'categories' and 'values' keys, or 'categories' and 'series' keys. Received: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+            # Enhanced error message with more helpful information
+            if isinstance(data, dict):
+                received_keys = list(data.keys())
+                st.warning(f"⚠️ Bar chart data format not recognized. Expected 'categories' and 'values' keys, or 'categories' and 'series' keys. Received: {received_keys}")
+                
+                # Provide helpful suggestions based on what keys were found
+                if 'categories' in received_keys:
+                    st.info("💡 Found 'categories' key. Looking for 'values' or 'series' key...")
+                    if 'data' in received_keys:
+                        st.info("💡 Found 'data' key. The chart data might be nested under this key.")
+                elif 'labels' in received_keys:
+                    st.info("💡 Found 'labels' key. This might be the categories. Looking for corresponding values...")
+                elif 'x' in received_keys:
+                    st.info("💡 Found 'x' key. This might be the categories. Looking for 'y' values...")
+                else:
+                    st.info("💡 No recognized category keys found. Please check the data structure.")
+            else:
+                st.warning(f"⚠️ Bar chart data is not a dictionary. Received: {type(data)}")
+            
             # Show the actual data structure for debugging
             st.json(data)
     except ImportError:
@@ -2168,7 +2186,7 @@ def display_step3_solution_recommendations(analysis_data):
             st.markdown("---")
     else:
         # Fallback: show any other analysis results
-        st.info("📋 No specific solution recommendations found. Displaying general analysis results.")
+        st.info("💡 No specific solution recommendations found. Displaying general analysis results.")
         
         # Show other analysis fields
         excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
