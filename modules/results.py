@@ -1762,46 +1762,46 @@ def display_bar_chart(data, title):
                 # Validate that we have meaningful data
                 if all(v == 0 for v in numeric_values):
                     st.warning("⚠️ All chart values are zero. This may indicate data quality issues.")
-                return
-            
+                    return
+                
                 # Check for reasonable data ranges
                 max_val = max(numeric_values)
                 min_val = min(numeric_values)
                 if max_val > 1000000:  # Very large numbers might indicate data issues
                     st.warning("⚠️ Chart values seem unusually large. Please verify data accuracy.")
                 
-            df = pd.DataFrame({
-                'Category': categories,
-                'Value': numeric_values
-            })
-            
+                df = pd.DataFrame({
+                    'Category': categories,
+                    'Value': numeric_values
+                })
+                
                 # Create enhanced bar chart with better styling and accuracy
-            fig = go.Figure(data=[
-                go.Bar(
-                    x=df['Category'],
-                    y=df['Value'],
-                    marker=dict(
-                        color=df['Value'],
-                        colorscale='Viridis',
-                        showscale=True,
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=df['Category'],
+                        y=df['Value'],
+                        marker=dict(
+                            color=df['Value'],
+                            colorscale='Viridis',
+                            showscale=True,
                             colorbar=dict(title="Value"),
                             line=dict(color='rgba(0,0,0,0.2)', width=1)
-                    ),
+                        ),
                         text=[f'{v:.2f}' if v != int(v) else f'{int(v)}' for v in df['Value']],
-                    textposition='auto',
+                        textposition='auto',
                         textfont=dict(size=12, color='white'),
                         hovertemplate='<b>%{x}</b><br>Value: %{y:.2f}<extra></extra>',
                         name='Values'
-                )
-            ])
-            
+                    )
+                ])
+                
                 # Enhanced layout with better accuracy
-            fig.update_layout(
-                title=dict(
-                    text=title,
-                    x=0.5,
-                    font=dict(size=16, color='#2E7D32')
-                ),
+                fig.update_layout(
+                    title=dict(
+                        text=title,
+                        x=0.5,
+                        font=dict(size=16, color='#2E7D32')
+                    ),
                     xaxis=dict(
                         title="Categories",
                         tickangle=-45,
@@ -1815,17 +1815,17 @@ def display_bar_chart(data, title):
                         zeroline=True,
                         zerolinecolor='rgba(0,0,0,0.3)'
                     ),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(size=12),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=12),
                     height=400,
                     margin=dict(l=50, r=50, t=80, b=100),
                     showlegend=False
-            )
-            
+                )
+                
                 # Add data accuracy note
                 st.info(f"📊 Chart displays {len(categories)} data points. Range: {min_val:.2f} - {max_val:.2f}")
-            st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)
                 
             except (ValueError, TypeError) as e:
                 st.error(f"❌ Error processing chart data: {str(e)}")
@@ -2152,7 +2152,7 @@ def parse_and_display_json_analysis(json_text):
             
             # Display the formatted analysis
             if formatted_content.strip():
-    st.markdown("### 💡 Recommended Solutions")
+                st.markdown("### 💡 Recommended Solutions")
                 display_solution_content(formatted_content)
         
     except Exception as e:
@@ -2384,6 +2384,15 @@ def display_dict_analysis(detailed_dict):
 def display_step3_solution_recommendations(analysis_data):
     """Display Step 3: Solution Recommendations with enhanced structure and layout"""
     
+    # Debug: Log the structure of analysis_data for STEP 3
+    logger.info(f"STEP 3 analysis_data keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
+    if 'analysis_results' in analysis_data:
+        logger.info(f"STEP 3 analysis_results found: {type(analysis_data['analysis_results'])} - {analysis_data['analysis_results']}")
+    else:
+        logger.info("STEP 3 analysis_results NOT found in analysis_data")
+    
+
+    
     # 1. SUMMARY SECTION - Always show if available
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("### 📋 Summary")
@@ -2460,6 +2469,34 @@ def display_step3_solution_recommendations(analysis_data):
             st.info("No detailed analysis available in a readable format.")
         
         st.markdown("")
+    
+    # 4. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
+    # This section shows the main analysis results from the LLM
+    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
+    other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
+    
+    if other_fields:
+        st.markdown("### 📊 Analysis Results")
+        for key in other_fields:
+            value = analysis_data.get(key)
+            title = key.replace('_', ' ').title()
+            
+            if isinstance(value, dict) and value:
+                st.markdown(f"**{title}:**")
+                for sub_k, sub_v in value.items():
+                    if sub_v is not None and sub_v != "":
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+            elif isinstance(value, list) and value:
+                st.markdown(f"**{title}:**")
+                for idx, item in enumerate(value, 1):
+                    if isinstance(item, (dict, list)):
+                        st.markdown(f"- Item {idx}:")
+                        st.json(item)
+                    else:
+                        st.markdown(f"- {item}")
+            elif isinstance(value, str) and value.strip():
+                st.markdown(f"**{title}:** {value}")
+            st.markdown("")
     
 
     
