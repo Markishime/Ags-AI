@@ -41,7 +41,19 @@ class ReferenceSearchEngine:
         """Initialize Tavily and Firestore clients"""
         # Initialize Tavily client
         if TAVILY_AVAILABLE:
-            tavily_api_key = os.getenv('TAVILY_API_KEY')
+            # Try Streamlit secrets first
+            tavily_api_key = None
+            try:
+                import streamlit as st
+                if hasattr(st, 'secrets') and 'tavily' in st.secrets:
+                    tavily_api_key = st.secrets.tavily.get('tavily_api_key')
+            except:
+                pass
+            
+            # Fallback to environment variable
+            if not tavily_api_key:
+                tavily_api_key = os.getenv('TAVILY_API_KEY')
+                
             if tavily_api_key:
                 try:
                     self.tavily_client = TavilyClient(api_key=tavily_api_key)
@@ -59,7 +71,7 @@ class ReferenceSearchEngine:
             except Exception as e:
                 logger.error(f"Failed to initialize Firestore client: {str(e)}")
     
-    def search_database_references(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search_database_references(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search for references in Firestore reference_documents collection with enhanced PDF support"""
         if not self.firestore_client:
             logger.warning("Firestore client not available")
@@ -176,7 +188,7 @@ class ReferenceSearchEngine:
         
         return ' '.join(content_parts) if content_parts else 'No content available'
     
-    def search_web_references(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search_web_references(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search for references on the web using Tavily API with enhanced search strategies"""
         if not self.tavily_client:
             logger.warning("Tavily client not available")

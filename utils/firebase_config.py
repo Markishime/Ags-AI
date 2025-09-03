@@ -31,7 +31,14 @@ def initialize_firebase() -> bool:
             
             # Initialize Firebase with credentials
             cred = credentials.Certificate(firebase_creds)
-            storage_bucket = os.getenv('FIREBASE_STORAGE_BUCKET', 'agriai-cbd8b.firebasestorage.app')
+            
+            # Get storage bucket from secrets or environment
+            storage_bucket = None
+            if hasattr(st, 'secrets') and 'firebase' in st.secrets:
+                storage_bucket = st.secrets.firebase.get('firebase_storage_bucket')
+            
+            if not storage_bucket:
+                storage_bucket = os.getenv('FIREBASE_STORAGE_BUCKET', 'agriai-cbd8b.firebasestorage.app')
             
             firebase_admin.initialize_app(cred, {
                 'storageBucket': storage_bucket
@@ -76,7 +83,33 @@ def get_firebase_credentials() -> Optional[dict]:
         try:
             if hasattr(st, 'secrets') and 'firebase' in st.secrets:
                 print("Loading Firebase credentials from Streamlit secrets")
-                return dict(st.secrets.firebase)
+                firebase_secrets = st.secrets.firebase
+                
+                # Construct credentials from individual fields in secrets
+                firebase_config = {
+                    "type": firebase_secrets.get('firebase_type', 'service_account'),
+                    "project_id": firebase_secrets.get('project_id'),
+                    "private_key_id": firebase_secrets.get('firebase_private_key_id'),
+                    "private_key": firebase_secrets.get('firebase_private_key', '').replace('\\n', '\n'),
+                    "client_email": firebase_secrets.get('firebase_client_email'),
+                    "client_id": firebase_secrets.get('firebase_client_id'),
+                    "auth_uri": firebase_secrets.get('firebase_auth_uri', 'https://accounts.google.com/o/oauth2/auth'),
+                    "token_uri": firebase_secrets.get('firebase_token_uri', 'https://oauth2.googleapis.com/token'),
+                    "auth_provider_x509_cert_url": firebase_secrets.get('firebase_auth_provider_x509_cert_url', 'https://www.googleapis.com/oauth2/v1/certs'),
+                    "client_x509_cert_url": firebase_secrets.get('firebase_client_x509_cert_url'),
+                    "universe_domain": firebase_secrets.get('firebase_universe_domain', 'googleapis.com')
+                }
+                
+                # Check if all required fields are present
+                required_fields = ['project_id', 'private_key', 'client_email']
+                missing_fields = [field for field in required_fields if not firebase_config.get(field)]
+                
+                if not missing_fields:
+                    print("Successfully loaded Firebase credentials from Streamlit secrets")
+                    return firebase_config
+                else:
+                    print(f"Missing required Firebase credentials in secrets: {missing_fields}")
+                    
             elif hasattr(st, 'secrets') and 'FIREBASE_SERVICE_ACCOUNT_KEY' in st.secrets:
                 return dict(st.secrets['FIREBASE_SERVICE_ACCOUNT_KEY'])
         except Exception as e:
