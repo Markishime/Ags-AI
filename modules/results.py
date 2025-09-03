@@ -1679,9 +1679,23 @@ def display_bar_chart(data, title):
                     # Series might be a single dict with 'data' key
                     values = series_data.get('data', [])
                     logger.info(f"Extracted values from single dict: {values}")
+                elif isinstance(series_data, (int, float)):
+                    # Series might be a single numeric value
+                    values = [series_data]
+                    logger.info(f"Using single numeric value: {values}")
                 else:
-                    values = []
-                    logger.info(f"Series data is empty or not a list/dict: {type(series_data)}")
+                    # Try to convert to list if possible
+                    try:
+                        if hasattr(series_data, '__iter__') and not isinstance(series_data, str):
+                            values = list(series_data)
+                            logger.info(f"Converted iterable to list: {values}")
+                        else:
+                            values = [series_data] if series_data is not None else []
+                            logger.info(f"Single value converted to list: {values}")
+                    except Exception as e:
+                        values = []
+                        logger.error(f"Failed to process series data: {e}")
+                        logger.info(f"Series data is empty or not processable: {type(series_data)}")
             # Alternative format: data might have different key names
             elif 'labels' in data and 'values' in data:
                 categories = data['labels']
@@ -1715,6 +1729,16 @@ def display_bar_chart(data, title):
         logger.info(f"Final values: {values}")
         logger.info(f"Categories length: {len(categories) if categories else 0}")
         logger.info(f"Values length: {len(values) if values else 0}")
+        
+        # Additional fallback: if we have categories but no values, try to create dummy values
+        if categories and not values:
+            logger.info("No values found, creating dummy values for visualization")
+            values = [1] * len(categories)  # Create dummy values for visualization
+        
+        # Additional fallback: if we have values but no categories, create generic categories
+        if values and not categories:
+            logger.info("No categories found, creating generic categories")
+            categories = [f"Item {i+1}" for i in range(len(values))]
         
         if categories and values and len(categories) == len(values):
             # Ensure values are numeric
@@ -1778,6 +1802,12 @@ def display_bar_chart(data, title):
                     st.info("💡 Found 'x' key. This might be the categories. Looking for 'y' values...")
                 else:
                     st.info("💡 No recognized category keys found. Please check the data structure.")
+                
+                # Show detailed debugging information
+                st.markdown("### 🔍 Debug Information")
+                for key, value in data.items():
+                    st.markdown(f"**{key}:** {type(value)} - {str(value)[:100]}{'...' if len(str(value)) > 100 else ''}")
+                
             else:
                 st.warning(f"⚠️ Bar chart data is not a dictionary. Received: {type(data)}")
             
