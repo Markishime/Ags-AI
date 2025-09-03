@@ -2047,42 +2047,21 @@ def display_issue_diagnosis_content(analysis_data):
 def display_structured_solutions(detailed_text):
     """Parse and display structured solution recommendations from text"""
     try:
+        import re
+        
+        # Check if it's a JSON-like structure that needs parsing
+        if detailed_text.strip().startswith('{') and 'key_findings' in detailed_text:
+            # Parse JSON-like structure
+            parse_and_display_json_analysis(detailed_text)
+            return
+        
         # Try to extract structured data from the text
         if 'formatted_analysis' in detailed_text:
             # Extract the formatted_analysis content
-            import re
             match = re.search(r"'formatted_analysis': \"(.*?)\"", detailed_text, re.DOTALL)
             if match:
                 formatted_content = match.group(1)
                 # Clean up the content
-                formatted_content = formatted_content.replace('\\n', '\n').replace('\\"', '"')
-                display_solution_content(formatted_content)
-                return
-        
-        # Check if it's a JSON-like structure
-        if detailed_text.strip().startswith('{') and 'key_findings' in detailed_text:
-            # Try to extract key findings and formatted analysis
-            import re
-            key_findings_match = re.search(r"'key_findings': \[(.*?)\]", detailed_text, re.DOTALL)
-            formatted_analysis_match = re.search(r"'formatted_analysis': \"(.*?)\"", detailed_text, re.DOTALL)
-            
-            if key_findings_match:
-                key_findings_text = key_findings_match.group(1)
-                # Display key findings
-                st.markdown("### 🎯 Key Findings")
-                findings = [f.strip().strip("'\"") for f in key_findings_text.split(',') if f.strip()]
-                for i, finding in enumerate(findings, 1):
-                    if finding:
-                        st.markdown(
-                            f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                            f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                            f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-            
-            if formatted_analysis_match:
-                formatted_content = formatted_analysis_match.group(1)
                 formatted_content = formatted_content.replace('\\n', '\n').replace('\\"', '"')
                 display_solution_content(formatted_content)
                 return
@@ -2101,8 +2080,97 @@ def display_structured_solutions(detailed_text):
             unsafe_allow_html=True
         )
 
+def parse_and_display_json_analysis(json_text):
+    """Parse and display JSON-like analysis data with proper formatting"""
+    try:
+        import re
+        
+        # Try to extract key findings
+        key_findings_match = re.search(r"'key_findings':\s*\[(.*?)\]", json_text, re.DOTALL)
+        if key_findings_match:
+            key_findings_text = key_findings_match.group(1)
+            # Parse the key findings more carefully
+            findings = parse_key_findings(key_findings_text)
+            
+            # Display key findings
+            if findings:
+                st.markdown("### 🎯 Key Findings")
+                for i, finding in enumerate(findings, 1):
+                    if finding and len(finding) > 10:  # Only show meaningful findings
+                        st.markdown(
+                            f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                            f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
+                            f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+        
+        # Try to extract formatted analysis
+        formatted_analysis_match = re.search(r"'formatted_analysis':\s*\"(.*?)\"", json_text, re.DOTALL)
+        if formatted_analysis_match:
+            formatted_content = formatted_analysis_match.group(1)
+            # Clean up the content
+            formatted_content = formatted_content.replace('\\n', '\n').replace('\\"', '"').replace('\\', '')
+            
+            # Display the formatted analysis
+            if formatted_content.strip():
+                st.markdown("### 💡 Recommended Solutions")
+                display_solution_content(formatted_content)
+        
+    except Exception as e:
+        logger.error(f"Error parsing JSON analysis: {e}")
+        # Fallback to regular text display
+        st.markdown("### 📋 Detailed Analysis")
+        st.markdown(
+            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">Analysis content available but formatting needs improvement.</p>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+def parse_key_findings(key_findings_text):
+    """Parse key findings from the extracted text"""
+    findings = []
+    current_finding = ""
+    in_quotes = False
+    quote_char = None
+    depth = 0
+    
+    for i, char in enumerate(key_findings_text):
+        if char in ["'", '"'] and (not in_quotes or char == quote_char):
+            if not in_quotes:
+                in_quotes = True
+                quote_char = char
+            else:
+                in_quotes = False
+                quote_char = None
+        elif char == '[' and not in_quotes:
+            depth += 1
+        elif char == ']' and not in_quotes:
+            depth -= 1
+        elif char == ',' and not in_quotes and depth == 0:
+            if current_finding.strip():
+                finding = current_finding.strip().strip("'\" ")
+                if finding and len(finding) > 10:
+                    findings.append(finding)
+            current_finding = ""
+            continue
+        
+        current_finding += char
+    
+    # Add the last finding
+    if current_finding.strip():
+        finding = current_finding.strip().strip("'\" ")
+        if finding and len(finding) > 10:
+            findings.append(finding)
+    
+    return findings
+
 def display_solution_content(content):
     """Display solution content with proper formatting"""
+    # Clean up the content first
+    content = content.strip()
+    
     # Split content into sections
     sections = content.split('#### **Problem')
     
@@ -2113,9 +2181,14 @@ def display_solution_content(content):
         if i == 0:
             # Introduction section
             if section.strip():
+                # Clean up the introduction text
+                intro_text = section.strip()
+                # Remove any remaining escape characters
+                intro_text = intro_text.replace('\\n', '\n').replace('\\"', '"')
+                
                 st.markdown(
                     f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e3f2fd, #ffffff); border-left: 4px solid #2196f3; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
-                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{section.strip()}</p>'
+                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{intro_text}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
@@ -2133,6 +2206,9 @@ def display_problem_section(section):
     problem_title = lines[0].strip()
     if not problem_title:
         return
+    
+    # Clean up the problem title
+    problem_title = problem_title.replace('**', '').strip()
     
     # Create problem header
     st.markdown(f"""
@@ -2160,6 +2236,9 @@ def display_problem_section(section):
         if not line:
             continue
             
+        # Clean up the line
+        line = line.replace('\\n', '\n').replace('\\"', '"')
+        
         # Check for approach headers
         if 'High-Investment Approach' in line:
             current_approach = 'high'
@@ -2173,22 +2252,28 @@ def display_problem_section(section):
         elif line.startswith('**Product:**'):
             if current_approach:
                 solution_data[current_approach] = solution_data.get(current_approach, {})
-                solution_data[current_approach]['product'] = line.replace('**Product:**', '').strip()
+                product = line.replace('**Product:**', '').strip()
+                solution_data[current_approach]['product'] = product
         elif line.startswith('**Rate:**'):
             if current_approach:
-                solution_data[current_approach]['rate'] = line.replace('**Rate:**', '').strip()
+                rate = line.replace('**Rate:**', '').strip()
+                solution_data[current_approach]['rate'] = rate
         elif line.startswith('**Timing & Method:**'):
             if current_approach:
-                solution_data[current_approach]['timing'] = line.replace('**Timing & Method:**', '').strip()
+                timing = line.replace('**Timing & Method:**', '').strip()
+                solution_data[current_approach]['timing'] = timing
         elif line.startswith('**Biological/Agronomic Effects:**'):
             if current_approach:
-                solution_data[current_approach]['effects'] = line.replace('**Biological/Agronomic Effects:**', '').strip()
+                effects = line.replace('**Biological/Agronomic Effects:**', '').strip()
+                solution_data[current_approach]['effects'] = effects
         elif line.startswith('**Impact:**'):
             if current_approach:
-                solution_data[current_approach]['impact'] = line.replace('**Impact:**', '').strip()
+                impact = line.replace('**Impact:**', '').strip()
+                solution_data[current_approach]['impact'] = impact
         elif line.startswith('**Cost Label:**'):
             if current_approach:
-                solution_data[current_approach]['cost'] = line.replace('**Cost Label:**', '').strip()
+                cost = line.replace('**Cost Label:**', '').strip()
+                solution_data[current_approach]['cost'] = cost
     
     # Display solutions in columns
     if solution_data:
@@ -2231,77 +2316,6 @@ def display_solution_card(level, data, title, color):
         <p style="margin: 5px 0; font-size: 14px;"><strong>Cost:</strong> {data.get('cost', 'N/A')}</p>
     </div>
     """, unsafe_allow_html=True)
-
-def parse_and_display_json_analysis(json_text):
-    """Parse and display JSON-like analysis data with proper formatting"""
-    try:
-        import re
-        import json
-        
-        # Try to extract key findings
-        key_findings_match = re.search(r"'key_findings':\s*\[(.*?)\]", json_text, re.DOTALL)
-        if key_findings_match:
-            key_findings_text = key_findings_match.group(1)
-            # Parse the key findings
-            findings = []
-            # Split by comma but be careful with nested quotes
-            current_finding = ""
-            in_quotes = False
-            quote_char = None
-            
-            for char in key_findings_text:
-                if char in ["'", '"'] and (not in_quotes or char == quote_char):
-                    if not in_quotes:
-                        in_quotes = True
-                        quote_char = char
-                    else:
-                        in_quotes = False
-                        quote_char = None
-                elif char == ',' and not in_quotes:
-                    if current_finding.strip():
-                        findings.append(current_finding.strip().strip("'\" "))
-                    current_finding = ""
-                    continue
-                current_finding += char
-            
-            # Add the last finding
-            if current_finding.strip():
-                findings.append(current_finding.strip().strip("'\" "))
-            
-            # Display key findings
-            if findings:
-                st.markdown("### 🎯 Key Findings")
-                for i, finding in enumerate(findings, 1):
-                    if finding and len(finding) > 10:  # Only show meaningful findings
-                        st.markdown(
-                            f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                            f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                            f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-        
-        # Try to extract formatted analysis
-        formatted_analysis_match = re.search(r"'formatted_analysis':\s*\"(.*?)\"", json_text, re.DOTALL)
-        if formatted_analysis_match:
-            formatted_content = formatted_analysis_match.group(1)
-            # Clean up the content
-            formatted_content = formatted_content.replace('\\n', '\n').replace('\\"', '"').replace('\\', '')
-            
-            # Display the formatted analysis
-            if formatted_content.strip():
-                st.markdown("### 💡 Recommended Solutions")
-                display_solution_content(formatted_content)
-        
-    except Exception as e:
-        logger.error(f"Error parsing JSON analysis: {e}")
-        # Fallback to regular text display
-        st.markdown(
-            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{json_text}</p>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
 
 def display_dict_analysis(detailed_dict):
     """Display analysis data from dictionary format"""
@@ -2365,10 +2379,10 @@ def display_step3_solution_recommendations(analysis_data):
         
         # Parse and format the detailed analysis properly
         if isinstance(detailed_text, str) and detailed_text.strip():
-            # Check if it's a JSON-like string that needs parsing
-            if detailed_text.strip().startswith('{') and 'key_findings' in detailed_text:
-                # Parse the JSON-like structure
-                parse_and_display_json_analysis(detailed_text)
+            # Check if it's JSON-like structure that needs parsing
+            if detailed_text.strip().startswith('{') and ('key_findings' in detailed_text or 'formatted_analysis' in detailed_text):
+                # Parse structured solution recommendations
+                display_structured_solutions(detailed_text)
             elif 'formatted_analysis' in detailed_text or 'Problem' in detailed_text:
                 # Parse structured solution recommendations
                 display_structured_solutions(detailed_text)
@@ -2377,9 +2391,11 @@ def display_step3_solution_recommendations(analysis_data):
                 paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
                 for paragraph in paragraphs:
                     if paragraph.strip():
+                        # Clean up any remaining escape characters
+                        clean_paragraph = paragraph.strip().replace('\\n', '\n').replace('\\"', '"')
                         st.markdown(
                             f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{clean_paragraph}</p>'
                             f'</div>',
                             unsafe_allow_html=True
                         )
@@ -2558,54 +2574,13 @@ def display_step3_solution_recommendations(analysis_data):
         </div>
         """, unsafe_allow_html=True)
         
-        # Show LLM-generated analysis results with enhanced formatting
+        # Show other analysis fields with enhanced formatting
         excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
         other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
         
         if other_fields:
-            st.markdown("### 📊 LLM-Generated Analysis Results")
-            
-            # Check if there's a main analysis field that contains LLM content
-            main_analysis_fields = ['analysis', 'llm_response', 'response', 'content', 'result', 'output']
-            main_content = None
-            
-            for field in main_analysis_fields:
-                if field in analysis_data and analysis_data[field]:
-                    main_content = analysis_data[field]
-                    break
-            
-            # Display main LLM content if found
-            if main_content:
-                if isinstance(main_content, str) and main_content.strip():
-                    # Check if it's JSON-like content
-                    if main_content.strip().startswith('{') and 'key_findings' in main_content:
-                        parse_and_display_json_analysis(main_content)
-                    else:
-                        # Display as formatted text
-                        st.markdown("""
-                        <div style="
-                            background: linear-gradient(135deg, #e3f2fd, #ffffff);
-                            border-left: 4px solid #2196f3;
-                            border-radius: 8px;
-                            padding: 20px;
-                            margin: 15px 0;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        ">
-                            <h5 style="margin: 0 0 15px 0; color: #1976d2; font-size: 18px;">🤖 AI Analysis</h5>
-                            <div style="line-height: 1.8; color: #2c3e50; font-size: 16px;">
-                        """, unsafe_allow_html=True)
-                        
-                        # Format the content with proper line breaks
-                        formatted_content = main_content.replace('\n', '<br>')
-                        st.markdown(formatted_content, unsafe_allow_html=True)
-                        
-                        st.markdown("</div></div>", unsafe_allow_html=True)
-            
-            # Display other fields
+            st.markdown("### 📊 Analysis Results")
             for key in other_fields:
-                if key in main_analysis_fields:  # Skip if already displayed above
-                    continue
-                    
                 value = analysis_data.get(key)
                 title = key.replace('_', ' ').title()
                 
