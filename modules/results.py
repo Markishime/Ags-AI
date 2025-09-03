@@ -1658,15 +1658,25 @@ def display_bar_chart(data, title):
                 categories = data['categories']
                 # Handle series data - could be a list of values or list of dicts
                 series_data = data['series']
+                logger.info(f"Series data type: {type(series_data)}")
+                logger.info(f"Series data content: {series_data}")
+                
                 if isinstance(series_data, list) and len(series_data) > 0:
                     if isinstance(series_data[0], dict):
                         # Series contains dicts with 'name' and 'data' keys
                         values = series_data[0].get('data', [])
+                        logger.info(f"Extracted values from dict: {values}")
                     else:
                         # Series is a simple list of values
                         values = series_data
+                        logger.info(f"Using series as values: {values}")
+                elif isinstance(series_data, dict):
+                    # Series might be a single dict with 'data' key
+                    values = series_data.get('data', [])
+                    logger.info(f"Extracted values from single dict: {values}")
                 else:
                     values = []
+                    logger.info(f"Series data is empty or not a list/dict: {type(series_data)}")
             # Alternative format: data might have different key names
             elif 'labels' in data and 'values' in data:
                 categories = data['labels']
@@ -1688,11 +1698,18 @@ def display_bar_chart(data, title):
                             values = series_data[0].get('data', [])
                         else:
                             values = series_data
+                    elif isinstance(series_data, dict):
+                        values = series_data.get('data', [])
                     else:
                         values = []
                 elif 'labels' in nested_data and 'values' in nested_data:
                     categories = nested_data['labels']
                     values = nested_data['values']
+        
+        logger.info(f"Final categories: {categories}")
+        logger.info(f"Final values: {values}")
+        logger.info(f"Categories length: {len(categories) if categories else 0}")
+        logger.info(f"Values length: {len(values) if values else 0}")
         
         if categories and values and len(categories) == len(values):
             # Ensure values are numeric
