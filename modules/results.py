@@ -1741,50 +1741,96 @@ def display_bar_chart(data, title):
             categories = [f"Item {i+1}" for i in range(len(values))]
         
         if categories and values and len(categories) == len(values):
-            # Ensure values are numeric
+            # Ensure values are numeric and handle edge cases
             try:
-                numeric_values = [float(v) if v is not None else 0 for v in values]
-            except (ValueError, TypeError):
-                st.warning("Bar chart values must be numeric")
-                return
-            
-            df = pd.DataFrame({
-                'Category': categories,
-                'Value': numeric_values
-            })
-            
-            # Create enhanced bar chart with better styling
-            fig = go.Figure(data=[
-                go.Bar(
-                    x=df['Category'],
-                    y=df['Value'],
-                    marker=dict(
-                        color=df['Value'],
-                        colorscale='Viridis',
-                        showscale=True,
-                        colorbar=dict(title="Value")
+                numeric_values = []
+                for v in values:
+                    if v is None:
+                        numeric_values.append(0)
+                    elif isinstance(v, (int, float)):
+                        numeric_values.append(float(v))
+                    elif isinstance(v, str):
+                        # Try to convert string to number
+                        try:
+                            numeric_values.append(float(v))
+                        except ValueError:
+                            # If conversion fails, use 0
+                            numeric_values.append(0)
+                    else:
+                        numeric_values.append(0)
+                
+                # Validate that we have meaningful data
+                if all(v == 0 for v in numeric_values):
+                    st.warning("⚠️ All chart values are zero. This may indicate data quality issues.")
+                    return
+                
+                # Check for reasonable data ranges
+                max_val = max(numeric_values)
+                min_val = min(numeric_values)
+                if max_val > 1000000:  # Very large numbers might indicate data issues
+                    st.warning("⚠️ Chart values seem unusually large. Please verify data accuracy.")
+                
+                df = pd.DataFrame({
+                    'Category': categories,
+                    'Value': numeric_values
+                })
+                
+                # Create enhanced bar chart with better styling and accuracy
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=df['Category'],
+                        y=df['Value'],
+                        marker=dict(
+                            color=df['Value'],
+                            colorscale='Viridis',
+                            showscale=True,
+                            colorbar=dict(title="Value"),
+                            line=dict(color='rgba(0,0,0,0.2)', width=1)
+                        ),
+                        text=[f'{v:.2f}' if v != int(v) else f'{int(v)}' for v in df['Value']],
+                        textposition='auto',
+                        textfont=dict(size=12, color='white'),
+                        hovertemplate='<b>%{x}</b><br>Value: %{y:.2f}<extra></extra>',
+                        name='Values'
+                    )
+                ])
+                
+                # Enhanced layout with better accuracy
+                fig.update_layout(
+                    title=dict(
+                        text=title,
+                        x=0.5,
+                        font=dict(size=16, color='#2E7D32')
                     ),
-                    text=df['Value'],
-                    textposition='auto',
-                    hovertemplate='<b>%{x}</b><br>Value: %{y}<extra></extra>'
+                    xaxis=dict(
+                        title="Categories",
+                        tickangle=-45,
+                        showgrid=True,
+                        gridcolor='rgba(0,0,0,0.1)'
+                    ),
+                    yaxis=dict(
+                        title="Values",
+                        showgrid=True,
+                        gridcolor='rgba(0,0,0,0.1)',
+                        zeroline=True,
+                        zerolinecolor='rgba(0,0,0,0.3)'
+                    ),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=12),
+                    height=400,
+                    margin=dict(l=50, r=50, t=80, b=100),
+                    showlegend=False
                 )
-            ])
-            
-            fig.update_layout(
-                title=dict(
-                    text=title,
-                    x=0.5,
-                    font=dict(size=16, color='#2E7D32')
-                ),
-                xaxis_title="Categories",
-                yaxis_title="Values",
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(size=12),
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+                
+                # Add data accuracy note
+                st.info(f"📊 Chart displays {len(categories)} data points. Range: {min_val:.2f} - {max_val:.2f}")
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except (ValueError, TypeError) as e:
+                st.error(f"❌ Error processing chart data: {str(e)}")
+                st.warning("Please check that all values are numeric.")
+                return
         else:
             # Enhanced error message with more helpful information
             if isinstance(data, dict):
@@ -2013,12 +2059,41 @@ def display_structured_solutions(detailed_text):
                 display_solution_content(formatted_content)
                 return
         
-        # If no formatted_analysis found, try to parse the text directly
+        # Check if it's a JSON-like structure
+        if detailed_text.strip().startswith('{') and 'key_findings' in detailed_text:
+            # Try to extract key findings and formatted analysis
+            import re
+            key_findings_match = re.search(r"'key_findings': \[(.*?)\]", detailed_text, re.DOTALL)
+            formatted_analysis_match = re.search(r"'formatted_analysis': \"(.*?)\"", detailed_text, re.DOTALL)
+            
+            if key_findings_match:
+                key_findings_text = key_findings_match.group(1)
+                # Display key findings
+                st.markdown("### 🎯 Key Findings")
+                findings = [f.strip().strip("'\"") for f in key_findings_text.split(',') if f.strip()]
+                for i, finding in enumerate(findings, 1):
+                    if finding:
+                        st.markdown(
+                            f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                            f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
+                            f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+            
+            if formatted_analysis_match:
+                formatted_content = formatted_analysis_match.group(1)
+                formatted_content = formatted_content.replace('\\n', '\n').replace('\\"', '"')
+                display_solution_content(formatted_content)
+                return
+        
+        # If no structured data found, try to parse the text directly
         display_solution_content(detailed_text)
         
     except Exception as e:
         logger.error(f"Error parsing structured solutions: {e}")
-        # Fallback to regular text display
+        # Fallback to regular text display with better formatting
+        st.markdown("### 📋 Detailed Analysis")
         st.markdown(
             f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
             f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{detailed_text}</p>'
@@ -2390,10 +2465,26 @@ def display_step3_solution_recommendations(analysis_data):
             
             st.markdown("---")
     else:
-        # Fallback: show any other analysis results
-        st.info("💡 No specific solution recommendations found. Displaying general analysis results.")
+        # Enhanced fallback: show any other analysis results with better formatting
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
+        ">
+            <h4 style="margin: 0 0 10px 0; color: #856404; font-size: 18px;">
+                💡 No specific solution recommendations found
+            </h4>
+            <p style="margin: 0; color: #856404; font-size: 14px;">
+                Displaying general analysis results below. The analysis may contain valuable insights in other sections.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Show other analysis fields
+        # Show other analysis fields with enhanced formatting
         excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
         other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
         
@@ -2404,12 +2495,34 @@ def display_step3_solution_recommendations(analysis_data):
                 title = key.replace('_', ' ').title()
                 
                 if isinstance(value, dict) and value:
-                    st.markdown(f"**{title}:**")
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+                        border-left: 4px solid #007bff;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin: 10px 0;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    ">
+                        <h5 style="margin: 0 0 10px 0; color: #007bff; font-size: 16px;">{title}</h5>
+                    </div>
+                    """, unsafe_allow_html=True)
                     for sub_k, sub_v in value.items():
                         if sub_v is not None and sub_v != "":
                             st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
                 elif isinstance(value, list) and value:
-                    st.markdown(f"**{title}:**")
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+                        border-left: 4px solid #28a745;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin: 10px 0;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    ">
+                        <h5 style="margin: 0 0 10px 0; color: #28a745; font-size: 16px;">{title}</h5>
+                    </div>
+                    """, unsafe_allow_html=True)
                     for idx, item in enumerate(value, 1):
                         if isinstance(item, (dict, list)):
                             st.markdown(f"- Item {idx}:")
@@ -2417,7 +2530,19 @@ def display_step3_solution_recommendations(analysis_data):
                         else:
                             st.markdown(f"- {item}")
                 elif isinstance(value, str) and value.strip():
-                    st.markdown(f"**{title}:** {value}")
+                    st.markdown(f"""
+                    <div style="
+                        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+                        border-left: 4px solid #6c757d;
+                        border-radius: 8px;
+                        padding: 15px;
+                        margin: 10px 0;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    ">
+                        <h5 style="margin: 0 0 10px 0; color: #6c757d; font-size: 16px;">{title}</h5>
+                        <p style="margin: 0; line-height: 1.6; color: #2c3e50;">{value}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                 st.markdown("")
 
 def display_solution_recommendations_content(analysis_data):
@@ -3246,4 +3371,3 @@ def extract_chart_data(results_data):
         st.error(f"Error extracting chart data: {str(e)}")
         return []
 
-# Removed cleanup function to prevent data loss
