@@ -1762,46 +1762,46 @@ def display_bar_chart(data, title):
                 # Validate that we have meaningful data
                 if all(v == 0 for v in numeric_values):
                     st.warning("⚠️ All chart values are zero. This may indicate data quality issues.")
-                return
-            
+                    return
+                
                 # Check for reasonable data ranges
                 max_val = max(numeric_values)
                 min_val = min(numeric_values)
                 if max_val > 1000000:  # Very large numbers might indicate data issues
                     st.warning("⚠️ Chart values seem unusually large. Please verify data accuracy.")
                 
-            df = pd.DataFrame({
-                'Category': categories,
-                'Value': numeric_values
-            })
-            
+                df = pd.DataFrame({
+                    'Category': categories,
+                    'Value': numeric_values
+                })
+                
                 # Create enhanced bar chart with better styling and accuracy
-            fig = go.Figure(data=[
-                go.Bar(
-                    x=df['Category'],
-                    y=df['Value'],
-                    marker=dict(
-                        color=df['Value'],
-                        colorscale='Viridis',
-                        showscale=True,
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=df['Category'],
+                        y=df['Value'],
+                        marker=dict(
+                            color=df['Value'],
+                            colorscale='Viridis',
+                            showscale=True,
                             colorbar=dict(title="Value"),
                             line=dict(color='rgba(0,0,0,0.2)', width=1)
-                    ),
+                        ),
                         text=[f'{v:.2f}' if v != int(v) else f'{int(v)}' for v in df['Value']],
-                    textposition='auto',
+                        textposition='auto',
                         textfont=dict(size=12, color='white'),
                         hovertemplate='<b>%{x}</b><br>Value: %{y:.2f}<extra></extra>',
                         name='Values'
-                )
-            ])
-            
+                    )
+                ])
+                
                 # Enhanced layout with better accuracy
-            fig.update_layout(
-                title=dict(
-                    text=title,
-                    x=0.5,
-                    font=dict(size=16, color='#2E7D32')
-                ),
+                fig.update_layout(
+                    title=dict(
+                        text=title,
+                        x=0.5,
+                        font=dict(size=16, color='#2E7D32')
+                    ),
                     xaxis=dict(
                         title="Categories",
                         tickangle=-45,
@@ -1815,17 +1815,17 @@ def display_bar_chart(data, title):
                         zeroline=True,
                         zerolinecolor='rgba(0,0,0,0.3)'
                     ),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(size=12),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=12),
                     height=400,
                     margin=dict(l=50, r=50, t=80, b=100),
                     showlegend=False
-            )
-            
+                )
+                
                 # Add data accuracy note
                 st.info(f"📊 Chart displays {len(categories)} data points. Range: {min_val:.2f} - {max_val:.2f}")
-            st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)
                 
             except (ValueError, TypeError) as e:
                 st.error(f"❌ Error processing chart data: {str(e)}")
@@ -2152,7 +2152,7 @@ def parse_and_display_json_analysis(json_text):
             
             # Display the formatted analysis
             if formatted_content.strip():
-    st.markdown("### 💡 Recommended Solutions")
+                st.markdown("### 💡 Recommended Solutions")
                 display_solution_content(formatted_content)
         
     except Exception as e:
