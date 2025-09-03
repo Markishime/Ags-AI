@@ -1968,6 +1968,175 @@ def display_issue_diagnosis_content(analysis_data):
             st.markdown(f"- Cause: {issue.get('cause', 'Unknown')}")
             st.markdown("---")
 
+def display_structured_solutions(detailed_text):
+    """Parse and display structured solution recommendations from text"""
+    try:
+        # Try to extract structured data from the text
+        if 'formatted_analysis' in detailed_text:
+            # Extract the formatted_analysis content
+            import re
+            match = re.search(r"'formatted_analysis': \"(.*?)\"", detailed_text, re.DOTALL)
+            if match:
+                formatted_content = match.group(1)
+                # Clean up the content
+                formatted_content = formatted_content.replace('\\n', '\n').replace('\\"', '"')
+                display_solution_content(formatted_content)
+                return
+        
+        # If no formatted_analysis found, try to parse the text directly
+        display_solution_content(detailed_text)
+        
+    except Exception as e:
+        logger.error(f"Error parsing structured solutions: {e}")
+        # Fallback to regular text display
+        st.markdown(
+            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{detailed_text}</p>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+def display_solution_content(content):
+    """Display solution content with proper formatting"""
+    # Split content into sections
+    sections = content.split('#### **Problem')
+    
+    for i, section in enumerate(sections):
+        if not section.strip():
+            continue
+            
+        if i == 0:
+            # Introduction section
+            if section.strip():
+                st.markdown(
+                    f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e3f2fd, #ffffff); border-left: 4px solid #2196f3; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{section.strip()}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+        else:
+            # Problem section
+            display_problem_section(section)
+
+def display_problem_section(section):
+    """Display a single problem section with solutions"""
+    lines = section.strip().split('\n')
+    if not lines:
+        return
+    
+    # Extract problem title and description
+    problem_title = lines[0].strip()
+    if not problem_title:
+        return
+    
+    # Create problem header
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    ">
+        <h3 style="margin: 0; font-size: 20px; font-weight: 600;">
+            🚨 {problem_title}
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Parse and display solutions
+    current_solution = None
+    current_approach = None
+    solution_data = {}
+    
+    for line in lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Check for approach headers
+        if 'High-Investment Approach' in line:
+            current_approach = 'high'
+            current_solution = 'high'
+        elif 'Moderate-Investment Approach' in line:
+            current_approach = 'medium'
+            current_solution = 'medium'
+        elif 'Low-Investment Approach' in line:
+            current_approach = 'low'
+            current_solution = 'low'
+        elif line.startswith('**Product:**'):
+            if current_approach:
+                solution_data[current_approach] = solution_data.get(current_approach, {})
+                solution_data[current_approach]['product'] = line.replace('**Product:**', '').strip()
+        elif line.startswith('**Rate:**'):
+            if current_approach:
+                solution_data[current_approach]['rate'] = line.replace('**Rate:**', '').strip()
+        elif line.startswith('**Timing & Method:**'):
+            if current_approach:
+                solution_data[current_approach]['timing'] = line.replace('**Timing & Method:**', '').strip()
+        elif line.startswith('**Biological/Agronomic Effects:**'):
+            if current_approach:
+                solution_data[current_approach]['effects'] = line.replace('**Biological/Agronomic Effects:**', '').strip()
+        elif line.startswith('**Impact:**'):
+            if current_approach:
+                solution_data[current_approach]['impact'] = line.replace('**Impact:**', '').strip()
+        elif line.startswith('**Cost Label:**'):
+            if current_approach:
+                solution_data[current_approach]['cost'] = line.replace('**Cost Label:**', '').strip()
+    
+    # Display solutions in columns
+    if solution_data:
+        col1, col2, col3 = st.columns(3)
+        
+        # High Investment
+        if 'high' in solution_data:
+            with col1:
+                display_solution_card('high', solution_data['high'], 'High Investment', '#dc3545')
+        
+        # Medium Investment
+        if 'medium' in solution_data:
+            with col2:
+                display_solution_card('medium', solution_data['medium'], 'Medium Investment', '#ffc107')
+        
+        # Low Investment
+        if 'low' in solution_data:
+            with col3:
+                display_solution_card('low', solution_data['low'], 'Low Investment', '#6c757d')
+    
+    st.markdown("---")
+
+def display_solution_card(level, data, title, color):
+    """Display a solution card"""
+    st.markdown(f"""
+    <div style="
+        background: {color};
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    ">
+        <h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">
+            💰 {title}
+        </h4>
+        <p style="margin: 5px 0; font-size: 14px;"><strong>Product:</strong> {data.get('product', 'N/A')}</p>
+        <p style="margin: 5px 0; font-size: 14px;"><strong>Rate:</strong> {data.get('rate', 'N/A')}</p>
+        <p style="margin: 5px 0; font-size: 14px;"><strong>Timing:</strong> {data.get('timing', 'N/A')}</p>
+        <p style="margin: 5px 0; font-size: 14px;"><strong>Cost:</strong> {data.get('cost', 'N/A')}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_dict_analysis(detailed_dict):
+    """Display analysis data from dictionary format"""
+    for key, value in detailed_dict.items():
+        if isinstance(value, (str, int, float)) and value:
+            st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+        elif isinstance(value, dict) and value:
+            st.markdown(f"**{key.replace('_', ' ').title()}:**")
+            for sub_key, sub_value in value.items():
+                st.markdown(f"- {sub_key.replace('_', ' ').title()}: {sub_value}")
+
 def display_step3_solution_recommendations(analysis_data):
     """Display Step 3: Solution Recommendations with enhanced structure and layout"""
     
@@ -2013,28 +2182,34 @@ def display_step3_solution_recommendations(analysis_data):
                 )
             st.markdown("")
     
-    # 3. DETAILED ANALYSIS SECTION - Show if available
+    # 3. DETAILED ANALYSIS SECTION - Enhanced parsing and formatting
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
         st.markdown("### 📋 Detailed Analysis")
         detailed_text = analysis_data['detailed_analysis']
         
-        # Ensure detailed_text is a string
-        if isinstance(detailed_text, dict):
-            detailed_text = str(detailed_text)
-        elif not isinstance(detailed_text, str):
-            detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
+        # Parse and format the detailed analysis properly
+        if isinstance(detailed_text, str) and detailed_text.strip():
+            # Check if it contains structured solution data
+            if 'formatted_analysis' in detailed_text or 'Problem' in detailed_text:
+                # Parse structured solution recommendations
+                display_structured_solutions(detailed_text)
+            else:
+                # Display as regular text with proper formatting
+                paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
+                for paragraph in paragraphs:
+                    if paragraph.strip():
+                        st.markdown(
+                            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+        elif isinstance(detailed_text, dict):
+            # Handle dict format
+            display_dict_analysis(detailed_text)
+        else:
+            st.info("No detailed analysis available in a readable format.")
         
-        # Split into paragraphs for better formatting
-        paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
-        
-        for paragraph in paragraphs:
-            if isinstance(paragraph, str) and paragraph.strip():
-                st.markdown(
-                    f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
         st.markdown("")
     
     # 4. SOLUTION RECOMMENDATIONS SECTION - Enhanced layout
