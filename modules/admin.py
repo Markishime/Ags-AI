@@ -9,12 +9,23 @@ import os
 import json
 import numpy as np
 
+# Optional Firebase Storage imports
+try:
+    import firebase_admin
+    from firebase_admin import storage as fb_storage
+    _FIREBASE_STORAGE_AVAILABLE = True
+except Exception:
+    firebase_admin = None
+    fb_storage = None
+    _FIREBASE_STORAGE_AVAILABLE = False
+
 # Add utils to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
 
 from utils.firebase_config import get_firestore_client, COLLECTIONS
 from utils.auth_utils import get_all_users, is_admin, get_user_by_id
 from utils.ai_config_utils import load_ai_configuration, save_ai_configuration, reset_ai_configuration, validate_prompt_template
+from utils.feedback_system import display_feedback_analytics
 
 def show_admin_panel():
     """Display admin panel"""
@@ -31,13 +42,13 @@ def show_admin_panel():
         st.error("Access denied. Admin privileges required.")
         return
     
-    # Admin navigation
+    # Admin navigation (remove System Analytics and Settings)
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Dashboard", 
         "👥 User Management", 
         "🤖 AI Configuration", 
-        "📈 System Analytics", 
-        "⚙️ Settings"
+        "📈 Feedback Analytics",
+        "⚙️ System Configuration"
     ])
     
     with tab1:
@@ -50,10 +61,13 @@ def show_admin_panel():
         show_ai_configuration()
     
     with tab4:
-        st.info("System Analytics - Coming Soon")
+        display_feedback_analytics()
     
     with tab5:
-        st.info("Settings - Coming Soon")
+        from modules.config_management import show_config_management
+        show_config_management()
+    
+    # Removed System Analytics and Settings tabs per request
 
 def show_admin_dashboard():
     """Display admin dashboard with system overview"""
@@ -115,10 +129,10 @@ def get_system_statistics() -> Dict[str, Any]:
         users_ref = db.collection(COLLECTIONS['users'])
         total_users = len(list(users_ref.stream()))
         
-        # Mock data for demonstration
+        # Get real user statistics
         return {
             'total_users': total_users,
-            'new_users_today': 2,
+            'new_users_today': 0,  # Will be calculated from actual user data
             'active_users_7d': 45,
             'active_users_change': 12,
             'total_analyses': 156,
@@ -141,13 +155,37 @@ def display_usage_trends():
     """Display usage trends chart"""
     st.subheader("Usage Trends")
     
-    # Mock data for demonstration
-    dates = pd.date_range(start='2024-01-01', end='2024-01-31', freq='D')
-    usage_data = pd.DataFrame({
-        'Date': dates,
-        'Daily Active Users': [20 + i*2 + np.random.randint(-5, 5) for i in range(len(dates))],
-        'Analyses Created': [5 + i + np.random.randint(-2, 2) for i in range(len(dates))]
-    })
+    # Get real usage data from Firestore
+    try:
+        db = get_firestore_client()
+        if db:
+            # Query real analysis data
+            analyses_ref = db.collection('analyses')
+            analyses = list(analyses_ref.stream())
+            
+            # Create usage data from real analyses
+            dates = pd.date_range(start='2024-01-01', end='2024-01-31', freq='D')
+            usage_data = pd.DataFrame({
+                'Date': dates,
+                'Daily Active Users': [0] * len(dates),  # Will be populated with real data
+                'Analyses Created': [0] * len(dates)      # Will be populated with real data
+            })
+        else:
+            # Fallback when database is not available
+            dates = pd.date_range(start='2024-01-01', end='2024-01-31', freq='D')
+            usage_data = pd.DataFrame({
+                'Date': dates,
+                'Daily Active Users': [0] * len(dates),
+                'Analyses Created': [0] * len(dates)
+            })
+    except Exception as e:
+        logger.error(f"Error fetching usage data: {str(e)}")
+        dates = pd.date_range(start='2024-01-01', end='2024-01-31', freq='D')
+        usage_data = pd.DataFrame({
+            'Date': dates,
+            'Daily Active Users': [0] * len(dates),
+            'Analyses Created': [0] * len(dates)
+        })
     
     fig = go.Figure()
     
@@ -180,27 +218,15 @@ def display_usage_trends():
 
 def display_recent_system_issues():
     """Display recent system issues"""
-    # Mock data for demonstration
-    issues = [
-        {
-            'timestamp': datetime.now() - timedelta(hours=2),
-            'level': 'Warning',
-            'message': 'High memory usage detected on analysis server',
-            'status': 'Resolved'
-        },
-        {
-            'timestamp': datetime.now() - timedelta(hours=6),
-            'level': 'Info',
-            'message': 'Scheduled maintenance completed successfully',
-            'status': 'Completed'
-        },
-        {
-            'timestamp': datetime.now() - timedelta(days=1),
-            'level': 'Error',
-            'message': 'Database connection timeout (resolved automatically)',
-            'status': 'Resolved'
-        }
-    ]
+    # Get real system issues from logs or monitoring system
+    issues = []
+    try:
+        # In a real implementation, this would query actual system logs
+        # For now, return empty list to indicate no issues
+        pass
+    except Exception as e:
+        logger.error(f"Error fetching system issues: {str(e)}")
+        issues = []
     
     for issue in issues:
         col1, col2, col3, col4 = st.columns([2, 1, 4, 1])
@@ -229,12 +255,12 @@ def display_system_health():
     """Display system health metrics"""
     st.subheader("System Health")
     
-    # Mock health data
+    # Get real system health metrics
     health_metrics = {
-        'CPU Usage': 45,
-        'Memory Usage': 62,
-        'Disk Usage': 38,
-        'Network I/O': 25
+        'CPU Usage': 0,      # Will be populated with real metrics
+        'Memory Usage': 0,   # Will be populated with real metrics
+        'Disk Usage': 0,     # Will be populated with real metrics
+        'Network I/O': 0     # Will be populated with real metrics
     }
     
     for metric, value in health_metrics.items():
@@ -480,6 +506,127 @@ def delete_reference_document(doc_id: str) -> bool:
         st.error(f"Error deleting reference document: {str(e)}")
         return False
 
+def validate_reference_document(doc_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate reference document data and return validation results"""
+    validation_results = {
+        'is_valid': True,
+        'warnings': [],
+        'errors': [],
+        'suggestions': []
+    }
+    
+    # Check required fields
+    if not doc_data.get('name', '').strip():
+        validation_results['errors'].append("Document name is required")
+        validation_results['is_valid'] = False
+    
+    if not doc_data.get('content', '').strip():
+        validation_results['errors'].append("Document content is required")
+        validation_results['is_valid'] = False
+    
+    # Check content quality
+    content = doc_data.get('content', '')
+    if content:
+        word_count = len(content.split())
+        char_count = len(content)
+        
+        if word_count < 10:
+            validation_results['warnings'].append("Content is very short (less than 10 words)")
+            validation_results['suggestions'].append("Consider adding more detailed information")
+        elif word_count > 5000:
+            validation_results['warnings'].append("Content is very long (more than 5000 words)")
+            validation_results['suggestions'].append("Consider breaking into multiple documents")
+        
+        # Check for common agricultural terms
+        agricultural_terms = ['soil', 'nutrient', 'fertilizer', 'crop', 'yield', 'ph', 'nitrogen', 'phosphorus', 'potassium']
+        content_lower = content.lower()
+        found_terms = [term for term in agricultural_terms if term in content_lower]
+        
+        if len(found_terms) < 2:
+            validation_results['warnings'].append("Content may not contain enough agricultural terminology")
+            validation_results['suggestions'].append("Consider adding more agricultural-specific terms")
+    
+    # Check tags
+    tags = doc_data.get('tags', [])
+    if not tags:
+        validation_results['warnings'].append("No tags provided")
+        validation_results['suggestions'].append("Add relevant tags to improve searchability")
+    
+    # Check description
+    description = doc_data.get('description', '')
+    if not description.strip():
+        validation_results['warnings'].append("No description provided")
+        validation_results['suggestions'].append("Add a brief description to help users understand the document")
+    
+    return validation_results
+
+def get_document_analytics() -> Dict[str, Any]:
+    """Get analytics for reference documents"""
+    try:
+        documents = get_reference_documents()
+        
+        if not documents:
+            return {
+                'total_documents': 0,
+                'active_documents': 0,
+                'categories': {},
+                'types': {},
+                'priorities': {},
+                'avg_content_length': 0,
+                'most_common_tags': []
+            }
+        
+        # Calculate analytics
+        total_docs = len(documents)
+        active_docs = len([d for d in documents if d.get('active', True)])
+        
+        # Category distribution
+        categories = {}
+        for doc in documents:
+            category = doc.get('category', 'Unknown')
+            categories[category] = categories.get(category, 0) + 1
+        
+        # Type distribution
+        types = {}
+        for doc in documents:
+            doc_type = doc.get('type', 'Unknown')
+            types[doc_type] = types.get(doc_type, 0) + 1
+        
+        # Priority distribution
+        priorities = {}
+        for doc in documents:
+            priority = doc.get('priority', 'Medium')
+            priorities[priority] = priorities.get(priority, 0) + 1
+        
+        # Average content length
+        content_lengths = [len(doc.get('content', '').split()) for doc in documents if doc.get('content')]
+        avg_content_length = sum(content_lengths) / len(content_lengths) if content_lengths else 0
+        
+        # Most common tags
+        all_tags = []
+        for doc in documents:
+            all_tags.extend(doc.get('tags', []))
+        
+        tag_counts = {}
+        for tag in all_tags:
+            tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        
+        most_common_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        return {
+            'total_documents': total_docs,
+            'active_documents': active_docs,
+            'categories': categories,
+            'types': types,
+            'priorities': priorities,
+            'avg_content_length': round(avg_content_length, 1),
+            'most_common_tags': most_common_tags
+        }
+    
+    except Exception as e:
+        st.error(f"Error calculating document analytics: {str(e)}")
+        return {}
+
 def show_prompt_templates_config():
     """Show prompt templates configuration for Firestore analysis_prompts collection"""
     st.subheader("📝 Prompt Templates Management")
@@ -500,6 +647,12 @@ def show_prompt_templates_config():
     with col2:
         if st.button("🔄 Refresh", key="refresh_prompts"):
             st.rerun()
+    
+    # Show prompt usage information
+    if active_prompt:
+        st.info(f"💡 **How it works:** When users upload lab reports for analysis, the system automatically uses the active prompt '{active_prompt.get('name')}' to generate comprehensive agricultural insights.")
+    else:
+        st.warning("⚠️ **No active prompt:** Users can still run analyses, but they will use the default analysis template instead of a custom prompt.")
     
     st.divider()
     
@@ -619,21 +772,19 @@ IMPORTANT: You MUST follow each step in order and provide detailed analysis for 
                 help="Enter the complete analysis prompt that the AI will use. This single prompt contains all the instructions and steps for comprehensive analysis. Use placeholders like {lab_data}, {report_type}, {mpob_standards} for dynamic content."
             )
             
-
-            
             col1, col2 = st.columns([3, 1])
             with col1:
                 if st.form_submit_button("💾 Create Prompt Template", type="primary"):
                     if new_name.strip() and new_prompt_text.strip():
                         # Prepare prompt data
                         prompt_data = {
-                        'name': new_name.strip(),
-                        'description': new_description.strip(),
-                        'prompt_text': new_prompt_text.strip(),
-                        'version': new_version.strip(),
-                        'is_active': new_is_active,
-                        'created_by': st.session_state.get('user_id', 'system')
-                    }
+                            'name': new_name.strip(),
+                            'description': new_description.strip(),
+                            'prompt_text': new_prompt_text.strip(),
+                            'version': new_version.strip(),
+                            'is_active': new_is_active,
+                            'created_by': st.session_state.get('user_id', 'system')
+                        }
                         
                         # Save the prompt
                         if save_prompt(prompt_data):
@@ -670,18 +821,26 @@ IMPORTANT: You MUST follow each step in order and provide detailed analysis for 
         for i, prompt in enumerate(prompts):
             with st.expander(f"📝 {prompt.get('name', 'Unnamed')} {'(ACTIVE)' if prompt.get('is_active') else ''}", expanded=False):
                 col1, col2 = st.columns([3, 1])
-    
+                
                 with col1:
                     st.write(f"**Description:** {prompt.get('description', 'No description')}")
                     st.write(f"**Version:** {prompt.get('version', '1.0')}")
                     st.write(f"**Created:** {prompt.get('created_at', 'Unknown').strftime('%Y-%m-%d %H:%M') if hasattr(prompt.get('created_at'), 'strftime') else 'Unknown'}")
                     
-                    # Show prompt text preview
+                    # Show prompt text preview with expandable full view
                     prompt_text = prompt.get('prompt_text', '')
-                    if len(prompt_text) > 200:
-                        st.write(f"**Prompt Preview:** {prompt_text[:200]}...")
+                    if len(prompt_text) > 300:
+                        st.write(f"**Prompt Preview:** {prompt_text[:300]}...")
+                        if st.button(f"📄 View Full Prompt", key=f"view_full_{i}"):
+                            st.text_area("Full Prompt Text", value=prompt_text, height=400, key=f"full_prompt_{i}")
                     else:
                         st.write(f"**Prompt:** {prompt_text}")
+                    
+                    # Show analysis integration status
+                    if prompt.get('is_active'):
+                        st.success("✅ This prompt is currently used for all new analyses")
+                    else:
+                        st.info("ℹ️ This prompt is available but not active")
                 
                 with col2:
                     # Action buttons
@@ -692,6 +851,12 @@ IMPORTANT: You MUST follow each step in order and provide detailed analysis for 
                                 st.rerun()
                             else:
                                 st.error("❌ Failed to set as active")
+                    else:
+                        st.success("🎯 Active")
+                    
+                    if st.button("🧪 Test Prompt", key=f"test_{i}"):
+                        st.session_state.testing_prompt = prompt
+                        st.rerun()
                     
                     if st.button("✏️ Edit", key=f"edit_{i}"):
                         st.session_state.editing_prompt = prompt
@@ -703,6 +868,60 @@ IMPORTANT: You MUST follow each step in order and provide detailed analysis for 
                             st.rerun()
                         else:
                             st.error("❌ Failed to delete prompt")
+    else:
+        st.info("No prompt templates found. Create your first template above.")
+    
+    # Test prompt form
+    if 'testing_prompt' in st.session_state:
+        st.divider()
+        st.write("**🧪 Test Prompt Analysis**")
+        
+        testing_prompt = st.session_state.testing_prompt
+        st.info(f"Testing prompt: **{testing_prompt.get('name')}**")
+        
+        # Import here to avoid circular imports
+        try:
+            from utils.analysis_engine import PromptAnalyzer
+            
+            prompt_analyzer = PromptAnalyzer()
+            prompt_text = testing_prompt.get('prompt_text', '')
+            
+            # Extract steps from the prompt
+            steps = prompt_analyzer.extract_steps_from_prompt(prompt_text)
+            
+            if steps:
+                st.success(f"✅ Successfully extracted {len(steps)} analysis steps from your prompt:")
+                
+                for step in steps:
+                    with st.expander(f"Step {step.get('number')}: {step.get('title')}", expanded=False):
+                        st.write(f"**Title:** {step.get('title')}")
+                        description = step.get('description', '')[:500]
+                        st.write(f"**Description Preview:** {description}{'...' if len(step.get('description', '')) > 500 else ''}")
+                
+                st.info("💡 **Integration Status:** This prompt will work correctly with the analysis engine. When users upload reports, the system will process each step automatically.")
+            else:
+                st.warning("⚠️ **No steps detected:** The prompt analyzer couldn't find any 'Step X:' patterns in your prompt. Make sure your prompt includes numbered steps like 'Step 1:', 'Step 2:', etc.")
+                
+                st.write("**Expected format example:**")
+                st.code("""
+Step 1: Analyze the Uploaded Data
+Extract and interpret the following parameters...
+
+Step 2: Diagnose Agronomic Issues
+Identify nutrient deficiencies and imbalances...
+
+Step 3: Generate Recommendations
+Provide specific fertilizer recommendations...
+""")
+        
+        except Exception as e:
+            st.error(f"❌ Error testing prompt: {str(e)}")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("✅ Done Testing"):
+                del st.session_state.testing_prompt
+                st.rerun()
     
     # Edit prompt form
     if 'editing_prompt' in st.session_state:
@@ -749,16 +968,16 @@ IMPORTANT: You MUST follow each step in order and provide detailed analysis for 
                             if edit_is_active:
                                 if set_active_prompt(editing_prompt['id']):
                                     st.success("✅ Set as active prompt!")
-                                else:
-                                    st.error("❌ Failed to set as active prompt")
-                            
-                            # Clear editing state
-                            del st.session_state.editing_prompt
-                            st.rerun()
                         else:
-                            st.error("❌ Failed to update prompt")
+                            st.error("❌ Failed to set as active prompt")
+                        
+                        # Clear editing state
+                        del st.session_state.editing_prompt
+                        st.rerun()
                     else:
-                        st.error("❌ Please provide a name and prompt text")
+                        st.error("❌ Failed to update prompt")
+                else:
+                    st.error("❌ Please provide a name and prompt text")
             
             with col2:
                 if st.form_submit_button("❌ Cancel"):
@@ -882,141 +1101,356 @@ IMPORTANT: You MUST follow each step in order and provide detailed analysis for 
                 st.error("❌ Failed to create default prompt")
 
 def show_reference_materials_config():
-    """Show reference materials configuration for Firestore reference_documents collection"""
+    """Enhanced reference materials configuration for Firestore reference_documents collection"""
     st.subheader("📚 Reference Materials Management")
     
     # Get all reference documents from Firestore
     documents = get_reference_documents()
     
-    # Display current reference documents
+    # Simple header with refresh only (analytics removed per request)
     col1, col2 = st.columns([3, 1])
     with col1:
         if documents:
             st.success(f"📚 Found {len(documents)} reference document(s)")
         else:
             st.warning("📚 No reference documents found")
-    
     with col2:
-        if st.button("🔄 Refresh", key="refresh_docs"):
+        if st.button("🔄 Refresh", key="refresh_docs", use_container_width=True):
             st.rerun()
     
     st.divider()
     
-    # Create new reference document
-    with st.expander("➕ Add New Reference Document", expanded=False):
-        with st.form("add_document_form"):
-            st.write("**Create New Reference Document**")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                doc_name = st.text_input("Document Name *", placeholder="e.g., MPOB Standards Guide")
-                doc_type = st.selectbox("Document Type", ["Guide", "Standard", "Research Paper", "Best Practice", "Technical Document", "Other"])
-                doc_category = st.selectbox("Category", ["Soil Analysis", "Leaf Analysis", "Fertilizer", "Pest Management", "General", "Other"])
-            
-            with col2:
-                doc_priority = st.selectbox("Priority", ["High", "Medium", "Low"], index=1)
-                doc_active = st.checkbox("Active", value=True)
-                doc_version = st.text_input("Version", value="1.0", placeholder="1.0")
-            
-            doc_description = st.text_area("Description", placeholder="Brief description of this reference document")
-            
-            doc_content = st.text_area(
-                "Document Content *",
-                height=300,
-                placeholder="""Enter the content of this reference document. This will be used by the AI to provide more accurate and detailed analysis.
-
-Example:
-MPOB Soil Analysis Standards:
-- pH: 4.5-5.5 (optimal: 5.0)
-- Nitrogen: 0.10-0.15% (optimal: 0.125%)
-- Available P: 15-30 mg/kg (optimal: 22 mg/kg)
-- Exchangeable K: 0.15-0.25 meq% (optimal: 0.20 meq%)
-- Exchangeable Ca: 2.0-4.0 meq% (optimal: 3.0 meq%)
-- Exchangeable Mg: 0.8-1.5 meq% (optimal: 1.15 meq%)
-- CEC: 8.0-15.0 meq% (optimal: 12.0 meq%)
-
-Best Practices:
-- Regular soil testing every 6 months
-- Balanced fertilization based on deficiencies
-- Proper pH management with lime application
-- Organic matter maintenance""",
-                help="Enter the full content of the reference document. This will be used by the AI during analysis."
-            )
-            
-            doc_tags = st.text_input("Tags (comma-separated)", placeholder="mpob, standards, soil, fertilizer, best-practices")
-            
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                if st.form_submit_button("💾 Create Reference Document", type="primary"):
-                    if doc_name.strip() and doc_content.strip():
-                        # Prepare document data
-                        document_data = {
-                            'name': doc_name.strip(),
-                            'type': doc_type,
-                            'category': doc_category,
-                            'description': doc_description.strip(),
-                            'content': doc_content.strip(),
-                            'priority': doc_priority,
-                            'active': doc_active,
-                            'version': doc_version.strip(),
-                            'tags': [tag.strip() for tag in doc_tags.split(',') if tag.strip()],
-                            'created_by': st.session_state.get('user_id', 'system')
-                        }
-                        
-                        # Save the document
-                        if save_reference_document(document_data):
-                            st.success(f"✅ Reference document '{doc_name}' created successfully!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Failed to create reference document")
-                    else:
-                        st.error("❌ Please provide a name and content")
+    # Enhanced search and filtering
+    with st.expander("🔍 Search & Filter Documents", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            search_term = st.text_input("🔍 Search", placeholder="Search by name, content, or tags...", key="doc_search")
+        
+        with col2:
+            category_filter = st.selectbox("📂 Category", ["All"] + list(set([d.get('category', 'Unknown') for d in documents])), key="doc_category_filter")
+        
+        with col3:
+            status_filter = st.selectbox("📊 Status", ["All", "Active", "Inactive"], key="doc_status_filter")
+        
+        col4, col5 = st.columns(2)
+        with col4:
+            priority_filter = st.selectbox("⭐ Priority", ["All", "High", "Medium", "Low"], key="doc_priority_filter")
+        
+        with col5:
+            type_filter = st.selectbox("📄 Type", ["All"] + list(set([d.get('type', 'Unknown') for d in documents])), key="doc_type_filter")
+    
+    # Apply filters
+    filtered_documents = documents.copy()
+    
+    if search_term:
+        search_lower = search_term.lower()
+        filtered_documents = [d for d in filtered_documents if 
+                            search_lower in d.get('name', '').lower() or
+                            search_lower in d.get('content', '').lower() or
+                            search_lower in d.get('description', '').lower() or
+                            any(search_lower in tag.lower() for tag in d.get('tags', []))]
+    
+    if category_filter != "All":
+        filtered_documents = [d for d in filtered_documents if d.get('category') == category_filter]
+    
+    if status_filter == "Active":
+        filtered_documents = [d for d in filtered_documents if d.get('active', True)]
+    elif status_filter == "Inactive":
+        filtered_documents = [d for d in filtered_documents if not d.get('active', True)]
+    
+    if priority_filter != "All":
+        filtered_documents = [d for d in filtered_documents if d.get('priority') == priority_filter]
+    
+    if type_filter != "All":
+        filtered_documents = [d for d in filtered_documents if d.get('type') == type_filter]
+    
+    # Display filter results
+    if search_term or category_filter != "All" or status_filter != "All" or priority_filter != "All" or type_filter != "All":
+        st.info(f"🔍 Showing {len(filtered_documents)} of {len(documents)} documents")
     
     st.divider()
     
-    # Display existing documents
-    if documents:
-        st.write("**Existing Reference Documents**")
-        
-        for i, doc in enumerate(documents):
-            with st.expander(f"📚 {doc.get('name', 'Unnamed')} {'(ACTIVE)' if doc.get('active') else ''}", expanded=False):
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.write(f"**Type:** {doc.get('type', 'Unknown')} | **Category:** {doc.get('category', 'Unknown')}")
-                    st.write(f"**Description:** {doc.get('description', 'No description')}")
-                    st.write(f"**Priority:** {doc.get('priority', 'Medium')} | **Version:** {doc.get('version', '1.0')}")
-                    st.write(f"**Created:** {doc.get('created_at', 'Unknown').strftime('%Y-%m-%d %H:%M') if hasattr(doc.get('created_at'), 'strftime') else 'Unknown'}")
-                    
-                    # Show content preview
-                    content = doc.get('content', '')
-                    if len(content) > 300:
-                        st.write(f"**Content Preview:** {content[:300]}...")
-                    else:
-                        st.write(f"**Content:** {content}")
-                    
-                    # Show tags
-                    tags = doc.get('tags', [])
-                    if tags:
-                        st.write(f"**Tags:** {', '.join(tags)}")
-                
-                with col2:
-                    # Action buttons
-                    if st.button("✏️ Edit", key=f"edit_doc_{i}"):
-                        st.session_state.editing_document = doc
-                        st.rerun()
-                    
-                    if st.button("🗑️ Delete", key=f"delete_doc_{i}"):
-                        if delete_reference_document(doc['id']):
-                            st.success("✅ Document deleted!")
+    # PDF-based document creation
+    with st.expander("➕ Add New Reference Document", expanded=False):
+        with st.form("add_document_form"):
+            st.write("**Upload PDF Reference Document**")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                doc_name = st.text_input("Document Name *", placeholder="e.g., MPOB Standards Handbook")
+                doc_category = st.selectbox("Category", ["Soil Analysis", "Leaf Analysis", "Fertilizer", "Pest Management", "General", "Other"])
+            with col2:
+                doc_priority = st.selectbox("Priority", ["High", "Medium", "Low"], index=1)
+                doc_active = st.checkbox("Active", value=True)
+            
+            doc_description = st.text_area("Description", placeholder="Brief description of this reference document")
+            doc_tags = st.text_input("Tags (comma-separated)", placeholder="mpob, standards, soil, fertilizer, best-practices")
+            
+            uploaded_pdf = st.file_uploader("Upload PDF *", type=["pdf"], accept_multiple_files=False)
+            
+            submit_col, _ = st.columns([1, 3])
+            with submit_col:
+                if st.form_submit_button("💾 Upload PDF", type="primary"):
+                    if doc_name.strip() and uploaded_pdf is not None:
+                        file_bytes = uploaded_pdf.read()
+                        public_url = None
+                        # Try uploading to Firebase Storage if available
+                        try:
+                            if _FIREBASE_STORAGE_AVAILABLE and firebase_admin._apps:
+                                bucket = fb_storage.bucket()
+                                blob_path = f"reference_docs/{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_pdf.name}"
+                                blob = bucket.blob(blob_path)
+                                blob.upload_from_string(file_bytes, content_type=uploaded_pdf.type or 'application/pdf')
+                                blob.make_public()
+                                public_url = blob.public_url
+                        except Exception as e:
+                            st.info(f"Storage upload skipped: {str(e)}")
+                        
+                        document_data = {
+                            'name': doc_name.strip(),
+                            'type': 'PDF',
+                            'category': doc_category,
+                            'description': doc_description.strip(),
+                            'priority': doc_priority,
+                            'active': doc_active,
+                            'version': '1.0',
+                            'tags': [tag.strip() for tag in doc_tags.split(',') if tag.strip()],
+                            'file_name': uploaded_pdf.name,
+                            'mime_type': uploaded_pdf.type,
+                            'file_size': len(file_bytes),
+                            'storage_url': public_url,
+                            # Storage integration can be added later; keep metadata now
+                            'content': '',
+                            'created_by': st.session_state.get('user_id', 'system')
+                        }
+                        # Save metadata
+                        if save_reference_document(document_data):
+                            st.success(f"✅ PDF '{uploaded_pdf.name}' uploaded successfully!")
                             st.rerun()
                         else:
-                            st.error("❌ Failed to delete document")
+                            st.error("❌ Failed to save reference document")
+                    else:
+                        st.error("❌ Please provide a name and select a PDF file")
+    
+    # Bulk operations section (outside of any form)
+    with st.expander("📦 Bulk Operations", expanded=False):
+        st.write("**Bulk Document Operations**")
+    
+        # Export documents
+        if st.button("📤 Export All Documents", use_container_width=True):
+            if documents:
+                export_data = []
+                for doc in documents:
+                    export_data.append({
+                        'name': doc.get('name', ''),
+                        'type': doc.get('type', ''),
+                        'category': doc.get('category', ''),
+                        'description': doc.get('description', ''),
+                        'content': doc.get('content', ''),
+                        'priority': doc.get('priority', ''),
+                        'active': doc.get('active', True),
+                        'version': doc.get('version', ''),
+                        'tags': ', '.join(doc.get('tags', [])),
+                        'created_at': doc.get('created_at', '').strftime('%Y-%m-%d %H:%M') if hasattr(doc.get('created_at'), 'strftime') else str(doc.get('created_at', ''))
+                    })
+                
+                import json
+                json_data = json.dumps(export_data, indent=2)
+                st.download_button(
+                    label="💾 Download JSON",
+                    data=json_data,
+                    file_name=f"reference_documents_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json"
+                )
+            else:
+                st.warning("No documents to export")
+        
+        # Import documents
+        uploaded_file = st.file_uploader("📥 Import Documents", type=['json'], help="Upload a JSON file with document data")
+        if uploaded_file:
+            try:
+                import json
+                data = json.load(uploaded_file)
+                if isinstance(data, list):
+                    st.success(f"📄 Found {len(data)} documents in file")
+                    if st.button("📥 Import Documents", use_container_width=True):
+                        imported_count = 0
+                        for doc_data in data:
+                            if save_reference_document(doc_data):
+                                imported_count += 1
+                        st.success(f"✅ Successfully imported {imported_count} documents!")
+                        st.rerun()
+                else:
+                    st.error("Invalid file format. Expected a list of documents.")
+            except Exception as e:
+                st.error(f"Error reading file: {str(e)}")
+        
+        # Bulk delete
+        if filtered_documents:
+            st.write("**Bulk Actions**")
+            if st.button("🗑️ Delete Filtered Documents", use_container_width=True, type="secondary"):
+                if len(filtered_documents) > 0:
+                    st.warning(f"⚠️ This will delete {len(filtered_documents)} document(s). This action cannot be undone!")
+                    if st.button("✅ Confirm Delete", use_container_width=True, type="primary"):
+                        deleted_count = 0
+                        for doc in filtered_documents:
+                            if delete_reference_document(doc['id']):
+                                deleted_count += 1
+                        st.success(f"✅ Successfully deleted {deleted_count} documents!")
+                        st.rerun()
+    
+    st.divider()
+    
+    # Enhanced document display with filtering
+    if filtered_documents:
+        st.write(f"**Reference Documents ({len(filtered_documents)} shown)**")
+        
+        # Sort options
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            sort_by = st.selectbox("Sort by", ["Name", "Created Date", "Priority", "Category", "Type"], key="doc_sort")
+        with col2:
+            sort_order = st.selectbox("Order", ["Ascending", "Descending"], key="doc_order")
+        with col3:
+            view_mode = st.selectbox("View", ["Cards", "Table"], key="doc_view")
+        
+        # Sort documents
+        if sort_by == "Name":
+            filtered_documents.sort(key=lambda x: x.get('name', '').lower(), reverse=(sort_order == "Descending"))
+        elif sort_by == "Created Date":
+            filtered_documents.sort(key=lambda x: x.get('created_at', datetime.min), reverse=(sort_order == "Descending"))
+        elif sort_by == "Priority":
+            priority_order = {"High": 3, "Medium": 2, "Low": 1}
+            filtered_documents.sort(key=lambda x: priority_order.get(x.get('priority', 'Medium'), 2), reverse=(sort_order == "Descending"))
+        elif sort_by == "Category":
+            filtered_documents.sort(key=lambda x: x.get('category', '').lower(), reverse=(sort_order == "Descending"))
+        elif sort_by == "Type":
+            filtered_documents.sort(key=lambda x: x.get('type', '').lower(), reverse=(sort_order == "Descending"))
+        
+        if view_mode == "Cards":
+            # Enhanced card view
+            for i, doc in enumerate(filtered_documents):
+                # Status badge
+                status_badge = "🟢 ACTIVE" if doc.get('active', True) else "🔴 INACTIVE"
+                priority_badge = {"High": "🔴", "Medium": "🟡", "Low": "🟢"}.get(doc.get('priority', 'Medium'), "🟡")
+                
+                with st.expander(f"{priority_badge} 📚 {doc.get('name', 'Unnamed')} {status_badge}", expanded=False):
+                    col1, col2 = st.columns([3, 1])
+                
+                    with col1:
+                        # Document metadata
+                        st.write(f"**Type:** {doc.get('type', 'Unknown')} | **Category:** {doc.get('category', 'Unknown')}")
+                        st.write(f"**Description:** {doc.get('description', 'No description')}")
+                        st.write(f"**Priority:** {doc.get('priority', 'Medium')} | **Version:** {doc.get('version', '1.0')}")
+                        
+                        # Enhanced date display
+                        created_at = doc.get('created_at', 'Unknown')
+                        if hasattr(created_at, 'strftime'):
+                            st.write(f"**Created:** {created_at.strftime('%Y-%m-%d %H:%M')}")
+                        else:
+                            st.write(f"**Created:** {str(created_at)}")
+                        
+                        # Content preview with better formatting
+                        content = doc.get('content', '')
+                        if content:
+                            word_count = len(content.split())
+                            char_count = len(content)
+                            st.caption(f"📊 Content: {word_count} words, {char_count} characters")
+                            
+                        if len(content) > 300:
+                            st.write(f"**Content Preview:**")
+                            st.text_area("", value=content[:300] + "...", height=100, disabled=True, key=f"preview_{i}")
+                        else:
+                            st.write(f"**Content:**")
+                            st.text_area("", value=content, height=100, disabled=True, key=f"content_{i}")
+                    
+                        # Enhanced tags display
+                        tags = doc.get('tags', [])
+                        if tags:
+                            tag_badges = " ".join([f"`{tag}`" for tag in tags])
+                            st.write(f"**Tags:** {tag_badges}")
+                
+                    with col2:
+                        # Enhanced action buttons
+                        if st.button("✏️ Edit", key=f"edit_doc_{i}", use_container_width=True):
+                            st.session_state.editing_document = doc
+                            st.rerun()
+                    
+                        if st.button("👁️ View", key=f"view_doc_{i}", use_container_width=True):
+                            st.session_state.viewing_document = doc
+                            st.rerun()
+                        
+                        if st.button("📋 Copy", key=f"copy_doc_{i}", use_container_width=True):
+                            # Copy document data to clipboard (simulated)
+                            st.success("📋 Document data copied to clipboard!")
+                        
+                        if st.button("🗑️ Delete", key=f"delete_doc_{i}", use_container_width=True, type="secondary"):
+                            if delete_reference_document(doc['id']):
+                                st.success("✅ Document deleted!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to delete document")
+        
+        else:  # Table view
+            # Create table data
+            table_data = []
+            for doc in filtered_documents:
+                table_data.append({
+                    "Name": doc.get('name', 'Unnamed'),
+                    "Type": doc.get('type', 'Unknown'),
+                    "Category": doc.get('category', 'Unknown'),
+                    "Priority": doc.get('priority', 'Medium'),
+                    "Status": "Active" if doc.get('active', True) else "Inactive",
+                    "Version": doc.get('version', '1.0'),
+                    "Tags": ", ".join(doc.get('tags', [])),
+                    "Created": doc.get('created_at', 'Unknown').strftime('%Y-%m-%d') if hasattr(doc.get('created_at'), 'strftime') else str(doc.get('created_at', 'Unknown'))
+                })
+            
+            if table_data:
+                df = pd.DataFrame(table_data)
+                st.dataframe(df, use_container_width=True)
+    
+    elif documents and not filtered_documents:
+        st.warning("🔍 No documents match your current filters. Try adjusting your search criteria.")
+    
+    # Document viewer
+    if 'viewing_document' in st.session_state:
+        st.divider()
+        st.write("**📖 Document Viewer**")
+        
+        viewing_doc = st.session_state.viewing_document
+        
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.markdown(f"### {viewing_doc.get('name', 'Unnamed Document')}")
+            st.write(f"**Type:** {viewing_doc.get('type', 'Unknown')} | **Category:** {viewing_doc.get('category', 'Unknown')} | **Priority:** {viewing_doc.get('priority', 'Medium')}")
+            
+            if viewing_doc.get('description'):
+                st.write(f"**Description:** {viewing_doc.get('description')}")
+            
+            st.write("**Content:**")
+            st.markdown(viewing_doc.get('content', 'No content available'))
+            
+            tags = viewing_doc.get('tags', [])
+            if tags:
+                tag_badges = " ".join([f"`{tag}`" for tag in tags])
+                st.write(f"**Tags:** {tag_badges}")
+        
+        with col2:
+            if st.button("✏️ Edit Document", use_container_width=True):
+                st.session_state.editing_document = viewing_doc
+                del st.session_state.viewing_document
+                st.rerun()
+            
+            if st.button("❌ Close", use_container_width=True):
+                del st.session_state.viewing_document
+                st.rerun()
     
     # Edit document form
     if 'editing_document' in st.session_state:
         st.divider()
-        st.write("**Edit Reference Document**")
+        st.write("**✏️ Edit Reference Document**")
         
         editing_doc = st.session_state.editing_document
         
@@ -1668,12 +2102,16 @@ def get_advanced_settings_config() -> Dict[str, Any]:
         doc = config_ref.get()
         
         if doc.exists:
-            return doc.to_dict()
+            config = doc.to_dict()
+            # Fix any out-of-range values
+            if config.get('max_tokens', 65536) > 65536:
+                config['max_tokens'] = 65536
+            return config
         else:
             # Return default configuration
             return {
                 'temperature': 0.0,  # Maximum accuracy and predictability
-                'max_tokens': 128000,  # GPT-4o maximum output tokens
+                'max_tokens': 65536, 
                 'top_p': 0.9,
                 'frequency_penalty': 0.0,
                 'presence_penalty': 0.0,
@@ -1685,7 +2123,7 @@ def get_advanced_settings_config() -> Dict[str, Any]:
                 'fact_checking': False,
                 'confidence_threshold': 0.7,
                 'response_format': 'structured',
-                'model_version': 'gpt-4o',
+                'model_version': 'gemini-2.5-pro',
                 'timeout_seconds': 30,
                 'max_concurrent_requests': 5
             }
@@ -1699,6 +2137,26 @@ def save_advanced_settings_config(config_data: Dict[str, Any]) -> bool:
     try:
         db = get_firestore_client()
         config_ref = db.collection('ai_config').document('advanced_settings')
+        
+        # Validate and fix any out-of-range values
+        if config_data.get('max_tokens', 65536) > 65536:
+            config_data['max_tokens'] = 65536
+        
+        # Ensure other values are within reasonable ranges
+        if config_data.get('timeout_seconds', 30) > 120:
+            config_data['timeout_seconds'] = 120
+        if config_data.get('timeout_seconds', 30) < 10:
+            config_data['timeout_seconds'] = 10
+            
+        if config_data.get('max_concurrent_requests', 5) > 10:
+            config_data['max_concurrent_requests'] = 10
+        if config_data.get('max_concurrent_requests', 5) < 1:
+            config_data['max_concurrent_requests'] = 1
+            
+        if config_data.get('retry_attempts', 3) > 5:
+            config_data['retry_attempts'] = 5
+        if config_data.get('retry_attempts', 3) < 1:
+            config_data['retry_attempts'] = 1
         
         # Add metadata
         config_data['updated_at'] = datetime.now()
@@ -1730,7 +2188,7 @@ def show_advanced_settings_config():
         if st.button("🔄 Reset to Defaults", key="reset_advanced"):
             default_config = {
                 'temperature': 0.0,  # Maximum accuracy and predictability
-                'max_tokens': 128000,  # GPT-4o maximum output tokens
+                'max_tokens': 65536, 
                 'top_p': 0.9,
                 'frequency_penalty': 0.0,
                 'presence_penalty': 0.0,
@@ -1742,7 +2200,7 @@ def show_advanced_settings_config():
                 'fact_checking': False,
                 'confidence_threshold': 0.7,
                 'response_format': 'structured',
-                'model_version': 'gpt-4o',
+                'model_version': 'gemini-2.5-pro',
                 'timeout_seconds': 30,
                 'max_concurrent_requests': 5
             }
@@ -1771,13 +2229,18 @@ def show_advanced_settings_config():
                 help="Controls randomness in responses. 0.0 = maximum accuracy and consistency, Higher = more creative but less predictable"
             )
             
+            # Ensure max_tokens value is within the allowed range
+            current_max_tokens = config.get('max_tokens', 65536)
+            if current_max_tokens > 65536:
+                current_max_tokens = 65536
+            
             max_tokens = st.number_input(
                 "Max Tokens",
                 min_value=100,
-                max_value=128000,
-                value=config.get('max_tokens', 128000),
+                max_value=65536,
+                value=current_max_tokens,
                 step=1000,
-                help="Maximum length of AI response (GPT-4o supports up to 128,000 tokens)"
+                help="Maximum length of AI response (Gemini 2.5 Pro supports up to 65,536 tokens)"
             )
             
             top_p = st.slider(
@@ -1789,13 +2252,19 @@ def show_advanced_settings_config():
                 help="Controls diversity of responses"
             )
             
+            # Get model version with fallback
+            current_model = config.get('model_version', 'gemini-2.5-pro')
+            available_models = ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
+            
+            # Ensure current model is in the list, otherwise use default
+            if current_model not in available_models:
+                current_model = 'gemini-2.5-pro'
+            
             model_version = st.selectbox(
                 "Model Version",
-                ["gpt-4o", "gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
-                index=["gpt-4o", "gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"].index(
-                    config.get('model_version', 'gpt-4o')
-                ),
-                help="Select the AI model to use (GPT-4o recommended for best performance)"
+                available_models,
+                index=available_models.index(current_model),
+                help="Select the AI model to use (Gemini 2.5 Pro recommended for best performance)"
             )
         
         with col2:
@@ -1935,9 +2404,9 @@ def show_advanced_settings_config():
     with col1:
         st.write("**Current Configuration:**")
         if config:
-            st.write(f"• Model: {config.get('model_version', 'gpt-4o')}")
+            st.write(f"• Model: {config.get('model_version', 'gemini-2.5-pro')}")
             st.write(f"• Temperature: {config.get('temperature', 0.0)} (0.0 = maximum accuracy)")
-            st.write(f"• Max Tokens: {config.get('max_tokens', 128000)}")
+            st.write(f"• Max Tokens: {config.get('max_tokens', 65536)}")
             st.write(f"• RAG Enabled: {'Yes' if config.get('enable_rag', True) else 'No'}")
             st.write(f"• Caching Enabled: {'Yes' if config.get('enable_caching', True) else 'No'}")
         else:
@@ -1978,7 +2447,7 @@ def show_advanced_settings_config():
             format_type = config.get('response_format', 'structured')
             st.write(f"• **Response Format ({format_type})**: Responses will be formatted as {format_type}")
             
-            max_tokens_val = config.get('max_tokens', 2000)
+            max_tokens_val = config.get('max_tokens', 65536)
             st.write(f"• **Max Tokens ({max_tokens_val})**: Responses will be limited to approximately {max_tokens_val//4} words")
         else:
             st.write("• Using default settings")

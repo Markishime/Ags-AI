@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import time
 from datetime import datetime
 
 # Add utils to path
@@ -16,9 +17,11 @@ import json
 from datetime import datetime
 
 # Import pages
-from pages.dashboard import show_dashboard
-from pages.upload import show_upload_page
-from pages.admin import show_admin_panel
+from modules.dashboard import show_dashboard
+from modules.upload import show_upload_page
+from modules.results import show_results_page
+from modules.history import show_history_page
+from modules.admin import show_admin_panel
 
 # Page configuration
 st.set_page_config(
@@ -83,12 +86,30 @@ st.markdown("""
 def restore_authentication_state():
     """Restore authentication state from browser storage"""
     try:
-        # Check if there's stored authentication data
-        auth_data = st.query_params.get('auth_token')
-        if auth_data:
-            # In a real implementation, you would validate the token
-            # For now, we'll use a simple approach with session state
-            pass
+        # Check if there's stored authentication data in query params
+        auth_token = st.query_params.get('auth_token')
+        user_id = st.query_params.get('user_id')
+        user_email = st.query_params.get('user_email')
+        
+        if auth_token and user_id and user_email:
+            # Restore authentication state
+            st.session_state.authenticated = True
+            st.session_state.user_id = user_id
+            st.session_state.user_email = user_email
+            st.session_state.user_name = st.query_params.get('user_name', '')
+            st.session_state.user_role = st.query_params.get('user_role', 'user')
+            
+            # Reconstruct user_info
+            st.session_state.user_info = {
+                'uid': user_id,
+                'email': user_email,
+                'name': st.query_params.get('user_name', ''),
+                'role': st.query_params.get('user_role', 'user')
+            }
+            
+            # Clear query params to avoid showing them in URL
+            st.query_params.clear()
+            
     except Exception as e:
         pass  # Silently handle errors during restoration
 
@@ -103,19 +124,33 @@ def store_authentication_state(user_info):
         st.session_state.user_role = user_info.get('role', 'user')
         st.session_state.user_info = user_info
         
-        # In a real implementation, you might store a secure token
-        # For browser persistence across sessions
-        auth_token = json.dumps({
-            'user_id': user_info.get('uid'),
-            'email': user_info.get('email'),
-            'timestamp': datetime.now().isoformat()
+        # Store authentication data in query params for persistence across page refreshes
+        st.query_params.update({
+            'auth_token': f"auth_{user_info.get('uid', '')}_{int(time.time())}",
+            'user_id': user_info.get('uid', ''),
+            'user_email': user_info.get('email', ''),
+            'user_name': user_info.get('name', ''),
+            'user_role': user_info.get('role', 'user')
         })
-        
-        # Store in browser's session storage (simplified approach)
-        st.session_state.auth_token = auth_token
         
     except Exception as e:
         pass  # Silently handle errors during storage
+
+def clear_authentication_state():
+    """Clear authentication state and query params"""
+    try:
+        # Clear session state
+        st.session_state.authenticated = False
+        st.session_state.user_id = None
+        st.session_state.user_email = None
+        st.session_state.user_name = None
+        st.session_state.user_role = 'user'
+        st.session_state.user_info = None
+        
+        # Clear query params
+        st.query_params.clear()
+    except Exception as e:
+        pass
 
 def initialize_app():
     """Initialize the application"""
@@ -179,8 +214,12 @@ def show_sidebar():
                 st.session_state.current_page = 'dashboard'
                 st.rerun()
             
-            if st.button("📤 Upload & Analyze", use_container_width=True):
+            if st.button("📤 Analyze Files", use_container_width=True):
                 st.session_state.current_page = 'upload'
+                st.rerun()
+            
+            if st.button("📋 Analysis History", use_container_width=True):
+                st.session_state.current_page = 'history'
                 st.rerun()
             
             # Admin panel button for admin users
@@ -193,6 +232,7 @@ def show_sidebar():
             
             if st.button("🚪 Logout", use_container_width=True, type="secondary"):
                 logout_user()
+                clear_authentication_state()
                 st.session_state.current_page = 'home'
                 st.rerun()
         
@@ -239,13 +279,20 @@ def show_home_page():
         ✅ **Yield Optimization** - 5-year yield forecasting and economic analysis  
         ✅ **Expert Recommendations** - Fertilizer and management guidance  
         
+        ### 📋 Important: Complete Survey First
+        
+        **Before accessing our system, please download and complete our Oil Palm Farmer Survey.**
+        This helps us understand your farming challenges and improve our service.
+        
         ### 🚀 Get Started
         
-        1. **Register** for a free account
-        2. **Upload** your SP LAB test report images
-        3. **Analyze** with AI-powered insights
-        4. **Download** comprehensive PDF reports
-        5. **Optimize** your oil palm cultivation
+        1. **Download** and complete the Oil Palm Farmer Survey below
+        2. **Send** the completed survey to: **a.loladze@agriglobalsolutions.com**
+        3. **Register** for a free account
+        4. **Upload** your SP LAB test report images
+        5. **Analyze** with AI-powered insights
+        6. **Download** comprehensive PDF reports
+        7. **Optimize** your oil palm cultivation
         """, unsafe_allow_html=True)
     
     with col2:
@@ -275,6 +322,49 @@ def show_home_page():
     
     st.divider()
     
+    # Survey Download Section
+    st.markdown("---")
+    st.markdown("## 📋 Oil Palm Farmer Survey")
+    
+    st.markdown("""
+    <div style="background-color: #f0f8f0; padding: 1.5rem; border-radius: 10px; margin: 1rem 0;">
+        <h4>📝 Complete This Survey Before Accessing Our System</h4>
+        <p><strong>Purpose:</strong> This survey helps us understand your farming challenges and improve our AI-powered analysis system.</p>
+        <p><strong>Instructions:</strong></p>
+        <ol>
+            <li>Download the survey form below</li>
+            <li>Fill it out completely with your farming information</li>
+            <li>Send the completed survey to: <strong>a.loladze@agriglobalsolutions.com</strong></li>
+            <li>Once submitted, you can proceed to register and use our system</li>
+        </ol>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Survey download button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("📥 Download Oil Palm Farmer Survey", use_container_width=True, type="primary"):
+            try:
+                from utils.docx_utils import create_survey_download_button
+                from datetime import datetime
+                
+                docx_data = create_survey_download_button()
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"oil_palm_farmer_survey_{timestamp}.docx"
+                
+                st.download_button(
+                    label="💾 Save Survey Form",
+                    data=docx_data,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
+                
+            except Exception as e:
+                st.error(f"Error generating survey form: {str(e)}")
+    
+    st.markdown("---")
+    
     # Call to action
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -282,7 +372,7 @@ def show_home_page():
         st.markdown("""
         <div style="text-align: center; padding: 2rem; background-color: #f0f8f0; border-radius: 10px; margin: 2rem 0;">
             <h3>🌟 Ready to Optimize Your Oil Palm Cultivation?</h3>
-            <p>Join thousands of farmers already using AGS AI Assistant</p>
+            <p>Complete the survey above, then join thousands of farmers using AGS AI Assistant</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -628,6 +718,22 @@ def main():
             st.warning("🔒 Please log in to upload and analyze files.")
             st.session_state.current_page = 'login'
             show_login_page()
+    elif current_page == 'results':
+        # Require authentication for results functionality
+        if st.session_state.authenticated:
+            show_results_page()
+        else:
+            st.warning("🔒 Please log in to view analysis results.")
+            st.session_state.current_page = 'login'
+            show_login_page()
+    elif current_page == 'history':
+        # Require authentication for history functionality
+        if st.session_state.authenticated:
+            show_history_page()
+        else:
+            st.warning("🔒 Please log in to view analysis history.")
+            st.session_state.current_page = 'login'
+            show_login_page()
     elif current_page == 'dashboard' and st.session_state.authenticated:
         show_dashboard()
     elif current_page == 'admin' and st.session_state.authenticated and is_admin(st.session_state.user_id):
@@ -647,7 +753,7 @@ def main():
     # Footer
     st.markdown("""
     <div class="footer">
-        <p>© 2024 AGS AI Assistant | Advanced Oil Palm Cultivation Analysis System</p>
+        <p>© 2025 AGS AI Assistant | Advanced Oil Palm Cultivation Analysis System</p>
     </div>
     """, unsafe_allow_html=True)
 

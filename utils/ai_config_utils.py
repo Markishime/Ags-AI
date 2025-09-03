@@ -211,9 +211,9 @@ Apply tags: {tags}
         }
     },
     'general_settings': {
-        'ai_model': 'gpt-4',
+        'ai_model': 'gemini-2.5-pro',
         'temperature': 0.7,
-        'max_tokens': 2000,
+        'max_tokens': 65536,
         'include_confidence_scores': True,
         'enable_rag': True,
         'auto_save_results': True,
