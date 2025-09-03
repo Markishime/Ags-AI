@@ -2085,8 +2085,16 @@ def parse_and_display_json_analysis(json_text):
     try:
         import re
         
-        # Try to extract key findings
+        # Try to extract key findings with multiple patterns
+        key_findings_match = None
+        
+        # Pattern 1: Standard format
         key_findings_match = re.search(r"'key_findings':\s*\[(.*?)\]", json_text, re.DOTALL)
+        
+        # Pattern 2: Alternative format
+        if not key_findings_match:
+            key_findings_match = re.search(r"'key_findings':\s*\[(.*?)\]", json_text, re.DOTALL)
+        
         if key_findings_match:
             key_findings_text = key_findings_match.group(1)
             # Parse the key findings more carefully
@@ -2105,8 +2113,38 @@ def parse_and_display_json_analysis(json_text):
                             unsafe_allow_html=True
                         )
         
-        # Try to extract formatted analysis
+        # Try to extract formatted analysis with multiple patterns
+        formatted_analysis_match = None
+        
+        # Pattern 1: Standard format
         formatted_analysis_match = re.search(r"'formatted_analysis':\s*\"(.*?)\"", json_text, re.DOTALL)
+        
+        # Pattern 2: Alternative format with different quotes
+        if not formatted_analysis_match:
+            formatted_analysis_match = re.search(r"'formatted_analysis':\s*\"(.*?)\"", json_text, re.DOTALL)
+        
+        # Pattern 3: Look for the content after formatted_analysis
+        if not formatted_analysis_match:
+            # Find the start of formatted_analysis and extract until the end
+            start_match = re.search(r"'formatted_analysis':\s*\"", json_text)
+            if start_match:
+                start_pos = start_match.end()
+                # Find the end of the string (look for the closing quote before the next key)
+                remaining_text = json_text[start_pos:]
+                # Look for the end of the formatted_analysis string
+                end_pos = 0
+                quote_count = 0
+                for i, char in enumerate(remaining_text):
+                    if char == '"':
+                        quote_count += 1
+                        if quote_count == 1:
+                            end_pos = i
+                            break
+                
+                if end_pos > 0:
+                    formatted_content = remaining_text[:end_pos]
+                    formatted_analysis_match = type('obj', (object,), {'group': lambda x: formatted_content})()
+        
         if formatted_analysis_match:
             formatted_content = formatted_analysis_match.group(1)
             # Clean up the content
@@ -2131,38 +2169,54 @@ def parse_and_display_json_analysis(json_text):
 def parse_key_findings(key_findings_text):
     """Parse key findings from the extracted text"""
     findings = []
-    current_finding = ""
-    in_quotes = False
-    quote_char = None
-    depth = 0
     
-    for i, char in enumerate(key_findings_text):
-        if char in ["'", '"'] and (not in_quotes or char == quote_char):
-            if not in_quotes:
-                in_quotes = True
-                quote_char = char
-            else:
-                in_quotes = False
-                quote_char = None
-        elif char == '[' and not in_quotes:
-            depth += 1
-        elif char == ']' and not in_quotes:
-            depth -= 1
-        elif char == ',' and not in_quotes and depth == 0:
-            if current_finding.strip():
-                finding = current_finding.strip().strip("'\" ")
-                if finding and len(finding) > 10:
-                    findings.append(finding)
-            current_finding = ""
-            continue
-        
-        current_finding += char
+    # Try to split by comma, but be more careful with nested quotes
+    import re
     
-    # Add the last finding
-    if current_finding.strip():
-        finding = current_finding.strip().strip("'\" ")
+    # Use regex to find all quoted strings
+    pattern = r"'([^']*(?:''[^']*)*)'"
+    matches = re.findall(pattern, key_findings_text)
+    
+    for match in matches:
+        # Clean up the finding
+        finding = match.replace("''", "'").strip()
         if finding and len(finding) > 10:
             findings.append(finding)
+    
+    # If regex didn't work, try manual parsing
+    if not findings:
+        current_finding = ""
+        in_quotes = False
+        quote_char = None
+        depth = 0
+        
+        for i, char in enumerate(key_findings_text):
+            if char in ["'", '"'] and (not in_quotes or char == quote_char):
+                if not in_quotes:
+                    in_quotes = True
+                    quote_char = char
+                else:
+                    in_quotes = False
+                    quote_char = None
+            elif char == '[' and not in_quotes:
+                depth += 1
+            elif char == ']' and not in_quotes:
+                depth -= 1
+            elif char == ',' and not in_quotes and depth == 0:
+                if current_finding.strip():
+                    finding = current_finding.strip().strip("'\" ")
+                    if finding and len(finding) > 10:
+                        findings.append(finding)
+                current_finding = ""
+                continue
+            
+            current_finding += char
+        
+        # Add the last finding
+        if current_finding.strip():
+            finding = current_finding.strip().strip("'\" ")
+            if finding and len(finding) > 10:
+                findings.append(finding)
     
     return findings
 
