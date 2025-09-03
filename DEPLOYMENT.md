@@ -109,6 +109,7 @@ session_timeout_minutes = 60
 2. **Firebase errors**: Check secrets configuration
 3. **Import errors**: Verify all dependencies in `requirements.txt`
 4. **File not found**: Ensure no hardcoded local paths
+5. **OpenCV libGL.so.1 error**: Use `opencv-python-headless` and include OpenGL libraries in `packages.txt`
 
 ### Performance Optimization:
 - Consider adding caching for expensive operations
