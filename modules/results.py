@@ -2467,52 +2467,89 @@ def display_nutrient_status_tables(analysis_data):
         except Exception:
             return "Unknown"
 
-    # Separate soil and leaf parameters
-    soil_params = []
-    leaf_params = []
-    
-    for comparison in nutrient_comparisons:
-        param = comparison.get('parameter', '').lower()
-        if any(soil_keyword in param for soil_keyword in ['ph', 'organic', 'nitrogen', 'phosphorus', 'potassium', 'calcium', 'magnesium', 'sulfur', 'cec', 'base']):
-            soil_params.append(comparison)
-        else:
-            leaf_params.append(comparison)
+    # Define canonical lists to ensure correct grouping and order
+    soil_labels = [
+        'pH',
+        'Nitrogen %',
+        'Organic Carbon %',
+        'Total P (mg/kg)',
+        'Available P (mg/kg)',
+        'Exch. K (meq%)',
+        'Exch. Ca (meq%)',
+        'Exch. Mg (meq%)',
+        'CEC (meq%)'
+    ]
+    leaf_labels = [
+        'N %', 'P %', 'K %', 'Mg %', 'Ca %',
+        'B (mg/kg)', 'Cu (mg/kg)', 'Zn (mg/kg)'
+    ]
+
+    def norm(label: str) -> str:
+        return (label or '').strip().lower()
+
+    # Index provided comparisons by normalized parameter name
+    comparisons_by_param = {norm(c.get('parameter', '')): c for c in nutrient_comparisons}
+
+    # Build ordered soil and leaf parameter lists based on canonical labels
+    # Keep full canonical order; allow missing items to be filled as N/A later
+    soil_params = [comparisons_by_param.get(norm(lbl)) for lbl in soil_labels]
+    leaf_params = [comparisons_by_param.get(norm(lbl)) for lbl in leaf_labels]
     
     # Display Soil Nutrient Status table
-    if soil_params:
+    if any(p is not None for p in soil_params):
         st.markdown("### 🌱 Soil Nutrient Status (Average vs. MPOB Standard)")
         soil_data = []
-        for param in soil_params:
-            avg_val = param.get('average')
-            opt_val = param.get('optimal')
-            computed_status = compute_status(avg_val, opt_val, param.get('parameter', ''))
-            soil_data.append({
-                'Parameter': param.get('parameter', 'Unknown'),
-                'Average': f"{param.get('average', 0):.2f}" if param.get('average') is not None else 'N/A',
-                'MPOB Optimal': f"{param.get('optimal', 0):.2f}" if param.get('optimal') is not None else 'N/A',
-                'Status': param.get('status') or computed_status,
-                'Unit': param.get('unit', '')
-            })
+        for label, param in zip(soil_labels, soil_params):
+            if param is not None:
+                avg_val = param.get('average')
+                opt_val = param.get('optimal')
+                computed_status = compute_status(avg_val, opt_val, param.get('parameter', label))
+                soil_data.append({
+                    'Parameter': param.get('parameter', label),
+                    'Average': f"{avg_val:.2f}" if isinstance(avg_val, (int, float)) else 'N/A',
+                    'MPOB Optimal': f"{opt_val:.2f}" if isinstance(opt_val, (int, float)) else 'N/A',
+                    'Status': param.get('status') or computed_status,
+                    'Unit': param.get('unit', '')
+                })
+            else:
+                # Fill missing parameter row with N/A
+                soil_data.append({
+                    'Parameter': label,
+                    'Average': 'N/A',
+                    'MPOB Optimal': 'N/A',
+                    'Status': 'Unknown',
+                    'Unit': ''
+                })
         
         if soil_data:
             df_soil = pd.DataFrame(soil_data)
             st.dataframe(df_soil, width='stretch', use_container_width=True)
     
     # Display Leaf Nutrient Status table
-    if leaf_params:
+    if any(p is not None for p in leaf_params):
         st.markdown("### 🍃 Leaf Nutrient Status (Average vs. MPOB Standard)")
         leaf_data = []
-        for param in leaf_params:
-            avg_val = param.get('average')
-            opt_val = param.get('optimal')
-            computed_status = compute_status(avg_val, opt_val, param.get('parameter', ''))
-            leaf_data.append({
-                'Parameter': param.get('parameter', 'Unknown'),
-                'Average': f"{param.get('average', 0):.2f}" if param.get('average') is not None else 'N/A',
-                'MPOB Optimal': f"{param.get('optimal', 0):.2f}" if param.get('optimal') is not None else 'N/A',
-                'Status': param.get('status') or computed_status,
-                'Unit': param.get('unit', '')
-            })
+        for label, param in zip(leaf_labels, leaf_params):
+            if param is not None:
+                avg_val = param.get('average')
+                opt_val = param.get('optimal')
+                computed_status = compute_status(avg_val, opt_val, param.get('parameter', label))
+                leaf_data.append({
+                    'Parameter': param.get('parameter', label),
+                    'Average': f"{avg_val:.2f}" if isinstance(avg_val, (int, float)) else 'N/A',
+                    'MPOB Optimal': f"{opt_val:.2f}" if isinstance(opt_val, (int, float)) else 'N/A',
+                    'Status': param.get('status') or computed_status,
+                    'Unit': param.get('unit', '')
+                })
+            else:
+                # Fill missing parameter row with N/A
+                leaf_data.append({
+                    'Parameter': label,
+                    'Average': 'N/A',
+                    'MPOB Optimal': 'N/A',
+                    'Status': 'Unknown',
+                    'Unit': ''
+                })
         
         if leaf_data:
             df_leaf = pd.DataFrame(leaf_data)
