@@ -830,6 +830,12 @@ def display_raw_data_section(results_data):
         if not leaf_data and 'leaf_parameters' in raw_data:
             leaf_data = raw_data['leaf_parameters']
     
+    # 2b. Direct from analysis_results (alternative structure)
+    if not soil_data and 'soil_parameters' in analysis_results:
+        soil_data = analysis_results['soil_parameters']
+    if not leaf_data and 'leaf_parameters' in analysis_results:
+        leaf_data = analysis_results['leaf_parameters']
+    
     # 3. From comprehensive_analysis.raw_data (alternative structure)
     comprehensive_analysis = results_data.get('comprehensive_analysis', {})
     if comprehensive_analysis and 'raw_data' in comprehensive_analysis:
@@ -862,6 +868,11 @@ def display_raw_data_section(results_data):
             st.write(f"Analysis results keys: {list(analysis_results.keys())}")
             if 'raw_data' in analysis_results:
                 st.write(f"Analysis results raw_data keys: {list(analysis_results['raw_data'].keys())}")
+            # Check for direct soil/leaf parameters
+            if 'soil_parameters' in analysis_results:
+                st.write(f"Soil parameters found directly in analysis_results: {type(analysis_results['soil_parameters'])}")
+            if 'leaf_parameters' in analysis_results:
+                st.write(f"Leaf parameters found directly in analysis_results: {type(analysis_results['leaf_parameters'])}")
         if comprehensive_analysis:
             st.write(f"Comprehensive analysis keys: {list(comprehensive_analysis.keys())}")
             if 'raw_data' in comprehensive_analysis:
@@ -1447,6 +1458,11 @@ def display_enhanced_step_result(step_result, step_number):
     if 'detailed_analysis' in analysis_data:
         logger.info(f"Step {step_number} detailed_analysis type: {type(analysis_data['detailed_analysis'])}, length: {len(str(analysis_data['detailed_analysis'])) if analysis_data['detailed_analysis'] else 0}")
     
+    # Special handling for STEP 1 - Data Analysis
+    if step_number == 1:
+        display_step1_data_analysis(analysis_data)
+        return
+    
     # Special handling for STEP 3 - Solution Recommendations
     if step_number == 3:
         display_step3_solution_recommendations(analysis_data)
@@ -2018,6 +2034,136 @@ def display_scatter_plot(data, title):
             st.info("Scatter plot data format not recognized")
     except ImportError:
         st.info("Plotly not available for chart display")
+
+def display_step1_data_analysis(analysis_data):
+    """Display Step 1: Data Analysis with nutrient status tables"""
+    # 1. SUMMARY SECTION
+    if 'summary' in analysis_data and analysis_data['summary']:
+        st.markdown("### 📋 Summary")
+        summary_text = analysis_data['summary']
+        if isinstance(summary_text, str) and summary_text.strip():
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{summary_text.strip()}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+    
+    # 2. KEY FINDINGS SECTION
+    if 'key_findings' in analysis_data and analysis_data['key_findings']:
+        st.markdown("### 🎯 Key Findings")
+        key_findings = analysis_data['key_findings']
+        
+        if isinstance(key_findings, list) and key_findings:
+            for i, finding in enumerate(key_findings, 1):
+                if isinstance(finding, str) and finding.strip():
+                    st.markdown(
+                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                        f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
+                        f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding.strip()}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+    
+    # 3. DETAILED ANALYSIS SECTION
+    if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
+        st.markdown("### 📋 Detailed Analysis")
+        detailed_text = analysis_data['detailed_analysis']
+        
+        if isinstance(detailed_text, dict):
+            detailed_text = str(detailed_text)
+        elif not isinstance(detailed_text, str):
+            detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
+        
+        paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
+        
+        for paragraph in paragraphs:
+            if isinstance(paragraph, str) and paragraph.strip():
+                st.markdown(
+                    f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+    
+    # 4. NUTRIENT STATUS TABLES - This is the key addition
+    display_nutrient_status_tables(analysis_data)
+    
+    # 5. VISUALIZATIONS
+    if 'visualizations' in analysis_data and analysis_data['visualizations']:
+        st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
+        </div>""", unsafe_allow_html=True)
+        
+        try:
+            visualizations = analysis_data['visualizations']
+            if isinstance(visualizations, dict):
+                for i, (viz_type, viz_data) in enumerate(visualizations.items(), 1):
+                    if viz_data and isinstance(viz_data, dict):
+                        if 'type' not in viz_data:
+                            viz_data['type'] = viz_type
+                        display_visualization(viz_data, i)
+            elif isinstance(visualizations, list):
+                for i, viz in enumerate(visualizations, 1):
+                    if isinstance(viz, dict) and 'type' in viz:
+                        display_visualization(viz, i)
+        except Exception as e:
+            logger.error(f"Error displaying visualizations: {e}")
+            st.error("Error displaying visualizations")
+
+def display_nutrient_status_tables(analysis_data):
+    """Display Soil and Leaf Nutrient Status tables"""
+    # Get nutrient comparisons data
+    nutrient_comparisons = analysis_data.get('nutrient_comparisons', [])
+    
+    if not nutrient_comparisons:
+        st.info("📋 No nutrient comparison data available.")
+        return
+    
+    # Separate soil and leaf parameters
+    soil_params = []
+    leaf_params = []
+    
+    for comparison in nutrient_comparisons:
+        param = comparison.get('parameter', '').lower()
+        if any(soil_keyword in param for soil_keyword in ['ph', 'organic', 'nitrogen', 'phosphorus', 'potassium', 'calcium', 'magnesium', 'sulfur', 'cec', 'base']):
+            soil_params.append(comparison)
+        else:
+            leaf_params.append(comparison)
+    
+    # Display Soil Nutrient Status table
+    if soil_params:
+        st.markdown("### 🌱 Soil Nutrient Status (Average vs. MPOB Standard)")
+        soil_data = []
+        for param in soil_params:
+            soil_data.append({
+                'Parameter': param.get('parameter', 'Unknown'),
+                'Average': f"{param.get('average', 0):.2f}" if param.get('average') is not None else 'N/A',
+                'MPOB Optimal': f"{param.get('optimal', 0):.2f}" if param.get('optimal') is not None else 'N/A',
+                'Status': param.get('status', 'Unknown'),
+                'Unit': param.get('unit', '')
+            })
+        
+        if soil_data:
+            df_soil = pd.DataFrame(soil_data)
+            st.dataframe(df_soil, width='stretch', use_container_width=True)
+    
+    # Display Leaf Nutrient Status table
+    if leaf_params:
+        st.markdown("### 🍃 Leaf Nutrient Status (Average vs. MPOB Standard)")
+        leaf_data = []
+        for param in leaf_params:
+            leaf_data.append({
+                'Parameter': param.get('parameter', 'Unknown'),
+                'Average': f"{param.get('average', 0):.2f}" if param.get('average') is not None else 'N/A',
+                'MPOB Optimal': f"{param.get('optimal', 0):.2f}" if param.get('optimal') is not None else 'N/A',
+                'Status': param.get('status', 'Unknown'),
+                'Unit': param.get('unit', '')
+            })
+        
+        if leaf_data:
+            df_leaf = pd.DataFrame(leaf_data)
+            st.dataframe(df_leaf, width='stretch', use_container_width=True)
 
 def display_data_analysis_content(analysis_data):
     """Display Step 1: Data Analysis content"""
