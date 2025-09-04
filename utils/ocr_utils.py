@@ -10,7 +10,26 @@ import re
 from typing import Dict, List, Any, Optional
 import logging
 from datetime import datetime
-from utils.config_manager import get_ocr_config, get_ui_config
+# Robust import of config manager getters to avoid import issues in different runtimes
+try:
+    from utils.config_manager import get_ocr_config, get_ui_config
+except Exception:
+    try:
+        # Try importing without package prefix
+        from config_manager import get_ocr_config, get_ui_config
+    except Exception:
+        # Lazy dynamic import as last resort
+        import importlib
+        def _resolve_config_getters():
+            for module_name in ("utils.config_manager", "config_manager"):
+                try:
+                    module = importlib.import_module(module_name)
+                    return module.get_ocr_config, module.get_ui_config
+                except Exception:
+                    continue
+            # Safe fallbacks if config manager cannot be imported yet
+            return (lambda: None), (lambda: None)
+        get_ocr_config, get_ui_config = _resolve_config_getters()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
