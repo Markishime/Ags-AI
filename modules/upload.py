@@ -9,13 +9,24 @@ utils_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils')
 if utils_path not in sys.path:
     sys.path.append(utils_path)
 
-# Import utilities with error handling
+# Import utilities with error handling and robust fallbacks
 try:
     from utils.ocr_utils import extract_data_from_image
+except Exception:
+    try:
+        from ocr_utils import extract_data_from_image
+    except Exception as e:
+        st.error(f"Import error (ocr_utils): {e}")
+        st.stop()
+
+try:
     from utils.config_manager import get_ui_config
-except ImportError as e:
-    st.error(f"Import error: {e}")
-    st.stop()
+except Exception:
+    try:
+        from config_manager import get_ui_config
+    except Exception as e:
+        st.error(f"Import error (config_manager): {e}")
+        st.stop()
 
 def show_upload_page():
     """Main upload page - focused only on file upload and preview"""
