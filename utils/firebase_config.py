@@ -16,6 +16,11 @@ def initialize_firebase() -> bool:
         bool: True if initialization successful, False otherwise
     """
     try:
+        # Set environment variables to prevent metadata service usage
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
+        os.environ['GOOGLE_CLOUD_PROJECT'] = \
+            'agriai-cbd8b'
+        
         # Check if Firebase is already initialized
         if firebase_admin._apps:
             print("Firebase already initialized")
@@ -30,7 +35,10 @@ def initialize_firebase() -> bool:
             print(f"Found Firebase credentials for project: {firebase_creds.get('project_id', 'unknown')}")
             
             # Initialize Firebase with credentials
+            # Create credentials object with explicit project ID
             cred = credentials.Certificate(firebase_creds)
+            # Force the credentials to use the project ID from the service account
+            cred.project_id = firebase_creds.get('project_id', 'agriai-cbd8b')
             
             # Get storage bucket from secrets or environment
             storage_bucket = None
@@ -40,8 +48,12 @@ def initialize_firebase() -> bool:
             if not storage_bucket:
                 storage_bucket = os.getenv('FIREBASE_STORAGE_BUCKET', 'agriai-cbd8b.firebasestorage.app')
             
+            # Initialize Firebase with explicit configuration
             firebase_admin.initialize_app(cred, {
-                'storageBucket': storage_bucket
+                'storageBucket': storage_bucket,
+                'projectId': firebase_creds.get(
+                    'project_id', 'agriai-cbd8b'
+                )
             })
             
             print(f"Firebase initialized successfully with storage bucket: {storage_bucket}")
