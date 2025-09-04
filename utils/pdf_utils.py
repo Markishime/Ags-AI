@@ -802,8 +802,9 @@ class PDFReportGenerator:
         
         step_results = analysis_results.get('step_by_step_analysis', [])
         
-        # Generate intelligent key findings with proper deduplication
-        all_key_findings = self._generate_intelligent_key_findings_pdf(analysis_results, step_results)
+        # Generate intelligent key findings with proper deduplication using the same logic as results page
+        from modules.history import _generate_intelligent_key_findings
+        all_key_findings = _generate_intelligent_key_findings(analysis_results, step_results)
         
         if all_key_findings:
             # Display key findings - exact same format as results page
@@ -822,7 +823,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 20))
         return story
     
-    def _generate_intelligent_key_findings_pdf(self, analysis_results, step_results):
+    def _generate_intelligent_key_findings_pdf_OLD(self, analysis_results, step_results):
         """Generate comprehensive intelligent key findings grouped by parameter with proper deduplication - PDF version"""
         all_key_findings = []
         
@@ -965,9 +966,7 @@ class PDFReportGenerator:
                 # Combine step findings with existing findings
                 all_key_findings.extend(unique_findings)
         
-        # 3. Generate comprehensive parameter-specific key findings
-        comprehensive_findings = self._generate_comprehensive_parameter_findings_pdf(analysis_results, step_results)
-        all_key_findings.extend(comprehensive_findings)
+        # Note: Comprehensive parameter-specific key findings are now handled by the history module function
         
         # 4. Extract key findings from other analysis sources
         # Land and yield data
@@ -1411,12 +1410,8 @@ class PDFReportGenerator:
                     if mpob_viz:
                         visualizations.append(mpob_viz)
                 
-                # Create yield projection chart if yield data is available
-                yield_data = step.get('yield_forecast', {})
-                if yield_data:
-                    yield_viz = self._create_yield_projection_viz_pdf(yield_data)
-                    if yield_viz:
-                        visualizations.append(yield_viz)
+                # Note: Yield projection chart removed from contextual visualizations
+                # as it's now handled in the dedicated forecast graph section
             
             elif step_number == 2:  # Issue Diagnosis
                 # Create issues severity chart
