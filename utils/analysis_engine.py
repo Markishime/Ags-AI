@@ -494,11 +494,16 @@ class PromptAnalyzer:
             # Sanitize model: if any legacy OpenAI models configured, force Gemini
             try:
                 if isinstance(configured_model, str) and ('gpt-' in configured_model or 'openai' in configured_model.lower()):
-                    self.logger.warning(f"Non-Gemini model '{configured_model}' detected. Overriding to Gemini.")
+                    self.logger.info(f"Non-Gemini model '{configured_model}' detected. Auto-migrating to Gemini-2.5-Pro...")
                     # Auto-migrate the configuration to use Gemini
-                    self._migrate_ai_config_to_gemini()
+                    migration_success = self._migrate_ai_config_to_gemini()
+                    if migration_success:
+                        self.logger.info("✅ AI configuration successfully migrated to Gemini-2.5-Pro")
+                    else:
+                        self.logger.warning("⚠️ AI configuration migration failed, but continuing with Gemini-2.5-Pro")
                     configured_model = 'gemini-2.5-pro'
-            except Exception:
+            except Exception as e:
+                self.logger.warning(f"Error during AI configuration migration: {e}")
                 configured_model = 'gemini-2.5-pro'
             # Final model fallback list to avoid NotFound errors on older SDKs
             preferred_models = [
@@ -958,14 +963,15 @@ class PromptAnalyzer:
             
             success = config_manager.save_config('ai_config', config_dict)
             if success:
-                self.logger.info("AI configuration successfully migrated to Gemini-2.5-Pro")
                 # Update the local config
                 self.ai_config = current_config
+                return True
             else:
-                self.logger.warning("Failed to migrate AI configuration to Firestore")
+                return False
                 
         except Exception as e:
             self.logger.error(f"Error migrating AI configuration: {e}")
+            return False
     
     def _parse_llm_response(self, response: str, step: Dict[str, str]) -> Dict[str, Any]:
         """Parse LLM response and extract structured data"""
