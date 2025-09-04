@@ -29,7 +29,7 @@ try:
     
     # Override the default credential discovery to never use metadata service
     original_default = google.auth.default
-    def patched_default(scopes=None, request=None):
+    def patched_default(scopes=None, request=None, default_scopes=None, quota_project_id=None, **kwargs):
         # Always return None to force explicit credential usage
         return None, None
     google.auth.default = patched_default

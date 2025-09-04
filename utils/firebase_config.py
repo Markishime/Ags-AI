@@ -35,7 +35,7 @@ try:
     
     # Override the default credential discovery to never use metadata service
     original_default = google.auth.default
-    def patched_default(scopes=None, request=None):
+    def patched_default(scopes=None, request=None, default_scopes=None, quota_project_id=None, **kwargs):
         # Always return None to force explicit credential usage
         return None, None
     google.auth.default = patched_default
@@ -161,7 +161,7 @@ def initialize_firebase() -> bool:
                 import google.auth.transport.requests
                 # Override the default credential discovery
                 original_default = google.auth.default
-                def patched_default(scopes=None, request=None):
+                def patched_default(scopes=None, request=None, default_scopes=None, quota_project_id=None, **kwargs):
                     # Return our service account credentials instead of trying metadata service
                     return (cred, project_id)
                 google.auth.default = patched_default
