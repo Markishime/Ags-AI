@@ -24,36 +24,12 @@ os.environ['GCE_METADATA_HOST'] = ''
 os.environ['GCE_METADATA_ROOT'] = ''
 os.environ['GCE_METADATA_TIMEOUT'] = '0'
 
-# Monkey patch the Google Auth library at module level to prevent metadata service usage
+# Avoid global monkey patching of Google Auth to prevent side effects on other clients
 try:
-    import google.auth
-    import google.auth.compute_engine
-    import google.auth.transport.requests
-    import google.auth.transport.grpc
-    
-    # Override the default credential discovery to never use metadata service
-    original_default = google.auth.default
-    def patched_default(scopes=None, request=None, default_scopes=None, quota_project_id=None, **kwargs):
-        # Always return None to force explicit credential usage
-        return None, None
-    google.auth.default = patched_default
-    
-    # Disable compute engine credentials completely
-    def disabled_compute_engine_credentials(*args, **kwargs):
-        raise Exception("Compute Engine credentials disabled for Streamlit Cloud")
-    google.auth.compute_engine.Credentials = disabled_compute_engine_credentials
-    
-    # Override the metadata service functions directly
-    def disabled_metadata_get(*args, **kwargs):
-        raise Exception("Metadata service disabled for Streamlit Cloud")
-    
-    # Patch the metadata module
-    if hasattr(google.auth.compute_engine, '_metadata'):
-        google.auth.compute_engine._metadata.get = disabled_metadata_get
-        google.auth.compute_engine._metadata.get_service_account_info = disabled_metadata_get
-    
-    # Note: Do NOT override transport Request class; some libraries depend on it even with API key auth
-    
+    import google.auth  # noqa: F401
+    import google.auth.compute_engine  # noqa: F401
+    import google.auth.transport.requests  # noqa: F401
+    import google.auth.transport.grpc  # noqa: F401
 except ImportError:
     pass
 
@@ -134,22 +110,7 @@ def initialize_firebase() -> bool:
             project_id = firebase_creds.get('project_id', project_id or 'agriai-cbd8b')
             google.auth.default = lambda: (cred, project_id)
             
-            # Monkey patch to prevent metadata service usage
-            try:
-                from google.auth import compute_engine
-                # Override the metadata service to always fail
-                def _disabled_metadata_get(*args, **kwargs):
-                    raise Exception("Metadata service disabled for Streamlit Cloud")
-                compute_engine._metadata.get = _disabled_metadata_get
-                compute_engine._metadata.get_service_account_info = _disabled_metadata_get
-                
-                # Also patch the credentials class to prevent metadata service usage
-                def _disabled_refresh(self, request):
-                    raise Exception("Metadata service disabled for Streamlit Cloud")
-                compute_engine.Credentials.refresh = _disabled_refresh
-                
-            except ImportError:
-                pass
+            # Do not patch compute engine metadata globally; rely on explicit credentials
             
             # Additional monkey patching for Google Cloud libraries
             try:
