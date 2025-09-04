@@ -11,8 +11,7 @@ class AuthManager:
     """Handle user authentication and management"""
     
     def __init__(self):
-        pass  # Admin codes are now stored in Firestore
-        self._ensure_default_admin()
+        pass  # Defer any Firestore operations until after Firebase is initialized
     
     def _get_db(self):
         """Get Firestore client with proper error handling"""

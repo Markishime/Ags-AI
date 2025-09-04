@@ -279,14 +279,11 @@ def get_firestore_client():
         firestore.Client: Firestore client instance
     """
     try:
-        # Get credentials explicitly to avoid metadata service
-        firebase_creds = get_firebase_credentials()
-        if firebase_creds:
-            cred = credentials.Certificate(firebase_creds)
-            return firestore.client(credentials=cred)
-        else:
-            # Fallback to default client (should work if Firebase is initialized)
-            return firestore.client()
+        # Ensure Firebase is initialized before creating the client
+        if not firebase_admin._apps:
+            initialize_firebase()
+        # Return Firestore client from the initialized Firebase app
+        return firestore.client()
     except Exception as e:
         # Firebase initialization handled elsewhere, silently return None
         return None
