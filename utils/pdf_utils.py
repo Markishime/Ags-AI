@@ -1052,7 +1052,7 @@ class PDFReportGenerator:
                         'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
                         'source': 'Soil Analysis - pH'
                     })
-        else:
+                else:
                     findings.append({
                         'finding': f"Soil pH is within optimal range at {ph_value:.1f}, providing good conditions for nutrient availability and root development.",
                         'source': 'Soil Analysis - pH'
