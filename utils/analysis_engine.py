@@ -554,6 +554,13 @@ class PromptAnalyzer:
                 cfg_max_tokens_int = 65536
             max_tokens = min(cfg_max_tokens_int, 65536)
             
+            # Ensure the API key is available to all client layers
+            try:
+                if google_api_key:
+                    os.environ["GOOGLE_API_KEY"] = google_api_key
+            except Exception:
+                pass
+
             # Try models in order until one initializes
             init_error = None
             for mdl in preferred_models:
@@ -562,7 +569,8 @@ class PromptAnalyzer:
                         # Use LangChain integration (keep args minimal for compatibility)
                         self.llm = ChatGoogleGenerativeAI(
                             model=mdl,
-                            temperature=temperature
+                            temperature=temperature,
+                            google_api_key=google_api_key
                         )
                     else:
                         # Fallback to direct Google Generative AI
