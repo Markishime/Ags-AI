@@ -104,10 +104,19 @@ class ConfigManager:
         
         # Initialize default configurations
         self._initialize_default_configs()
+
+    def _ensure_db(self) -> bool:
+        """Ensure Firestore client is available; try to (re)acquire lazily."""
+        if not self.db:
+            self.db = get_firestore_client()
+        return self.db is not None
     
     def _initialize_default_configs(self):
         """Initialize default configurations if they don't exist"""
         try:
+            if not self._ensure_db():
+                logger.warning("Database connection not available; skipping default config initialization")
+                return
             # Check if configurations exist, if not create defaults
             if not self._config_exists('ai_config'):
                 self._create_default_ai_config()
@@ -130,7 +139,7 @@ class ConfigManager:
     def _config_exists(self, config_name: str) -> bool:
         """Check if configuration exists in Firestore"""
         try:
-            if not self.db:
+            if not self._ensure_db():
                 return False
             doc_ref = self.db.collection('system_config').document(config_name)
             return doc_ref.get().exists
@@ -247,7 +256,7 @@ class ConfigManager:
                 if datetime.now() < self._cache_expiry.get(config_name, datetime.min):
                     return self._cache[config_name]
             
-            if not self.db:
+            if not self._ensure_db():
                 logger.error("Database connection not available")
                 return None
             
@@ -275,7 +284,7 @@ class ConfigManager:
     def save_config(self, config_name: str, config_data: Dict[str, Any]) -> bool:
         """Save configuration to Firestore"""
         try:
-            if not self.db:
+            if not self._ensure_db():
                 logger.error("Database connection not available")
                 return False
             

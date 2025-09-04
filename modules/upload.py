@@ -336,10 +336,16 @@ def upload_section():
             if land_size > 0 and current_yield > 0:
                 try:
                     # Save to Firestore
-                    from utils.firebase_config import get_firestore_client
+                    from utils.firebase_config import get_firestore_client, initialize_firebase
                     
                     db = get_firestore_client()
-                    if db and st.session_state.get('authenticated', False):
+                    # Try to initialize Firebase and reacquire if needed
+                    if not db:
+                        initialize_firebase()
+                        db = get_firestore_client()
+                    if not st.session_state.get('authenticated', False):
+                        st.error("🔒 You must be logged in to save data.")
+                    elif db:
                         user_id = st.session_state.get('user_id')
                         if user_id:
                             # Save land & yield data to user's profile
@@ -357,7 +363,7 @@ def upload_section():
                         else:
                             st.error("❌ User ID not found. Please log in again.")
                     else:
-                        st.error("❌ Database connection failed or user not authenticated.")
+                        st.error("❌ Database connection not available. Please try again later.")
                 except Exception as e:
                     st.error(f"❌ Failed to save data: {str(e)}")
             else:
