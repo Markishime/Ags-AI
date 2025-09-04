@@ -3,13 +3,14 @@ import sys
 import os
 from datetime import datetime
 import pandas as pd
-from google.cloud import firestore
+# Use our configured Firestore client instead of direct import
 
 # Add utils to path
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'))
 
 # Import utilities
 from utils.firebase_config import get_firestore_client, COLLECTIONS
+from google.cloud.firestore import Query
 
 def show_history_page():
     """Main history page - displays past analysis results"""
@@ -248,7 +249,7 @@ def display_analysis_history():
         
         # Get user's analyses from analysis_results collection using correct field
         analyses_ref = db.collection('analysis_results')
-        query = analyses_ref.where('user_id', '==', user_id).order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
+        query = analyses_ref.where('user_id', '==', user_id).order_by('created_at', direction=Query.DESCENDING).limit(limit)
         
         user_analyses = query.get()
         

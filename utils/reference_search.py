@@ -21,7 +21,7 @@ except ImportError:
     logger.warning("Tavily client not available. Web search will be disabled.")
 
 try:
-    from google.cloud import firestore
+    # Use our configured Firestore client instead of direct import
     from utils.firebase_config import get_firestore_client
     FIRESTORE_AVAILABLE = True
 except ImportError:

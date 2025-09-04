@@ -7,7 +7,7 @@ import streamlit as st
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-from google.cloud import firestore
+# Use our configured Firestore client instead of direct import
 import json
 
 # Configure logging

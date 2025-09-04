@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
-from google.cloud import firestore
+# Use our configured Firestore client instead of direct import
 import logging
 
 # Configure logging
@@ -17,6 +17,7 @@ sys.path.append(os.path.join(
 
 # Import utilities
 from utils.firebase_config import get_firestore_client, COLLECTIONS
+from google.cloud.firestore import Query
 from utils.pdf_utils import PDFReportGenerator
 from utils.analysis_engine import AnalysisEngine
 from utils.ocr_utils import extract_data_from_image
@@ -322,7 +323,7 @@ def load_latest_results():
         
         # Query for the latest analysis results
         analyses_ref = db.collection(COLLECTIONS['analysis_results'])
-        query = analyses_ref.where('user_email', '==', user_email).order_by('timestamp', direction=firestore.Query.DESCENDING).limit(1)
+        query = analyses_ref.where('user_email', '==', user_email).order_by('timestamp', direction=Query.DESCENDING).limit(1)
         
         docs = query.stream()
         for doc in docs:
