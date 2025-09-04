@@ -976,9 +976,6 @@ class PromptAnalyzer:
     def _parse_llm_response(self, response: str, step: Dict[str, str]) -> Dict[str, Any]:
         """Parse LLM response and extract structured data"""
         try:
-            # Filter out system prompt text from response
-            response = self._filter_system_prompt_text(response)
-            
             # Try to extract JSON from response with multiple strategies
             json_str = None
             parsed_data = None
@@ -2205,35 +2202,6 @@ class AnalysisEngine:
         except Exception:
             pass
         return 0.0
-    
-    def _filter_system_prompt_text(self, response: str) -> str:
-        """Filter out system prompt text from LLM response"""
-        try:
-            # Remove common system prompt phrases that might appear in responses
-            system_phrases = [
-                "As an agronomist with over two decades of experience in Malaysian oil palm",
-                "You are an expert agronomist specializing in oil palm cultivation in Malaysia",
-                "I am an expert agronomist",
-                "As an expert agronomist",
-                "With my 20+ years of experience",
-                "Based on my expertise in oil palm cultivation"
-            ]
-            
-            filtered_response = response
-            for phrase in system_phrases:
-                # Remove the phrase and any text that follows until the next sentence or JSON
-                pattern = re.escape(phrase) + r'.*?(?=\{|\[|$|\n\n)'
-                filtered_response = re.sub(pattern, '', filtered_response, flags=re.DOTALL | re.IGNORECASE)
-            
-            # Clean up any extra whitespace
-            filtered_response = re.sub(r'\n\s*\n', '\n\n', filtered_response)
-            filtered_response = filtered_response.strip()
-            
-            return filtered_response
-            
-        except Exception as e:
-            self.logger.warning(f"Error filtering system prompt text: {e}")
-            return response
     
     def generate_comprehensive_analysis(self, soil_data: Dict[str, Any], leaf_data: Dict[str, Any],
                                       land_yield_data: Dict[str, Any], prompt_text: str) -> Dict[str, Any]:
