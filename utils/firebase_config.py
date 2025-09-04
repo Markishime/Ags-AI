@@ -16,29 +16,10 @@ def initialize_firebase() -> bool:
         bool: True if initialization successful, False otherwise
     """
     try:
-        # Set environment variables to prevent metadata service usage
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
         # Prefer project_id from Streamlit secrets
         project_id = None
         if hasattr(st, 'secrets') and 'firebase' in st.secrets:
             project_id = st.secrets.firebase.get('project_id')
-        os.environ['GOOGLE_CLOUD_PROJECT'] = project_id or 'agriai-cbd8b'
-        # Disable metadata service completely
-        os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-        # Additional environment variables to prevent metadata service
-        os.environ['GCE_METADATA_HOST'] = ''
-        os.environ['GCE_METADATA_ROOT'] = ''
-        # Force use of service account credentials
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_account'
-        
-        # Set additional environment variables to prevent metadata service usage
-        os.environ['GCE_METADATA_TIMEOUT'] = '0'
-        os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-        os.environ['GOOGLE_CLOUD_PROJECT'] = project_id or 'agriai-cbd8b'
-        
-        # Disable metadata service for all Google Cloud libraries
-        os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
-        os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
         
         # Check if Firebase is already initialized
         if firebase_admin._apps:
@@ -54,51 +35,25 @@ def initialize_firebase() -> bool:
             print(f"Found Firebase credentials for project: {firebase_creds.get('project_id', 'unknown')}")
             
             # Initialize Firebase with credentials
-            # Create credentials object with explicit project ID
             cred = credentials.Certificate(firebase_creds)
-            # Force the credentials to use the project ID from the service account
-            cred.project_id = firebase_creds.get('project_id', 'agriai-cbd8b')
-            
-            # Override the refresh method to prevent metadata service usage
-            original_refresh = cred.refresh
-            def custom_refresh(request):
-                # Force use of service account credentials only
-                return original_refresh(request)
-            cred.refresh = custom_refresh
             
             # Get storage bucket from Streamlit secrets
             storage_bucket = None
             if hasattr(st, 'secrets') and 'firebase' in st.secrets:
-                storage_bucket = st.secrets.firebase.get('firebase_storage_bucket')
+                storage_bucket = (
+                    st.secrets.firebase.get('firebase_storage_bucket') or
+                    st.secrets.firebase.get('storage_bucket')
+                )
             if not storage_bucket and firebase_creds.get('project_id'):
                 storage_bucket = f"{firebase_creds.get('project_id')}.firebasestorage.app"
             
             # Initialize Firebase with explicit configuration
             firebase_admin.initialize_app(cred, {
                 'storageBucket': storage_bucket,
-                'projectId': firebase_creds.get(
-                    'project_id', 'agriai-cbd8b'
-                )
+                'projectId': firebase_creds.get('project_id', project_id or 'agriai-cbd8b')
             })
             
-            # Set the credentials as default for all Google Cloud services
-            import google.auth
-            project_id = firebase_creds.get('project_id', project_id or 'agriai-cbd8b')
-            google.auth.default = lambda: (cred, project_id)
-            
-            # Do not patch compute engine metadata globally; rely on explicit credentials
-            
-            # Additional monkey patching for Google Cloud libraries
-            try:
-                import google.auth.transport.requests
-                # Override the default credential discovery
-                original_default = google.auth.default
-                def patched_default(scopes=None, request=None, default_scopes=None, quota_project_id=None, **kwargs):
-                    # Return our service account credentials instead of trying metadata service
-                    return (cred, project_id)
-                google.auth.default = patched_default
-            except ImportError:
-                pass
+            # Do not modify global google.auth defaults; rely on initialized app
             
             print(f"Firebase initialized successfully with storage bucket: {storage_bucket}")
             return True
@@ -109,10 +64,8 @@ def initialize_firebase() -> bool:
             return False
             
     except Exception as e:
-        error_msg = f"Failed to initialize Firebase: {str(e)}"
         st.error("Failed to initialize Firebase. Please check your configuration.")
-        print(error_msg)
-        print(f"Firebase initialization error details: {type(e).__name__}: {e}")
+        print(f"Failed to initialize Firebase: {e!r}")
         return False
 
 def get_firebase_credentials() -> Optional[dict]:

@@ -7,9 +7,10 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from utils.reference_search import reference_search_engine
+from utils.firebase_config import DEFAULT_MPOB_STANDARDS
 import pandas as pd
 
-# Remove global metadata env flags and monkey patches; rely solely on API key for LLM
+
 
 # LangChain imports for Google Gemini
 try:
@@ -521,25 +522,16 @@ class PromptAnalyzer:
             except Exception:
                 pass
 
-            # Try models in order until one initializes
+            # Force direct Google Generative AI client to avoid any ADC/metadata usage
             init_error = None
             for mdl in preferred_models:
                 try:
-                    if ChatGoogleGenerativeAI:
-                        # Use LangChain integration (keep args minimal for compatibility)
-                        self.llm = ChatGoogleGenerativeAI(
-                            model=mdl,
-                            temperature=temperature,
-                            google_api_key=google_api_key
-                        )
-                    else:
-                        # Fallback to direct Google Generative AI
-                        import google.generativeai as genai
-                        genai.configure(api_key=google_api_key)
-                        self.llm = genai.GenerativeModel(mdl)
-                        self._use_direct_gemini = True
-                        self._temperature = temperature
-                        self._max_tokens = max_tokens
+                    import google.generativeai as genai
+                    genai.configure(api_key=google_api_key)
+                    self.llm = genai.GenerativeModel(mdl)
+                    self._use_direct_gemini = True
+                    self._temperature = temperature
+                    self._max_tokens = max_tokens
                     model = mdl
                     init_error = None
                     break
@@ -2073,6 +2065,20 @@ class AnalysisEngine:
                 )
                 step_results.append(step_result)
                 self.logger.info(f"DEBUG: Step result keys: {list(step_result.keys()) if step_result else 'None'}")
+
+            # Ensure Step 1 visualizations are accurate and based on REAL data
+            try:
+                for i, sr in enumerate(step_results):
+                    if sr and sr.get('step_number') == 1:
+                        # Always rebuild Step 1 visualizations from REAL data for accuracy
+                        sr['visualizations'] = self._build_step1_visualizations(soil_params, leaf_params)
+                        # Always (re)build comparisons for consistency
+                        sr['nutrient_comparisons'] = self._build_step1_comparisons(soil_params, leaf_params)
+                        sr['visualizations_source'] = 'deterministic'
+                        step_results[i] = sr
+                        break
+            except Exception as _e:
+                self.logger.warning(f"Could not build Step 1 visualizations: {_e}")
             
             # Compile comprehensive results
             comprehensive_results = {
@@ -2153,6 +2159,214 @@ class AnalysisEngine:
                     'critical_issues': 0
                 }
             }
+
+    def _build_step1_visualizations(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Create deterministic Step 1 charts using sample statistics and MPOB standards."""
+        visualizations: List[Dict[str, Any]] = []
+        try:
+            mpob = get_mpob_standards()
+        except Exception:
+            mpob = None
+
+        # Helper to extract averages from parameter statistics
+        def extract_avg(stats: Dict[str, Any], key_map: Dict[str, str]) -> Tuple[List[str], List[float]]:
+            categories: List[str] = []
+            values: List[float] = []
+            param_stats: Dict[str, Any] = stats.get('parameter_statistics', {}) if stats else {}
+            for label, source_key in key_map.items():
+                s = param_stats.get(source_key)
+                if s and isinstance(s, dict) and ('mean' in s or 'average' in s):
+                    mean_val = s.get('mean', s.get('average', 0))
+                    if isinstance(mean_val, (int, float)):
+                        categories.append(label)
+                        values.append(float(mean_val))
+            return categories, values
+
+        # Helper: extract optimal value from standards entry (dataclass or dict)
+        def _optimal_from_standard(std_entry: Any, default_entry: Any = None) -> float:
+            try:
+                if std_entry is None:
+                    # Try default
+                    std_entry = default_entry
+                    if std_entry is None:
+                        return 0.0
+                if hasattr(std_entry, 'optimal') and isinstance(std_entry.optimal, (int, float)):
+                    return float(std_entry.optimal)
+                if isinstance(std_entry, dict):
+                    if 'optimal' in std_entry and isinstance(std_entry['optimal'], (int, float)):
+                        return float(std_entry['optimal'])
+                    # Derive from min/max if available
+                    if isinstance(std_entry.get('min'), (int, float)) and isinstance(std_entry.get('max'), (int, float)):
+                        return float((std_entry['min'] + std_entry['max']) / 2.0)
+                    val = std_entry.get('min', 0)
+                    return float(val) if isinstance(val, (int, float)) else 0.0
+            except Exception:
+                pass
+            return 0.0
+
+        # Soil bar chart: averages vs MPOB optimal
+        try:
+            soil_key_map = {
+                'pH': 'pH',
+                'Nitrogen %': 'Nitrogen_%',
+                'Organic Carbon %': 'Organic_Carbon_%',
+                'Total P (mg/kg)': 'Total_P_mg_kg',
+                'Available P (mg/kg)': 'Available_P_mg_kg',
+                'Exch. K (meq%)': 'Exchangeable_K_meq%',
+                'Exch. Ca (meq%)': 'Exchangeable_Ca_meq%',
+                'Exch. Mg (meq%)': 'Exchangeable_Mg_meq%',
+                'CEC (meq%)': 'CEC_meq%'
+            }
+            soil_categories, soil_avg = extract_avg(soil_params, soil_key_map)
+            soil_optimal: List[float] = []
+            if mpob and getattr(mpob, 'soil_standards', None):
+                std = mpob.soil_standards
+                # Map labels to standards keys
+                std_map = {
+                    'pH': 'pH',
+                    'Nitrogen %': 'Nitrogen',
+                    'Organic Carbon %': 'Organic_Carbon',
+                    'Total P (mg/kg)': 'Total_P',
+                    'Available P (mg/kg)': 'Available_P',
+                    'Exch. K (meq%)': 'Exch_K',
+                    'Exch. Ca (meq%)': 'Exch_Ca',
+                    'Exch. Mg (meq%)': 'Exch_Mg',
+                    'CEC (meq%)': 'CEC'
+                }
+                for label in soil_categories:
+                    k = std_map.get(label)
+                    v = std.get(k) if k else None
+                    v_def = DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(k) if k else None
+                    soil_optimal.append(_optimal_from_standard(v, v_def))
+            if soil_categories and soil_avg:
+                viz = {
+                    'type': 'bar_chart',
+                    'title': 'Soil Parameters — Average vs MPOB Optimal',
+                    'data': {
+                        'categories': soil_categories,
+                        'series': [
+                            {'name': 'Average', 'values': soil_avg}
+                        ] + ([{'name': 'Optimal', 'values': soil_optimal}] if soil_optimal and len(soil_optimal) == len(soil_avg) else [])
+                    }
+                }
+                visualizations.append(viz)
+        except Exception:
+            pass
+
+        # Leaf bar chart: averages vs MPOB optimal
+        try:
+            leaf_key_map = {
+                'N %': 'N_%',
+                'P %': 'P_%',
+                'K %': 'K_%',
+                'Mg %': 'Mg_%',
+                'Ca %': 'Ca_%',
+                'B (mg/kg)': 'B_mg_kg',
+                'Cu (mg/kg)': 'Cu_mg_kg',
+                'Zn (mg/kg)': 'Zn_mg_kg'
+            }
+            leaf_categories, leaf_avg = extract_avg(leaf_params, leaf_key_map)
+            leaf_optimal: List[float] = []
+            if mpob and getattr(mpob, 'leaf_standards', None):
+                std = mpob.leaf_standards
+                std_map = {
+                    'N %': 'N', 'P %': 'P', 'K %': 'K', 'Mg %': 'Mg', 'Ca %': 'Ca',
+                    'B (mg/kg)': 'B', 'Cu (mg/kg)': 'Cu', 'Zn (mg/kg)': 'Zn'
+                }
+                for label in leaf_categories:
+                    k = std_map.get(label)
+                    v = std.get(k) if k else None
+                    v_def = DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(k) if k else None
+                    leaf_optimal.append(_optimal_from_standard(v, v_def))
+            if leaf_categories and leaf_avg:
+                viz = {
+                    'type': 'bar_chart',
+                    'title': 'Leaf Parameters — Average vs MPOB Optimal',
+                    'data': {
+                        'categories': leaf_categories,
+                        'series': [
+                            {'name': 'Average', 'values': leaf_avg}
+                        ] + ([{'name': 'Optimal', 'values': leaf_optimal}] if leaf_optimal and len(leaf_optimal) == len(leaf_avg) else [])
+                    }
+                }
+                visualizations.append(viz)
+        except Exception:
+            pass
+
+        return visualizations
+
+    def _build_step1_comparisons(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Create structured comparisons used by the UI for Step 1 accuracy."""
+        comparisons: List[Dict[str, Any]] = []
+        try:
+            mpob = get_mpob_standards()
+        except Exception:
+            mpob = None
+
+        def add(param_label: str, avg_val: float, optimal: Optional[float]) -> None:
+            comparisons.append({
+                'parameter': param_label,
+                'average': avg_val,
+                'optimal': optimal
+            })
+
+        def fetch_avg(stats: Dict[str, Any], key: str) -> Optional[float]:
+            s = (stats.get('parameter_statistics', {}) if stats else {}).get(key)
+            if s and isinstance(s, dict):
+                v = s.get('mean', s.get('average'))
+                return float(v) if isinstance(v, (int, float)) else None
+            return None
+
+        # Soil comparisons
+        soil_map = [
+            ('pH', 'pH', ('soil', 'pH')),
+            ('Nitrogen %', 'Nitrogen_%', ('soil', 'Nitrogen')),
+            ('Organic Carbon %', 'Organic_Carbon_%', ('soil', 'Organic_Carbon')),
+            ('Total P (mg/kg)', 'Total_P_mg_kg', ('soil', 'Total_P')),
+            ('Available P (mg/kg)', 'Available_P_mg_kg', ('soil', 'Available_P')),
+            ('Exch. K (meq%)', 'Exchangeable_K_meq%', ('soil', 'Exch_K')),
+            ('Exch. Ca (meq%)', 'Exchangeable_Ca_meq%', ('soil', 'Exch_Ca')),
+            ('Exch. Mg (meq%)', 'Exchangeable_Mg_meq%', ('soil', 'Exch_Mg')),
+            ('CEC (meq%)', 'CEC_meq%', ('soil', 'CEC')),
+        ]
+        for label, key, std_ref in soil_map:
+            avg_v = fetch_avg(soil_params, key)
+            opt_v: Optional[float] = None
+            if mpob:
+                grp, name = std_ref
+                std_group = mpob.soil_standards if grp == 'soil' else mpob.leaf_standards
+                std_entry = std_group.get(name) if std_group else None
+                default_entry = DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(name) if grp == 'soil' else DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(name)
+                ov = _optimal_from_standard(std_entry, default_entry)
+                opt_v = ov if ov != 0.0 or (isinstance(ov, float)) else None
+            if avg_v is not None:
+                add(label, avg_v, opt_v)
+
+        # Leaf comparisons
+        leaf_map = [
+            ('N %', 'N_%', ('leaf', 'N')),
+            ('P %', 'P_%', ('leaf', 'P')),
+            ('K %', 'K_%', ('leaf', 'K')),
+            ('Mg %', 'Mg_%', ('leaf', 'Mg')),
+            ('Ca %', 'Ca_%', ('leaf', 'Ca')),
+            ('B (mg/kg)', 'B_mg_kg', ('leaf', 'B')),
+            ('Cu (mg/kg)', 'Cu_mg_kg', ('leaf', 'Cu')),
+            ('Zn (mg/kg)', 'Zn_mg_kg', ('leaf', 'Zn')),
+        ]
+        for label, key, std_ref in leaf_map:
+            avg_v = fetch_avg(leaf_params, key)
+            opt_v: Optional[float] = None
+            if mpob:
+                grp, name = std_ref
+                std_group = mpob.leaf_standards if grp == 'leaf' else mpob.soil_standards
+                std_entry = std_group.get(name) if std_group else None
+                default_entry = DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(name) if grp == 'leaf' else DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(name)
+                ov = _optimal_from_standard(std_entry, default_entry)
+                opt_v = ov if ov != 0.0 or (isinstance(ov, float)) else None
+            if avg_v is not None:
+                add(label, avg_v, opt_v)
+
+        return comparisons
     
     def _incorporate_feedback_learning(self, analysis_results: Dict[str, Any]):
         """
