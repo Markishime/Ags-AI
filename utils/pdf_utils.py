@@ -288,7 +288,8 @@ class PDFReportGenerator:
             if isinstance(executive_summary_text, str) and executive_summary_text.strip():
                 # Display as a single paragraph without breaking it into sentences
                 story.append(Paragraph(executive_summary_text.strip(), self.styles['CustomBody']))
-        return story
+                story.append(Spacer(1, 20))
+                return story
         
         # If no pre-generated summary, generate using the exact same logic as results page
         raw_data = analysis_results.get('raw_data', {})
