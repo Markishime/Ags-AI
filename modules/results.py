@@ -825,9 +825,15 @@ def display_raw_data_section(results_data):
     analysis_results = results_data.get('analysis_results', {})
     if analysis_results and 'raw_data' in analysis_results:
         raw_data = analysis_results['raw_data']
-        if not soil_data and 'soil_parameters' in raw_data:
+        # Check for new structure with parameter_statistics
+        if 'soil_data' in raw_data and raw_data['soil_data'].get('parameter_statistics'):
+            soil_data = raw_data['soil_data']
+        elif not soil_data and 'soil_parameters' in raw_data:
             soil_data = raw_data['soil_parameters']
-        if not leaf_data and 'leaf_parameters' in raw_data:
+        
+        if 'leaf_data' in raw_data and raw_data['leaf_data'].get('parameter_statistics'):
+            leaf_data = raw_data['leaf_data']
+        elif not leaf_data and 'leaf_parameters' in raw_data:
             leaf_data = raw_data['leaf_parameters']
     
     # 2b. Direct from analysis_results (alternative structure)
@@ -850,6 +856,14 @@ def display_raw_data_section(results_data):
         raw_data = results_data.get('raw_data', {})
         soil_data = raw_data.get('soil_parameters', {})
         leaf_data = raw_data.get('leaf_parameters', {})
+    
+    # Debug: Log the data structure to understand what we're getting
+    logger.info(f"Soil data keys: {list(soil_data.keys()) if soil_data else 'None'}")
+    logger.info(f"Leaf data keys: {list(leaf_data.keys()) if leaf_data else 'None'}")
+    if soil_data and 'parameter_statistics' in soil_data:
+        logger.info(f"Soil parameter statistics found: {len(soil_data['parameter_statistics'])} parameters")
+    if leaf_data and 'parameter_statistics' in leaf_data:
+        logger.info(f"Leaf parameter statistics found: {len(leaf_data['parameter_statistics'])} parameters")
     
     # Create tabs for soil and leaf data
     if soil_data or leaf_data:
@@ -920,6 +934,48 @@ def display_soil_data_table(soil_data):
         else:
             st.info("📋 No parameter statistics available.")
     
+    # Handle alternative data structure - check if it's a dict with parameter data
+    elif isinstance(soil_data, dict) and any(key for key in soil_data.keys() if 'parameter' in key.lower() or 'ph' in key.lower() or 'nitrogen' in key.lower()):
+        # Try to create parameter statistics from raw parameter data
+        st.markdown("**Data Source:** Soil Analysis Report")
+        
+        # Extract parameter data and create statistics
+        param_data = {}
+        sample_count = 0
+        
+        for key, value in soil_data.items():
+            if isinstance(value, (int, float)) and not key.startswith('_'):
+                param_data[key] = {
+                    'average': value,
+                    'min': value,
+                    'max': value,
+                    'count': 1
+                }
+                sample_count = max(sample_count, 1)
+        
+        if param_data:
+            st.markdown(f"**Total Samples:** {sample_count}")
+            st.markdown(f"**Parameters Analyzed:** {len(param_data)}")
+            
+            st.markdown("### 📊 Parameter Statistics")
+            
+            # Create summary table
+            summary_data = []
+            for param, stats in param_data.items():
+                summary_data.append({
+                    'Parameter': param.replace('_', ' ').title(),
+                    'Average': f"{stats.get('average', 0):.2f}",
+                    'Min': f"{stats.get('min', 0):.2f}",
+                    'Max': f"{stats.get('max', 0):.2f}",
+                    'Samples': stats.get('count', 0)
+                })
+            
+            if summary_data:
+                df = pd.DataFrame(summary_data)
+                st.dataframe(df, width='stretch')
+        else:
+            st.info("📋 No parameter statistics available.")
+    
     # Handle old data structure
     elif 'data' in soil_data:
         # Check if extraction was successful
@@ -941,7 +997,28 @@ def display_soil_data_table(soil_data):
             if samples:
                 st.markdown(f"**Number of Samples:** {len(samples)}")
                 
-                # Convert samples to DataFrame for better display
+                # Calculate parameter statistics from samples
+                param_stats = calculate_parameter_statistics(samples)
+                if param_stats:
+                    st.markdown("### 📊 Parameter Statistics")
+                    
+                    # Create summary table
+                    summary_data = []
+                    for param, stats in param_stats.items():
+                        summary_data.append({
+                            'Parameter': param.replace('_', ' ').title(),
+                            'Average': f"{stats.get('average', 0):.2f}",
+                            'Min': f"{stats.get('min', 0):.2f}",
+                            'Max': f"{stats.get('max', 0):.2f}",
+                            'Samples': stats.get('count', 0)
+                        })
+                    
+                    if summary_data:
+                        df_stats = pd.DataFrame(summary_data)
+                        st.dataframe(df_stats, width='stretch')
+                
+                # Display individual sample data
+                st.markdown("### 📋 Individual Sample Data")
                 df_data = []
                 for sample in samples:
                     df_data.append(sample)
@@ -965,6 +1042,7 @@ def display_soil_data_table(soil_data):
             st.info("📋 Data processed successfully.")
     else:
         st.info("📋 No soil data available.")
+
 
 def display_leaf_data_table(leaf_data):
     """Display leaf analysis data in tabular format"""
@@ -1008,6 +1086,48 @@ def display_leaf_data_table(leaf_data):
         else:
             st.info("📋 No parameter statistics available.")
     
+    # Handle alternative data structure - check if it's a dict with parameter data
+    elif isinstance(leaf_data, dict) and any(key for key in leaf_data.keys() if 'parameter' in key.lower() or 'ph' in key.lower() or 'nitrogen' in key.lower()):
+        # Try to create parameter statistics from raw parameter data
+        st.markdown("**Data Source:** Leaf Analysis Report")
+        
+        # Extract parameter data and create statistics
+        param_data = {}
+        sample_count = 0
+        
+        for key, value in leaf_data.items():
+            if isinstance(value, (int, float)) and not key.startswith('_'):
+                param_data[key] = {
+                    'average': value,
+                    'min': value,
+                    'max': value,
+                    'count': 1
+                }
+                sample_count = max(sample_count, 1)
+        
+        if param_data:
+            st.markdown(f"**Total Samples:** {sample_count}")
+            st.markdown(f"**Parameters Analyzed:** {len(param_data)}")
+            
+            st.markdown("### 📊 Parameter Statistics")
+            
+            # Create summary table
+            summary_data = []
+            for param, stats in param_data.items():
+                summary_data.append({
+                    'Parameter': param.replace('_', ' ').title(),
+                    'Average': f"{stats.get('average', 0):.2f}",
+                    'Min': f"{stats.get('min', 0):.2f}",
+                    'Max': f"{stats.get('max', 0):.2f}",
+                    'Samples': stats.get('count', 0)
+                })
+            
+            if summary_data:
+                df = pd.DataFrame(summary_data)
+                st.dataframe(df, width='stretch')
+        else:
+            st.info("📋 No parameter statistics available.")
+    
     # Handle old data structure
     elif 'data' in leaf_data:
         # Check if extraction was successful
@@ -1029,7 +1149,28 @@ def display_leaf_data_table(leaf_data):
             if samples:
                 st.markdown(f"**Number of Samples:** {len(samples)}")
                 
-                # Convert samples to DataFrame for better display
+                # Calculate parameter statistics from samples
+                param_stats = calculate_parameter_statistics(samples)
+                if param_stats:
+                    st.markdown("### 📊 Parameter Statistics")
+                    
+                    # Create summary table
+                    summary_data = []
+                    for param, stats in param_stats.items():
+                        summary_data.append({
+                            'Parameter': param.replace('_', ' ').title(),
+                            'Average': f"{stats.get('average', 0):.2f}",
+                            'Min': f"{stats.get('min', 0):.2f}",
+                            'Max': f"{stats.get('max', 0):.2f}",
+                            'Samples': stats.get('count', 0)
+                        })
+                    
+                    if summary_data:
+                        df_stats = pd.DataFrame(summary_data)
+                        st.dataframe(df_stats, width='stretch')
+                
+                # Display individual sample data
+                st.markdown("### 📋 Individual Sample Data")
                 df_data = []
                 for sample in samples:
                     df_data.append(sample)
@@ -1173,8 +1314,139 @@ def display_summary_section(results_data):
         unsafe_allow_html=True
     )
 
+def calculate_parameter_statistics(samples):
+    """Calculate parameter statistics from sample data"""
+    if not samples or not isinstance(samples, list):
+        return {}
+    
+    # Get all parameter names from the first sample
+    if not samples[0] or not isinstance(samples[0], dict):
+        return {}
+    
+    param_names = [key for key in samples[0].keys() if key not in ['lab_no', 'sample_no']]
+    param_stats = {}
+    
+    for param in param_names:
+        values = []
+        for sample in samples:
+            if param in sample and sample[param] is not None:
+                try:
+                    # Convert to float, handling different formats
+                    value = float(str(sample[param]).replace('%', '').replace('mg/kg', '').replace('meq%', '').strip())
+                    values.append(value)
+                except (ValueError, TypeError):
+                    continue
+        
+        if values:
+            param_stats[param] = {
+                'average': sum(values) / len(values),
+                'min': min(values),
+                'max': max(values),
+                'count': len(values)
+            }
+    
+    return param_stats
+
+def clean_finding_text(text):
+    """Clean finding text by removing duplicate 'Key Finding' words and normalizing"""
+    import re
+    
+    # Remove duplicate "Key Finding" patterns
+    # Pattern 1: "Key Finding X: Key finding Y:" -> "Key Finding X:"
+    text = re.sub(r'Key Finding \d+:\s*Key finding \d+:\s*', 'Key Finding ', text)
+    
+    # Pattern 2: "Key finding X:" -> remove (lowercase version)
+    text = re.sub(r'Key finding \d+:\s*', '', text)
+    
+    # Pattern 3: Multiple "Key Finding" at the start
+    text = re.sub(r'^(Key Finding \d+:\s*)+', 'Key Finding ', text)
+    
+    # Clean up extra spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+def is_same_issue(finding1, finding2):
+    """Check if two findings are about the same agricultural issue"""
+    # Define issue patterns
+    issue_patterns = {
+        'potassium_deficiency': ['potassium', 'k deficiency', 'k level', 'k average', 'k critical'],
+        'soil_acidity': ['ph', 'acidic', 'acidity', 'soil ph', 'ph level'],
+        'phosphorus_deficiency': ['phosphorus', 'p deficiency', 'available p', 'p level'],
+        'nutrient_deficiency': ['deficiency', 'deficient', 'nutrient', 'nutrients'],
+        'cec_issue': ['cec', 'cation exchange', 'nutrient retention', 'nutrient holding'],
+        'organic_matter': ['organic matter', 'organic carbon', 'carbon'],
+        'micronutrient': ['copper', 'zinc', 'manganese', 'iron', 'boron', 'micronutrient'],
+        'yield_impact': ['yield', 'productivity', 'tonnes', 'production'],
+        'economic_impact': ['roi', 'investment', 'cost', 'profit', 'revenue', 'economic']
+    }
+    
+    finding1_lower = finding1.lower()
+    finding2_lower = finding2.lower()
+    
+    # Check if both findings mention the same issue category
+    for issue, keywords in issue_patterns.items():
+        finding1_has_issue = any(keyword in finding1_lower for keyword in keywords)
+        finding2_has_issue = any(keyword in finding2_lower for keyword in keywords)
+        
+        if finding1_has_issue and finding2_has_issue:
+            # Additional check for specific values or percentages
+            if issue in ['potassium_deficiency', 'soil_acidity', 'phosphorus_deficiency']:
+                # Extract numbers from both findings
+                import re
+                nums1 = re.findall(r'\d+\.?\d*', finding1)
+                nums2 = re.findall(r'\d+\.?\d*', finding2)
+                
+                # If they have similar numbers, they're likely the same issue
+                if nums1 and nums2:
+                    for num1 in nums1:
+                        for num2 in nums2:
+                            if abs(float(num1) - float(num2)) < 0.1:  # Very close values
+                                return True
+            
+            return True
+    
+    return False
+
+def _extract_key_concepts(text):
+    """Extract key concepts from text for better deduplication"""
+    import re
+    
+    # Define key agricultural concepts and nutrients
+    nutrients = ['nitrogen', 'phosphorus', 'potassium', 'calcium', 'magnesium', 'sulfur', 'copper', 'zinc', 'manganese', 'iron', 'boron', 'molybdenum']
+    parameters = ['ph', 'cec', 'organic matter', 'base saturation', 'yield', 'deficiency', 'excess', 'optimum', 'critical', 'mg/kg', '%', 'meq']
+    conditions = ['acidic', 'alkaline', 'deficient', 'sufficient', 'excessive', 'low', 'high', 'moderate', 'severe', 'mild']
+    
+    # Extract numbers and percentages
+    numbers = re.findall(r'\d+\.?\d*', text)
+    
+    # Extract nutrient names and parameters
+    found_concepts = set()
+    
+    # Check for nutrients
+    for nutrient in nutrients:
+        if nutrient in text:
+            found_concepts.add(nutrient)
+    
+    # Check for parameters
+    for param in parameters:
+        if param in text:
+            found_concepts.add(param)
+    
+    # Check for conditions
+    for condition in conditions:
+        if condition in text:
+            found_concepts.add(condition)
+    
+    # Add significant numbers (values that matter for agricultural analysis)
+    for num in numbers:
+        if float(num) > 0:  # Only add positive numbers
+            found_concepts.add(num)
+    
+    return found_concepts
+
 def display_key_findings_section(results_data):
-    """Display consolidated Key Findings section from all analysis steps"""
+    """Display Key Findings from analysis results with intelligent extraction"""
     st.markdown("---")
     st.markdown("## 🎯 Key Findings")
     
@@ -1182,40 +1454,141 @@ def display_key_findings_section(results_data):
     analysis_results = results_data.get('analysis_results', {})
     step_results = analysis_results.get('step_by_step_analysis', [])
     
-    # Collect all key findings from all steps
+    # Look for key findings in multiple sources
     all_key_findings = []
     
-    for step in step_results:
-        if 'key_findings' in step and step['key_findings']:
-            step_title = step.get('step_title', f"Step {step.get('step_number', 'Unknown')}")
-            step_findings = step['key_findings']
-            
-            # Add step context to findings
-            for finding in step_findings:
+    # 1. Check for key findings at the top level of analysis_results
+    if 'key_findings' in analysis_results and analysis_results['key_findings']:
+        findings_data = analysis_results['key_findings']
+        
+        # Handle both list and string formats
+        if isinstance(findings_data, list):
+            findings_list = findings_data
+        elif isinstance(findings_data, str):
+            findings_list = [f.strip() for f in findings_data.split('\n') if f.strip()]
+        else:
+            findings_list = []
+        
+        # Process each finding
+        for finding in findings_list:
+            if isinstance(finding, str) and finding.strip():
+                cleaned_finding = clean_finding_text(finding.strip())
                 all_key_findings.append({
-                    'finding': finding,
-                    'step_title': step_title,
-                    'step_number': step.get('step_number', 0)
+                    'finding': cleaned_finding,
+                    'source': 'Overall Analysis'
                 })
     
+    # 2. Check for executive summary
+    if 'executive_summary' in analysis_results and analysis_results['executive_summary']:
+        summary = analysis_results['executive_summary']
+        if isinstance(summary, str):
+            lines = [line.strip() for line in summary.split('\n') if line.strip()]
+            for line in lines:
+                if any(keyword in line.lower() for keyword in ['deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield', 'recommendation', 'finding', 'issue', 'problem']):
+                    cleaned_finding = clean_finding_text(line)
+                    all_key_findings.append({
+                        'finding': cleaned_finding,
+                        'source': 'Executive Summary'
+                    })
+    
+    # 3. Check for overall summary
+    if 'summary' in analysis_results and analysis_results['summary']:
+        summary = analysis_results['summary']
+        if isinstance(summary, str):
+            lines = [line.strip() for line in summary.split('\n') if line.strip()]
+            for line in lines:
+                if any(keyword in line.lower() for keyword in ['deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield', 'recommendation', 'finding', 'issue', 'problem']):
+                    cleaned_finding = clean_finding_text(line)
+                    all_key_findings.append({
+                        'finding': cleaned_finding,
+                        'source': 'Analysis Summary'
+                    })
+    
+    # 4. If still no findings, extract from step results but with smart deduplication
+    if not all_key_findings and step_results:
+        step_findings = []
+        
+        for step in step_results:
+            if 'key_findings' in step and step['key_findings']:
+                step_title = step.get('step_title', f"Step {step.get('step_number', 'Unknown')}")
+                step_findings_data = step['key_findings']
+                
+                # Handle both list and string formats
+                if isinstance(step_findings_data, list):
+                    findings_list = step_findings_data
+                elif isinstance(step_findings_data, str):
+                    findings_list = [f.strip() for f in step_findings_data.split('\n') if f.strip()]
+                else:
+                    findings_list = []
+                
+                for finding in findings_list:
+                    if isinstance(finding, str) and finding.strip():
+                        cleaned_finding = clean_finding_text(finding.strip())
+                        step_findings.append({
+                            'finding': cleaned_finding,
+                            'source': step_title
+                        })
+        
+        # Apply smart deduplication to step findings
+        if step_findings:
+            unique_findings = []
+            seen_concepts = []
+            
+            for finding_data in step_findings:
+                finding = finding_data['finding']
+                normalized = ' '.join(finding.lower().split())
+                key_concepts = _extract_key_concepts(normalized)
+                
+                is_duplicate = False
+                for i, seen_concept_set in enumerate(seen_concepts):
+                    concept_overlap = len(key_concepts.intersection(seen_concept_set))
+                    total_concepts = len(key_concepts.union(seen_concept_set))
+                    
+                    if total_concepts > 0:
+                        similarity = concept_overlap / total_concepts
+                        word_similarity = len(key_concepts.intersection(seen_concept_set)) / max(len(key_concepts), len(seen_concept_set)) if len(key_concepts) > 0 and len(seen_concept_set) > 0 else 0
+                        
+                        # More aggressive deduplication
+                        if similarity > 0.6 or word_similarity > 0.7:
+                            if len(finding) > len(unique_findings[i]['finding']):
+                                unique_findings[i] = finding_data
+                                seen_concepts[i] = key_concepts
+                            is_duplicate = True
+                            break
+                        
+                        # Check for same issue
+                        if similarity > 0.4 and word_similarity > 0.5:
+                            if is_same_issue(finding, unique_findings[i]['finding']):
+                                if len(finding) > len(unique_findings[i]['finding']):
+                                    unique_findings[i] = finding_data
+                                    seen_concepts[i] = key_concepts
+                                is_duplicate = True
+                                break
+                
+                if not is_duplicate:
+                    unique_findings.append(finding_data)
+                    seen_concepts.append(key_concepts)
+            
+            all_key_findings = unique_findings
+    
     if all_key_findings:
-        # Display findings in a structured numbered list format
+        # Display key findings
         for i, finding_data in enumerate(all_key_findings, 1):
             finding = finding_data['finding']
-            step_title = finding_data['step_title']
+            source = finding_data['source']
             
             # Enhanced finding display with bold numbering
             st.markdown(
                 f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
                 f'<p style="margin: 0 0 8px 0; font-size: 18px; line-height: 1.6; color: #2c3e50;">'
-                f'<strong style="color: #007bff; font-size: 20px;">{i}.</strong> {finding}'
+                f'<strong style="color: #007bff; font-size: 20px;">Key Finding {i}:</strong> {finding}'
                 f'</p>'
-                f'<p style="margin: 0; font-size: 13px; color: #6c757d; font-style: italic;">📋 Source: {step_title}</p>'
+                f'<p style="margin: 0; font-size: 13px; color: #6c757d; font-style: italic;">📋 Source: {source}</p>'
                 f'</div>',
                 unsafe_allow_html=True
             )
     else:
-        st.info("📋 No key findings available from the analysis steps.")
+        st.info("📋 No key findings available from the analysis results.")
 
 def display_references_section(results_data):
     """Display research references from database and web search"""
@@ -1481,34 +1854,8 @@ def display_enhanced_step_result(step_result, step_number):
             )
             st.markdown("")
         
-    # 2. KEY FINDINGS SECTION - Always show if available
-    if 'key_findings' in analysis_data and analysis_data['key_findings']:
-        st.markdown("### 🎯 Key Findings")
-        key_findings = analysis_data['key_findings']
-        
-        # Handle both list and string formats
-        if isinstance(key_findings, list) and key_findings:
-            for i, finding in enumerate(key_findings, 1):
-                if isinstance(finding, str) and finding.strip():
-                    st.markdown(
-                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                        f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                        f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding.strip()}</p>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-        elif isinstance(key_findings, str) and key_findings.strip():
-            # Split by lines or paragraphs for string format
-            findings_list = [f.strip() for f in key_findings.split('\n') if f.strip()]
-            for i, finding in enumerate(findings_list, 1):
-                st.markdown(
-                    f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                    f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-            st.markdown("")
+    # 2. KEY FINDINGS SECTION - Removed from individual steps
+    # Key findings are now consolidated and displayed only after Executive Summary
         
     # 3. DETAILED ANALYSIS SECTION - Show if available
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
@@ -2357,21 +2704,8 @@ def display_step1_data_analysis(analysis_data):
                 unsafe_allow_html=True
             )
     
-    # 2. KEY FINDINGS SECTION
-    if 'key_findings' in analysis_data and analysis_data['key_findings']:
-        st.markdown("### 🎯 Key Findings")
-        key_findings = analysis_data['key_findings']
-        
-        if isinstance(key_findings, list) and key_findings:
-            for i, finding in enumerate(key_findings, 1):
-                if isinstance(finding, str) and finding.strip():
-                    st.markdown(
-                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                        f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                        f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding.strip()}</p>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+    # 2. KEY FINDINGS SECTION - Removed from individual steps
+    # Key findings are now consolidated and displayed only after Executive Summary
     
     # 3. DETAILED ANALYSIS SECTION
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
@@ -2943,36 +3277,10 @@ def display_step3_solution_recommendations(analysis_data):
             )
             st.markdown("")
     
-    # 2. KEY FINDINGS SECTION - Always show if available
-    if 'key_findings' in analysis_data and analysis_data['key_findings']:
-        st.markdown("### 🎯 Key Findings")
-        key_findings = analysis_data['key_findings']
-        
-        # Handle both list and string formats
-        if isinstance(key_findings, list) and key_findings:
-            for i, finding in enumerate(key_findings, 1):
-                if isinstance(finding, str) and finding.strip():
-                    st.markdown(
-                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                        f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                        f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding.strip()}</p>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-        elif isinstance(key_findings, str) and key_findings.strip():
-            # Split by lines or paragraphs for string format
-            findings_list = [f.strip() for f in key_findings.split('\n') if f.strip()]
-            for i, finding in enumerate(findings_list, 1):
-                st.markdown(
-                    f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                    f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {finding}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-            st.markdown("")
+    # 2. KEY FINDINGS SECTION - Removed from Step 3
+    # Key findings are now consolidated and displayed only after Executive Summary
     
-    # 3. DETAILED ANALYSIS SECTION - Enhanced parsing and formatting
+    # 2. DETAILED ANALYSIS SECTION - Enhanced parsing and formatting
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
         st.markdown("### 📋 Detailed Analysis")
         detailed_text = analysis_data['detailed_analysis']
@@ -3007,7 +3315,7 @@ def display_step3_solution_recommendations(analysis_data):
         
         st.markdown("")
     
-    # 4. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
+    # 3. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
     # This section shows the main analysis results from the LLM
     excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]

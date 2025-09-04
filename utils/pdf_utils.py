@@ -131,11 +131,24 @@ class PDFReportGenerator:
         is_step_by_step = 'step_by_step_analysis' in analysis_data
         
         if is_step_by_step:
-            # Simplified PDF format - only include requested sections
+            # Comprehensive PDF format with step-by-step analysis and visualizations
             story.extend(self._create_enhanced_executive_summary(analysis_data))
             story.extend(self._create_enhanced_key_findings(analysis_data))
-            story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
+            story.extend(self._create_comprehensive_step_by_step_analysis(analysis_data))
+            
+            # Enhanced Economic Analysis Section
+            story.extend(self._create_comprehensive_economic_analysis(analysis_data))
+            
+            # Enhanced Yield Forecast and Projections
             story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
+            story.extend(self._create_yield_projections_section(analysis_data))
+            
+            # Investment Scenarios and ROI Analysis
+            story.extend(self._create_investment_scenarios_section(analysis_data))
+            
+            # Cost-Benefit Analysis
+            story.extend(self._create_cost_benefit_analysis_section(analysis_data))
+            
             story.extend(self._create_enhanced_conclusion(analysis_data))
         elif 'summary_metrics' in analysis_data and 'health_indicators' in analysis_data:
             # Comprehensive analysis format
@@ -253,61 +266,962 @@ class PDFReportGenerator:
         return story
     
     def _create_enhanced_executive_summary(self, analysis_data: Dict[str, Any]) -> List:
-        """Create enhanced executive summary for step-by-step analysis"""
+        """Create enhanced executive summary matching the results page format exactly"""
         story = []
         
         # Executive Summary header
         story.append(Paragraph("Executive Summary", self.styles['Heading1']))
         story.append(Spacer(1, 12))
         
-        # Get comprehensive summary from analysis data
-        comprehensive_summary = analysis_data.get('comprehensive_summary', '')
-        if comprehensive_summary:
-            story.append(Paragraph(comprehensive_summary, self.styles['CustomBody']))
+        # Handle data structure - analysis_data might be the analysis_results content directly
+        if 'analysis_results' in analysis_data:
+            # Full structure: analysis_data contains analysis_results
+            analysis_results = analysis_data.get('analysis_results', {})
         else:
-            story.append(Paragraph("Executive summary not available.", self.styles['CustomBody']))
+            # Direct structure: analysis_data IS the analysis_results content
+            analysis_results = analysis_data
         
-        story.append(Spacer(1, 20))
+        # First check if there's a pre-generated executive summary
+        if 'executive_summary' in analysis_results and analysis_results['executive_summary']:
+            # Use the pre-generated executive summary exactly as it is
+            executive_summary_text = analysis_results['executive_summary']
+            if isinstance(executive_summary_text, str) and executive_summary_text.strip():
+                # Display as a single paragraph without breaking it into sentences
+                story.append(Paragraph(executive_summary_text.strip(), self.styles['CustomBody']))
+                return story
+        
+        # If no pre-generated summary, generate using the exact same logic as results page
+        raw_data = analysis_results.get('raw_data', {})
+        soil_params = raw_data.get('soil_parameters', {})
+        leaf_params = raw_data.get('leaf_parameters', {})
+        land_yield_data = raw_data.get('land_yield_data', {})
+        all_issues = analysis_results.get('issues_analysis', {}).get('all_issues', [])
+        metadata = analysis_results.get('analysis_metadata', {})
+        
+        # Generate comprehensive agronomic summary (exact same as results page)
+        summary_sentences = []
+        
+        # 1-3: Analysis overview and scope
+        total_samples = metadata.get('total_parameters_analyzed', 0)
+        confidence = metadata.get('confidence_level', 'Medium')
+        summary_sentences.append(
+            f"This comprehensive agronomic analysis evaluates {total_samples} "
+            f"key nutritional parameters from both soil and leaf tissue samples "
+            f"to assess the current fertility status and plant health of the "
+            f"oil palm plantation.")
+        summary_sentences.append(
+            f"The analysis demonstrates {confidence.lower()} confidence levels "
+            f"based on data quality assessment and adherence to Malaysian Palm "
+            f"Oil Board (MPOB) standards for optimal oil palm cultivation.")
+        summary_sentences.append(
+            f"Laboratory results indicate {len(all_issues)} significant "
+            f"nutritional imbalances requiring immediate attention to optimize "
+            f"yield potential and maintain sustainable production.")
+        
+        # 4-7: Soil analysis findings (exact same as results page)
+        if soil_params.get('parameter_statistics'):
+            soil_stats = soil_params['parameter_statistics']
+            ph_data = soil_stats.get('pH', {})
+            if ph_data:
+                ph_avg = ph_data.get('average', 0)
+                summary_sentences.append(f"Soil pH analysis reveals an average value of {ph_avg:.2f}, which {'falls within' if 4.5 <= ph_avg <= 5.5 else 'deviates from'} the optimal range of 4.5-5.5 required for efficient nutrient uptake in oil palm cultivation.")
+            
+            p_data = soil_stats.get('Available_P_mg_kg', {})
+            if p_data:
+                p_avg = p_data.get('average', 0)
+                summary_sentences.append(f"Available phosphorus levels average {p_avg:.1f} mg/kg, {'meeting' if p_avg >= 10 else 'falling below'} the critical threshold of 10-15 mg/kg necessary for root development and fruit bunch formation.")
+            
+            k_data = soil_stats.get('Exchangeable_K_meq%', {})
+            if k_data:
+                k_avg = k_data.get('average', 0)
+                summary_sentences.append(f"Exchangeable potassium content shows an average of {k_avg:.2f} meq%, which {'supports' if k_avg >= 0.2 else 'limits'} the palm's ability to regulate water balance and enhance oil synthesis processes.")
+            
+            ca_data = soil_stats.get('Exchangeable_Ca_meq%', {})
+            if ca_data:
+                ca_avg = ca_data.get('average', 0)
+                summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% {'provides adequate' if ca_avg >= 0.5 else 'indicates insufficient'} structural support for cell wall development and overall plant vigor.")
+        
+        # 8-11: Leaf analysis findings (exact same as results page)
+        if leaf_params.get('parameter_statistics'):
+            leaf_stats = leaf_params['parameter_statistics']
+            n_data = leaf_stats.get('N_%', {})
+            if n_data:
+                n_avg = n_data.get('average', 0)
+                summary_sentences.append(f"Leaf nitrogen content averages {n_avg:.2f}%, {'indicating optimal' if 2.5 <= n_avg <= 2.8 else 'suggesting suboptimal'} protein synthesis and chlorophyll production for photosynthetic efficiency.")
+            
+            p_leaf_data = leaf_stats.get('P_%', {})
+            if p_leaf_data:
+                p_leaf_avg = p_leaf_data.get('average', 0)
+                summary_sentences.append(f"Foliar phosphorus levels at {p_leaf_avg:.3f}% {'support' if p_leaf_avg >= 0.15 else 'may limit'} energy transfer processes and reproductive development in the palm canopy.")
+            
+            k_leaf_data = leaf_stats.get('K_%', {})
+            if k_leaf_data:
+                k_leaf_avg = k_leaf_data.get('average', 0)
+                summary_sentences.append(f"Leaf potassium concentration of {k_leaf_avg:.2f}% {'ensures proper' if k_leaf_avg >= 1.0 else 'indicates compromised'} stomatal regulation and carbohydrate translocation to developing fruit bunches.")
+            
+            mg_data = leaf_stats.get('Mg_%', {})
+            if mg_data:
+                mg_avg = mg_data.get('average', 0)
+                summary_sentences.append(f"Magnesium content in leaf tissue shows {mg_avg:.3f}%, which {'maintains' if mg_avg >= 0.25 else 'threatens'} the structural integrity of chlorophyll molecules essential for photosynthetic capacity.")
+        
+        # 12-15: Critical issues and severity assessment (exact same as results page)
+        critical_issues = [i for i in all_issues if i.get('severity') == 'Critical']
+        high_issues = [i for i in all_issues if i.get('severity') == 'High']
+        medium_issues = [i for i in all_issues if i.get('severity') == 'Medium']
+        
+        summary_sentences.append(f"Critical nutritional deficiencies identified in {len(critical_issues)} parameters pose immediate threats to palm productivity and require urgent corrective measures within the next 30-60 days.")
+        summary_sentences.append(f"High-severity imbalances affecting {len(high_issues)} additional parameters will significantly impact yield potential if not addressed through targeted fertilization programs within 3-6 months.")
+        summary_sentences.append(f"Medium-priority nutritional concerns in {len(medium_issues)} parameters suggest the need for adjusted maintenance fertilization schedules to prevent future deficiencies.")
+        
+        # 16-18: Yield and economic implications (exact same as results page)
+        current_yield = land_yield_data.get('current_yield', 0)
+        land_size = land_yield_data.get('land_size', 0)
+        if current_yield and land_size:
+            summary_sentences.append(f"Current yield performance of {current_yield} tonnes per hectare across {land_size} hectares {'exceeds' if current_yield > 20 else 'falls below'} industry benchmarks, with nutritional corrections potentially {'maintaining' if current_yield > 20 else 'improving'} production by 15-25%.")
+        else:
+            summary_sentences.append("Yield optimization potential through nutritional management could increase production by 15-25% when combined with proper agronomic practices and timely intervention strategies.")
+        
+        summary_sentences.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production.")
+        
+        # 19-20: Recommendations and monitoring (exact same as results page)
+        summary_sentences.append("Implementation of precision fertilization based on these findings, combined with regular soil and leaf monitoring every 6 months, will ensure sustained productivity and long-term plantation profitability.")
+        summary_sentences.append("Adoption of integrated nutrient management practices, including organic matter incorporation and micronutrient supplementation, will enhance soil health and support the plantation's transition toward sustainable intensification goals.")
+        
+        # Ensure we have exactly 20 sentences (exact same as results page)
+        while len(summary_sentences) < 20:
+            summary_sentences.append("Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation.")
+        
+        # Take only the first 20 sentences (exact same as results page)
+        summary_sentences = summary_sentences[:20]
+        
+        # Join sentences into a comprehensive summary (exact same as results page)
+        comprehensive_summary = " ".join(summary_sentences)
+        
+        # Display the summary as a single paragraph without breaking it into sentences
+        story.append(Paragraph(comprehensive_summary, self.styles['CustomBody']))
+        
         return story
     
+    def _clean_finding_text_pdf(self, text):
+        """Clean finding text by removing duplicate 'Key Finding' words and normalizing (PDF version)"""
+        import re
+        
+        # Remove duplicate "Key Finding" patterns
+        # Pattern 1: "Key Finding X: Key finding Y:" -> "Key Finding X:"
+        text = re.sub(r'Key Finding \d+:\s*Key finding \d+:\s*', 'Key Finding ', text)
+        
+        # Pattern 2: "Key finding X:" -> remove (lowercase version)
+        text = re.sub(r'Key finding \d+:\s*', '', text)
+        
+        # Pattern 3: Multiple "Key Finding" at the start
+        text = re.sub(r'^(Key Finding \d+:\s*)+', 'Key Finding ', text)
+        
+        # Clean up extra spaces
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+
+    def _is_same_issue_pdf(self, finding1, finding2):
+        """Check if two findings are about the same agricultural issue (PDF version)"""
+        # Define issue patterns
+        issue_patterns = {
+            'potassium_deficiency': ['potassium', 'k deficiency', 'k level', 'k average', 'k critical'],
+            'soil_acidity': ['ph', 'acidic', 'acidity', 'soil ph', 'ph level'],
+            'phosphorus_deficiency': ['phosphorus', 'p deficiency', 'available p', 'p level'],
+            'nutrient_deficiency': ['deficiency', 'deficient', 'nutrient', 'nutrients'],
+            'cec_issue': ['cec', 'cation exchange', 'nutrient retention', 'nutrient holding'],
+            'organic_matter': ['organic matter', 'organic carbon', 'carbon'],
+            'micronutrient': ['copper', 'zinc', 'manganese', 'iron', 'boron', 'micronutrient'],
+            'yield_impact': ['yield', 'productivity', 'tonnes', 'production'],
+            'economic_impact': ['roi', 'investment', 'cost', 'profit', 'revenue', 'economic']
+        }
+        
+        finding1_lower = finding1.lower()
+        finding2_lower = finding2.lower()
+        
+        # Check if both findings mention the same issue category
+        for issue, keywords in issue_patterns.items():
+            finding1_has_issue = any(keyword in finding1_lower for keyword in keywords)
+            finding2_has_issue = any(keyword in finding2_lower for keyword in keywords)
+            
+            if finding1_has_issue and finding2_has_issue:
+                # Additional check for specific values or percentages
+                if issue in ['potassium_deficiency', 'soil_acidity', 'phosphorus_deficiency']:
+                    # Extract numbers from both findings
+                    import re
+                    nums1 = re.findall(r'\d+\.?\d*', finding1)
+                    nums2 = re.findall(r'\d+\.?\d*', finding2)
+                    
+                    # If they have similar numbers, they're likely the same issue
+                    if nums1 and nums2:
+                        for num1 in nums1:
+                            for num2 in nums2:
+                                if abs(float(num1) - float(num2)) < 0.1:  # Very close values
+                                    return True
+                
+                return True
+        
+        return False
+
+    def _extract_key_concepts_pdf(self, text):
+        """Extract key concepts from text for better deduplication (PDF version)"""
+        import re
+        
+        # Define key agricultural concepts and nutrients
+        nutrients = ['nitrogen', 'phosphorus', 'potassium', 'calcium', 'magnesium', 'sulfur', 'copper', 'zinc', 'manganese', 'iron', 'boron', 'molybdenum']
+        parameters = ['ph', 'cec', 'organic matter', 'base saturation', 'yield', 'deficiency', 'excess', 'optimum', 'critical', 'mg/kg', '%', 'meq']
+        conditions = ['acidic', 'alkaline', 'deficient', 'sufficient', 'excessive', 'low', 'high', 'moderate', 'severe', 'mild']
+        
+        # Extract numbers and percentages
+        numbers = re.findall(r'\d+\.?\d*', text)
+        
+        # Extract nutrient names and parameters
+        found_concepts = set()
+        
+        # Check for nutrients
+        for nutrient in nutrients:
+            if nutrient in text:
+                found_concepts.add(nutrient)
+        
+        # Check for parameters
+        for param in parameters:
+            if param in text:
+                found_concepts.add(param)
+        
+        # Check for conditions
+        for condition in conditions:
+            if condition in text:
+                found_concepts.add(condition)
+        
+        # Add significant numbers (values that matter for agricultural analysis)
+        for num in numbers:
+            if float(num) > 0:  # Only add positive numbers
+                found_concepts.add(num)
+        
+        return found_concepts
+
     def _create_enhanced_key_findings(self, analysis_data: Dict[str, Any]) -> List:
-        """Create enhanced key findings section"""
+        """Create enhanced key findings section with intelligent extraction - exact copy from results page"""
         story = []
         
         # Key Findings header
         story.append(Paragraph("Key Findings", self.styles['Heading1']))
         story.append(Spacer(1, 12))
         
-        # Get step results
-        step_results = analysis_data.get('step_by_step_analysis', [])
+        # Handle data structure - analysis_data might be the analysis_results content directly
+        if 'analysis_results' in analysis_data:
+            # Full structure: analysis_data contains analysis_results
+            analysis_results = analysis_data.get('analysis_results', {})
+        else:
+            # Direct structure: analysis_data IS the analysis_results content
+            analysis_results = analysis_data
+        
+        step_results = analysis_results.get('step_by_step_analysis', [])
+        
+        # Look for key findings in multiple sources - exact same as results page
         all_key_findings = []
         
-        for step in step_results:
-            if 'key_findings' in step and step['key_findings']:
-                step_title = step.get('step_title', f"Step {step.get('step_number', 'Unknown')}")
-                for finding in step['key_findings']:
+        # 1. Check for key findings at the top level of analysis_results
+        if 'key_findings' in analysis_results and analysis_results['key_findings']:
+            findings_data = analysis_results['key_findings']
+            
+            # Handle both list and string formats
+            if isinstance(findings_data, list):
+                findings_list = findings_data
+            elif isinstance(findings_data, str):
+                findings_list = [f.strip() for f in findings_data.split('\n') if f.strip()]
+            else:
+                findings_list = []
+            
+            # Process each finding
+            for finding in findings_list:
+                if isinstance(finding, str) and finding.strip():
+                    cleaned_finding = self._clean_finding_text_pdf(finding.strip())
                     all_key_findings.append({
-                        'finding': finding,
-                        'step_title': step_title
+                        'finding': cleaned_finding,
+                        'source': 'Overall Analysis'
                     })
         
+        # 2. Check for executive summary
+        if 'executive_summary' in analysis_results and analysis_results['executive_summary']:
+            summary = analysis_results['executive_summary']
+            if isinstance(summary, str):
+                lines = [line.strip() for line in summary.split('\n') if line.strip()]
+                for line in lines:
+                    if any(keyword in line.lower() for keyword in ['deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield', 'recommendation', 'finding', 'issue', 'problem']):
+                        cleaned_finding = self._clean_finding_text_pdf(line)
+                        all_key_findings.append({
+                            'finding': cleaned_finding,
+                            'source': 'Executive Summary'
+                        })
+        
+        # 3. Check for overall summary
+        if 'summary' in analysis_results and analysis_results['summary']:
+            summary = analysis_results['summary']
+            if isinstance(summary, str):
+                lines = [line.strip() for line in summary.split('\n') if line.strip()]
+                for line in lines:
+                    if any(keyword in line.lower() for keyword in ['deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield', 'recommendation', 'finding', 'issue', 'problem']):
+                        cleaned_finding = self._clean_finding_text_pdf(line)
+                        all_key_findings.append({
+                            'finding': cleaned_finding,
+                            'source': 'Analysis Summary'
+                        })
+        
+        # 4. If still no findings, extract from step results but with smart deduplication - exact same as results page
+        if not all_key_findings and step_results:
+            step_findings = []
+            
+            for i, step in enumerate(step_results):
+                if 'key_findings' in step and step['key_findings']:
+                    step_title = step.get('step_title', f"Step {step.get('step_number', 'Unknown')}")
+                    step_findings_data = step['key_findings']
+                    
+                    # Handle both list and string formats
+                    if isinstance(step_findings_data, list):
+                        findings_list = step_findings_data
+                    elif isinstance(step_findings_data, str):
+                        findings_list = [f.strip() for f in step_findings_data.split('\n') if f.strip()]
+                    else:
+                        findings_list = []
+                    
+                    for finding in findings_list:
+                        if isinstance(finding, str) and finding.strip():
+                            cleaned_finding = self._clean_finding_text_pdf(finding.strip())
+                            step_findings.append({
+                                'finding': cleaned_finding,
+                                'source': step_title
+                            })
+            
+            # Apply smart deduplication to step findings - exact same as results page
+            if step_findings:
+                unique_findings = []
+                seen_concepts = []
+                
+                for finding_data in step_findings:
+                    finding = finding_data['finding']
+                    normalized = ' '.join(finding.lower().split())
+                    key_concepts = self._extract_key_concepts_pdf(normalized)
+                    
+                    is_duplicate = False
+                    for i, seen_concept_set in enumerate(seen_concepts):
+                        concept_overlap = len(key_concepts.intersection(seen_concept_set))
+                        total_concepts = len(key_concepts.union(seen_concept_set))
+                        
+                        if total_concepts > 0:
+                            similarity = concept_overlap / total_concepts
+                            word_similarity = len(key_concepts.intersection(seen_concept_set)) / max(len(key_concepts), len(seen_concept_set)) if len(key_concepts) > 0 and len(seen_concept_set) > 0 else 0
+                            
+                            # More aggressive deduplication
+                            if similarity > 0.6 or word_similarity > 0.7:
+                                if len(finding) > len(unique_findings[i]['finding']):
+                                    unique_findings[i] = finding_data
+                                    seen_concepts[i] = key_concepts
+                                is_duplicate = True
+                                break
+                            
+                            # Check for same issue
+                            if similarity > 0.4 and word_similarity > 0.5:
+                                if self._is_same_issue_pdf(finding, unique_findings[i]['finding']):
+                                    if len(finding) > len(unique_findings[i]['finding']):
+                                        unique_findings[i] = finding_data
+                                        seen_concepts[i] = key_concepts
+                                    is_duplicate = True
+                                    break
+                    
+                    if not is_duplicate:
+                        unique_findings.append(finding_data)
+                        seen_concepts.append(key_concepts)
+                
+                all_key_findings = unique_findings
+        
         if all_key_findings:
+            # Display key findings - exact same format as results page
             for i, finding_data in enumerate(all_key_findings, 1):
                 finding = finding_data['finding']
-                step_title = finding_data['step_title']
+                source = finding_data['source']
                 
-                # Create finding with step context
-                finding_text = f"<b>{i}.</b> {finding}<br/><i>Source: {step_title}</i>"
+                # Create finding paragraph with proper formatting - exact same as results page
+                finding_text = f"<b>Key Finding {i}:</b> {finding}"
                 story.append(Paragraph(finding_text, self.styles['CustomBody']))
+                story.append(Paragraph(f"<i>📋 Source: {source}</i>", self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
         else:
-            story.append(Paragraph("No key findings available from the analysis steps.", self.styles['CustomBody']))
+            story.append(Paragraph("📋 No key findings available from the analysis results.", self.styles['CustomBody']))
         
         story.append(Spacer(1, 20))
         return story
     
+    def _create_comprehensive_step_by_step_analysis(self, analysis_data: Dict[str, Any]) -> List:
+        """Create comprehensive step-by-step analysis section with visualizations"""
+        story = []
+        
+        # Step-by-Step Analysis header
+        story.append(Paragraph("Step-by-Step Analysis", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        # Handle data structure - analysis_data might be the analysis_results content directly
+        if 'analysis_results' in analysis_data:
+            # Full structure: analysis_data contains analysis_results
+            analysis_results = analysis_data.get('analysis_results', {})
+        else:
+            # Direct structure: analysis_data IS the analysis_results content
+            analysis_results = analysis_data
+        
+        step_results = analysis_results.get('step_by_step_analysis', [])
+        
+        for step in step_results:
+            step_number = step.get('step_number', 'Unknown')
+            step_title = step.get('step_title', 'Unknown Step')
+            
+            # Step header
+            story.append(Paragraph(f"Step {step_number}: {step_title}", self.styles['Heading2']))
+            story.append(Spacer(1, 8))
+            
+            # Summary (most important content)
+            if 'summary' in step and step['summary']:
+                story.append(Paragraph("Summary:", self.styles['Heading3']))
+                story.append(Paragraph(step['summary'], self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Detailed Analysis (most relevant content)
+            if 'detailed_analysis' in step and step['detailed_analysis']:
+                story.append(Paragraph("Detailed Analysis:", self.styles['Heading3']))
+                # Truncate if too long to keep PDF manageable
+                detailed_text = step['detailed_analysis']
+                if len(detailed_text) > 2000:
+                    detailed_text = detailed_text[:2000] + "..."
+                story.append(Paragraph(detailed_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Issues Identified (crucial for farmers)
+            if 'issues_identified' in step and step['issues_identified']:
+                story.append(Paragraph("Issues Identified:", self.styles['Heading3']))
+                for i, issue in enumerate(step['issues_identified'], 1):
+                    issue_text = f"<b>{i}.</b> {issue}"
+                    story.append(Paragraph(issue_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Recommendations (crucial for farmers)
+            if 'recommendations' in step and step['recommendations']:
+                story.append(Paragraph("Recommendations:", self.styles['Heading3']))
+                for i, rec in enumerate(step['recommendations'], 1):
+                    rec_text = f"<b>{i}.</b> {rec}"
+                    story.append(Paragraph(rec_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Step-specific tables and content
+            if step_number == 1:
+                # Step 1: Data Analysis - Add all data tables
+                story.extend(self._create_step1_data_tables(step, analysis_data))
+            elif step_number == 2:
+                # Step 2: Issue Diagnosis - Add diagnostic tables
+                story.extend(self._create_step2_diagnostic_tables(step))
+            elif step_number == 3:
+                # Step 3: Solution Recommendations - Add economic and solution tables
+                story.extend(self._create_step3_solution_tables(step))
+            elif step_number == 4:
+                # Step 4: Regenerative Agriculture - Add regenerative strategy tables
+                story.extend(self._create_step4_regenerative_tables(step))
+            elif step_number == 5:
+                # Step 5: Economic Impact - Add comprehensive economic tables
+                story.extend(self._create_step5_economic_tables(step))
+            elif step_number == 6:
+                # Step 6: Yield Forecast - Add forecast tables
+                story.extend(self._create_step6_forecast_tables(step))
+            
+            # Visualizations and Charts
+            story.extend(self._create_step_visualizations(step, step_number))
+            
+            story.append(Spacer(1, 15))
+        
+        return story
+    
+    def _create_step_visualizations(self, step: Dict[str, Any], step_number: int) -> List:
+        """Create visualizations for each step"""
+        story = []
+        
+        # Check for charts and visualizations in the step data
+        if 'charts' in step and step['charts']:
+            story.append(Paragraph("Visualizations:", self.styles['Heading3']))
+            
+            for chart_data in step['charts']:
+                try:
+                    # Create chart using matplotlib
+                    chart_image = self._create_chart_image(chart_data)
+                    if chart_image:
+                        # Create a BytesIO object from the image bytes
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                except Exception as e:
+                    logger.warning(f"Could not create chart: {str(e)}")
+                    continue
+        
+        # Create nutrient status visualization for Step 1
+        if step_number == 1:
+            nutrient_chart = self._create_nutrient_status_chart(step)
+            if nutrient_chart:
+                story.append(Paragraph("Nutrient Status Overview:", self.styles['Heading3']))
+                # Create a BytesIO object from the image bytes
+                img_buffer = io.BytesIO(nutrient_chart)
+                story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                story.append(Spacer(1, 8))
+        
+        return story
+    
+    def _create_chart_image(self, chart_data: Dict[str, Any]) -> Optional[bytes]:
+        """Create chart image from chart data"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            
+            # Clear any existing figures to prevent memory issues
+            plt.clf()
+            plt.close('all')
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            chart_type = chart_data.get('type', 'bar')
+            data = chart_data.get('data', {})
+            labels = data.get('labels', [])
+            values = data.get('values', [])
+            
+            # Validate data
+            if not labels or not values or len(labels) != len(values):
+                logger.warning("Invalid chart data: labels and values must be non-empty and same length")
+                return None
+            
+            if chart_type == 'bar':
+                ax.bar(labels, values)
+            elif chart_type == 'line':
+                ax.plot(labels, values, marker='o')
+            elif chart_type == 'pie':
+                ax.pie(values, labels=labels, autopct='%1.1f%%')
+            else:
+                # Default to bar chart
+                ax.bar(labels, values)
+            
+            ax.set_title(chart_data.get('title', 'Chart'))
+            ax.tick_params(axis='x', rotation=45)
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating chart: {str(e)}")
+            return None
+    
+    def _create_nutrient_status_chart(self, step: Dict[str, Any]) -> Optional[bytes]:
+        """Create nutrient status chart for Step 1"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            
+            # Clear any existing figures to prevent memory issues
+            plt.clf()
+            plt.close('all')
+            
+            # Extract nutrient data from step
+            soil_params = step.get('soil_parameters', {})
+            leaf_params = step.get('leaf_parameters', {})
+            
+            if not soil_params and not leaf_params:
+                return None
+            
+            # Determine layout based on available data
+            if soil_params and leaf_params:
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+            elif soil_params:
+                fig, ax1 = plt.subplots(1, 1, figsize=(6, 5))
+                ax2 = None
+            else:
+                fig, ax2 = plt.subplots(1, 1, figsize=(6, 5))
+                ax1 = None
+            
+            # Soil nutrients chart
+            if soil_params and ax1 is not None:
+                soil_labels = []
+                soil_values = []
+                for param, data in soil_params.items():
+                    if isinstance(data, dict) and 'average' in data:
+                        soil_labels.append(param.replace('_', ' ').title())
+                        soil_values.append(data['average'])
+                
+                if soil_labels and soil_values:
+                    ax1.bar(soil_labels, soil_values)
+                    ax1.set_title('Soil Nutrient Levels')
+                    ax1.set_ylabel('Value')
+                    ax1.tick_params(axis='x', rotation=45)
+            
+            # Leaf nutrients chart
+            if leaf_params and ax2 is not None:
+                leaf_labels = []
+                leaf_values = []
+                for param, data in leaf_params.items():
+                    if isinstance(data, dict) and 'average' in data:
+                        leaf_labels.append(param.replace('_', ' ').title())
+                        leaf_values.append(data['average'])
+                
+                if leaf_labels and leaf_values:
+                    ax2.bar(leaf_labels, leaf_values)
+                    ax2.set_title('Leaf Nutrient Levels')
+                    ax2.set_ylabel('Value')
+                    ax2.tick_params(axis='x', rotation=45)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating nutrient status chart: {str(e)}")
+            return None
+    
+    def _create_nutrient_status_tables(self, step: Dict[str, Any]) -> List:
+        """Create nutrient status tables for Step 1"""
+        story = []
+        
+        # Soil Nutrient Status Table
+        soil_params = step.get('soil_parameters', {})
+        if soil_params:
+            story.append(Paragraph("Soil Nutrient Status:", self.styles['Heading3']))
+            
+            table_data = [['Parameter', 'Average', 'Status', 'Unit']]
+            for param, data in soil_params.items():
+                if isinstance(data, dict):
+                    table_data.append([
+                        param.replace('_', ' ').title(),
+                        f"{data.get('average', 0):.2f}",
+                        data.get('status', 'Unknown'),
+                        data.get('unit', '')
+                    ])
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 8))
+        
+        return story
+    
+    def _create_step_economic_analysis(self, step: Dict[str, Any]) -> List:
+        """Create economic analysis for Step 3"""
+        story = []
+        
+        economic_data = step.get('economic_analysis', {})
+        if economic_data:
+            story.append(Paragraph("Economic Analysis:", self.styles['Heading3']))
+            
+            # ROI Analysis
+            if 'roi_analysis' in economic_data:
+                roi_data = economic_data['roi_analysis']
+                story.append(Paragraph(f"ROI Analysis: {roi_data}", self.styles['CustomBody']))
+                story.append(Spacer(1, 4))
+            
+            # Cost-Benefit Analysis
+            if 'cost_benefit' in economic_data:
+                cb_data = economic_data['cost_benefit']
+                story.append(Paragraph(f"Cost-Benefit Analysis: {cb_data}", self.styles['CustomBody']))
+                story.append(Spacer(1, 4))
+            
+            # Investment Recommendations
+            if 'investment_recommendations' in economic_data:
+                inv_recs = economic_data['investment_recommendations']
+                if isinstance(inv_recs, list):
+                    for i, rec in enumerate(inv_recs, 1):
+                        story.append(Paragraph(f"<b>{i}.</b> {rec}", self.styles['CustomBody']))
+                else:
+                    story.append(Paragraph(inv_recs, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+        
+        return story
+
+    def _create_step1_data_tables(self, step: Dict[str, Any], analysis_data: Dict[str, Any]) -> List:
+        """Create data tables for Step 1: Data Analysis"""
+        story = []
+        
+        # Get raw data from analysis_data
+        analysis_results = analysis_data.get('analysis_results', {})
+        raw_data = analysis_results.get('raw_data', {})
+        
+        # Soil Data Table
+        soil_data = raw_data.get('soil_data', {})
+        if soil_data and 'parameter_statistics' in soil_data:
+            story.append(Paragraph("Soil Analysis Data", self.styles['Heading3']))
+            story.extend(self._create_parameter_statistics_table(soil_data, "Soil"))
+            story.append(Spacer(1, 8))
+        
+        # Leaf Data Table
+        leaf_data = raw_data.get('leaf_data', {})
+        if leaf_data and 'parameter_statistics' in leaf_data:
+            story.append(Paragraph("Leaf Analysis Data", self.styles['Heading3']))
+            story.extend(self._create_parameter_statistics_table(leaf_data, "Leaf"))
+            story.append(Spacer(1, 8))
+        
+        # Nutrient Status Tables
+        story.extend(self._create_nutrient_status_tables(step))
+        
+        return story
+
+    def _create_step2_diagnostic_tables(self, step: Dict[str, Any]) -> List:
+        """Create diagnostic tables for Step 2: Issue Diagnosis"""
+        story = []
+        
+        # Issues Summary Table
+        if 'issues_identified' in step and step['issues_identified']:
+            story.append(Paragraph("Issues Summary", self.styles['Heading3']))
+            table_data = [['Issue #', 'Description', 'Severity']]
+            
+            for i, issue in enumerate(step['issues_identified'], 1):
+                # Extract severity from issue text if available
+                severity = "High"  # Default
+                if "critical" in issue.lower() or "severe" in issue.lower():
+                    severity = "Critical"
+                elif "moderate" in issue.lower() or "medium" in issue.lower():
+                    severity = "Moderate"
+                elif "low" in issue.lower() or "minor" in issue.lower():
+                    severity = "Low"
+                
+                table_data.append([str(i), issue[:100] + "..." if len(issue) > 100 else issue, severity])
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 8))
+        
+        return story
+
+    def _create_step3_solution_tables(self, step: Dict[str, Any]) -> List:
+        """Create solution tables for Step 3: Solution Recommendations"""
+        story = []
+        
+        # Economic Analysis Table
+        story.extend(self._create_step_economic_analysis(step))
+        
+        # Solution Recommendations Table
+        if 'recommendations' in step and step['recommendations']:
+            story.append(Paragraph("Solution Recommendations", self.styles['Heading3']))
+            table_data = [['Priority', 'Recommendation', 'Expected Impact']]
+            
+            for i, rec in enumerate(step['recommendations'], 1):
+                # Determine priority based on content
+                priority = "High"
+                if "immediate" in rec.lower() or "urgent" in rec.lower() or "critical" in rec.lower():
+                    priority = "Critical"
+                elif "long-term" in rec.lower() or "future" in rec.lower():
+                    priority = "Medium"
+                
+                # Extract impact if mentioned
+                impact = "Significant"
+                if "high" in rec.lower() and "impact" in rec.lower():
+                    impact = "High"
+                elif "moderate" in rec.lower() and "impact" in rec.lower():
+                    impact = "Moderate"
+                
+                table_data.append([priority, rec[:80] + "..." if len(rec) > 80 else rec, impact])
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 8))
+        
+        return story
+
+    def _create_step4_regenerative_tables(self, step: Dict[str, Any]) -> List:
+        """Create regenerative agriculture tables for Step 4"""
+        story = []
+        
+        # Regenerative Strategies Table
+        if 'regenerative_strategies' in step and step['regenerative_strategies']:
+            story.append(Paragraph("Regenerative Agriculture Strategies", self.styles['Heading3']))
+            strategies = step['regenerative_strategies']
+            
+            if isinstance(strategies, list):
+                table_data = [['Strategy', 'Implementation', 'Benefits']]
+                for strategy in strategies:
+                    if isinstance(strategy, dict):
+                        name = strategy.get('name', 'Unknown Strategy')
+                        implementation = strategy.get('implementation', 'Not specified')
+                        benefits = strategy.get('benefits', 'Not specified')
+                        table_data.append([name, implementation[:60] + "..." if len(implementation) > 60 else implementation, benefits[:60] + "..." if len(benefits) > 60 else benefits])
+                    else:
+                        table_data.append([str(strategy)[:50] + "..." if len(str(strategy)) > 50 else str(strategy), "See details", "See details"])
+                
+                if len(table_data) > 1:
+                    table = Table(table_data)
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ]))
+                    story.append(table)
+                    story.append(Spacer(1, 8))
+        
+        return story
+
+    def _create_step5_economic_tables(self, step: Dict[str, Any]) -> List:
+        """Create comprehensive economic tables for Step 5"""
+        story = []
+        
+        # Investment Scenarios Table
+        if 'investment_scenarios' in step and step['investment_scenarios']:
+            story.append(Paragraph("Investment Scenarios Analysis", self.styles['Heading3']))
+            scenarios = step['investment_scenarios']
+            
+            table_data = [['Investment Level', 'Total Cost (RM)', 'Expected Return (RM)', 'ROI (%)', 'Payback Period']]
+            
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict):
+                    cost = scenario_data.get('total_cost', 0)
+                    return_val = scenario_data.get('expected_return', 0)
+                    roi = scenario_data.get('roi', 0)
+                    payback = scenario_data.get('payback_period', 'N/A')
+                    
+                    table_data.append([
+                        scenario_name.title(),
+                        f"{cost:,.0f}" if isinstance(cost, (int, float)) else str(cost),
+                        f"{return_val:,.0f}" if isinstance(return_val, (int, float)) else str(return_val),
+                        f"{roi:.1f}%" if isinstance(roi, (int, float)) else str(roi),
+                        str(payback)
+                    ])
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 8))
+        
+        return story
+
+    def _create_step6_forecast_tables(self, step: Dict[str, Any]) -> List:
+        """Create forecast tables for Step 6: Yield Forecast"""
+        story = []
+        
+        # Yield Projections Table
+        if 'yield_projections' in step and step['yield_projections']:
+            story.append(Paragraph("5-Year Yield Projections", self.styles['Heading3']))
+            projections = step['yield_projections']
+            
+            years = list(range(2024, 2029))
+            table_data = [['Year'] + [f'{level.title()} Investment' for level in ['high', 'medium', 'low'] if level in projections]]
+            
+            for year in years:
+                row = [str(year)]
+                for level in ['high', 'medium', 'low']:
+                    if level in projections and len(projections[level]) >= (year - 2023):
+                        value = projections[level][year - 2024]
+                        row.append(f"{value:.1f} tons/ha" if isinstance(value, (int, float)) else str(value))
+                    else:
+                        row.append("N/A")
+                table_data.append(row)
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 8))
+        
+        return story
+
+    def _create_parameter_statistics_table(self, data: Dict[str, Any], data_type: str) -> List:
+        """Create parameter statistics table for soil or leaf data"""
+        story = []
+        
+        param_stats = data.get('parameter_statistics', {})
+        if param_stats:
+            table_data = [['Parameter', 'Average', 'Min', 'Max', 'Samples']]
+            
+            for param, stats in param_stats.items():
+                table_data.append([
+                    param.replace('_', ' ').title(),
+                    f"{stats.get('average', 0):.2f}",
+                    f"{stats.get('min', 0):.2f}",
+                    f"{stats.get('max', 0):.2f}",
+                    str(stats.get('count', 0))
+                ])
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+        
+        return story
+    
     def _create_step_by_step_analysis(self, analysis_data: Dict[str, Any]) -> List:
-        """Create step-by-step analysis section"""
+        """Create step-by-step analysis section (legacy function)"""
         story = []
         
         # Step-by-Step Analysis header
@@ -348,6 +1262,425 @@ class PDFReportGenerator:
         
         return story
     
+    def _create_comprehensive_economic_analysis(self, analysis_data: Dict[str, Any]) -> List:
+        """Create comprehensive economic analysis section with all components"""
+        story = []
+        
+        # Economic Analysis header
+        story.append(Paragraph("Economic Analysis", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        # Find economic data from multiple sources
+        economic_data = self._extract_economic_data(analysis_data)
+        
+        if economic_data:
+            # Current Economic Status
+            story.extend(self._create_current_economic_status(economic_data))
+            
+            # ROI Analysis
+            story.extend(self._create_roi_analysis(economic_data))
+            
+            # Cost-Benefit Analysis
+            story.extend(self._create_detailed_cost_benefit_analysis(economic_data))
+            
+            # Investment Recommendations
+            story.extend(self._create_investment_recommendations(economic_data))
+            
+        else:
+            story.append(Paragraph("No economic analysis data available.", self.styles['CustomBody']))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
+    def _extract_economic_data(self, analysis_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract economic data from various sources in analysis_data"""
+        # 1. Check direct economic_forecast
+        if 'economic_forecast' in analysis_data and analysis_data['economic_forecast']:
+            return analysis_data['economic_forecast']
+        
+        # 2. Check step-by-step analysis for economic data
+        step_results = analysis_data.get('step_by_step_analysis', [])
+        for step in step_results:
+            if step.get('step_number') == 5 and 'economic_analysis' in step:
+                return step['economic_analysis']
+            elif 'economic_analysis' in step and step['economic_analysis']:
+                return step['economic_analysis']
+        
+        # 3. Check analysis_results
+        if 'analysis_results' in analysis_data:
+            analysis_results = analysis_data['analysis_results']
+            if 'economic_forecast' in analysis_results:
+                return analysis_results['economic_forecast']
+        
+        return None
+    
+    def _create_current_economic_status(self, economic_data: Dict[str, Any]) -> List:
+        """Create current economic status section"""
+        story = []
+        
+        story.append(Paragraph("Current Economic Status", self.styles['Heading2']))
+        story.append(Spacer(1, 8))
+        
+        # Extract key economic metrics
+        current_yield = economic_data.get('current_yield_tonnes_per_ha', 0)
+        land_size = economic_data.get('land_size_hectares', 0)
+        oil_palm_price = economic_data.get('oil_palm_price_rm_per_tonne', 600)
+        
+        # Create metrics table
+        metrics_data = []
+        if current_yield > 0:
+            metrics_data.append(['Current Yield', f"{current_yield:.1f} tonnes/ha"])
+        if land_size > 0:
+            metrics_data.append(['Land Size', f"{land_size:.1f} hectares"])
+        metrics_data.append(['Oil Palm Price', f"RM {oil_palm_price:.0f}/tonne"])
+        
+        if metrics_data:
+            table = Table(metrics_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_roi_analysis(self, economic_data: Dict[str, Any]) -> List:
+        """Create ROI analysis section"""
+        story = []
+        
+        story.append(Paragraph("Return on Investment (ROI) Analysis", self.styles['Heading2']))
+        story.append(Spacer(1, 8))
+        
+        scenarios = economic_data.get('scenarios', {})
+        if scenarios:
+            # Create ROI comparison table
+            table_data = [['Investment Level', 'Total Investment (RM)', 'Expected Return (RM)', 'ROI (%)', 'Payback Period (Months)']]
+            
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict):
+                    investment = scenario_data.get('total_cost', 0)
+                    expected_return = scenario_data.get('additional_revenue', 0)
+                    roi = scenario_data.get('roi_percentage', 0)
+                    payback_months = scenario_data.get('payback_months', 0)
+                    
+                    table_data.append([
+                        scenario_name.title(),
+                        f"RM {investment:,.0f}",
+                        f"RM {expected_return:,.0f}",
+                        f"{roi:.1f}%",
+                        f"{payback_months:.0f} months"
+                    ])
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_detailed_cost_benefit_analysis(self, economic_data: Dict[str, Any]) -> List:
+        """Create detailed cost-benefit analysis section"""
+        story = []
+        
+        story.append(Paragraph("Detailed Cost-Benefit Analysis", self.styles['Heading2']))
+        story.append(Spacer(1, 8))
+        
+        scenarios = economic_data.get('scenarios', {})
+        if scenarios:
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict):
+                    story.append(Paragraph(f"{scenario_name.title()} Investment Scenario", self.styles['Heading3']))
+                    
+                    # Cost breakdown
+                    total_cost = scenario_data.get('total_cost', 0)
+                    additional_revenue = scenario_data.get('additional_revenue', 0)
+                    net_benefit = additional_revenue - total_cost
+                    
+                    cost_breakdown = [
+                        ['Item', 'Amount (RM)'],
+                        ['Total Investment Cost', f"{total_cost:,.0f}"],
+                        ['Expected Additional Revenue', f"{additional_revenue:,.0f}"],
+                        ['Net Benefit', f"{net_benefit:,.0f}"]
+                    ]
+                    
+                    table = Table(cost_breakdown)
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 11),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ]))
+                    story.append(table)
+                    story.append(Spacer(1, 8))
+        
+        return story
+    
+    def _create_investment_recommendations(self, economic_data: Dict[str, Any]) -> List:
+        """Create investment recommendations section"""
+        story = []
+        
+        story.append(Paragraph("Investment Recommendations", self.styles['Heading2']))
+        story.append(Spacer(1, 8))
+        
+        scenarios = economic_data.get('scenarios', {})
+        if scenarios:
+            # Find the best ROI scenario
+            best_scenario = None
+            best_roi = 0
+            
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict):
+                    roi = scenario_data.get('roi_percentage', 0)
+                    if roi > best_roi:
+                        best_roi = roi
+                        best_scenario = (scenario_name, scenario_data)
+            
+            if best_scenario:
+                scenario_name, scenario_data = best_scenario
+                story.append(Paragraph(f"<b>Recommended Investment Level:</b> {scenario_name.title()}", self.styles['CustomBody']))
+                story.append(Paragraph(f"<b>Expected ROI:</b> {scenario_data.get('roi_percentage', 0):.1f}%", self.styles['CustomBody']))
+                story.append(Paragraph(f"<b>Payback Period:</b> {scenario_data.get('payback_months', 0):.0f} months", self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+        
+        return story
+    
+    def _create_yield_projections_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create yield projections section with charts"""
+        story = []
+        
+        story.append(Paragraph("Yield Projections", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        # Find yield forecast data
+        yield_forecast = self._extract_yield_forecast_data(analysis_data)
+        
+        if yield_forecast:
+            # Create yield projection chart
+            chart_image = self._create_yield_projection_chart(yield_forecast)
+            if chart_image:
+                # Create a BytesIO object from the image bytes
+                img_buffer = io.BytesIO(chart_image)
+                story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                story.append(Spacer(1, 12))
+            
+            # Create yield projections table
+            story.extend(self._create_yield_projections_table(yield_forecast))
+        
+        return story
+    
+    def _extract_yield_forecast_data(self, analysis_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract yield forecast data from various sources"""
+        # 1. Check direct yield_forecast
+        if 'yield_forecast' in analysis_data and analysis_data['yield_forecast']:
+            return analysis_data['yield_forecast']
+        
+        # 2. Check step-by-step analysis
+        step_results = analysis_data.get('step_by_step_analysis', [])
+        for step in step_results:
+            if step.get('step_number') == 6 and 'yield_forecast' in step:
+                return step['yield_forecast']
+            elif 'yield_forecast' in step and step['yield_forecast']:
+                return step['yield_forecast']
+        
+        return None
+    
+    def _create_yield_projection_chart(self, yield_forecast: Dict[str, Any]) -> Optional[bytes]:
+        """Create yield projection chart"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            
+            # Clear any existing figures to prevent memory issues
+            plt.clf()
+            plt.close('all')
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            years = [0, 1, 2, 3, 4, 5]
+            year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
+            
+            # Plot different investment scenarios
+            if 'high_investment' in yield_forecast and len(yield_forecast['high_investment']) >= 6:
+                ax.plot(years, yield_forecast['high_investment'][:6], 'o-', label='High Investment', linewidth=2, markersize=6)
+            
+            if 'medium_investment' in yield_forecast and len(yield_forecast['medium_investment']) >= 6:
+                ax.plot(years, yield_forecast['medium_investment'][:6], 's-', label='Medium Investment', linewidth=2, markersize=6)
+            
+            if 'low_investment' in yield_forecast and len(yield_forecast['low_investment']) >= 6:
+                ax.plot(years, yield_forecast['low_investment'][:6], '^-', label='Low Investment', linewidth=2, markersize=6)
+            
+            # Add baseline if available
+            baseline_yield = yield_forecast.get('baseline_yield', 0)
+            if baseline_yield > 0:
+                ax.axhline(y=baseline_yield, color='gray', linestyle='--', alpha=0.7, label=f'Current Baseline: {baseline_yield:.1f} t/ha')
+            
+            ax.set_xlabel('Year')
+            ax.set_ylabel('Yield (tonnes/hectare)')
+            ax.set_title('5-Year Yield Projections by Investment Level')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_xticks(years)
+            ax.set_xticklabels(year_labels)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating yield projection chart: {str(e)}")
+            return None
+    
+    def _create_yield_projections_table(self, yield_forecast: Dict[str, Any]) -> List:
+        """Create yield projections table"""
+        story = []
+        
+        story.append(Paragraph("Yield Projections by Investment Level", self.styles['Heading2']))
+        story.append(Spacer(1, 8))
+        
+        years = [0, 1, 2, 3, 4, 5]
+        year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
+        
+        table_data = [['Year'] + year_labels]
+        
+        # Add rows for each investment level
+        for investment_type in ['high_investment', 'medium_investment', 'low_investment']:
+            if investment_type in yield_forecast and len(yield_forecast[investment_type]) >= 6:
+                investment_name = investment_type.replace('_', ' ').title()
+                row = [investment_name]
+                for i in range(6):
+                    row.append(f"{yield_forecast[investment_type][i]:.1f}")
+                table_data.append(row)
+        
+        if len(table_data) > 1:
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_investment_scenarios_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create investment scenarios section"""
+        story = []
+        
+        story.append(Paragraph("Investment Scenarios", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        economic_data = self._extract_economic_data(analysis_data)
+        if economic_data and 'scenarios' in economic_data:
+            scenarios = economic_data['scenarios']
+            
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict):
+                    story.append(Paragraph(f"{scenario_name.title()} Investment Scenario", self.styles['Heading2']))
+                    story.append(Spacer(1, 8))
+                    
+                    # Scenario details
+                    details = [
+                        f"<b>Total Investment:</b> RM {scenario_data.get('total_cost', 0):,.0f}",
+                        f"<b>Expected Return:</b> RM {scenario_data.get('additional_revenue', 0):,.0f}",
+                        f"<b>ROI:</b> {scenario_data.get('roi_percentage', 0):.1f}%",
+                        f"<b>Payback Period:</b> {scenario_data.get('payback_months', 0):.0f} months"
+                    ]
+                    
+                    for detail in details:
+                        story.append(Paragraph(detail, self.styles['CustomBody']))
+                    
+                    story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_cost_benefit_analysis_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create comprehensive cost-benefit analysis section"""
+        story = []
+        
+        story.append(Paragraph("Cost-Benefit Analysis", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        economic_data = self._extract_economic_data(analysis_data)
+        if economic_data and 'scenarios' in economic_data:
+            scenarios = economic_data['scenarios']
+            
+            # Create comprehensive comparison table
+            table_data = [['Metric', 'High Investment', 'Medium Investment', 'Low Investment']]
+            
+            # Add rows for each metric
+            metrics = [
+                ('Total Investment (RM)', 'total_cost'),
+                ('Expected Return (RM)', 'additional_revenue'),
+                ('ROI (%)', 'roi_percentage'),
+                ('Payback Period (Months)', 'payback_months')
+            ]
+            
+            for metric_name, metric_key in metrics:
+                row = [metric_name]
+                for investment_type in ['high', 'medium', 'low']:
+                    scenario_key = f"{investment_type}_investment"
+                    if scenario_key in scenarios:
+                        value = scenarios[scenario_key].get(metric_key, 0)
+                        if 'RM' in metric_name:
+                            row.append(f"RM {value:,.0f}")
+                        elif '%' in metric_name:
+                            row.append(f"{value:.1f}%")
+                        else:
+                            row.append(f"{value:.0f}")
+                    else:
+                        row.append("N/A")
+                table_data.append(row)
+            
+            if len(table_data) > 1:
+                table = Table(table_data)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 12))
+        
+        return story
+
     def _create_enhanced_economic_forecast_table(self, analysis_data: Dict[str, Any]) -> List:
         """Create enhanced economic forecast table"""
         story = []
