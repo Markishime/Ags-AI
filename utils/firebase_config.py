@@ -18,10 +18,14 @@ def initialize_firebase() -> bool:
     try:
         # Set environment variables to prevent metadata service usage
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
-        os.environ['GOOGLE_CLOUD_PROJECT'] = \
-            'agriai-cbd8b'
+        os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
         # Disable metadata service completely
         os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
+        # Additional environment variables to prevent metadata service
+        os.environ['GCE_METADATA_HOST'] = ''
+        os.environ['GCE_METADATA_ROOT'] = ''
+        # Force use of service account credentials
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_account'
         
         # Check if Firebase is already initialized
         if firebase_admin._apps:
@@ -41,6 +45,13 @@ def initialize_firebase() -> bool:
             cred = credentials.Certificate(firebase_creds)
             # Force the credentials to use the project ID from the service account
             cred.project_id = firebase_creds.get('project_id', 'agriai-cbd8b')
+            
+            # Override the refresh method to prevent metadata service usage
+            original_refresh = cred.refresh
+            def custom_refresh(request):
+                # Force use of service account credentials only
+                return original_refresh(request)
+            cred.refresh = custom_refresh
             
             # Get storage bucket from secrets or environment
             storage_bucket = None
@@ -62,6 +73,17 @@ def initialize_firebase() -> bool:
             import google.auth
             project_id = firebase_creds.get('project_id', 'agriai-cbd8b')
             google.auth.default = lambda: (cred, project_id)
+            
+            # Monkey patch to prevent metadata service usage
+            try:
+                from google.auth import compute_engine
+                # Override the metadata service to always fail
+                def _disabled_metadata_get(*args, **kwargs):
+                    raise Exception("Metadata service disabled for Streamlit Cloud")
+                compute_engine._metadata.get = _disabled_metadata_get
+                compute_engine._metadata.get_service_account_info = _disabled_metadata_get
+            except ImportError:
+                pass
             
             print(f"Firebase initialized successfully with storage bucket: {storage_bucket}")
             return True
@@ -289,7 +311,7 @@ def initialize_admin_codes():
                         current_time = datetime.now()
                     
                     if expires_at > current_time:
-                        print(f"Default admin code already exists: {code_data['code']}")
+                        print("Default admin code already exists")
                         return code_data['code']
         
         # Generate new default admin code
@@ -312,7 +334,7 @@ def initialize_admin_codes():
         }
         
         admin_codes_ref.add(admin_code_data)
-        print(f"Default admin code created: {default_code}")
+        print("Default admin code created successfully")
         return default_code
         
     except Exception as e:

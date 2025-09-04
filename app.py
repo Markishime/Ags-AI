@@ -162,7 +162,7 @@ def initialize_app():
     # Initialize admin codes
     default_admin_code = initialize_admin_codes()
     if default_admin_code:
-        print(f"Default admin code available: {default_admin_code}")
+        print("Default admin code initialized successfully")
     
     # Initialize session state
     if 'authenticated' not in st.session_state:

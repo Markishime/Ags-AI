@@ -5,11 +5,17 @@ from datetime import datetime
 from PIL import Image
 
 # Add utils to path
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'))
+utils_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils')
+if utils_path not in sys.path:
+    sys.path.append(utils_path)
 
-# Import utilities
-from utils.ocr_utils import extract_data_from_image
-from utils.config_manager import get_ui_config
+# Import utilities with error handling
+try:
+    from utils.ocr_utils import extract_data_from_image
+    from utils.config_manager import get_ui_config
+except ImportError as e:
+    st.error(f"Import error: {e}")
+    st.stop()
 
 def show_upload_page():
     """Main upload page - focused only on file upload and preview"""
