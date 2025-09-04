@@ -4,43 +4,7 @@ import os
 import time
 from datetime import datetime
 
-# Set environment variables to prevent metadata service usage
-# This must be done before any Google Cloud libraries are imported
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
-os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
-os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-os.environ['GCE_METADATA_HOST'] = ''
-os.environ['GCE_METADATA_ROOT'] = ''
-os.environ['GCE_METADATA_TIMEOUT'] = '0'
-os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
-
-# Additional environment variables to completely disable metadata service
-os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
-os.environ['GCE_METADATA_HOST'] = ''
-os.environ['GCE_METADATA_ROOT'] = ''
-os.environ['GCE_METADATA_TIMEOUT'] = '0'
-
-# Monkey patch the Google Auth library at module level to prevent metadata service usage
-try:
-    import google.auth
-    import google.auth.compute_engine
-    import google.auth.transport.requests
-    
-    # Override the default credential discovery to never use metadata service
-    original_default = google.auth.default
-    def patched_default(scopes=None, request=None, default_scopes=None, quota_project_id=None, **kwargs):
-        # Always return None to force explicit credential usage
-        return None, None
-    google.auth.default = patched_default
-    
-    # Disable compute engine credentials completely
-    def disabled_compute_engine_credentials(*args, **kwargs):
-        raise Exception("Compute Engine credentials disabled for Streamlit Cloud")
-    google.auth.compute_engine.Credentials = disabled_compute_engine_credentials
-    
-except ImportError:
-    pass
+# Remove global metadata/auth monkey patches; rely on explicit credentials/API keys
 
 # Ensure project root and utils are on sys.path
 repo_root = os.path.dirname(__file__)
