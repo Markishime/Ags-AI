@@ -41,7 +41,7 @@ class ReferenceSearchEngine:
         """Initialize Tavily and Firestore clients"""
         # Initialize Tavily client
         if TAVILY_AVAILABLE:
-            # Try Streamlit secrets first
+            # Use Streamlit secrets only (no env fallback)
             tavily_api_key = None
             try:
                 import streamlit as st
@@ -49,10 +49,6 @@ class ReferenceSearchEngine:
                     tavily_api_key = st.secrets.tavily.get('tavily_api_key')
             except:
                 pass
-            
-            # Fallback to environment variable
-            if not tavily_api_key:
-                tavily_api_key = os.getenv('TAVILY_API_KEY')
                 
             if tavily_api_key:
                 try:
@@ -61,7 +57,7 @@ class ReferenceSearchEngine:
                 except Exception as e:
                     logger.error(f"Failed to initialize Tavily client: {str(e)}")
             else:
-                logger.warning("TAVILY_API_KEY not found in environment variables")
+                logger.warning("TAVILY API key not found in Streamlit secrets")
         
         # Initialize Firestore client
         if FIRESTORE_AVAILABLE:

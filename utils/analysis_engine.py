@@ -519,10 +519,6 @@ class PromptAnalyzer:
             except:
                 pass
             
-            # Fallback to environment variables
-            if not google_api_key:
-                google_api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-            
             if not google_api_key:
                 self.logger.error("Google API key not found. Please set GOOGLE_API_KEY or GEMINI_API_KEY in Streamlit secrets or environment variables")
                 self.llm = None

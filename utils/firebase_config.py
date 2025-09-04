@@ -4,10 +4,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth, storage
 import streamlit as st
 from typing import Optional
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Do not load from .env in deployment; rely on Streamlit secrets
 
 # Set environment variables globally to prevent metadata service usage
 # This must be done before any Google Cloud libraries are imported
@@ -54,13 +52,7 @@ try:
         google.auth.compute_engine._metadata.get = disabled_metadata_get
         google.auth.compute_engine._metadata.get_service_account_info = disabled_metadata_get
     
-    # Override the transport layer to prevent metadata service calls
-    def disabled_transport_request(*args, **kwargs):
-        raise Exception("Metadata service disabled for Streamlit Cloud")
-    
-    # Patch the transport modules
-    if hasattr(google.auth.transport.requests, 'Request'):
-        google.auth.transport.requests.Request = disabled_transport_request
+    # Note: Do NOT override transport Request class; some libraries depend on it even with API key auth
     
 except ImportError:
     pass
@@ -74,7 +66,11 @@ def initialize_firebase() -> bool:
     try:
         # Set environment variables to prevent metadata service usage
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
-        os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
+        # Prefer project_id from Streamlit secrets
+        project_id = None
+        if hasattr(st, 'secrets') and 'firebase' in st.secrets:
+            project_id = st.secrets.firebase.get('project_id')
+        os.environ['GOOGLE_CLOUD_PROJECT'] = project_id or 'agriai-cbd8b'
         # Disable metadata service completely
         os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
         # Additional environment variables to prevent metadata service
@@ -86,7 +82,7 @@ def initialize_firebase() -> bool:
         # Set additional environment variables to prevent metadata service usage
         os.environ['GCE_METADATA_TIMEOUT'] = '0'
         os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-        os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
+        os.environ['GOOGLE_CLOUD_PROJECT'] = project_id or 'agriai-cbd8b'
         
         # Disable metadata service for all Google Cloud libraries
         os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
@@ -118,13 +114,12 @@ def initialize_firebase() -> bool:
                 return original_refresh(request)
             cred.refresh = custom_refresh
             
-            # Get storage bucket from secrets or environment
+            # Get storage bucket from Streamlit secrets
             storage_bucket = None
             if hasattr(st, 'secrets') and 'firebase' in st.secrets:
                 storage_bucket = st.secrets.firebase.get('firebase_storage_bucket')
-            
-            if not storage_bucket:
-                storage_bucket = os.getenv('FIREBASE_STORAGE_BUCKET', 'agriai-cbd8b.firebasestorage.app')
+            if not storage_bucket and firebase_creds.get('project_id'):
+                storage_bucket = f"{firebase_creds.get('project_id')}.firebasestorage.app"
             
             # Initialize Firebase with explicit configuration
             firebase_admin.initialize_app(cred, {
@@ -136,7 +131,7 @@ def initialize_firebase() -> bool:
             
             # Set the credentials as default for all Google Cloud services
             import google.auth
-            project_id = firebase_creds.get('project_id', 'agriai-cbd8b')
+            project_id = firebase_creds.get('project_id', project_id or 'agriai-cbd8b')
             google.auth.default = lambda: (cred, project_id)
             
             # Monkey patch to prevent metadata service usage
@@ -190,20 +185,7 @@ def get_firebase_credentials() -> Optional[dict]:
         dict: Firebase service account credentials or None
     """
     try:
-        # First, try to get from FIREBASE_SERVICE_ACCOUNT_KEY environment variable
-        service_account_key = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
-        if service_account_key:
-            try:
-                # Remove surrounding quotes if present
-                service_account_key = service_account_key.strip("'\"")
-                credentials = json.loads(service_account_key)
-                print("Successfully loaded Firebase credentials from FIREBASE_SERVICE_ACCOUNT_KEY")
-                return credentials
-            except json.JSONDecodeError as e:
-                print(f"Error parsing FIREBASE_SERVICE_ACCOUNT_KEY: {e}")
-                print(f"Raw key (first 100 chars): {service_account_key[:100]}...")
-        
-        # Try to get from Streamlit secrets
+        # Prefer Streamlit secrets exclusively in deployment
         try:
             if hasattr(st, 'secrets') and 'firebase' in st.secrets:
                 print("Loading Firebase credentials from Streamlit secrets")
@@ -238,33 +220,7 @@ def get_firebase_credentials() -> Optional[dict]:
                 return dict(st.secrets['FIREBASE_SERVICE_ACCOUNT_KEY'])
         except Exception as e:
             print(f"Error loading Firebase credentials from Streamlit secrets: {e}")
-        
-        # Fallback: construct from individual environment variables
-        print("Attempting to construct Firebase credentials from individual environment variables")
-        firebase_config = {
-            "type": os.getenv('FIREBASE_TYPE', 'service_account'),
-            "project_id": os.getenv('FIREBASE_PROJECT_ID'),
-            "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
-            "private_key": os.getenv('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
-            "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
-            "client_id": os.getenv('FIREBASE_CLIENT_ID'),
-            "auth_uri": os.getenv('FIREBASE_AUTH_URI', 'https://accounts.google.com/o/oauth2/auth'),
-            "token_uri": os.getenv('FIREBASE_TOKEN_URI', 'https://oauth2.googleapis.com/token'),
-            "auth_provider_x509_cert_url": os.getenv('FIREBASE_AUTH_PROVIDER_X509_CERT_URL', 'https://www.googleapis.com/oauth2/v1/certs'),
-            "client_x509_cert_url": os.getenv('FIREBASE_CLIENT_X509_CERT_URL'),
-            "universe_domain": os.getenv('FIREBASE_UNIVERSE_DOMAIN', 'googleapis.com')
-        }
-        
-        # Check if all required fields are present
-        required_fields = ['project_id', 'private_key', 'client_email']
-        missing_fields = [field for field in required_fields if not firebase_config.get(field)]
-        
-        if not missing_fields:
-            print("Successfully constructed Firebase credentials from environment variables")
-            return firebase_config
-        else:
-            print(f"Missing required Firebase credentials: {missing_fields}")
-        
+        # No environment fallback in deployment; return None to signal missing secrets
         return None
         
     except Exception as e:
