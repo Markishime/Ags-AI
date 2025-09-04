@@ -426,16 +426,14 @@ def display_analysis_history():
                     st.markdown("---")
                     st.markdown("**📋 Analysis Summary**")
                     
-                    # Show key findings from step-by-step analysis
+                    # Show key findings from step-by-step analysis with intelligent deduplication
                     if step_analysis:
-                        key_findings = []
-                        for step in step_analysis:
-                            if 'key_findings' in step and step['key_findings']:
-                                key_findings.extend(step['key_findings'][:2])  # Limit to 2 per step
+                        key_findings = _generate_intelligent_key_findings(analysis_data, step_analysis)
                         
                         if key_findings:
                             st.markdown("**Key Findings:**")
-                            for i, finding in enumerate(key_findings[:5], 1):  # Show top 5
+                            for i, finding_data in enumerate(key_findings[:5], 1):  # Show top 5
+                                finding = finding_data['finding'] if isinstance(finding_data, dict) else finding_data
                                 st.write(f"{i}. {finding}")
                     
                     # Show economic forecast summary
@@ -450,6 +448,527 @@ def display_analysis_history():
     except Exception as e:
         st.error(f"Error loading history: {str(e)}")
         st.exception(e)
+
+def _clean_finding_text(text):
+    """Clean finding text by removing duplicate 'Key Finding' words and normalizing"""
+    import re
+    
+    # Remove duplicate "Key Finding" patterns
+    # Pattern 1: "Key Finding X: Key finding Y:" -> "Key Finding X:"
+    text = re.sub(r'Key Finding \d+:\s*Key finding \d+:\s*', 'Key Finding ', text)
+    
+    # Pattern 2: "Key finding X:" -> remove (lowercase version)
+    text = re.sub(r'Key finding \d+:\s*', '', text)
+    
+    # Pattern 3: Multiple "Key Finding" at the start
+    text = re.sub(r'^(Key Finding \d+:\s*)+', 'Key Finding ', text)
+    
+    # Clean up extra spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+def _group_findings_by_parameter(step_findings):
+    """Group findings by parameter to avoid duplicates and create comprehensive findings"""
+    parameter_groups = {
+        'soil_ph': {
+            'keywords': ['ph', 'acidity', 'alkaline', 'acidic', 'soil ph', 'ph level', 'ph value', 'ph is'],
+            'findings': [],
+            'parameter_name': 'Soil pH'
+        },
+        'soil_nitrogen': {
+            'keywords': ['nitrogen', 'n%', 'n %', 'nitrogen %', 'soil nitrogen', 'nitrogen level'],
+            'findings': [],
+            'parameter_name': 'Soil Nitrogen'
+        },
+        'soil_phosphorus': {
+            'keywords': ['phosphorus', 'p%', 'p %', 'phosphorus %', 'available p', 'soil phosphorus', 'phosphorus level', 'phosphorus is', 'mg/kg'],
+            'findings': [],
+            'parameter_name': 'Soil Phosphorus'
+        },
+        'soil_potassium': {
+            'keywords': ['potassium', 'k%', 'k %', 'potassium %', 'exchangeable k', 'soil potassium', 'potassium level'],
+            'findings': [],
+            'parameter_name': 'Soil Potassium'
+        },
+        'leaf_nitrogen': {
+            'keywords': ['leaf nitrogen', 'leaf n', 'leaf n%', 'leaf n %', 'foliar nitrogen'],
+            'findings': [],
+            'parameter_name': 'Leaf Nitrogen'
+        },
+        'leaf_phosphorus': {
+            'keywords': ['leaf phosphorus', 'leaf p', 'leaf p%', 'leaf p %', 'foliar phosphorus'],
+            'findings': [],
+            'parameter_name': 'Leaf Phosphorus'
+        },
+        'leaf_potassium': {
+            'keywords': ['leaf potassium', 'leaf k', 'leaf k%', 'leaf k %', 'foliar potassium'],
+            'findings': [],
+            'parameter_name': 'Leaf Potassium'
+        },
+        'leaf_magnesium': {
+            'keywords': ['leaf magnesium', 'leaf mg', 'leaf mg%', 'leaf mg %', 'foliar magnesium'],
+            'findings': [],
+            'parameter_name': 'Leaf Magnesium'
+        },
+        'leaf_calcium': {
+            'keywords': ['leaf calcium', 'leaf ca', 'leaf ca%', 'leaf ca %', 'foliar calcium'],
+            'findings': [],
+            'parameter_name': 'Leaf Calcium'
+        },
+        'leaf_boron': {
+            'keywords': ['leaf boron', 'leaf b', 'leaf b mg/kg', 'foliar boron'],
+            'findings': [],
+            'parameter_name': 'Leaf Boron'
+        },
+        'general': {
+            'keywords': [],
+            'findings': [],
+            'parameter_name': 'General Analysis'
+        }
+    }
+    
+    # Group findings by parameter
+    for finding_data in step_findings:
+        finding = finding_data['finding'].lower()
+        assigned = False
+        
+        for param_key, param_info in parameter_groups.items():
+            if param_key == 'general':
+                continue
+                
+            for keyword in param_info['keywords']:
+                if keyword in finding:
+                    param_info['findings'].append(finding_data)
+                    assigned = True
+                    break
+            
+            if assigned:
+                break
+        
+        # If no specific parameter found, add to general
+        if not assigned:
+            parameter_groups['general']['findings'].append(finding_data)
+    
+    # Create consolidated findings for each parameter group
+    consolidated_findings = []
+    
+    for param_key, param_info in parameter_groups.items():
+        if not param_info['findings']:
+            continue
+            
+        if param_key == 'general':
+            # For general findings, keep them separate
+            for finding_data in param_info['findings']:
+                consolidated_findings.append(finding_data)
+        else:
+            # For parameter-specific findings, consolidate them
+            if len(param_info['findings']) == 1:
+                # Single finding - keep as is
+                consolidated_findings.append(param_info['findings'][0])
+            else:
+                # Multiple findings - consolidate into one comprehensive finding
+                main_finding = param_info['findings'][0]['finding']
+                additional_details = []
+                
+                for finding_data in param_info['findings'][1:]:
+                    finding_text = finding_data['finding']
+                    # Extract additional details that aren't already covered
+                    if finding_text.lower() != main_finding.lower():
+                        additional_details.append(finding_text)
+                
+                # Create consolidated finding
+                if additional_details:
+                    consolidated_finding = f"{main_finding} Additionally, {' '.join(additional_details[:2])}"  # Limit to 2 additional details
+                else:
+                    consolidated_finding = main_finding
+                
+                # Use the most comprehensive source
+                sources = [f['source'] for f in param_info['findings']]
+                consolidated_source = f"{param_info['parameter_name']} Analysis ({', '.join(set(sources))})"
+                
+                consolidated_findings.append({
+                    'finding': consolidated_finding,
+                    'source': consolidated_source
+                })
+    
+    return consolidated_findings
+
+def _generate_intelligent_key_findings(analysis_data, step_results):
+    """Generate intelligent key findings with proper deduplication from all analysis sources - History page version"""
+    all_key_findings = []
+    
+    # 1. Check for key findings at the top level of analysis_data
+    if 'key_findings' in analysis_data and analysis_data['key_findings']:
+        findings_data = analysis_data['key_findings']
+        
+        # Handle both list and string formats
+        if isinstance(findings_data, list):
+            findings_list = findings_data
+        elif isinstance(findings_data, str):
+            findings_list = [f.strip() for f in findings_data.split('\n') if f.strip()]
+        else:
+            findings_list = []
+        
+        # Process each finding
+        for finding in findings_list:
+            if isinstance(finding, str) and finding.strip():
+                cleaned_finding = _clean_finding_text(finding.strip())
+                all_key_findings.append({
+                    'finding': cleaned_finding,
+                    'source': 'Overall Analysis'
+                })
+    
+    # 2. Extract key findings from step-by-step analysis with intelligent processing
+    if step_results:
+        step_findings = []
+        
+        for step in step_results:
+            step_number = step.get('step_number', 0)
+            step_title = step.get('step_title', f"Step {step_number}")
+            
+            # Extract findings from multiple step sources
+            step_sources = []
+            
+            # Direct key_findings field
+            if 'key_findings' in step and step['key_findings']:
+                step_sources.append(('key_findings', step['key_findings']))
+            
+            # Summary field
+            if 'summary' in step and step['summary']:
+                step_sources.append(('summary', step['summary']))
+            
+            # Detailed analysis field
+            if 'detailed_analysis' in step and step['detailed_analysis']:
+                step_sources.append(('detailed_analysis', step['detailed_analysis']))
+            
+            # Issues identified
+            if 'issues_identified' in step and step['issues_identified']:
+                step_sources.append(('issues_identified', step['issues_identified']))
+            
+            # Recommendations
+            if 'recommendations' in step and step['recommendations']:
+                step_sources.append(('recommendations', step['recommendations']))
+            
+            # Process each source
+            for source_type, source_data in step_sources:
+                findings_list = []
+                
+                # Handle different data formats
+                if isinstance(source_data, list):
+                    findings_list = source_data
+                elif isinstance(source_data, str):
+                    # Split by common delimiters and clean
+                    lines = source_data.split('\n')
+                    findings_list = [line.strip() for line in lines if line.strip()]
+                else:
+                    continue
+                
+                # Extract key findings from each item
+                for finding in findings_list:
+                    if isinstance(finding, str) and finding.strip():
+                        # Enhanced keyword filtering for better relevance
+                        finding_lower = finding.lower()
+                        relevant_keywords = [
+                            'deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield',
+                            'recommendation', 'finding', 'issue', 'problem', 'analysis', 'result', 'conclusion',
+                            'soil', 'leaf', 'land', 'hectares', 'acres', 'tonnes', 'production', 'economic',
+                            'roi', 'investment', 'cost', 'benefit', 'profitability', 'forecast', 'projection',
+                            'improvement', 'increase', 'decrease', 'balance', 'ratio', 'level', 'status'
+                        ]
+                        
+                        # Check if finding contains relevant keywords
+                        if any(keyword in finding_lower for keyword in relevant_keywords):
+                            cleaned_finding = _clean_finding_text(finding.strip())
+                            if cleaned_finding and len(cleaned_finding) > 20:  # Minimum length filter
+                                step_findings.append({
+                                    'finding': cleaned_finding,
+                                    'source': f"{step_title} ({source_type.replace('_', ' ').title()})"
+                                })
+        
+        # Apply intelligent deduplication to step findings with parameter-based grouping
+        if step_findings:
+            unique_findings = _group_findings_by_parameter(step_findings)
+            all_key_findings.extend(unique_findings)
+    
+    # 3. Generate comprehensive parameter-specific key findings
+    comprehensive_findings = _generate_comprehensive_parameter_findings(analysis_data, step_results)
+    all_key_findings.extend(comprehensive_findings)
+    
+    # 4. Extract key findings from other analysis sources
+    # Land and yield data
+    land_yield_data = analysis_data.get('land_yield_data', {})
+    if land_yield_data:
+        land_size = land_yield_data.get('land_size', 0)
+        current_yield = land_yield_data.get('current_yield', 0)
+        land_unit = land_yield_data.get('land_unit', 'hectares')
+        yield_unit = land_yield_data.get('yield_unit', 'tonnes/hectare')
+        
+        if land_size > 0:
+            all_key_findings.append({
+                'finding': f"Farm analysis covers {land_size} {land_unit} of agricultural land with current production of {current_yield} {yield_unit}.",
+                'source': 'Land & Yield Data'
+            })
+    
+    # Economic forecast
+    economic_forecast = analysis_data.get('economic_forecast', {})
+    if economic_forecast:
+        scenarios = economic_forecast.get('scenarios', {})
+        if scenarios:
+            best_roi = 0
+            best_scenario = ""
+            for level, data in scenarios.items():
+                if isinstance(data, dict) and data.get('roi_percentage', 0) > best_roi:
+                    best_roi = data.get('roi_percentage', 0)
+                    best_scenario = level
+            
+            if best_roi > 0:
+                all_key_findings.append({
+                    'finding': f"Economic analysis shows {best_scenario} investment level offers the best ROI of {best_roi:.1f}% with {scenarios[best_scenario].get('payback_months', 0):.1f} months payback period.",
+                    'source': 'Economic Forecast'
+                })
+    
+    # Yield forecast
+    yield_forecast = analysis_data.get('yield_forecast', {})
+    if yield_forecast:
+        projected_yield = yield_forecast.get('projected_yield', 0)
+        current_yield = yield_forecast.get('current_yield', 0)
+        if projected_yield > 0 and current_yield > 0:
+            increase = ((projected_yield - current_yield) / current_yield) * 100
+            all_key_findings.append({
+                'finding': f"Yield projection indicates potential increase from {current_yield} to {projected_yield} tonnes/hectare ({increase:.1f}% improvement) with proper management.",
+                'source': 'Yield Forecast'
+            })
+    
+    return all_key_findings
+
+def _generate_comprehensive_parameter_findings(analysis_data, step_results):
+    """Generate comprehensive key findings grouped by specific parameters - History page version"""
+    findings = []
+    
+    # Get raw data for analysis
+    raw_data = analysis_data.get('raw_data', {})
+    soil_params = raw_data.get('soil_parameters', {}).get('parameter_statistics', {})
+    leaf_params = raw_data.get('leaf_parameters', {}).get('parameter_statistics', {})
+    
+    # Get MPOB standards for comparison
+    try:
+        from utils.mpob_standards import get_mpob_standards
+        mpob = get_mpob_standards()
+    except:
+        mpob = None
+    
+    # 1. Soil pH Analysis
+    if 'pH' in soil_params and mpob:
+        ph_value = soil_params['pH'].get('average', 0)
+        ph_optimal = mpob.get('soil', {}).get('ph', {}).get('optimal', 6.5)
+        
+        if ph_value > 0:
+            if ph_value < 5.5:
+                findings.append({
+                    'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development.",
+                    'source': 'Soil Analysis - pH'
+                })
+            elif ph_value > 7.5:
+                findings.append({
+                    'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
+                    'source': 'Soil Analysis - pH'
+                })
+            else:
+                findings.append({
+                    'finding': f"Soil pH is within optimal range at {ph_value:.1f}, providing good conditions for nutrient availability and root development.",
+                    'source': 'Soil Analysis - pH'
+                })
+    
+    # 2. Soil Nitrogen Analysis
+    if 'Nitrogen_%' in soil_params and mpob:
+        n_value = soil_params['Nitrogen_%'].get('average', 0)
+        n_optimal = mpob.get('soil', {}).get('nitrogen', {}).get('optimal', 0.2)
+        
+        if n_value > 0:
+            if n_value < n_optimal * 0.7:
+                findings.append({
+                    'finding': f"Soil nitrogen is critically deficient at {n_value:.2f}%, well below optimal level of {n_optimal:.2f}%. This severely limits plant growth and leaf development.",
+                    'source': 'Soil Analysis - Nitrogen'
+                })
+            elif n_value > n_optimal * 1.3:
+                findings.append({
+                    'finding': f"Soil nitrogen is excessive at {n_value:.2f}%, above optimal level of {n_optimal:.2f}%. This may cause nutrient imbalances and environmental concerns.",
+                    'source': 'Soil Analysis - Nitrogen'
+                })
+            else:
+                findings.append({
+                    'finding': f"Soil nitrogen is adequate at {n_value:.2f}%, within optimal range for healthy plant growth.",
+                    'source': 'Soil Analysis - Nitrogen'
+                })
+    
+    # 3. Soil Phosphorus Analysis
+    if 'Available_P_mg_kg' in soil_params and mpob:
+        p_value = soil_params['Available_P_mg_kg'].get('average', 0)
+        p_optimal = mpob.get('soil', {}).get('available_phosphorus', {}).get('optimal', 15)
+        
+        if p_value > 0:
+            if p_value < p_optimal * 0.5:
+                findings.append({
+                    'finding': f"Available phosphorus is critically low at {p_value:.1f} mg/kg, severely below optimal level of {p_optimal} mg/kg. This limits root development and energy transfer.",
+                    'source': 'Soil Analysis - Phosphorus'
+                })
+            elif p_value > p_optimal * 2:
+                findings.append({
+                    'finding': f"Available phosphorus is excessive at {p_value:.1f} mg/kg, well above optimal level of {p_optimal} mg/kg. This may cause nutrient lockup and environmental issues.",
+                    'source': 'Soil Analysis - Phosphorus'
+                })
+            else:
+                findings.append({
+                    'finding': f"Available phosphorus is adequate at {p_value:.1f} mg/kg, within optimal range for proper plant development.",
+                    'source': 'Soil Analysis - Phosphorus'
+                })
+    
+    # 4. Soil Potassium Analysis
+    if 'Exchangeable_K_meq%' in soil_params and mpob:
+        k_value = soil_params['Exchangeable_K_meq%'].get('average', 0)
+        k_optimal = mpob.get('soil', {}).get('exchangeable_potassium', {}).get('optimal', 0.3)
+        
+        if k_value > 0:
+            if k_value < k_optimal * 0.6:
+                findings.append({
+                    'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq%, below optimal level of {k_optimal:.2f} meq%. This affects water regulation and disease resistance.",
+                    'source': 'Soil Analysis - Potassium'
+                })
+            elif k_value > k_optimal * 1.5:
+                findings.append({
+                    'finding': f"Exchangeable potassium is high at {k_value:.2f} meq%, above optimal level of {k_optimal:.2f} meq%. This may cause nutrient imbalances.",
+                    'source': 'Soil Analysis - Potassium'
+                })
+            else:
+                findings.append({
+                    'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq%, within optimal range for healthy plant function.",
+                    'source': 'Soil Analysis - Potassium'
+                })
+    
+    # 5. Leaf Nutrient Analysis
+    if leaf_params:
+        # Leaf Nitrogen
+        if 'N_%' in leaf_params:
+            leaf_n = leaf_params['N_%'].get('average', 0)
+            if leaf_n > 0:
+                if leaf_n < 2.5:
+                    findings.append({
+                        'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.5-3.5%. This indicates poor nitrogen uptake and affects photosynthesis.",
+                        'source': 'Leaf Analysis - Nitrogen'
+                    })
+                elif leaf_n > 3.5:
+                    findings.append({
+                        'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.5-3.5%. This may cause nutrient imbalances and delayed maturity.",
+                        'source': 'Leaf Analysis - Nitrogen'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Leaf nitrogen is optimal at {leaf_n:.1f}%, within recommended range for healthy palm growth.",
+                        'source': 'Leaf Analysis - Nitrogen'
+                    })
+        
+        # Leaf Phosphorus
+        if 'P_%' in leaf_params:
+            leaf_p = leaf_params['P_%'].get('average', 0)
+            if leaf_p > 0:
+                if leaf_p < 0.15:
+                    findings.append({
+                        'finding': f"Leaf phosphorus is deficient at {leaf_p:.2f}%, below optimal range of 0.15-0.25%. This limits energy transfer and root development.",
+                        'source': 'Leaf Analysis - Phosphorus'
+                    })
+                elif leaf_p > 0.25:
+                    findings.append({
+                        'finding': f"Leaf phosphorus is high at {leaf_p:.2f}%, above optimal range of 0.15-0.25%. This may indicate over-fertilization.",
+                        'source': 'Leaf Analysis - Phosphorus'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Leaf phosphorus is adequate at {leaf_p:.2f}%, within optimal range for proper plant function.",
+                        'source': 'Leaf Analysis - Phosphorus'
+                    })
+        
+        # Leaf Potassium
+        if 'K_%' in leaf_params:
+            leaf_k = leaf_params['K_%'].get('average', 0)
+            if leaf_k > 0:
+                if leaf_k < 1.0:
+                    findings.append({
+                        'finding': f"Leaf potassium is deficient at {leaf_k:.1f}%, below optimal range of 1.0-1.5%. This affects water regulation and disease resistance.",
+                        'source': 'Leaf Analysis - Potassium'
+                    })
+                elif leaf_k > 1.5:
+                    findings.append({
+                        'finding': f"Leaf potassium is high at {leaf_k:.1f}%, above optimal range of 1.0-1.5%. This may cause nutrient imbalances.",
+                        'source': 'Leaf Analysis - Potassium'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within recommended range for healthy palm growth.",
+                        'source': 'Leaf Analysis - Potassium'
+                    })
+        
+        # Leaf Magnesium
+        if 'Mg_%' in leaf_params:
+            leaf_mg = leaf_params['Mg_%'].get('average', 0)
+            if leaf_mg > 0:
+                if leaf_mg < 0.2:
+                    findings.append({
+                        'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below optimal range of 0.2-0.3%. This affects chlorophyll production and photosynthesis.",
+                        'source': 'Leaf Analysis - Magnesium'
+                    })
+                elif leaf_mg > 0.3:
+                    findings.append({
+                        'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range of 0.2-0.3%. This may indicate over-fertilization.",
+                        'source': 'Leaf Analysis - Magnesium'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within optimal range for healthy palm growth.",
+                        'source': 'Leaf Analysis - Magnesium'
+                    })
+        
+        # Leaf Calcium
+        if 'Ca_%' in leaf_params:
+            leaf_ca = leaf_params['Ca_%'].get('average', 0)
+            if leaf_ca > 0:
+                if leaf_ca < 0.5:
+                    findings.append({
+                        'finding': f"Leaf calcium is deficient at {leaf_ca:.1f}%, below optimal range of 0.5-1.0%. This affects cell wall strength and fruit quality.",
+                        'source': 'Leaf Analysis - Calcium'
+                    })
+                elif leaf_ca > 1.0:
+                    findings.append({
+                        'finding': f"Leaf calcium is high at {leaf_ca:.1f}%, above optimal range of 0.5-1.0%. This may cause nutrient imbalances.",
+                        'source': 'Leaf Analysis - Calcium'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within recommended range for healthy palm growth.",
+                        'source': 'Leaf Analysis - Calcium'
+                    })
+        
+        # Leaf Boron
+        if 'B_mg_kg' in leaf_params:
+            leaf_b = leaf_params['B_mg_kg'].get('average', 0)
+            if leaf_b > 0:
+                if leaf_b < 10:
+                    findings.append({
+                        'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below optimal range of 10-20 mg/kg. This affects fruit development and pollen viability.",
+                        'source': 'Leaf Analysis - Boron'
+                    })
+                elif leaf_b > 20:
+                    findings.append({
+                        'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range of 10-20 mg/kg. This may cause toxicity symptoms.",
+                        'source': 'Leaf Analysis - Boron'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Leaf boron is adequate at {leaf_b:.1f} mg/kg, within optimal range for healthy palm growth.",
+                        'source': 'Leaf Analysis - Boron'
+                    })
+    
+    return findings
 
 def _search_in_analysis_content(analysis_data: dict, search_term: str) -> bool:
     """Search for term in analysis content"""

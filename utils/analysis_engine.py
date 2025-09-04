@@ -2713,7 +2713,169 @@ class AnalysisEngine:
         except Exception as e:
             self.logger.warning(f"Error building quality chart: {e}")
 
+        # 3. Enhanced Bar Charts - Actual vs Optimal Nutrient Levels
+        try:
+            # Soil nutrients bar chart
+            if soil_categories and soil_means and soil_optimal and len(soil_optimal) == len(soil_means):
+                viz_soil_bar = {
+                    'type': 'actual_vs_optimal_bar',
+                    'title': '📊 Soil Nutrients: Actual vs Optimal Levels',
+                    'subtitle': 'Direct comparison of current soil nutrient levels against MPOB optimal standards',
+                    'data': {
+                        'categories': soil_categories,
+                        'series': [
+                            {'name': 'Actual Levels', 'values': soil_means, 'color': '#3498db'},
+                            {'name': 'Optimal Levels', 'values': soil_optimal, 'color': '#e74c3c'}
+                        ]
+                    },
+                    'options': {
+                        'show_legend': True,
+                        'show_values': True,
+                        'bar_width': 0.7,
+                        'y_axis_title': 'Nutrient Levels',
+                        'x_axis_title': 'Soil Parameters',
+                        'show_target_line': True,
+                        'target_line_color': '#f39c12'
+                    }
+                }
+                visualizations.append(viz_soil_bar)
+
+            # Leaf nutrients bar chart
+            if leaf_categories and leaf_means and leaf_optimal and len(leaf_optimal) == len(leaf_means):
+                viz_leaf_bar = {
+                    'type': 'actual_vs_optimal_bar',
+                    'title': '🍃 Leaf Nutrients: Actual vs Optimal Levels',
+                    'subtitle': 'Direct comparison of current leaf nutrient levels against MPOB optimal standards',
+                    'data': {
+                        'categories': leaf_categories,
+                        'series': [
+                            {'name': 'Actual Levels', 'values': leaf_means, 'color': '#2ecc71'},
+                            {'name': 'Optimal Levels', 'values': leaf_optimal, 'color': '#e67e22'}
+                        ]
+                    },
+                    'options': {
+                        'show_legend': True,
+                        'show_values': True,
+                        'bar_width': 0.7,
+                        'y_axis_title': 'Nutrient Levels (%)',
+                        'x_axis_title': 'Leaf Parameters',
+                        'show_target_line': True,
+                        'target_line_color': '#f39c12'
+                    }
+                }
+                visualizations.append(viz_leaf_bar)
+
+        except Exception as e:
+            self.logger.warning(f"Error building actual vs optimal bar charts: {e}")
+
+        # 4. Nutrient Ratio Diagrams
+        try:
+            # Soil nutrient ratios
+            if soil_categories and soil_means:
+                soil_ratios = self._calculate_nutrient_ratios(soil_means, soil_categories, 'soil')
+                if soil_ratios:
+                    viz_soil_ratios = {
+                        'type': 'nutrient_ratio_diagram',
+                        'title': '⚖️ Soil Nutrient Ratios Analysis',
+                        'subtitle': 'Key nutrient ratios and their impact on plant health',
+                        'data': {
+                            'ratios': soil_ratios,
+                            'chart_type': 'radar',
+                            'center_values': [1.0] * len(soil_ratios)
+                        },
+                        'options': {
+                            'show_optimal_zone': True,
+                            'optimal_zone_color': '#2ecc71',
+                            'deficient_zone_color': '#e74c3c',
+                            'excess_zone_color': '#f39c12'
+                        }
+                    }
+                    visualizations.append(viz_soil_ratios)
+
+            # Leaf nutrient ratios
+            if leaf_categories and leaf_means:
+                leaf_ratios = self._calculate_nutrient_ratios(leaf_means, leaf_categories, 'leaf')
+                if leaf_ratios:
+                    viz_leaf_ratios = {
+                        'type': 'nutrient_ratio_diagram',
+                        'title': '⚖️ Leaf Nutrient Ratios Analysis',
+                        'subtitle': 'Key nutrient ratios and their impact on plant health',
+                        'data': {
+                            'ratios': leaf_ratios,
+                            'chart_type': 'radar',
+                            'center_values': [1.0] * len(leaf_ratios)
+                        },
+                        'options': {
+                            'show_optimal_zone': True,
+                            'optimal_zone_color': '#2ecc71',
+                            'deficient_zone_color': '#e74c3c',
+                            'excess_zone_color': '#f39c12'
+                        }
+                    }
+                    visualizations.append(viz_leaf_ratios)
+
+        except Exception as e:
+            self.logger.warning(f"Error building nutrient ratio diagrams: {e}")
+
         return visualizations
+
+    def _calculate_nutrient_ratios(self, values: List[float], categories: List[str], nutrient_type: str) -> List[Dict[str, Any]]:
+        """Calculate key nutrient ratios for analysis"""
+        try:
+            ratios = []
+            
+            if nutrient_type == 'soil':
+                # Key soil nutrient ratios
+                ratio_definitions = {
+                    'N:P': {'numerator': 'Nitrogen %', 'denominator': 'Total P (mg/kg)', 'optimal_range': (10, 20)},
+                    'K:Mg': {'numerator': 'Exch. K (meq%)', 'denominator': 'Exch. Mg (meq%)', 'optimal_range': (2, 5)},
+                    'Ca:Mg': {'numerator': 'Exch. Ca (meq%)', 'denominator': 'Exch. Mg (meq%)', 'optimal_range': (3, 7)},
+                    'CEC:Base': {'numerator': 'CEC (meq%)', 'denominator': 'Exch. K (meq%)', 'optimal_range': (5, 15)}
+                }
+            else:  # leaf
+                # Key leaf nutrient ratios
+                ratio_definitions = {
+                    'N:P': {'numerator': 'N %', 'denominator': 'P %', 'optimal_range': (10, 20)},
+                    'K:Mg': {'numerator': 'K %', 'denominator': 'Mg %', 'optimal_range': (2, 5)},
+                    'Ca:Mg': {'numerator': 'Ca %', 'denominator': 'Mg %', 'optimal_range': (3, 7)},
+                    'N:K': {'numerator': 'N %', 'denominator': 'K %', 'optimal_range': (1, 3)}
+                }
+            
+            # Create category to index mapping
+            cat_to_idx = {cat: i for i, cat in enumerate(categories)}
+            
+            for ratio_name, ratio_info in ratio_definitions.items():
+                num_cat = ratio_info['numerator']
+                den_cat = ratio_info['denominator']
+                optimal_range = ratio_info['optimal_range']
+                
+                if num_cat in cat_to_idx and den_cat in cat_to_idx:
+                    num_idx = cat_to_idx[num_cat]
+                    den_idx = cat_to_idx[den_cat]
+                    
+                    if num_idx < len(values) and den_idx < len(values):
+                        numerator_val = values[num_idx]
+                        denominator_val = values[den_idx]
+                        
+                        if denominator_val > 0:
+                            ratio_value = numerator_val / denominator_val
+                            status = 'optimal' if optimal_range[0] <= ratio_value <= optimal_range[1] else 'suboptimal'
+                            
+                            ratios.append({
+                                'name': ratio_name,
+                                'value': round(ratio_value, 2),
+                                'numerator': num_cat,
+                                'denominator': den_cat,
+                                'optimal_range': optimal_range,
+                                'status': status,
+                                'description': f"{num_cat} to {den_cat} ratio"
+                            })
+            
+            return ratios
+            
+        except Exception as e:
+            self.logger.warning(f"Error calculating nutrient ratios: {e}")
+            return []
 
     def _build_step1_comparisons(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Create structured comparisons used by the UI for Step 1 accuracy."""

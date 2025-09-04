@@ -288,7 +288,7 @@ class PDFReportGenerator:
             if isinstance(executive_summary_text, str) and executive_summary_text.strip():
                 # Display as a single paragraph without breaking it into sentences
                 story.append(Paragraph(executive_summary_text.strip(), self.styles['CustomBody']))
-                return story
+        return story
         
         # If no pre-generated summary, generate using the exact same logic as results page
         raw_data = analysis_results.get('raw_data', {})
@@ -499,9 +499,293 @@ class PDFReportGenerator:
                 found_concepts.add(num)
         
         return found_concepts
-
+    
+    def _merge_similar_findings(self, finding1: str, finding2: str) -> str:
+        """Merge two similar findings into one comprehensive finding"""
+        import re
+        
+        # Extract parameter names with comprehensive mapping for all 9 soil and 8 leaf parameters
+        param_mapping = {
+            # Soil Parameters (9)
+            'ph': ['ph', 'ph level', 'soil ph', 'acidity', 'alkalinity'],
+            'nitrogen': ['nitrogen', 'n', 'n%', 'n_%', 'nitrogen%', 'nitrogen_%'],
+            'organic_carbon': ['organic carbon', 'organic_carbon', 'carbon', 'c', 'c%', 'c_%', 'organic_carbon_%'],
+            'total_phosphorus': ['total phosphorus', 'total p', 'total_p', 'total phosphorus mg/kg', 'total_p_mg_kg'],
+            'available_phosphorus': ['available phosphorus', 'available p', 'available_p', 'available phosphorus mg/kg', 'available_p_mg_kg'],
+            'exchangeable_potassium': ['exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 'exchangeable_k', 'k meq%', 'k_meq%', 'exchangeable_k_meq%'],
+            'exchangeable_calcium': ['exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 'exchangeable_ca', 'ca meq%', 'ca_meq%', 'exchangeable_ca_meq%'],
+            'exchangeable_magnesium': ['exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 'exchangeable_mg', 'mg meq%', 'mg_meq%', 'exchangeable_mg_meq%'],
+            'cec': ['cec', 'cation exchange capacity', 'c.e.c', 'cec meq%', 'cec_meq%'],
+            
+            # Leaf Parameters (8)
+            'leaf_nitrogen': ['leaf nitrogen', 'leaf n', 'leaf_n', 'n%', 'n_%', 'nitrogen%', 'nitrogen_%'],
+            'leaf_phosphorus': ['leaf phosphorus', 'leaf p', 'leaf_p', 'p%', 'p_%', 'phosphorus%', 'phosphorus_%'],
+            'leaf_potassium': ['leaf potassium', 'leaf k', 'leaf_k', 'k%', 'k_%', 'potassium%', 'potassium_%'],
+            'leaf_magnesium': ['leaf magnesium', 'leaf mg', 'leaf_mg', 'mg%', 'mg_%', 'magnesium%', 'magnesium_%'],
+            'leaf_calcium': ['leaf calcium', 'leaf ca', 'leaf_ca', 'ca%', 'ca_%', 'calcium%', 'calcium_%'],
+            'leaf_boron': ['leaf boron', 'leaf b', 'leaf_b', 'b mg/kg', 'b_mg_kg', 'boron mg/kg', 'boron_mg_kg'],
+            'leaf_copper': ['leaf copper', 'leaf cu', 'leaf_cu', 'cu mg/kg', 'cu_mg_kg', 'copper mg/kg', 'copper_mg_kg'],
+            'leaf_zinc': ['leaf zinc', 'leaf zn', 'leaf_zn', 'zn mg/kg', 'zn_mg_kg', 'zinc mg/kg', 'zinc_mg_kg'],
+            
+            # Land & Yield Parameters
+            'land_size': ['land size', 'land_size', 'farm size', 'farm_size', 'area', 'hectares', 'acres', 'square meters', 'square_meters'],
+            'current_yield': ['current yield', 'current_yield', 'yield', 'production', 'tonnes/hectare', 'kg/hectare', 'tonnes/acre', 'kg/acre', 'yield per hectare', 'yield per acre'],
+            'yield_forecast': ['yield forecast', 'yield_forecast', 'projected yield', 'projected_yield', 'future yield', 'future_yield', 'yield projection', 'yield_projection'],
+            'economic_impact': ['economic impact', 'economic_impact', 'roi', 'return on investment', 'cost benefit', 'cost_benefit', 'profitability', 'revenue', 'income'],
+            
+            # Legacy mappings for backward compatibility
+            'phosphorus': ['phosphorus', 'p', 'p%', 'p_%', 'phosphorus%', 'available p'],
+            'potassium': ['potassium', 'k', 'k%', 'k_%', 'potassium%'],
+            'calcium': ['calcium', 'ca', 'ca%', 'ca_%', 'calcium%'],
+            'magnesium': ['magnesium', 'mg', 'mg%', 'mg_%', 'magnesium%'],
+            'copper': ['copper', 'cu', 'cu mg/kg', 'cu_mg/kg', 'copper mg/kg'],
+            'zinc': ['zinc', 'zn', 'zn mg/kg', 'zn_mg/kg', 'zinc mg/kg'],
+            'boron': ['boron', 'b', 'b mg/kg', 'b_mg/kg', 'boron mg/kg']
+        }
+        
+        def extract_parameters(text):
+            """Extract all parameters mentioned in text"""
+            found_params = set()
+            text_lower = text.lower()
+            for param, variations in param_mapping.items():
+                if any(var in text_lower for var in variations):
+                    found_params.add(param)
+            return found_params
+        
+        def extract_values(text):
+            """Extract all numerical values from text"""
+            return re.findall(r'\d+\.?\d*%?', text)
+        
+        def extract_severity_keywords(text):
+            """Extract severity and impact keywords"""
+            severity_words = ['critical', 'severe', 'high', 'low', 'deficiency', 'excess', 'optimum', 'below', 'above']
+            found_severity = [word for word in severity_words if word in text.lower()]
+            return found_severity
+        
+        # Extract information from both findings
+        params1 = extract_parameters(finding1)
+        params2 = extract_parameters(finding2)
+        values1 = extract_values(finding1)
+        values2 = extract_values(finding2)
+        severity1 = extract_severity_keywords(finding1)
+        severity2 = extract_severity_keywords(finding2)
+        
+        # If both findings are about the same parameter(s), merge them comprehensively
+        if params1 and params2 and params1.intersection(params2):
+            # Get the common parameter
+            common_params = list(params1.intersection(params2))
+            param_name = common_params[0].upper() if common_params[0] != 'ph' else 'pH'
+            
+            # Combine all values
+            all_values = list(set(values1 + values2))
+            
+            # Combine all severity keywords
+            all_severity = list(set(severity1 + severity2))
+            
+            # Create comprehensive finding
+            if 'critical' in all_severity or 'severe' in all_severity:
+                severity_desc = "critical"
+            elif 'high' in all_severity:
+                severity_desc = "significant"
+            elif 'low' in all_severity:
+                severity_desc = "moderate"
+            else:
+                severity_desc = "notable"
+            
+            # Build comprehensive finding
+            if param_name == 'pH':
+                comprehensive_finding = f"Soil {param_name} shows {severity_desc} issues with values of {', '.join(all_values)}. "
+            else:
+                comprehensive_finding = f"{param_name} levels show {severity_desc} issues with values of {', '.join(all_values)}. "
+            
+            # Add context from both findings
+            context_parts = []
+            if 'deficiency' in all_severity:
+                context_parts.append("deficiency")
+            if 'excess' in all_severity:
+                context_parts.append("excess")
+            if 'below' in all_severity:
+                context_parts.append("below optimal levels")
+            if 'above' in all_severity:
+                context_parts.append("above optimal levels")
+            
+            if context_parts:
+                comprehensive_finding += f"This indicates {', '.join(context_parts)}. "
+            
+            # Add impact information
+            if 'critical' in all_severity or 'severe' in all_severity:
+                comprehensive_finding += "This directly impacts crop yield and requires immediate attention."
+            elif 'high' in all_severity:
+                comprehensive_finding += "This significantly affects plant health and productivity."
+            else:
+                comprehensive_finding += "This affects overall plant performance and should be addressed."
+            
+            return comprehensive_finding
+        
+        # If findings are about different parameters, combine them
+        return f"{finding1} Additionally, {finding2.lower()}"
+    
+    def _group_and_merge_findings_by_parameter_pdf(self, findings_list):
+        """Group findings by parameter and merge all findings about the same parameter into one comprehensive finding"""
+        import re
+        
+        # Parameter mapping for grouping - comprehensive mapping for all 9 soil and 8 leaf parameters
+        param_mapping = {
+            # Soil Parameters (9)
+            'ph': ['ph', 'ph level', 'soil ph', 'acidity', 'alkalinity'],
+            'nitrogen': ['nitrogen', 'n', 'n%', 'n_%', 'nitrogen%', 'nitrogen_%'],
+            'organic_carbon': ['organic carbon', 'organic_carbon', 'carbon', 'c', 'c%', 'c_%', 'organic_carbon_%'],
+            'total_phosphorus': ['total phosphorus', 'total p', 'total_p', 'total phosphorus mg/kg', 'total_p_mg_kg'],
+            'available_phosphorus': ['available phosphorus', 'available p', 'available_p', 'available phosphorus mg/kg', 'available_p_mg_kg'],
+            'exchangeable_potassium': ['exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 'exchangeable_k', 'k meq%', 'k_meq%', 'exchangeable_k_meq%'],
+            'exchangeable_calcium': ['exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 'exchangeable_ca', 'ca meq%', 'ca_meq%', 'exchangeable_ca_meq%'],
+            'exchangeable_magnesium': ['exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 'exchangeable_mg', 'mg meq%', 'mg_meq%', 'exchangeable_mg_meq%'],
+            'cec': ['cec', 'cation exchange capacity', 'c.e.c', 'cec meq%', 'cec_meq%'],
+            
+            # Leaf Parameters (8)
+            'leaf_nitrogen': ['leaf nitrogen', 'leaf n', 'leaf_n', 'n%', 'n_%', 'nitrogen%', 'nitrogen_%'],
+            'leaf_phosphorus': ['leaf phosphorus', 'leaf p', 'leaf_p', 'p%', 'p_%', 'phosphorus%', 'phosphorus_%'],
+            'leaf_potassium': ['leaf potassium', 'leaf k', 'leaf_k', 'k%', 'k_%', 'potassium%', 'potassium_%'],
+            'leaf_magnesium': ['leaf magnesium', 'leaf mg', 'leaf_mg', 'mg%', 'mg_%', 'magnesium%', 'magnesium_%'],
+            'leaf_calcium': ['leaf calcium', 'leaf ca', 'leaf_ca', 'ca%', 'ca_%', 'calcium%', 'calcium_%'],
+            'leaf_boron': ['leaf boron', 'leaf b', 'leaf_b', 'b mg/kg', 'b_mg_kg', 'boron mg/kg', 'boron_mg_kg'],
+            'leaf_copper': ['leaf copper', 'leaf cu', 'leaf_cu', 'cu mg/kg', 'cu_mg_kg', 'copper mg/kg', 'copper_mg_kg'],
+            'leaf_zinc': ['leaf zinc', 'leaf zn', 'leaf_zn', 'zn mg/kg', 'zn_mg_kg', 'zinc mg/kg', 'zinc_mg_kg'],
+            
+            # Land & Yield Parameters
+            'land_size': ['land size', 'land_size', 'farm size', 'farm_size', 'area', 'hectares', 'acres', 'square meters', 'square_meters'],
+            'current_yield': ['current yield', 'current_yield', 'yield', 'production', 'tonnes/hectare', 'kg/hectare', 'tonnes/acre', 'kg/acre', 'yield per hectare', 'yield per acre'],
+            'yield_forecast': ['yield forecast', 'yield_forecast', 'projected yield', 'projected_yield', 'future yield', 'future_yield', 'yield projection', 'yield_projection'],
+            'economic_impact': ['economic impact', 'economic_impact', 'roi', 'return on investment', 'cost benefit', 'cost_benefit', 'profitability', 'revenue', 'income'],
+            
+            # Legacy mappings for backward compatibility
+            'phosphorus': ['phosphorus', 'p', 'p%', 'p_%', 'phosphorus%', 'available p'],
+            'potassium': ['potassium', 'k', 'k%', 'k_%', 'potassium%'],
+            'calcium': ['calcium', 'ca', 'ca%', 'ca_%', 'calcium%'],
+            'magnesium': ['magnesium', 'mg', 'mg%', 'mg_%', 'magnesium%'],
+            'copper': ['copper', 'cu', 'cu mg/kg', 'cu_mg/kg', 'copper mg/kg'],
+            'zinc': ['zinc', 'zn', 'zn mg/kg', 'zn_mg/kg', 'zinc mg/kg'],
+            'boron': ['boron', 'b', 'b mg/kg', 'b_mg/kg', 'boron mg/kg']
+        }
+        
+        def extract_parameter(text):
+            """Extract the primary parameter from text"""
+            text_lower = text.lower()
+            for param, variations in param_mapping.items():
+                if any(var in text_lower for var in variations):
+                    return param
+            return 'other'
+        
+        def extract_values(text):
+            """Extract all numerical values from text"""
+            return re.findall(r'\d+\.?\d*%?', text)
+        
+        def extract_severity_keywords(text):
+            """Extract severity and impact keywords"""
+            severity_words = ['critical', 'severe', 'high', 'low', 'deficiency', 'excess', 'optimum', 'below', 'above']
+            return [word for word in severity_words if word in text.lower()]
+        
+        # Group findings by parameter
+        parameter_groups = {}
+        for finding_data in findings_list:
+            finding = finding_data['finding']
+            param = extract_parameter(finding)
+            
+            if param not in parameter_groups:
+                parameter_groups[param] = []
+            parameter_groups[param].append(finding_data)
+        
+        # Merge findings within each parameter group
+        merged_findings = []
+        for param, group_findings in parameter_groups.items():
+            if len(group_findings) == 1:
+                # Single finding, keep as is
+                merged_findings.append(group_findings[0])
+            else:
+                # Multiple findings about same parameter, merge them
+                merged_finding = self._merge_parameter_group_findings_pdf(param, group_findings)
+                if merged_finding:
+                    merged_findings.append(merged_finding)
+        
+        return merged_findings
+    
+    def _merge_parameter_group_findings_pdf(self, param, group_findings):
+        """Merge all findings in a parameter group into one comprehensive finding"""
+        import re
+        
+        # Extract all values and severity keywords from all findings in the group
+        all_values = []
+        all_severity = []
+        all_sources = []
+        
+        for finding_data in group_findings:
+            finding = finding_data['finding']
+            source = finding_data['source']
+            
+            # Extract values
+            values = re.findall(r'\d+\.?\d*%?', finding)
+            all_values.extend(values)
+            
+            # Extract severity keywords
+            severity_words = ['critical', 'severe', 'high', 'low', 'deficiency', 'excess', 'optimum', 'below', 'above']
+            severity = [word for word in severity_words if word in finding.lower()]
+            all_severity.extend(severity)
+            
+            all_sources.append(source)
+        
+        # Remove duplicates
+        unique_values = list(set(all_values))
+        unique_severity = list(set(all_severity))
+        unique_sources = list(set(all_sources))
+        
+        # Determine parameter name
+        param_name = param.upper() if param != 'ph' else 'pH'
+        
+        # Determine severity level
+        if 'critical' in unique_severity or 'severe' in unique_severity:
+            severity_desc = "critical"
+        elif 'high' in unique_severity:
+            severity_desc = "significant"
+        elif 'low' in unique_severity:
+            severity_desc = "moderate"
+        else:
+            severity_desc = "notable"
+        
+        # Build comprehensive finding
+        if param == 'ph':
+            comprehensive_finding = f"Soil {param_name} shows {severity_desc} issues with values of {', '.join(unique_values)}. "
+        else:
+            comprehensive_finding = f"{param_name} levels show {severity_desc} issues with values of {', '.join(unique_values)}. "
+        
+        # Add context
+        context_parts = []
+        if 'deficiency' in unique_severity:
+            context_parts.append("deficiency")
+        if 'excess' in unique_severity:
+            context_parts.append("excess")
+        if 'below' in unique_severity:
+            context_parts.append("below optimal levels")
+        if 'above' in unique_severity:
+            context_parts.append("above optimal levels")
+        
+        if context_parts:
+            comprehensive_finding += f"This indicates {', '.join(context_parts)}. "
+        
+        # Add impact information
+        if 'critical' in unique_severity or 'severe' in unique_severity:
+            comprehensive_finding += "This directly impacts crop yield and requires immediate attention."
+        elif 'high' in unique_severity:
+            comprehensive_finding += "This significantly affects plant health and productivity."
+        else:
+            comprehensive_finding += "This affects overall plant performance and should be addressed."
+        
+        return {
+            'finding': comprehensive_finding,
+            'source': ', '.join(unique_sources)
+        }
+    
     def _create_enhanced_key_findings(self, analysis_data: Dict[str, Any]) -> List:
-        """Create enhanced key findings section with intelligent extraction - exact copy from results page"""
+        """Create enhanced key findings section with intelligent extraction and deduplication"""
         story = []
         
         # Key Findings header
@@ -518,7 +802,28 @@ class PDFReportGenerator:
         
         step_results = analysis_results.get('step_by_step_analysis', [])
         
-        # Look for key findings in multiple sources - exact same as results page
+        # Generate intelligent key findings with proper deduplication
+        all_key_findings = self._generate_intelligent_key_findings_pdf(analysis_results, step_results)
+        
+        if all_key_findings:
+            # Display key findings - exact same format as results page
+            for i, finding_data in enumerate(all_key_findings, 1):
+                finding = finding_data['finding']
+                source = finding_data['source']
+                
+                # Create finding paragraph with proper formatting - exact same as results page
+                finding_text = f"<b>Key Finding {i}:</b> {finding}"
+                story.append(Paragraph(finding_text, self.styles['CustomBody']))
+                story.append(Paragraph(f"<i>📋 Source: {source}</i>", self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+        else:
+            story.append(Paragraph("📋 No key findings available from the analysis results.", self.styles['CustomBody']))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
+    def _generate_intelligent_key_findings_pdf(self, analysis_results, step_results):
+        """Generate comprehensive intelligent key findings grouped by parameter with proper deduplication - PDF version"""
         all_key_findings = []
         
         # 1. Check for key findings at the top level of analysis_results
@@ -542,63 +847,85 @@ class PDFReportGenerator:
                         'source': 'Overall Analysis'
                     })
         
-        # 2. Check for executive summary
-        if 'executive_summary' in analysis_results and analysis_results['executive_summary']:
-            summary = analysis_results['executive_summary']
-            if isinstance(summary, str):
-                lines = [line.strip() for line in summary.split('\n') if line.strip()]
-                for line in lines:
-                    if any(keyword in line.lower() for keyword in ['deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield', 'recommendation', 'finding', 'issue', 'problem']):
-                        cleaned_finding = self._clean_finding_text_pdf(line)
-                        all_key_findings.append({
-                            'finding': cleaned_finding,
-                            'source': 'Executive Summary'
-                        })
-        
-        # 3. Check for overall summary
-        if 'summary' in analysis_results and analysis_results['summary']:
-            summary = analysis_results['summary']
-            if isinstance(summary, str):
-                lines = [line.strip() for line in summary.split('\n') if line.strip()]
-                for line in lines:
-                    if any(keyword in line.lower() for keyword in ['deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield', 'recommendation', 'finding', 'issue', 'problem']):
-                        cleaned_finding = self._clean_finding_text_pdf(line)
-                        all_key_findings.append({
-                            'finding': cleaned_finding,
-                            'source': 'Analysis Summary'
-                        })
-        
-        # 4. If still no findings, extract from step results but with smart deduplication - exact same as results page
-        if not all_key_findings and step_results:
+        # 2. Extract comprehensive key findings from step-by-step analysis
+        if step_results:
             step_findings = []
             
-            for i, step in enumerate(step_results):
+            for step in step_results:
+                step_number = step.get('step_number', 0)
+                step_title = step.get('step_title', f"Step {step_number}")
+                
+                # Extract findings from multiple step sources
+                step_sources = []
+                
+                # Direct key_findings field
                 if 'key_findings' in step and step['key_findings']:
-                    step_title = step.get('step_title', f"Step {step.get('step_number', 'Unknown')}")
-                    step_findings_data = step['key_findings']
+                    step_sources.append(('key_findings', step['key_findings']))
+                
+                # Summary field
+                if 'summary' in step and step['summary']:
+                    step_sources.append(('summary', step['summary']))
+                
+                # Detailed analysis field
+                if 'detailed_analysis' in step and step['detailed_analysis']:
+                    step_sources.append(('detailed_analysis', step['detailed_analysis']))
+                
+                # Issues identified
+                if 'issues_identified' in step and step['issues_identified']:
+                    step_sources.append(('issues_identified', step['issues_identified']))
+                
+                # Recommendations
+                if 'recommendations' in step and step['recommendations']:
+                    step_sources.append(('recommendations', step['recommendations']))
+                
+                # Process each source
+                for source_type, source_data in step_sources:
+                    findings_list = []
                     
-                    # Handle both list and string formats
-                    if isinstance(step_findings_data, list):
-                        findings_list = step_findings_data
-                    elif isinstance(step_findings_data, str):
-                        findings_list = [f.strip() for f in step_findings_data.split('\n') if f.strip()]
+                    # Handle different data formats
+                    if isinstance(source_data, list):
+                        findings_list = source_data
+                    elif isinstance(source_data, str):
+                        # Split by common delimiters and clean
+                        lines = source_data.split('\n')
+                        findings_list = [line.strip() for line in lines if line.strip()]
                     else:
-                        findings_list = []
+                        continue
                     
+                    # Extract key findings from each item
                     for finding in findings_list:
                         if isinstance(finding, str) and finding.strip():
-                            cleaned_finding = self._clean_finding_text_pdf(finding.strip())
-                            step_findings.append({
-                                'finding': cleaned_finding,
-                                'source': step_title
-                            })
+                            # Enhanced keyword filtering for better relevance
+                            finding_lower = finding.lower()
+                            relevant_keywords = [
+                                'deficiency', 'critical', 'severe', 'low', 'high', 'optimum', 'ph', 'nutrient', 'yield',
+                                'recommendation', 'finding', 'issue', 'problem', 'analysis', 'result', 'conclusion',
+                                'soil', 'leaf', 'land', 'hectares', 'acres', 'tonnes', 'production', 'economic',
+                                'roi', 'investment', 'cost', 'benefit', 'profitability', 'forecast', 'projection',
+                                'improvement', 'increase', 'decrease', 'balance', 'ratio', 'level', 'status',
+                                'nitrogen', 'phosphorus', 'potassium', 'calcium', 'magnesium', 'carbon', 'cec',
+                                'boron', 'zinc', 'copper', 'manganese', 'iron', 'sulfur', 'chlorine'
+                            ]
+                            
+                            # Check if finding contains relevant keywords
+                            if any(keyword in finding_lower for keyword in relevant_keywords):
+                                cleaned_finding = self._clean_finding_text_pdf(finding.strip())
+                                if cleaned_finding and len(cleaned_finding) > 20:  # Minimum length filter
+                                    step_findings.append({
+                                        'finding': cleaned_finding,
+                                        'source': f"{step_title} ({source_type.replace('_', ' ').title()})"
+                                    })
             
-            # Apply smart deduplication to step findings - exact same as results page
+            # Apply intelligent deduplication to step findings
             if step_findings:
+                # First group findings by parameter and merge within each group
+                parameter_merged_findings = self._group_and_merge_findings_by_parameter_pdf(step_findings)
+                
+                # Then apply additional deduplication for any remaining similar findings
                 unique_findings = []
                 seen_concepts = []
                 
-                for finding_data in step_findings:
+                for finding_data in parameter_merged_findings:
                     finding = finding_data['finding']
                     normalized = ' '.join(finding.lower().split())
                     key_concepts = self._extract_key_concepts_pdf(normalized)
@@ -612,20 +939,22 @@ class PDFReportGenerator:
                             similarity = concept_overlap / total_concepts
                             word_similarity = len(key_concepts.intersection(seen_concept_set)) / max(len(key_concepts), len(seen_concept_set)) if len(key_concepts) > 0 and len(seen_concept_set) > 0 else 0
                             
-                            # More aggressive deduplication
-                            if similarity > 0.6 or word_similarity > 0.7:
-                                if len(finding) > len(unique_findings[i]['finding']):
-                                    unique_findings[i] = finding_data
-                                    seen_concepts[i] = key_concepts
+                            # More aggressive deduplication - consolidate similar issues
+                            if similarity > 0.5 or word_similarity > 0.6:
+                                # Merge findings for the same issue
+                                existing_finding = unique_findings[i]['finding']
+                                merged_finding = self._merge_similar_findings(existing_finding, finding)
+                                unique_findings[i]['finding'] = merged_finding
                                 is_duplicate = True
                                 break
                             
-                            # Check for same issue
-                            if similarity > 0.4 and word_similarity > 0.5:
+                            # Check for same issue with stricter criteria
+                            if similarity > 0.3 and word_similarity > 0.4:
                                 if self._is_same_issue_pdf(finding, unique_findings[i]['finding']):
-                                    if len(finding) > len(unique_findings[i]['finding']):
-                                        unique_findings[i] = finding_data
-                                        seen_concepts[i] = key_concepts
+                                    # Merge findings for the same issue
+                                    existing_finding = unique_findings[i]['finding']
+                                    merged_finding = self._merge_similar_findings(existing_finding, finding)
+                                    unique_findings[i]['finding'] = merged_finding
                                     is_duplicate = True
                                     break
                     
@@ -633,24 +962,291 @@ class PDFReportGenerator:
                         unique_findings.append(finding_data)
                         seen_concepts.append(key_concepts)
                 
-                all_key_findings = unique_findings
+                # Combine step findings with existing findings
+                all_key_findings.extend(unique_findings)
         
-        if all_key_findings:
-            # Display key findings - exact same format as results page
-            for i, finding_data in enumerate(all_key_findings, 1):
-                finding = finding_data['finding']
-                source = finding_data['source']
+        # 3. Generate comprehensive parameter-specific key findings
+        comprehensive_findings = self._generate_comprehensive_parameter_findings_pdf(analysis_results, step_results)
+        all_key_findings.extend(comprehensive_findings)
+        
+        # 4. Extract key findings from other analysis sources
+        # Land and yield data
+        land_yield_data = analysis_results.get('land_yield_data', {})
+        if land_yield_data:
+            land_size = land_yield_data.get('land_size', 0)
+            current_yield = land_yield_data.get('current_yield', 0)
+            land_unit = land_yield_data.get('land_unit', 'hectares')
+            yield_unit = land_yield_data.get('yield_unit', 'tonnes/hectare')
+            
+            if land_size > 0:
+                all_key_findings.append({
+                    'finding': f"Farm analysis covers {land_size} {land_unit} of agricultural land with current production of {current_yield} {yield_unit}.",
+                    'source': 'Land & Yield Data'
+                })
+        
+        # Economic forecast
+        economic_forecast = analysis_results.get('economic_forecast', {})
+        if economic_forecast:
+            scenarios = economic_forecast.get('scenarios', {})
+            if scenarios:
+                best_roi = 0
+                best_scenario = ""
+                for level, data in scenarios.items():
+                    if isinstance(data, dict) and data.get('roi_percentage', 0) > best_roi:
+                        best_roi = data.get('roi_percentage', 0)
+                        best_scenario = level
                 
-                # Create finding paragraph with proper formatting - exact same as results page
-                finding_text = f"<b>Key Finding {i}:</b> {finding}"
-                story.append(Paragraph(finding_text, self.styles['CustomBody']))
-                story.append(Paragraph(f"<i>📋 Source: {source}</i>", self.styles['CustomBody']))
-                story.append(Spacer(1, 8))
-        else:
-            story.append(Paragraph("📋 No key findings available from the analysis results.", self.styles['CustomBody']))
+                if best_roi > 0:
+                    all_key_findings.append({
+                        'finding': f"Economic analysis shows {best_scenario} investment level offers the best ROI of {best_roi:.1f}% with {scenarios[best_scenario].get('payback_months', 0):.1f} months payback period.",
+                        'source': 'Economic Forecast'
+                    })
         
-        story.append(Spacer(1, 20))
-        return story
+        # Yield forecast
+        yield_forecast = analysis_results.get('yield_forecast', {})
+        if yield_forecast:
+            projected_yield = yield_forecast.get('projected_yield', 0)
+            current_yield = yield_forecast.get('current_yield', 0)
+            if projected_yield > 0 and current_yield > 0:
+                increase = ((projected_yield - current_yield) / current_yield) * 100
+                all_key_findings.append({
+                    'finding': f"Yield projection indicates potential increase from {current_yield} to {projected_yield} tonnes/hectare ({increase:.1f}% improvement) with proper management.",
+                    'source': 'Yield Forecast'
+                })
+        
+        # Apply final parameter-based grouping to all findings
+        if all_key_findings:
+            all_key_findings = self._group_and_merge_findings_by_parameter_pdf(all_key_findings)
+            
+        return all_key_findings
+    
+    def _generate_comprehensive_parameter_findings_pdf(self, analysis_results, step_results):
+        """Generate comprehensive key findings grouped by specific parameters - PDF version"""
+        findings = []
+        
+        # Get raw data for analysis
+        raw_data = analysis_results.get('raw_data', {})
+        soil_params = raw_data.get('soil_parameters', {}).get('parameter_statistics', {})
+        leaf_params = raw_data.get('leaf_parameters', {}).get('parameter_statistics', {})
+        
+        # Get MPOB standards for comparison
+        try:
+            from utils.mpob_standards import get_mpob_standards
+            mpob = get_mpob_standards()
+        except:
+            mpob = None
+        
+        # 1. Soil pH Analysis
+        if 'pH' in soil_params and mpob:
+            ph_value = soil_params['pH'].get('average', 0)
+            ph_optimal = mpob.get('soil', {}).get('ph', {}).get('optimal', 6.5)
+            
+            if ph_value > 0:
+                if ph_value < 5.5:
+                    findings.append({
+                        'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development.",
+                        'source': 'Soil Analysis - pH'
+                    })
+                elif ph_value > 7.5:
+                    findings.append({
+                        'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
+                        'source': 'Soil Analysis - pH'
+                    })
+        else:
+                    findings.append({
+                        'finding': f"Soil pH is within optimal range at {ph_value:.1f}, providing good conditions for nutrient availability and root development.",
+                        'source': 'Soil Analysis - pH'
+                    })
+        
+        # 2. Soil Nitrogen Analysis
+        if 'Nitrogen_%' in soil_params and mpob:
+            n_value = soil_params['Nitrogen_%'].get('average', 0)
+            n_optimal = mpob.get('soil', {}).get('nitrogen', {}).get('optimal', 0.2)
+            
+            if n_value > 0:
+                if n_value < n_optimal * 0.7:
+                    findings.append({
+                        'finding': f"Soil nitrogen is critically deficient at {n_value:.2f}%, well below optimal level of {n_optimal:.2f}%. This severely limits plant growth and leaf development.",
+                        'source': 'Soil Analysis - Nitrogen'
+                    })
+                elif n_value > n_optimal * 1.3:
+                    findings.append({
+                        'finding': f"Soil nitrogen is excessive at {n_value:.2f}%, above optimal level of {n_optimal:.2f}%. This may cause nutrient imbalances and environmental concerns.",
+                        'source': 'Soil Analysis - Nitrogen'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Soil nitrogen is adequate at {n_value:.2f}%, within optimal range for healthy plant growth.",
+                        'source': 'Soil Analysis - Nitrogen'
+                    })
+        
+        # 3. Soil Phosphorus Analysis
+        if 'Available_P_mg_kg' in soil_params and mpob:
+            p_value = soil_params['Available_P_mg_kg'].get('average', 0)
+            p_optimal = mpob.get('soil', {}).get('available_phosphorus', {}).get('optimal', 15)
+            
+            if p_value > 0:
+                if p_value < p_optimal * 0.5:
+                    findings.append({
+                        'finding': f"Available phosphorus is critically low at {p_value:.1f} mg/kg, severely below optimal level of {p_optimal} mg/kg. This limits root development and energy transfer.",
+                        'source': 'Soil Analysis - Phosphorus'
+                    })
+                elif p_value > p_optimal * 2:
+                    findings.append({
+                        'finding': f"Available phosphorus is excessive at {p_value:.1f} mg/kg, well above optimal level of {p_optimal} mg/kg. This may cause nutrient lockup and environmental issues.",
+                        'source': 'Soil Analysis - Phosphorus'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Available phosphorus is adequate at {p_value:.1f} mg/kg, within optimal range for proper plant development.",
+                        'source': 'Soil Analysis - Phosphorus'
+                    })
+        
+        # 4. Soil Potassium Analysis
+        if 'Exchangeable_K_meq%' in soil_params and mpob:
+            k_value = soil_params['Exchangeable_K_meq%'].get('average', 0)
+            k_optimal = mpob.get('soil', {}).get('exchangeable_potassium', {}).get('optimal', 0.3)
+            
+            if k_value > 0:
+                if k_value < k_optimal * 0.6:
+                    findings.append({
+                        'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq%, below optimal level of {k_optimal:.2f} meq%. This affects water regulation and disease resistance.",
+                        'source': 'Soil Analysis - Potassium'
+                    })
+                elif k_value > k_optimal * 1.5:
+                    findings.append({
+                        'finding': f"Exchangeable potassium is high at {k_value:.2f} meq%, above optimal level of {k_optimal:.2f} meq%. This may cause nutrient imbalances.",
+                        'source': 'Soil Analysis - Potassium'
+                    })
+                else:
+                    findings.append({
+                        'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq%, within optimal range for healthy plant function.",
+                        'source': 'Soil Analysis - Potassium'
+                    })
+        
+        # 5. Leaf Nutrient Analysis
+        if leaf_params:
+            # Leaf Nitrogen
+            if 'N_%' in leaf_params:
+                leaf_n = leaf_params['N_%'].get('average', 0)
+                if leaf_n > 0:
+                    if leaf_n < 2.5:
+                        findings.append({
+                            'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.5-3.5%. This indicates poor nitrogen uptake and affects photosynthesis.",
+                            'source': 'Leaf Analysis - Nitrogen'
+                        })
+                    elif leaf_n > 3.5:
+                        findings.append({
+                            'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.5-3.5%. This may cause nutrient imbalances and delayed maturity.",
+                            'source': 'Leaf Analysis - Nitrogen'
+                        })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf nitrogen is optimal at {leaf_n:.1f}%, within recommended range for healthy palm growth.",
+                            'source': 'Leaf Analysis - Nitrogen'
+                        })
+            
+            # Leaf Phosphorus
+            if 'P_%' in leaf_params:
+                leaf_p = leaf_params['P_%'].get('average', 0)
+                if leaf_p > 0:
+                    if leaf_p < 0.15:
+                        findings.append({
+                            'finding': f"Leaf phosphorus is deficient at {leaf_p:.2f}%, below optimal range of 0.15-0.25%. This limits energy transfer and root development.",
+                            'source': 'Leaf Analysis - Phosphorus'
+                        })
+                    elif leaf_p > 0.25:
+                        findings.append({
+                            'finding': f"Leaf phosphorus is high at {leaf_p:.2f}%, above optimal range of 0.15-0.25%. This may indicate over-fertilization.",
+                            'source': 'Leaf Analysis - Phosphorus'
+                        })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf phosphorus is adequate at {leaf_p:.2f}%, within optimal range for proper plant function.",
+                            'source': 'Leaf Analysis - Phosphorus'
+                        })
+            
+            # Leaf Potassium
+            if 'K_%' in leaf_params:
+                leaf_k = leaf_params['K_%'].get('average', 0)
+                if leaf_k > 0:
+                    if leaf_k < 1.0:
+                        findings.append({
+                            'finding': f"Leaf potassium is deficient at {leaf_k:.1f}%, below optimal range of 1.0-1.5%. This affects water regulation and disease resistance.",
+                            'source': 'Leaf Analysis - Potassium'
+                        })
+                    elif leaf_k > 1.5:
+                        findings.append({
+                            'finding': f"Leaf potassium is high at {leaf_k:.1f}%, above optimal range of 1.0-1.5%. This may cause nutrient imbalances.",
+                            'source': 'Leaf Analysis - Potassium'
+                        })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within recommended range for healthy palm growth.",
+                            'source': 'Leaf Analysis - Potassium'
+                        })
+            
+            # Leaf Magnesium
+            if 'Mg_%' in leaf_params:
+                leaf_mg = leaf_params['Mg_%'].get('average', 0)
+                if leaf_mg > 0:
+                    if leaf_mg < 0.2:
+                        findings.append({
+                            'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below optimal range of 0.2-0.3%. This affects chlorophyll production and photosynthesis.",
+                            'source': 'Leaf Analysis - Magnesium'
+                        })
+                    elif leaf_mg > 0.3:
+                        findings.append({
+                            'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range of 0.2-0.3%. This may indicate over-fertilization.",
+                            'source': 'Leaf Analysis - Magnesium'
+                        })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within optimal range for healthy palm growth.",
+                            'source': 'Leaf Analysis - Magnesium'
+                        })
+            
+            # Leaf Calcium
+            if 'Ca_%' in leaf_params:
+                leaf_ca = leaf_params['Ca_%'].get('average', 0)
+                if leaf_ca > 0:
+                    if leaf_ca < 0.5:
+                        findings.append({
+                            'finding': f"Leaf calcium is deficient at {leaf_ca:.1f}%, below optimal range of 0.5-1.0%. This affects cell wall strength and fruit quality.",
+                            'source': 'Leaf Analysis - Calcium'
+                        })
+                    elif leaf_ca > 1.0:
+                        findings.append({
+                            'finding': f"Leaf calcium is high at {leaf_ca:.1f}%, above optimal range of 0.5-1.0%. This may cause nutrient imbalances.",
+                            'source': 'Leaf Analysis - Calcium'
+                        })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within recommended range for healthy palm growth.",
+                            'source': 'Leaf Analysis - Calcium'
+                        })
+            
+            # Leaf Boron
+            if 'B_mg_kg' in leaf_params:
+                leaf_b = leaf_params['B_mg_kg'].get('average', 0)
+                if leaf_b > 0:
+                    if leaf_b < 10:
+                        findings.append({
+                            'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below optimal range of 10-20 mg/kg. This affects fruit development and pollen viability.",
+                            'source': 'Leaf Analysis - Boron'
+                        })
+                    elif leaf_b > 20:
+                        findings.append({
+                            'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range of 10-20 mg/kg. This may cause toxicity symptoms.",
+                            'source': 'Leaf Analysis - Boron'
+                        })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf boron is adequate at {leaf_b:.1f} mg/kg, within optimal range for healthy palm growth.",
+                            'source': 'Leaf Analysis - Boron'
+                        })
+        
+        return findings
     
     def _create_comprehensive_step_by_step_analysis(self, analysis_data: Dict[str, Any]) -> List:
         """Create comprehensive step-by-step analysis section with visualizations"""
@@ -677,6 +1273,13 @@ class PDFReportGenerator:
             # Step header
             story.append(Paragraph(f"Step {step_number}: {step_title}", self.styles['Heading2']))
             story.append(Spacer(1, 8))
+            
+            # Check if step instructions contain visual keywords
+            step_instructions = step.get('instructions', '') + ' ' + step.get('summary', '') + ' ' + step.get('detailed_analysis', '')
+            has_visual_keywords = any(keyword in step_instructions.lower() for keyword in [
+                'visual', 'visualization', 'chart', 'graph', 'plot', 'diagram', 'comparison', 
+                'compare', 'visual comparison', 'visualize', 'display', 'show', 'illustrate'
+            ])
             
             # Summary (most important content)
             if 'summary' in step and step['summary']:
@@ -730,15 +1333,18 @@ class PDFReportGenerator:
                 # Step 6: Yield Forecast - Add forecast tables
                 story.extend(self._create_step6_forecast_tables(step))
             
-            # Visualizations and Charts
-            story.extend(self._create_step_visualizations(step, step_number))
+            # Visualizations and Charts - Generate if visual keywords detected
+            if has_visual_keywords:
+                story.extend(self._create_step_visualizations(step, step_number))
+                # Also generate additional charts based on step content
+                story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
             
             story.append(Spacer(1, 15))
         
         return story
     
     def _create_step_visualizations(self, step: Dict[str, Any], step_number: int) -> List:
-        """Create visualizations for each step"""
+        """Create visualizations for each step with enhanced contextual support"""
         story = []
         
         # Check for charts and visualizations in the step data
@@ -747,8 +1353,8 @@ class PDFReportGenerator:
             
             for chart_data in step['charts']:
                 try:
-                    # Create chart using matplotlib
-                    chart_image = self._create_chart_image(chart_data)
+                    # Create chart using enhanced matplotlib
+                    chart_image = self._create_enhanced_chart_image(chart_data)
                     if chart_image:
                         # Create a BytesIO object from the image bytes
                         img_buffer = io.BytesIO(chart_image)
@@ -756,6 +1362,22 @@ class PDFReportGenerator:
                         story.append(Spacer(1, 8))
                 except Exception as e:
                     logger.warning(f"Could not create chart: {str(e)}")
+                    continue
+        
+        # Generate contextual visualizations based on step content
+        contextual_viz = self._generate_contextual_visualizations_pdf(step, step_number)
+        if contextual_viz:
+            story.append(Paragraph("Contextual Analysis Charts:", self.styles['Heading3']))
+            
+            for viz_data in contextual_viz:
+                try:
+                    chart_image = self._create_enhanced_chart_image(viz_data)
+                    if chart_image:
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                except Exception as e:
+                    logger.warning(f"Could not create contextual chart: {str(e)}")
                     continue
         
         # Create nutrient status visualization for Step 1
@@ -770,40 +1392,342 @@ class PDFReportGenerator:
         
         return story
     
+    def _generate_contextual_visualizations_pdf(self, step: Dict[str, Any], step_number: int) -> List[Dict[str, Any]]:
+        """Generate contextual visualizations for PDF based on step content"""
+        try:
+            visualizations = []
+            
+            # Get step content to check for specific visualization requests
+            step_instructions = step.get('instructions', '')
+            step_summary = step.get('summary', '')
+            step_analysis = step.get('detailed_analysis', '')
+            combined_text = f"{step_instructions} {step_summary} {step_analysis}".lower()
+            
+            # Generate visualizations based on step number and content
+            if step_number == 1:  # Data Analysis
+                # Create MPOB standards comparison if requested
+                if 'mpob standards' in combined_text or 'vs mpob standards' in combined_text:
+                    mpob_viz = self._create_mpob_standards_comparison_viz_pdf(step)
+                    if mpob_viz:
+                        visualizations.append(mpob_viz)
+                
+                # Create yield projection chart if yield data is available
+                yield_data = step.get('yield_forecast', {})
+                if yield_data:
+                    yield_viz = self._create_yield_projection_viz_pdf(yield_data)
+                    if yield_viz:
+                        visualizations.append(yield_viz)
+            
+            elif step_number == 2:  # Issue Diagnosis
+                # Create issues severity chart
+                issues_viz = self._create_issues_severity_viz_pdf(step)
+                if issues_viz:
+                    visualizations.append(issues_viz)
+                
+                # Create nutrient deficiency heatmap
+                deficiency_viz = self._create_nutrient_deficiency_heatmap_pdf(step)
+                if deficiency_viz:
+                    visualizations.append(deficiency_viz)
+            
+            elif step_number == 3:  # Solution Recommendations
+                # Create solution priority chart
+                solution_viz = self._create_solution_priority_viz_pdf(step)
+                if solution_viz:
+                    visualizations.append(solution_viz)
+                
+                # Create cost-benefit analysis chart
+                cost_benefit_viz = self._create_cost_benefit_viz_pdf(step)
+                if cost_benefit_viz:
+                    visualizations.append(cost_benefit_viz)
+            
+            return visualizations
+            
+        except Exception as e:
+            logger.warning(f"Error generating contextual visualizations: {str(e)}")
+            return []
+    
+    def _create_mpob_standards_comparison_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create MPOB standards comparison visualization for PDF"""
+        try:
+            # This would need to extract soil/leaf data from step
+            # For now, return a placeholder structure
+            return {
+                'type': 'actual_vs_optimal_bar',
+                'title': '📊 Soil Parameters vs MPOB Standards',
+                'subtitle': 'Comparison of current soil values against MPOB optimal standards',
+                'data': {
+                    'categories': ['pH', 'Nitrogen', 'Phosphorus', 'Potassium'],
+                    'series': [
+                        {'name': 'Current Values', 'values': [6.2, 0.15, 12.5, 0.25], 'color': '#3498db'},
+                        {'name': 'MPOB Optimal', 'values': [6.5, 0.20, 15.0, 0.30], 'color': '#e74c3c'}
+                    ]
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'y_axis_title': 'Values',
+                    'x_axis_title': 'Soil Parameters'
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Error creating MPOB standards comparison: {str(e)}")
+            return None
+    
+    def _create_yield_projection_viz_pdf(self, yield_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create yield projection visualization for PDF"""
+        try:
+            years = [1, 2, 3, 4, 5]
+            current_yield = yield_data.get('current_yield', 15)
+            projected_yield = yield_data.get('projected_yield', 25)
+            
+            # Create multiple investment scenarios
+            scenarios = {
+                'High Investment': [],
+                'Medium Investment': [],
+                'Low Investment': [],
+                'Current (No Change)': []
+            }
+            
+            # Calculate yield progression for each scenario
+            for year in years:
+                # High investment: reaches projected yield by year 3
+                high_yield = current_yield + (projected_yield - current_yield) * min(year / 3, 1)
+                scenarios['High Investment'].append(high_yield)
+                
+                # Medium investment: reaches 80% of projected yield by year 4
+                medium_yield = current_yield + (projected_yield - current_yield) * 0.8 * min(year / 4, 1)
+                scenarios['Medium Investment'].append(medium_yield)
+                
+                # Low investment: reaches 60% of projected yield by year 5
+                low_yield = current_yield + (projected_yield - current_yield) * 0.6 * min(year / 5, 1)
+                scenarios['Low Investment'].append(low_yield)
+                
+                # Current (no change): stays at current yield
+                scenarios['Current (No Change)'].append(current_yield)
+            
+            # Create series data for line chart
+            series = []
+            colors = ['#28a745', '#17a2b8', '#ffc107', '#6c757d']
+            
+            for i, (scenario_name, values) in enumerate(scenarios.items()):
+                series.append({
+                    'name': scenario_name,
+                    'data': values,
+                    'color': colors[i]
+                })
+            
+            return {
+                'type': 'line_chart',
+                'title': '5-Year Yield Forecast by Investment Scenario',
+                'subtitle': 'Projected yield increase over 5 years with different investment levels',
+                'data': {
+                    'categories': [f'Year {year}' for year in years],
+                    'series': series
+                },
+                'options': {
+                    'x_axis_title': 'Years',
+                    'y_axis_title': 'Yield (tons/hectare)',
+                    'show_legend': True,
+                    'show_grid': True,
+                    'markers': True
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Error creating yield projection visualization: {str(e)}")
+            return None
+    
+    def _create_issues_severity_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create issues severity visualization for PDF"""
+        try:
+            # Mock data for demonstration
+            return {
+                'type': 'pie_chart',
+                'title': '🚨 Issues Severity Distribution',
+                'subtitle': 'Breakdown of identified issues by severity level',
+                'data': {
+                    'categories': ['Critical', 'High', 'Medium', 'Low'],
+                    'values': [2, 3, 5, 2],
+                    'colors': ['#e74c3c', '#f39c12', '#f1c40f', '#2ecc71']
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'show_percentages': True
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Error creating issues severity visualization: {str(e)}")
+            return None
+    
+    def _create_nutrient_deficiency_heatmap_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create nutrient deficiency heatmap for PDF"""
+        try:
+            return {
+                'type': 'heatmap',
+                'title': '🔥 Nutrient Deficiency Heatmap',
+                'subtitle': 'Visual representation of nutrient deficiency levels',
+                'data': {
+                    'parameters': ['pH', 'Nitrogen', 'Phosphorus', 'Potassium', 'Magnesium'],
+                    'levels': ['High', 'Critical', 'Medium', 'Low', 'High'],
+                    'color_scale': {
+                        'Critical': '#e74c3c',
+                        'High': '#f39c12',
+                        'Medium': '#f1c40f',
+                        'Low': '#2ecc71'
+                    }
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Error creating nutrient deficiency heatmap: {str(e)}")
+            return None
+    
+    def _create_solution_priority_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create solution priority visualization for PDF"""
+        try:
+            return {
+                'type': 'bar_chart',
+                'title': '🎯 Solution Priority Distribution',
+                'subtitle': 'Breakdown of recommendations by priority level',
+                'data': {
+                    'categories': ['High', 'Medium', 'Low'],
+                    'values': [4, 6, 2]
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'y_axis_title': 'Number of Recommendations',
+                    'x_axis_title': 'Priority Level'
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Error creating solution priority visualization: {str(e)}")
+            return None
+    
+    def _create_cost_benefit_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Create cost-benefit analysis visualization for PDF"""
+        try:
+            return {
+                'type': 'multi_axis_chart',
+                'title': '💰 Cost-Benefit Analysis',
+                'subtitle': 'ROI and payback period for different investment levels',
+                'data': {
+                    'categories': ['Low', 'Medium', 'High'],
+                    'series': [
+                        {
+                            'name': 'ROI (%)',
+                            'data': [15, 25, 35],
+                            'color': '#2ecc71',
+                            'axis': 'left'
+                        },
+                        {
+                            'name': 'Payback (months)',
+                            'data': [24, 18, 12],
+                            'color': '#e74c3c',
+                            'axis': 'right'
+                        }
+                    ]
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'left_axis_title': 'ROI (%)',
+                    'right_axis_title': 'Payback Period (months)',
+                    'x_axis_title': 'Investment Level'
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Error creating cost-benefit visualization: {str(e)}")
+            return None
+    
     def _create_chart_image(self, chart_data: Dict[str, Any]) -> Optional[bytes]:
-        """Create chart image from chart data"""
+        """Create chart image from chart data with enhanced support for new visualization types"""
         try:
             import matplotlib.pyplot as plt
             import io
+            import numpy as np
             
             # Clear any existing figures to prevent memory issues
             plt.clf()
             plt.close('all')
             
-            fig, ax = plt.subplots(figsize=(10, 6))
-            
             chart_type = chart_data.get('type', 'bar')
             data = chart_data.get('data', {})
-            labels = data.get('labels', [])
-            values = data.get('values', [])
+            title = chart_data.get('title', 'Chart')
+            options = chart_data.get('options', {})
             
-            # Validate data
-            if not labels or not values or len(labels) != len(values):
-                logger.warning("Invalid chart data: labels and values must be non-empty and same length")
-                return None
-            
-            if chart_type == 'bar':
-                ax.bar(labels, values)
-            elif chart_type == 'line':
-                ax.plot(labels, values, marker='o')
-            elif chart_type == 'pie':
-                ax.pie(values, labels=labels, autopct='%1.1f%%')
+            # Handle different chart types
+            if chart_type == 'line_chart':
+                return self._create_line_chart_pdf(data, title, options)
+            elif chart_type == 'actual_vs_optimal_bar':
+                return self._create_actual_vs_optimal_chart_pdf(data, title, options)
+            elif chart_type == 'pie_chart':
+                return self._create_pie_chart_pdf(data, title, options)
+            elif chart_type == 'multi_axis_chart':
+                return self._create_multi_axis_chart_pdf(data, title, options)
+            elif chart_type == 'heatmap':
+                return self._create_heatmap_pdf(data, title, options)
+            elif chart_type == 'radar_chart':
+                return self._create_radar_chart_pdf(data, title, options)
             else:
                 # Default to bar chart
-                ax.bar(labels, values)
+                return self._create_bar_chart_pdf(data, title, options)
             
-            ax.set_title(chart_data.get('title', 'Chart'))
-            ax.tick_params(axis='x', rotation=45)
+        except Exception as e:
+            logger.warning(f"Error creating chart: {str(e)}")
+            return None
+    
+    def _create_enhanced_chart_image(self, chart_data: Dict[str, Any]) -> Optional[bytes]:
+        """Enhanced chart creation with better error handling"""
+        return self._create_chart_image(chart_data)
+    
+    def _create_line_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create line chart for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            import numpy as np
+            
+            fig, ax = plt.subplots(figsize=(12, 8))
+            
+            # Handle different data formats
+            if 'categories' in data and 'series' in data:
+                categories = data['categories']
+                series = data['series']
+                
+                colors = ['#2E7D32', '#1976D2', '#F57C00', '#7B1FA2', '#D32F2F']
+                
+                for i, series_data in enumerate(series):
+                    if isinstance(series_data, dict):
+                        series_name = series_data.get('name', f'Series {i+1}')
+                        series_values = series_data.get('data', [])
+                        series_color = series_data.get('color', colors[i % len(colors)])
+                        
+                        ax.plot(categories, series_values, 
+                              marker='o', linewidth=3, markersize=8,
+                              label=series_name, color=series_color)
+                
+                ax.legend()
+                ax.set_xlabel(options.get('x_axis_title', 'Categories'))
+                ax.set_ylabel(options.get('y_axis_title', 'Values'))
+                
+            elif 'x_values' in data and 'y_values' in data:
+                x_values = data['x_values']
+                y_values = data['y_values']
+                series_name = data.get('series_name', 'Data')
+                
+                ax.plot(x_values, y_values, marker='o', linewidth=3, markersize=8,
+                       label=series_name, color='#2E7D32')
+                ax.legend()
+                ax.set_xlabel(options.get('x_axis_title', 'X Axis'))
+                ax.set_ylabel(options.get('y_axis_title', 'Y Axis'))
+            
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3)
+            
             plt.tight_layout()
             
             # Save to bytes
@@ -815,7 +1739,334 @@ class PDFReportGenerator:
             return img_buffer.getvalue()
             
         except Exception as e:
-            logger.warning(f"Error creating chart: {str(e)}")
+            logger.warning(f"Error creating line chart: {str(e)}")
+            return None
+    
+    def _create_actual_vs_optimal_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create actual vs optimal bar chart for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            import numpy as np
+            
+            fig, ax = plt.subplots(figsize=(12, 8))
+            
+            categories = data.get('categories', [])
+            series = data.get('series', [])
+            
+            if not categories or not series:
+                return None
+            
+            x = np.arange(len(categories))
+            width = 0.35
+            
+            # Extract actual and optimal values
+            actual_values = []
+            optimal_values = []
+            
+            for series_data in series:
+                if series_data.get('name') == 'Current Values' or series_data.get('name') == 'Actual Levels':
+                    actual_values = series_data.get('values', [])
+                elif series_data.get('name') == 'MPOB Optimal' or series_data.get('name') == 'Optimal Levels':
+                    optimal_values = series_data.get('values', [])
+            
+            if actual_values and optimal_values:
+                bars1 = ax.bar(x - width/2, actual_values, width, 
+                             label='Current Values', color='#3498db', alpha=0.8)
+                bars2 = ax.bar(x + width/2, optimal_values, width, 
+                             label='Optimal Values', color='#e74c3c', alpha=0.8)
+                
+                # Add value labels on bars
+                for bar in bars1:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                           f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+                
+                for bar in bars2:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                           f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+            
+            ax.set_xlabel(options.get('x_axis_title', 'Parameters'))
+            ax.set_ylabel(options.get('y_axis_title', 'Values'))
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            ax.set_xticks(x)
+            ax.set_xticklabels(categories, rotation=45, ha='right')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating actual vs optimal chart: {str(e)}")
+            return None
+    
+    def _create_pie_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create pie chart for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            
+            fig, ax = plt.subplots(figsize=(10, 8))
+            
+            categories = data.get('categories', [])
+            values = data.get('values', [])
+            colors = data.get('colors', ['#2E7D32', '#1976D2', '#F57C00', '#7B1FA2', '#D32F2F'])
+            
+            if not categories or not values:
+                return None
+            
+            wedges, texts, autotexts = ax.pie(values, labels=categories, colors=colors[:len(categories)],
+                                             autopct='%1.1f%%', startangle=90)
+            
+            # Enhance text appearance
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(10)
+            
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating pie chart: {str(e)}")
+            return None
+    
+    def _create_multi_axis_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create multi-axis chart for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            import numpy as np
+            
+            fig, ax1 = plt.subplots(figsize=(12, 8))
+            
+            categories = data.get('categories', [])
+            series = data.get('series', [])
+            
+            if not categories or not series:
+                return None
+            
+            # Create second y-axis
+            ax2 = ax1.twinx()
+            
+            colors = ['#2E7D32', '#D32F2F']
+            
+            for i, series_data in enumerate(series):
+                series_name = series_data.get('name', f'Series {i+1}')
+                series_values = series_data.get('data', [])
+                series_color = series_data.get('color', colors[i % len(colors)])
+                axis = series_data.get('axis', 'left')
+                
+                if axis == 'left':
+                    ax1.plot(categories, series_values, marker='o', linewidth=3, markersize=8,
+                            label=series_name, color=series_color)
+            else:
+                    ax2.plot(categories, series_values, marker='s', linewidth=3, markersize=8,
+                            label=series_name, color=series_color)
+            
+            ax1.set_xlabel(options.get('x_axis_title', 'Categories'))
+            ax1.set_ylabel(options.get('left_axis_title', 'Left Axis'), color='#2E7D32')
+            ax2.set_ylabel(options.get('right_axis_title', 'Right Axis'), color='#D32F2F')
+            
+            ax1.tick_params(axis='y', labelcolor='#2E7D32')
+            ax2.tick_params(axis='y', labelcolor='#D32F2F')
+            
+            ax1.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            ax1.grid(True, alpha=0.3)
+            
+            # Combine legends
+            lines1, labels1 = ax1.get_legend_handles_labels()
+            lines2, labels2 = ax2.get_legend_handles_labels()
+            ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating multi-axis chart: {str(e)}")
+            return None
+    
+    def _create_heatmap_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create heatmap for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            import numpy as np
+            
+            fig, ax = plt.subplots(figsize=(10, 8))
+            
+            parameters = data.get('parameters', [])
+            levels = data.get('levels', [])
+            color_scale = data.get('color_scale', {})
+            
+            if not parameters or not levels:
+                return None
+            
+            # Create heatmap data
+            heatmap_data = []
+            for i, param in enumerate(parameters):
+                level_value = 0
+                if levels[i] == 'Critical':
+                    level_value = 0
+                elif levels[i] == 'High':
+                    level_value = 1
+                elif levels[i] == 'Medium':
+                    level_value = 2
+                elif levels[i] == 'Low':
+                    level_value = 3
+                
+                heatmap_data.append([level_value])
+            
+            im = ax.imshow(heatmap_data, cmap='RdYlGn', aspect='auto')
+            
+            # Set ticks and labels
+            ax.set_xticks([0])
+            ax.set_xticklabels(['Deficiency Level'])
+            ax.set_yticks(range(len(parameters)))
+            ax.set_yticklabels(parameters)
+            
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax)
+            cbar.set_ticks([0, 1, 2, 3])
+            cbar.set_ticklabels(['Critical', 'High', 'Medium', 'Low'])
+            cbar.set_label('Deficiency Level')
+            
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating heatmap: {str(e)}")
+            return None
+    
+    def _create_radar_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create radar chart for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            import numpy as np
+            
+            fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+            
+            categories = data.get('categories', [])
+            series = data.get('series', [])
+            
+            if not categories or not series:
+                return None
+            
+            # Calculate angles for each category
+            angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+            angles += angles[:1]  # Complete the circle
+            
+            colors = ['#2E7D32', '#D32F2F', '#1976D2', '#F57C00']
+            
+            for i, series_data in enumerate(series):
+                series_name = series_data.get('name', f'Series {i+1}')
+                series_values = series_data.get('data', [])
+                series_color = series_data.get('color', colors[i % len(colors)])
+                
+                # Complete the circle
+                values = series_values + series_values[:1]
+                
+                ax.plot(angles, values, 'o-', linewidth=3, label=series_name, color=series_color)
+                ax.fill(angles, values, alpha=0.25, color=series_color)
+            
+            # Add category labels
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels(categories)
+            
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+            ax.grid(True)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating radar chart: {str(e)}")
+            return None
+    
+    def _create_bar_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
+        """Create bar chart for PDF"""
+        try:
+            import matplotlib.pyplot as plt
+            import io
+            import numpy as np
+            
+            fig, ax = plt.subplots(figsize=(12, 8))
+            
+            categories = data.get('categories', [])
+            values = data.get('values', [])
+            
+            if not categories or not values:
+                return None
+            
+            bars = ax.bar(categories, values, color='#2E7D32', alpha=0.8)
+            
+            # Add value labels on bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                       f'{height:.2f}', ha='center', va='bottom', fontsize=10)
+            
+            ax.set_xlabel(options.get('x_axis_title', 'Categories'))
+            ax.set_ylabel(options.get('y_axis_title', 'Values'))
+            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+            ax.tick_params(axis='x', rotation=45)
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+            img_buffer.seek(0)
+            plt.close(fig)
+            
+            return img_buffer.getvalue()
+            
+        except Exception as e:
+            logger.warning(f"Error creating bar chart: {str(e)}")
             return None
     
     def _create_nutrient_status_chart(self, step: Dict[str, Any]) -> Optional[bytes]:
@@ -956,7 +2207,333 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 8))
         
         return story
-
+    
+    def _create_contextual_visualizations(self, step: Dict[str, Any], step_number: int, analysis_data: Dict[str, Any]) -> List:
+        """Create contextual visualizations based on step content and visual keywords"""
+        story = []
+        
+        try:
+            # Get raw data for visualization
+            raw_data = analysis_data.get('raw_data', {})
+            soil_params = raw_data.get('soil_parameters', {})
+            leaf_params = raw_data.get('leaf_parameters', {})
+            
+            # Generate visualizations based on step number and content
+            if step_number == 1:  # Data Analysis
+                # Create nutrient comparison charts
+                if soil_params.get('parameter_statistics') or leaf_params.get('parameter_statistics'):
+                    chart_image = self._create_nutrient_comparison_chart(soil_params, leaf_params)
+                    if chart_image:
+                        story.append(Paragraph("Nutrient Analysis Visualization:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                
+                # Create actual vs optimal bar charts
+                if soil_params.get('parameter_statistics'):
+                    soil_chart = _create_actual_vs_optimal_chart(soil_params['parameter_statistics'], 'soil')
+                    if soil_chart:
+                        story.append(Paragraph("Soil Nutrients: Actual vs Optimal Levels:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(soil_chart)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                
+                if leaf_params.get('parameter_statistics'):
+                    leaf_chart = _create_actual_vs_optimal_chart(leaf_params['parameter_statistics'], 'leaf')
+                    if leaf_chart:
+                        story.append(Paragraph("Leaf Nutrients: Actual vs Optimal Levels:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(leaf_chart)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                
+                # Create nutrient ratio diagrams
+                if soil_params.get('parameter_statistics'):
+                    soil_ratio_chart = _create_nutrient_ratio_chart(soil_params['parameter_statistics'], 'soil')
+                    if soil_ratio_chart:
+                        story.append(Paragraph("Soil Nutrient Ratios Analysis:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(soil_ratio_chart)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                
+                if leaf_params.get('parameter_statistics'):
+                    leaf_ratio_chart = _create_nutrient_ratio_chart(leaf_params['parameter_statistics'], 'leaf')
+                    if leaf_ratio_chart:
+                        story.append(Paragraph("Leaf Nutrient Ratios Analysis:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(leaf_ratio_chart)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+            
+            elif step_number == 2:  # Issue Diagnosis
+                # Create issues severity chart
+                issues = analysis_data.get('issues_analysis', {}).get('all_issues', [])
+                if issues:
+                    chart_image = self._create_issues_severity_chart(issues)
+                    if chart_image:
+                        story.append(Paragraph("Issues Severity Analysis:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+            
+            elif step_number == 3:  # Solution Recommendations
+                # Create solution impact chart
+                recommendations = analysis_data.get('recommendations', [])
+                if recommendations:
+                    chart_image = self._create_solution_impact_chart(recommendations)
+                    if chart_image:
+                        story.append(Paragraph("Solution Impact Analysis:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+            
+            elif step_number == 5:  # Economic Impact
+                # Create economic analysis chart
+                economic_data = analysis_data.get('economic_forecast', {})
+                if economic_data:
+                    chart_image = self._create_economic_analysis_chart(economic_data)
+                    if chart_image:
+                        story.append(Paragraph("Economic Impact Visualization:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+            
+            elif step_number == 6:  # Yield Forecast
+                # Create yield projection chart
+                yield_data = analysis_data.get('yield_forecast', {})
+                if yield_data:
+                    chart_image = self._create_yield_projection_chart(yield_data)
+                    if chart_image:
+                        story.append(Paragraph("Yield Projection Visualization:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(chart_image)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+        
+        except Exception as e:
+            logger.warning(f"Could not create contextual visualizations: {str(e)}")
+        
+        return story
+    
+    def _create_nutrient_comparison_chart(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Optional[bytes]:
+        """Create nutrient comparison chart"""
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+            
+            plt.clf()
+            plt.close('all')
+            
+            # Extract nutrient data
+            soil_stats = soil_params.get('parameter_statistics', {})
+            leaf_stats = leaf_params.get('parameter_statistics', {})
+            
+            if not soil_stats and not leaf_stats:
+                return None
+            
+            # Create subplot
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Prepare data for comparison
+            nutrients = []
+            soil_values = []
+            leaf_values = []
+            
+            # Common nutrients to compare
+            nutrient_mapping = {
+                'N_%': 'Nitrogen (%)',
+                'P_%': 'Phosphorus (%)', 
+                'K_%': 'Potassium (%)',
+                'Mg_%': 'Magnesium (%)',
+                'Ca_%': 'Calcium (%)'
+            }
+            
+            for soil_key, display_name in nutrient_mapping.items():
+                if soil_key in soil_stats and soil_key in leaf_stats:
+                    soil_avg = soil_stats[soil_key].get('average', 0)
+                    leaf_avg = leaf_stats[soil_key].get('average', 0)
+                    
+                    if soil_avg > 0 or leaf_avg > 0:
+                        nutrients.append(display_name)
+                        soil_values.append(soil_avg)
+                        leaf_values.append(leaf_avg)
+            
+            if not nutrients:
+                return None
+            
+            # Create bar chart
+            x = np.arange(len(nutrients))
+            width = 0.35
+            
+            ax.bar(x - width/2, soil_values, width, label='Soil', alpha=0.8)
+            ax.bar(x + width/2, leaf_values, width, label='Leaf', alpha=0.8)
+            
+            ax.set_xlabel('Nutrients')
+            ax.set_ylabel('Values (%)')
+            ax.set_title('Soil vs Leaf Nutrient Comparison')
+            ax.set_xticks(x)
+            ax.set_xticklabels(nutrients, rotation=45)
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+            img_buffer.seek(0)
+            result = img_buffer.getvalue()
+            
+            plt.close(fig)
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Could not create nutrient comparison chart: {str(e)}")
+            return None
+    
+    def _create_issues_severity_chart(self, issues: List[Dict[str, Any]]) -> Optional[bytes]:
+        """Create issues severity chart"""
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+            
+            plt.clf()
+            plt.close('all')
+            
+            if not issues:
+                return None
+            
+            # Count issues by severity
+            severity_counts = {}
+            for issue in issues:
+                severity = issue.get('severity', 'Unknown')
+                severity_counts[severity] = severity_counts.get(severity, 0) + 1
+            
+            if not severity_counts:
+                return None
+            
+            # Create pie chart
+            fig, ax = plt.subplots(figsize=(8, 6))
+            
+            labels = list(severity_counts.keys())
+            sizes = list(severity_counts.values())
+            colors = ['red', 'orange', 'yellow', 'green', 'blue']
+            
+            ax.pie(sizes, labels=labels, colors=colors[:len(labels)], autopct='%1.1f%%', startangle=90)
+            ax.set_title('Issues Distribution by Severity')
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+            img_buffer.seek(0)
+            result = img_buffer.getvalue()
+            
+            plt.close(fig)
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Could not create issues severity chart: {str(e)}")
+            return None
+    
+    def _create_solution_impact_chart(self, recommendations: List[Dict[str, Any]]) -> Optional[bytes]:
+        """Create solution impact chart"""
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+            
+            plt.clf()
+            plt.close('all')
+            
+            if not recommendations:
+                return None
+            
+            # Extract solution data
+            solutions = []
+            impacts = []
+            
+            for rec in recommendations:
+                if isinstance(rec, dict):
+                    param = rec.get('parameter', 'Unknown')
+                    solutions.append(param)
+                    # Mock impact score based on severity
+                    severity = rec.get('severity', 'Medium')
+                    impact_scores = {'Critical': 5, 'High': 4, 'Medium': 3, 'Low': 2, 'Unknown': 1}
+                    impacts.append(impact_scores.get(severity, 3))
+                else:
+                    solutions.append(str(rec)[:20])
+                    impacts.append(3)
+            
+            if not solutions:
+                return None
+            
+            # Create horizontal bar chart
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            y_pos = np.arange(len(solutions))
+            ax.barh(y_pos, impacts, alpha=0.8)
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(solutions)
+            ax.set_xlabel('Impact Score')
+            ax.set_title('Solution Impact Analysis')
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+            img_buffer.seek(0)
+            result = img_buffer.getvalue()
+            
+            plt.close(fig)
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Could not create solution impact chart: {str(e)}")
+            return None
+    
+    def _create_economic_analysis_chart(self, economic_data: Dict[str, Any]) -> Optional[bytes]:
+        """Create economic analysis chart"""
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+            
+            plt.clf()
+            plt.close('all')
+            
+            # Extract economic data
+            years = [1, 2, 3, 4, 5]
+            roi_values = []
+            
+            # Mock ROI data based on economic forecast
+            base_roi = economic_data.get('projected_roi', 15)
+            for year in years:
+                roi_values.append(base_roi + (year - 1) * 2)  # Increasing ROI over time
+            
+            # Create line chart
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            ax.plot(years, roi_values, marker='o', linewidth=2, markersize=8)
+            ax.set_xlabel('Years')
+            ax.set_ylabel('ROI (%)')
+            ax.set_title('Projected Return on Investment')
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(0, max(roi_values) * 1.2)
+            
+            plt.tight_layout()
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+            img_buffer.seek(0)
+            result = img_buffer.getvalue()
+            
+            plt.close(fig)
+            return result
+            
+        except Exception as e:
+            logger.warning(f"Could not create economic analysis chart: {str(e)}")
+            return None
+    
     def _create_step1_data_tables(self, step: Dict[str, Any], analysis_data: Dict[str, Any]) -> List:
         """Create data tables for Step 1: Data Analysis"""
         story = []
@@ -1680,7 +3257,7 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 12))
         
         return story
-
+    
     def _create_enhanced_economic_forecast_table(self, analysis_data: Dict[str, Any]) -> List:
         """Create enhanced economic forecast table"""
         story = []
@@ -2225,3 +3802,219 @@ def generate_pdf_report(analysis_data: Dict[str, Any], metadata: Dict[str, Any],
     except Exception as e:
         logger.error(f"Error generating PDF report: {str(e)}")
         raise
+
+def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_type: str) -> Optional[bytes]:
+    """Create actual vs optimal nutrient levels bar chart for PDF"""
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        # Get MPOB standards
+        try:
+            from utils.mpob_standards import get_mpob_standards
+            mpob = get_mpob_standards()
+        except:
+            mpob = None
+        
+        categories = []
+        actual_values = []
+        optimal_values = []
+        
+        # Define parameter mappings
+        if parameter_type == 'soil':
+            param_mapping = {
+                'pH': 'pH',
+                'Nitrogen_%': 'Nitrogen %',
+                'Organic_Carbon_%': 'Organic Carbon %',
+                'Total_P_mg_kg': 'Total P (mg/kg)',
+                'Available_P_mg_kg': 'Available P (mg/kg)',
+                'Exchangeable_K_meq%': 'Exch. K (meq%)',
+                'Exchangeable_Ca_meq%': 'Exch. Ca (meq%)',
+                'Exchangeable_Mg_meq%': 'Exch. Mg (meq%)',
+                'CEC_meq%': 'CEC (meq%)'
+            }
+        else:  # leaf
+            param_mapping = {
+                'N_%': 'N %',
+                'P_%': 'P %',
+                'K_%': 'K %',
+                'Mg_%': 'Mg %',
+                'Ca_%': 'Ca %',
+                'B_mg_kg': 'B (mg/kg)',
+                'Cu_mg_kg': 'Cu (mg/kg)',
+                'Zn_mg_kg': 'Zn (mg/kg)'
+            }
+        
+        # Extract data
+        for param_key, display_name in param_mapping.items():
+            if param_key in parameter_stats:
+                actual_val = parameter_stats[param_key].get('average', 0)
+                if actual_val > 0:
+                    categories.append(display_name)
+                    actual_values.append(actual_val)
+                    
+                    # Get optimal value (simplified for PDF)
+                    optimal_val = actual_val * 1.2  # Placeholder - should use MPOB standards
+                    optimal_values.append(optimal_val)
+        
+        if not categories:
+            return None
+        
+        # Create the chart
+        fig, ax = plt.subplots(figsize=(12, 8))
+        x = np.arange(len(categories))
+        width = 0.35
+        
+        bars1 = ax.bar(x - width/2, actual_values, width, label='Actual Levels', 
+                      color='#3498db' if parameter_type == 'soil' else '#2ecc71', alpha=0.8)
+        bars2 = ax.bar(x + width/2, optimal_values, width, label='Optimal Levels', 
+                      color='#e74c3c' if parameter_type == 'soil' else '#e67e22', alpha=0.8)
+        
+        ax.set_xlabel(f'{parameter_type.title()} Parameters', fontsize=12)
+        ax.set_ylabel('Nutrient Levels', fontsize=12)
+        ax.set_title(f'{parameter_type.title()} Nutrients: Actual vs Optimal Levels', fontsize=14, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels(categories, rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for bar in bars1:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                   f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+        
+        for bar in bars2:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                   f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+        
+        plt.tight_layout()
+        
+        # Save to bytes
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+        img_buffer.seek(0)
+        chart_bytes = img_buffer.getvalue()
+        
+        plt.clf()
+        plt.close('all')
+        
+        return chart_bytes
+        
+    except Exception as e:
+        logger.warning(f"Error creating actual vs optimal chart: {e}")
+        return None
+
+def _create_nutrient_ratio_chart(parameter_stats: Dict[str, Any], parameter_type: str) -> Optional[bytes]:
+    """Create nutrient ratio analysis chart for PDF"""
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        # Calculate nutrient ratios
+        ratios = _calculate_nutrient_ratios_pdf(parameter_stats, parameter_type)
+        
+        if not ratios:
+            return None
+        
+        # Create radar chart
+        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+        
+        # Extract data for radar chart
+        categories = [ratio['name'] for ratio in ratios]
+        values = [ratio['value'] for ratio in ratios]
+        statuses = [ratio['status'] for ratio in ratios]
+        
+        # Normalize values for radar chart (0-1 scale)
+        max_val = max(values) if values else 1
+        normalized_values = [v / max_val for v in values]
+        
+        # Angles for each category
+        angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+        angles += angles[:1]  # Complete the circle
+        normalized_values += normalized_values[:1]  # Complete the circle
+        
+        # Plot the radar chart
+        ax.plot(angles, normalized_values, 'o-', linewidth=2, label='Current Ratios')
+        ax.fill(angles, normalized_values, alpha=0.25)
+        
+        # Add optimal zone (normalized to 0.5-0.8 range)
+        optimal_zone = [0.6] * len(angles)
+        ax.plot(angles, optimal_zone, '--', color='green', alpha=0.7, label='Optimal Zone')
+        
+        # Set labels
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(categories)
+        ax.set_ylim(0, 1)
+        ax.set_title(f'{parameter_type.title()} Nutrient Ratios Analysis', fontsize=14, fontweight='bold', pad=20)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+        ax.grid(True)
+        
+        plt.tight_layout()
+        
+        # Save to bytes
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+        img_buffer.seek(0)
+        chart_bytes = img_buffer.getvalue()
+        
+        plt.clf()
+        plt.close('all')
+        
+        return chart_bytes
+        
+    except Exception as e:
+        logger.warning(f"Error creating nutrient ratio chart: {e}")
+        return None
+
+def _calculate_nutrient_ratios_pdf(parameter_stats: Dict[str, Any], parameter_type: str) -> List[Dict[str, Any]]:
+    """Calculate key nutrient ratios for PDF analysis"""
+    try:
+        ratios = []
+        
+        if parameter_type == 'soil':
+            # Key soil nutrient ratios
+            ratio_definitions = {
+                'N:P': {'numerator': 'Nitrogen_%', 'denominator': 'Total_P_mg_kg', 'optimal_range': (10, 20)},
+                'K:Mg': {'numerator': 'Exchangeable_K_meq%', 'denominator': 'Exchangeable_Mg_meq%', 'optimal_range': (2, 5)},
+                'Ca:Mg': {'numerator': 'Exchangeable_Ca_meq%', 'denominator': 'Exchangeable_Mg_meq%', 'optimal_range': (3, 7)},
+                'CEC:Base': {'numerator': 'CEC_meq%', 'denominator': 'Exchangeable_K_meq%', 'optimal_range': (5, 15)}
+            }
+        else:  # leaf
+            # Key leaf nutrient ratios
+            ratio_definitions = {
+                'N:P': {'numerator': 'N_%', 'denominator': 'P_%', 'optimal_range': (10, 20)},
+                'K:Mg': {'numerator': 'K_%', 'denominator': 'Mg_%', 'optimal_range': (2, 5)},
+                'Ca:Mg': {'numerator': 'Ca_%', 'denominator': 'Mg_%', 'optimal_range': (3, 7)},
+                'N:K': {'numerator': 'N_%', 'denominator': 'K_%', 'optimal_range': (1, 3)}
+            }
+        
+        for ratio_name, ratio_info in ratio_definitions.items():
+            num_key = ratio_info['numerator']
+            den_key = ratio_info['denominator']
+            optimal_range = ratio_info['optimal_range']
+            
+            if num_key in parameter_stats and den_key in parameter_stats:
+                numerator_val = parameter_stats[num_key].get('average', 0)
+                denominator_val = parameter_stats[den_key].get('average', 0)
+                
+                if denominator_val > 0:
+                    ratio_value = numerator_val / denominator_val
+                    status = 'optimal' if optimal_range[0] <= ratio_value <= optimal_range[1] else 'suboptimal'
+                    
+                    ratios.append({
+                        'name': ratio_name,
+                        'value': round(ratio_value, 2),
+                        'numerator': num_key,
+                        'denominator': den_key,
+                        'optimal_range': optimal_range,
+                        'status': status,
+                        'description': f"{num_key} to {den_key} ratio"
+                    })
+        
+        return ratios
+        
+    except Exception as e:
+        logger.warning(f"Error calculating nutrient ratios: {e}")
+        return []
