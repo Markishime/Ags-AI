@@ -976,6 +976,9 @@ class PromptAnalyzer:
     def _parse_llm_response(self, response: str, step: Dict[str, str]) -> Dict[str, Any]:
         """Parse LLM response and extract structured data"""
         try:
+            # Filter out system prompt text from response
+            response = self._filter_system_prompt_text(response)
+            
             # Try to extract JSON from response with multiple strategies
             json_str = None
             parsed_data = None
@@ -2181,6 +2184,57 @@ class AnalysisEngine:
         self.results_generator = ResultsGenerator()
         self.feedback_system = FeedbackLearningSystem()
     
+    def _optimal_from_standard(self, std_entry: Any, default_entry: Any = None) -> float:
+        """Helper: extract optimal value from standards entry (dataclass or dict)"""
+        try:
+            if std_entry is None:
+                # Try default
+                std_entry = default_entry
+                if std_entry is None:
+                    return 0.0
+            if hasattr(std_entry, 'optimal') and isinstance(std_entry.optimal, (int, float)):
+                return float(std_entry.optimal)
+            if isinstance(std_entry, dict):
+                if 'optimal' in std_entry and isinstance(std_entry['optimal'], (int, float)):
+                    return float(std_entry['optimal'])
+                # Derive from min/max if available
+                if isinstance(std_entry.get('min'), (int, float)) and isinstance(std_entry.get('max'), (int, float)):
+                    return float((std_entry['min'] + std_entry['max']) / 2.0)
+                val = std_entry.get('min', 0)
+                return float(val) if isinstance(val, (int, float)) else 0.0
+        except Exception:
+            pass
+        return 0.0
+    
+    def _filter_system_prompt_text(self, response: str) -> str:
+        """Filter out system prompt text from LLM response"""
+        try:
+            # Remove common system prompt phrases that might appear in responses
+            system_phrases = [
+                "As an agronomist with over two decades of experience in Malaysian oil palm",
+                "You are an expert agronomist specializing in oil palm cultivation in Malaysia",
+                "I am an expert agronomist",
+                "As an expert agronomist",
+                "With my 20+ years of experience",
+                "Based on my expertise in oil palm cultivation"
+            ]
+            
+            filtered_response = response
+            for phrase in system_phrases:
+                # Remove the phrase and any text that follows until the next sentence or JSON
+                pattern = re.escape(phrase) + r'.*?(?=\{|\[|$|\n\n)'
+                filtered_response = re.sub(pattern, '', filtered_response, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Clean up any extra whitespace
+            filtered_response = re.sub(r'\n\s*\n', '\n\n', filtered_response)
+            filtered_response = filtered_response.strip()
+            
+            return filtered_response
+            
+        except Exception as e:
+            self.logger.warning(f"Error filtering system prompt text: {e}")
+            return response
+    
     def generate_comprehensive_analysis(self, soil_data: Dict[str, Any], leaf_data: Dict[str, Any],
                                       land_yield_data: Dict[str, Any], prompt_text: str) -> Dict[str, Any]:
         """Generate comprehensive analysis with all components"""
@@ -2371,27 +2425,6 @@ class AnalysisEngine:
                         values.append(float(mean_val))
             return categories, values
 
-        # Helper: extract optimal value from standards entry (dataclass or dict)
-        def _optimal_from_standard(std_entry: Any, default_entry: Any = None) -> float:
-            try:
-                if std_entry is None:
-                    # Try default
-                    std_entry = default_entry
-                    if std_entry is None:
-                        return 0.0
-                if hasattr(std_entry, 'optimal') and isinstance(std_entry.optimal, (int, float)):
-                    return float(std_entry.optimal)
-                if isinstance(std_entry, dict):
-                    if 'optimal' in std_entry and isinstance(std_entry['optimal'], (int, float)):
-                        return float(std_entry['optimal'])
-                    # Derive from min/max if available
-                    if isinstance(std_entry.get('min'), (int, float)) and isinstance(std_entry.get('max'), (int, float)):
-                        return float((std_entry['min'] + std_entry['max']) / 2.0)
-                    val = std_entry.get('min', 0)
-                    return float(val) if isinstance(val, (int, float)) else 0.0
-            except Exception:
-                pass
-            return 0.0
 
         # Soil bar chart: averages vs MPOB optimal
         try:
@@ -2426,7 +2459,7 @@ class AnalysisEngine:
                     k = std_map.get(label)
                     v = std.get(k) if k else None
                     v_def = DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(k) if k else None
-                    soil_optimal.append(_optimal_from_standard(v, v_def))
+                    soil_optimal.append(self._optimal_from_standard(v, v_def))
             if soil_categories and soil_avg:
                 viz = {
                     'type': 'bar_chart',
@@ -2466,7 +2499,7 @@ class AnalysisEngine:
                     k = std_map.get(label)
                     v = std.get(k) if k else None
                     v_def = DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(k) if k else None
-                    leaf_optimal.append(_optimal_from_standard(v, v_def))
+                    leaf_optimal.append(self._optimal_from_standard(v, v_def))
             if leaf_categories and leaf_avg:
                 viz = {
                     'type': 'bar_chart',
@@ -2526,7 +2559,7 @@ class AnalysisEngine:
                 std_group = mpob.soil_standards if grp == 'soil' else mpob.leaf_standards
                 std_entry = std_group.get(name) if std_group else None
                 default_entry = DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(name) if grp == 'soil' else DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(name)
-                ov = _optimal_from_standard(std_entry, default_entry)
+                ov = self._optimal_from_standard(std_entry, default_entry)
                 opt_v = ov if ov != 0.0 or (isinstance(ov, float)) else None
             if avg_v is not None:
                 add(label, avg_v, opt_v)
@@ -2550,7 +2583,7 @@ class AnalysisEngine:
                 std_group = mpob.leaf_standards if grp == 'leaf' else mpob.soil_standards
                 std_entry = std_group.get(name) if std_group else None
                 default_entry = DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(name) if grp == 'leaf' else DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(name)
-                ov = _optimal_from_standard(std_entry, default_entry)
+                ov = self._optimal_from_standard(std_entry, default_entry)
                 opt_v = ov if ov != 0.0 or (isinstance(ov, float)) else None
             if avg_v is not None:
                 add(label, avg_v, opt_v)
