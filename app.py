@@ -42,8 +42,13 @@ try:
 except ImportError:
     pass
 
-# Add utils to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
+# Ensure project root and utils are on sys.path
+repo_root = os.path.dirname(__file__)
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+utils_dir = os.path.join(repo_root, 'utils')
+if utils_dir not in sys.path:
+    sys.path.append(utils_dir)
 
 # Import utilities
 from firebase_config import initialize_firebase, initialize_admin_codes
@@ -64,18 +69,35 @@ except Exception:
     pass
 
 # Add modules to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
+modules_dir = os.path.join(repo_root, 'modules')
+if modules_dir not in sys.path:
+    sys.path.append(modules_dir)
 
-# Import pages with error handling
+# Import pages with robust fallbacks
 try:
     from modules.dashboard import show_dashboard
+except Exception:
+    from dashboard import show_dashboard
+
+try:
     from modules.upload import show_upload_page
+except Exception:
+    from upload import show_upload_page
+
+try:
     from modules.results import show_results_page
+except Exception:
+    from results import show_results_page
+
+try:
     from modules.history import show_history_page
+except Exception:
+    from history import show_history_page
+
+try:
     from modules.admin import show_admin_panel
-except ImportError as e:
-    st.error(f"Import error: {e}")
-    st.stop()
+except Exception:
+    from admin import show_admin_panel
 
 # Page configuration
 st.set_page_config(
