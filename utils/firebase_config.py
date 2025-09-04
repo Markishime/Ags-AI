@@ -5,33 +5,9 @@ from firebase_admin import credentials, firestore, auth, storage
 import streamlit as st
 from typing import Optional
 
-# Do not load from .env in deployment; rely on Streamlit secrets
+# Do not load from .env in deployment; rely on Streamlit secrets only
 
-# Set environment variables globally to prevent metadata service usage
-# This must be done before any Google Cloud libraries are imported
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
-os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
-os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-os.environ['GCE_METADATA_HOST'] = ''
-os.environ['GCE_METADATA_ROOT'] = ''
-os.environ['GCE_METADATA_TIMEOUT'] = '0'
-os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
-
-# Additional environment variables to completely disable metadata service
-os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
-os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
-os.environ['GCE_METADATA_HOST'] = ''
-os.environ['GCE_METADATA_ROOT'] = ''
-os.environ['GCE_METADATA_TIMEOUT'] = '0'
-
-# Avoid global monkey patching of Google Auth to prevent side effects on other clients
-try:
-    import google.auth  # noqa: F401
-    import google.auth.compute_engine  # noqa: F401
-    import google.auth.transport.requests  # noqa: F401
-    import google.auth.transport.grpc  # noqa: F401
-except ImportError:
-    pass
+# Avoid global monkey patching of Google Auth entirely
 
 def initialize_firebase() -> bool:
     """Initialize Firebase Admin SDK
