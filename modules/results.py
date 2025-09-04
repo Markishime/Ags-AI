@@ -1594,15 +1594,28 @@ def display_single_step_result(step_result, step_number):
     display_enhanced_step_result(step_result, step_number)
 
 def display_visualization(viz_data, viz_number):
-    """Display individual visualization based on type"""
+    """Display individual visualization based on type with enhanced chart support"""
     viz_type = viz_data.get('type', 'unknown')
     title = viz_data.get('title', f'Visualization {viz_number}')
+    subtitle = viz_data.get('subtitle', '')
     data = viz_data.get('data', {})
+    options = viz_data.get('options', {})
     
+    # Display title and subtitle
     st.markdown(f"### {title}")
+    if subtitle:
+        st.markdown(f"*{subtitle}*")
     
     if viz_type == 'bar_chart':
-        display_bar_chart(data, title)
+        display_enhanced_bar_chart(data, title, options)
+    elif viz_type == 'range_chart':
+        display_range_chart(data, title, options)
+    elif viz_type == 'deviation_chart':
+        display_deviation_chart(data, title, options)
+    elif viz_type == 'radar_chart':
+        display_radar_chart(data, title, options)
+    elif viz_type == 'gauge_chart':
+        display_gauge_chart(data, title, options)
     elif viz_type == 'pie_chart':
         display_pie_chart(data, title)
     elif viz_type == 'line_chart':
@@ -2035,6 +2048,301 @@ def display_scatter_plot(data, title):
     except ImportError:
         st.info("Plotly not available for chart display")
 
+def display_enhanced_bar_chart(data, title, options=None):
+    """Display enhanced bar chart with multiple series and better styling"""
+    try:
+        import plotly.express as px
+        import plotly.graph_objects as go
+        import pandas as pd
+        
+        if 'categories' in data and 'series' in data:
+            categories = data['categories']
+            series = data['series']
+            
+            fig = go.Figure()
+            
+            # Add each series as a bar trace
+            for i, series_data in enumerate(series):
+                if isinstance(series_data, dict) and 'name' in series_data and 'values' in series_data:
+                    name = series_data['name']
+                    values = series_data['values']
+                    color = series_data.get('color', f'#{i*50:02x}{i*100:02x}{i*150:02x}')
+                    
+                    fig.add_trace(go.Bar(
+                        name=name,
+                        x=categories,
+                        y=values,
+                        marker_color=color,
+                        hovertemplate=f'<b>{name}</b><br>%{{x}}: %{{y}}<extra></extra>',
+                        text=values if options.get('show_values', False) else None,
+                        textposition='auto'
+                    ))
+            
+            # Update layout with options
+            fig.update_layout(
+                title=dict(
+                    text=title,
+                    x=0.5,
+                    font=dict(size=16, color='#2E7D32')
+                ),
+                xaxis_title=options.get('x_axis_title', 'Parameters'),
+                yaxis_title=options.get('y_axis_title', 'Value'),
+                barmode='group',
+                showlegend=options.get('show_legend', True),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(size=12),
+                height=500
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Enhanced bar chart data format not recognized")
+    except ImportError:
+        st.info("Plotly not available for chart display")
+
+def display_range_chart(data, title, options=None):
+    """Display range chart showing min, max, average with error bars"""
+    try:
+        import plotly.graph_objects as go
+        
+        if 'categories' in data and 'series' in data:
+            categories = data['categories']
+            series = data['series']
+            
+            fig = go.Figure()
+            
+            # Find min, max, average series
+            min_series = None
+            max_series = None
+            avg_series = None
+            optimal_series = None
+            
+            for series_data in series:
+                if isinstance(series_data, dict) and 'name' in series_data:
+                    name = series_data['name'].lower()
+                    if 'minimum' in name:
+                        min_series = series_data
+                    elif 'maximum' in name:
+                        max_series = series_data
+                    elif 'average' in name:
+                        avg_series = series_data
+                    elif 'optimal' in name:
+                        optimal_series = series_data
+            
+            # Add range bars
+            if min_series and max_series:
+                fig.add_trace(go.Bar(
+                    name='Range',
+                    x=categories,
+                    y=[max_val - min_val for max_val, min_val in zip(max_series['values'], min_series['values'])],
+                    base=min_series['values'],
+                    marker_color='rgba(0,100,80,0.2)',
+                    showlegend=False
+                ))
+            
+            # Add average bars
+            if avg_series:
+                fig.add_trace(go.Bar(
+                    name=avg_series['name'],
+                    x=categories,
+                    y=avg_series['values'],
+                    marker_color=avg_series.get('color', '#4ECDC4'),
+                    hovertemplate=f'<b>{avg_series["name"]}</b><br>%{{x}}: %{{y}}<extra></extra>',
+                    text=avg_series['values'],
+                    textposition='auto'
+                ))
+            
+            # Add optimal line
+            if optimal_series:
+                fig.add_trace(go.Scatter(
+                    name=optimal_series['name'],
+                    x=categories,
+                    y=optimal_series['values'],
+                    mode='markers+lines',
+                    marker=dict(
+                        color=optimal_series.get('color', '#FFD700'),
+                        size=10,
+                        symbol='diamond'
+                    ),
+                    line=dict(color=optimal_series.get('color', '#FFD700'), width=3)
+                ))
+            
+            # Add error bars if available
+            if options.get('show_error_bars', False) and 'error_values' in options:
+                error_values = options['error_values']
+                if len(error_values) == len(categories):
+                    fig.update_traces(error_y=dict(type='data', array=error_values))
+            
+            fig.update_layout(
+                title=dict(
+                    text=title,
+                    x=0.5,
+                    font=dict(size=16, color='#2E7D32')
+                ),
+                xaxis_title=options.get('x_axis_title', 'Parameters'),
+                yaxis_title=options.get('y_axis_title', 'Value'),
+                showlegend=options.get('show_legend', True),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(size=12),
+                height=500
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Range chart data format not recognized")
+    except ImportError:
+        st.info("Plotly not available for chart display")
+
+def display_deviation_chart(data, title, options=None):
+    """Display deviation chart showing percentage deviation from optimal"""
+    try:
+        import plotly.graph_objects as go
+        
+        if 'categories' in data and 'series' in data:
+            categories = data['categories']
+            series = data['series'][0]  # First series contains deviation data
+            values = series['values']
+            
+            # Determine colors based on positive/negative values
+            colors = []
+            for val in values:
+                if val > 0:
+                    colors.append(options.get('color_positive', '#4ECDC4'))
+                else:
+                    colors.append(options.get('color_negative', '#FF6B6B'))
+            
+            fig = go.Figure()
+            
+            fig.add_trace(go.Bar(
+                name=series['name'],
+                x=categories,
+                y=values,
+                marker_color=colors,
+                hovertemplate=f'<b>{series["name"]}</b><br>%{{x}}: %{{y}}%<extra></extra>',
+                text=[f"{val}%" for val in values],
+                textposition='auto'
+            ))
+            
+            # Add zero line
+            if options.get('show_zero_line', True):
+                fig.add_hline(y=0, line_dash="dash", line_color="black", opacity=0.5)
+            
+            fig.update_layout(
+                title=dict(
+                    text=title,
+                    x=0.5,
+                    font=dict(size=16, color='#2E7D32')
+                ),
+                xaxis_title=options.get('x_axis_title', 'Parameters'),
+                yaxis_title=options.get('y_axis_title', 'Deviation (%)'),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(size=12),
+                height=500
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Deviation chart data format not recognized")
+    except ImportError:
+        st.info("Plotly not available for chart display")
+
+def display_radar_chart(data, title, options=None):
+    """Display radar chart for nutrient balance analysis"""
+    try:
+        import plotly.graph_objects as go
+        
+        if 'categories' in data and 'series' in data:
+            categories = data['categories']
+            series = data['series']
+            
+            fig = go.Figure()
+            
+            for series_data in series:
+                if isinstance(series_data, dict) and 'name' in series_data and 'values' in series_data:
+                    name = series_data['name']
+                    values = series_data['values']
+                    color = series_data.get('color', '#4ECDC4')
+                    
+                    fig.add_trace(go.Scatterpolar(
+                        r=values,
+                        theta=categories,
+                        fill='toself' if options.get('fill_area', False) else 'none',
+                        name=name,
+                        line_color=color,
+                        marker=dict(color=color, size=8)
+                    ))
+            
+            fig.update_layout(
+                polar=dict(
+                    radialaxis=dict(
+                        visible=True,
+                        range=[0, max([max(s['values']) for s in series if 'values' in s])]
+                    )
+                ),
+                title=dict(
+                    text=title,
+                    x=0.5,
+                    font=dict(size=16, color='#2E7D32')
+                ),
+                showlegend=options.get('show_legend', True),
+                font=dict(size=12),
+                height=500
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Radar chart data format not recognized")
+    except ImportError:
+        st.info("Plotly not available for chart display")
+
+def display_gauge_chart(data, title, options=None):
+    """Display gauge chart for data quality and confidence indicators"""
+    try:
+        import plotly.graph_objects as go
+        
+        if 'value' in data:
+            value = data['value']
+            max_value = data.get('max_value', 100)
+            thresholds = data.get('thresholds', [])
+            
+            # Create gauge chart
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number+delta",
+                value=value,
+                domain={'x': [0, 1], 'y': [0, 1]},
+                title={'text': title},
+                delta={'reference': max_value * 0.8},
+                gauge={
+                    'axis': {'range': [None, max_value]},
+                    'bar': {'color': "darkblue"},
+                    'steps': [
+                        {'range': [0, thresholds[0]['value']], 'color': thresholds[0]['color']},
+                        {'range': [thresholds[0]['value'], thresholds[1]['value']], 'color': thresholds[1]['color']},
+                        {'range': [thresholds[1]['value'], thresholds[2]['value']], 'color': thresholds[2]['color']},
+                        {'range': [thresholds[2]['value'], max_value], 'color': thresholds[3]['color']}
+                    ] if len(thresholds) >= 4 else [],
+                    'threshold': {
+                        'line': {'color': "red", 'width': 4},
+                        'thickness': 0.75,
+                        'value': max_value * 0.9
+                    }
+                }
+            ))
+            
+            fig.update_layout(
+                font={'color': "darkblue", 'family': "Arial"},
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Gauge chart data format not recognized")
+    except ImportError:
+        st.info("Plotly not available for chart display")
+
 def display_step1_data_analysis(analysis_data):
     """Display Step 1: Data Analysis with nutrient status tables"""
     # 1. SUMMARY SECTION
@@ -2120,6 +2428,45 @@ def display_nutrient_status_tables(analysis_data):
         st.info("📋 No nutrient comparison data available.")
         return
     
+    # Helper to compute status from average vs optimal
+    def compute_status(avg_val, optimal_val, parameter_name: str = "") -> str:
+        try:
+            if avg_val is None or optimal_val is None:
+                return "Unknown"
+            # Avoid division by zero
+            if isinstance(optimal_val, (int, float)) and optimal_val == 0:
+                # If optimal is zero (rare), fall back to absolute thresholding
+                diff = abs(float(avg_val) - float(optimal_val))
+                if diff <= 0.05:
+                    return "Optimal"
+                elif diff <= 0.10:
+                    return "Slightly Off"
+                else:
+                    return "Outside Range"
+
+            avg = float(avg_val)
+            opt = float(optimal_val)
+            # Percent deviation from optimal
+            deviation_pct = abs((avg - opt) / opt) * 100.0
+
+            # Tighter thresholds for pH; general thresholds for others
+            if parameter_name.lower() == 'ph':
+                if deviation_pct <= 2.0:
+                    return "Optimal"
+                elif deviation_pct <= 5.0:
+                    return "Slightly Off"
+                else:
+                    return "Outside Range"
+            else:
+                if deviation_pct <= 10.0:
+                    return "Optimal"
+                elif deviation_pct <= 20.0:
+                    return "Slightly Off"
+                else:
+                    return "Outside Range"
+        except Exception:
+            return "Unknown"
+
     # Separate soil and leaf parameters
     soil_params = []
     leaf_params = []
@@ -2136,11 +2483,14 @@ def display_nutrient_status_tables(analysis_data):
         st.markdown("### 🌱 Soil Nutrient Status (Average vs. MPOB Standard)")
         soil_data = []
         for param in soil_params:
+            avg_val = param.get('average')
+            opt_val = param.get('optimal')
+            computed_status = compute_status(avg_val, opt_val, param.get('parameter', ''))
             soil_data.append({
                 'Parameter': param.get('parameter', 'Unknown'),
                 'Average': f"{param.get('average', 0):.2f}" if param.get('average') is not None else 'N/A',
                 'MPOB Optimal': f"{param.get('optimal', 0):.2f}" if param.get('optimal') is not None else 'N/A',
-                'Status': param.get('status', 'Unknown'),
+                'Status': param.get('status') or computed_status,
                 'Unit': param.get('unit', '')
             })
         
@@ -2153,11 +2503,14 @@ def display_nutrient_status_tables(analysis_data):
         st.markdown("### 🍃 Leaf Nutrient Status (Average vs. MPOB Standard)")
         leaf_data = []
         for param in leaf_params:
+            avg_val = param.get('average')
+            opt_val = param.get('optimal')
+            computed_status = compute_status(avg_val, opt_val, param.get('parameter', ''))
             leaf_data.append({
                 'Parameter': param.get('parameter', 'Unknown'),
                 'Average': f"{param.get('average', 0):.2f}" if param.get('average') is not None else 'N/A',
                 'MPOB Optimal': f"{param.get('optimal', 0):.2f}" if param.get('optimal') is not None else 'N/A',
-                'Status': param.get('status', 'Unknown'),
+                'Status': param.get('status') or computed_status,
                 'Unit': param.get('unit', '')
             })
         

@@ -2372,29 +2372,48 @@ class AnalysisEngine:
             }
 
     def _build_step1_visualizations(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Create deterministic Step 1 charts using sample statistics and MPOB standards."""
+        """Create enhanced Step 1 visualizations with multiple chart types and interactive features."""
         visualizations: List[Dict[str, Any]] = []
         try:
             mpob = get_mpob_standards()
         except Exception:
             mpob = None
 
-        # Helper to extract averages from parameter statistics
-        def extract_avg(stats: Dict[str, Any], key_map: Dict[str, str]) -> Tuple[List[str], List[float]]:
+        # Helper to extract statistics from parameter data
+        def extract_stats(stats: Dict[str, Any], key_map: Dict[str, str]) -> Tuple[List[str], List[float], List[float], List[float], List[float]]:
             categories: List[str] = []
-            values: List[float] = []
+            means: List[float] = []
+            mins: List[float] = []
+            maxs: List[float] = []
+            stds: List[float] = []
             param_stats: Dict[str, Any] = stats.get('parameter_statistics', {}) if stats else {}
             for label, source_key in key_map.items():
                 s = param_stats.get(source_key)
-                if s and isinstance(s, dict) and ('mean' in s or 'average' in s):
+                if s and isinstance(s, dict):
                     mean_val = s.get('mean', s.get('average', 0))
+                    min_val = s.get('min', 0)
+                    max_val = s.get('max', 0)
+                    std_val = s.get('std', s.get('standard_deviation', 0))
                     if isinstance(mean_val, (int, float)):
                         categories.append(label)
-                        values.append(float(mean_val))
-            return categories, values
+                        means.append(float(mean_val))
+                        mins.append(float(min_val) if isinstance(min_val, (int, float)) else 0)
+                        maxs.append(float(max_val) if isinstance(max_val, (int, float)) else 0)
+                        stds.append(float(std_val) if isinstance(std_val, (int, float)) else 0)
+            return categories, means, mins, maxs, stds
 
+        # Helper to calculate deviation percentages
+        def calculate_deviations(actual: List[float], optimal: List[float]) -> List[float]:
+            deviations = []
+            for i, (act, opt) in enumerate(zip(actual, optimal)):
+                if opt > 0:
+                    deviation = ((act - opt) / opt) * 100
+                    deviations.append(round(deviation, 1))
+                else:
+                    deviations.append(0)
+            return deviations
 
-        # Soil bar chart: averages vs MPOB optimal
+        # 1. Enhanced Soil Parameters Comparison Chart
         try:
             soil_key_map = {
                 'pH': 'pH',
@@ -2407,55 +2426,107 @@ class AnalysisEngine:
                 'Exch. Mg (meq%)': 'Exchangeable_Mg_meq%',
                 'CEC (meq%)': 'CEC_meq%'
             }
-            soil_categories, soil_avg = extract_avg(soil_params, soil_key_map)
+            soil_categories, soil_means, soil_mins, soil_maxs, soil_stds = extract_stats(soil_params, soil_key_map)
             soil_optimal: List[float] = []
             if mpob and getattr(mpob, 'soil_standards', None):
                 std = mpob.soil_standards
-                # Map labels to standards keys
                 std_map = {
-                    'pH': 'pH',
-                    'Nitrogen %': 'Nitrogen',
-                    'Organic Carbon %': 'Organic_Carbon',
-                    'Total P (mg/kg)': 'Total_P',
-                    'Available P (mg/kg)': 'Available_P',
-                    'Exch. K (meq%)': 'Exch_K',
-                    'Exch. Ca (meq%)': 'Exch_Ca',
-                    'Exch. Mg (meq%)': 'Exch_Mg',
-                    'CEC (meq%)': 'CEC'
+                    'pH': 'pH', 'Nitrogen %': 'Nitrogen', 'Organic Carbon %': 'Organic_Carbon',
+                    'Total P (mg/kg)': 'Total_P', 'Available P (mg/kg)': 'Available_P',
+                    'Exch. K (meq%)': 'Exch_K', 'Exch. Ca (meq%)': 'Exch_Ca',
+                    'Exch. Mg (meq%)': 'Exch_Mg', 'CEC (meq%)': 'CEC'
                 }
                 for label in soil_categories:
                     k = std_map.get(label)
                     v = std.get(k) if k else None
                     v_def = DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(k) if k else None
                     soil_optimal.append(self._optimal_from_standard(v, v_def))
-            if soil_categories and soil_avg:
+            
+            if soil_categories and soil_means:
+                # Main comparison chart
                 viz = {
                     'type': 'bar_chart',
-                    'title': 'Soil Parameters — Average vs MPOB Optimal',
+                    'title': '🌱 Soil Parameters — Current vs MPOB Optimal',
+                    'subtitle': 'Comparison of average values against MPOB standards',
                     'data': {
                         'categories': soil_categories,
                         'series': [
-                            {'name': 'Average', 'values': soil_avg}
-                        ] + ([{'name': 'Optimal', 'values': soil_optimal}] if soil_optimal and len(soil_optimal) == len(soil_avg) else [])
+                            {'name': 'Current Average', 'values': soil_means, 'color': '#2E8B57'},
+                            {'name': 'MPOB Optimal', 'values': soil_optimal, 'color': '#FFD700'}
+                        ] if soil_optimal and len(soil_optimal) == len(soil_means) else [
+                            {'name': 'Current Average', 'values': soil_means, 'color': '#2E8B57'}
+                        ]
+                    },
+                    'options': {
+                        'show_legend': True,
+                        'show_values': True,
+                        'bar_width': 0.6,
+                        'y_axis_title': 'Value',
+                        'x_axis_title': 'Parameters'
                     }
                 }
                 visualizations.append(viz)
-        except Exception:
-            pass
 
-        # Leaf bar chart: averages vs MPOB optimal
+                # Soil parameters range chart (min-max with mean)
+                if soil_mins and soil_maxs:
+                    viz_range = {
+                        'type': 'range_chart',
+                        'title': '📊 Soil Parameters Range Analysis',
+                        'subtitle': 'Minimum, Maximum, and Average values with standard deviation',
+                        'data': {
+                            'categories': soil_categories,
+                            'series': [
+                                {'name': 'Minimum', 'values': soil_mins, 'color': '#FF6B6B'},
+                                {'name': 'Average', 'values': soil_means, 'color': '#4ECDC4'},
+                                {'name': 'Maximum', 'values': soil_maxs, 'color': '#45B7D1'},
+                                {'name': 'MPOB Optimal', 'values': soil_optimal, 'color': '#FFD700'}
+                            ] if soil_optimal and len(soil_optimal) == len(soil_means) else [
+                                {'name': 'Minimum', 'values': soil_mins, 'color': '#FF6B6B'},
+                                {'name': 'Average', 'values': soil_means, 'color': '#4ECDC4'},
+                                {'name': 'Maximum', 'values': soil_maxs, 'color': '#45B7D1'}
+                            ]
+                        },
+                        'options': {
+                            'show_legend': True,
+                            'show_error_bars': True,
+                            'error_values': soil_stds
+                        }
+                    }
+                    visualizations.append(viz_range)
+
+                # Soil parameters deviation chart
+                if soil_optimal and len(soil_optimal) == len(soil_means):
+                    deviations = calculate_deviations(soil_means, soil_optimal)
+                    viz_dev = {
+                        'type': 'deviation_chart',
+                        'title': '📈 Soil Parameters Deviation from Optimal (%)',
+                        'subtitle': 'Percentage deviation from MPOB optimal values',
+                        'data': {
+                            'categories': soil_categories,
+                            'series': [
+                                {'name': 'Deviation %', 'values': deviations, 'color': '#FF6B6B' if any(d < 0 for d in deviations) else '#4ECDC4'}
+                            ]
+                        },
+                        'options': {
+                            'show_zero_line': True,
+                            'y_axis_title': 'Deviation (%)',
+                            'x_axis_title': 'Parameters',
+                            'color_positive': '#4ECDC4',
+                            'color_negative': '#FF6B6B'
+                        }
+                    }
+                    visualizations.append(viz_dev)
+
+        except Exception as e:
+            self.logger.warning(f"Error building soil visualizations: {e}")
+
+        # 2. Enhanced Leaf Parameters Comparison Chart
         try:
             leaf_key_map = {
-                'N %': 'N_%',
-                'P %': 'P_%',
-                'K %': 'K_%',
-                'Mg %': 'Mg_%',
-                'Ca %': 'Ca_%',
-                'B (mg/kg)': 'B_mg_kg',
-                'Cu (mg/kg)': 'Cu_mg_kg',
-                'Zn (mg/kg)': 'Zn_mg_kg'
+                'N %': 'N_%', 'P %': 'P_%', 'K %': 'K_%', 'Mg %': 'Mg_%', 'Ca %': 'Ca_%',
+                'B (mg/kg)': 'B_mg_kg', 'Cu (mg/kg)': 'Cu_mg_kg', 'Zn (mg/kg)': 'Zn_mg_kg'
             }
-            leaf_categories, leaf_avg = extract_avg(leaf_params, leaf_key_map)
+            leaf_categories, leaf_means, leaf_mins, leaf_maxs, leaf_stds = extract_stats(leaf_params, leaf_key_map)
             leaf_optimal: List[float] = []
             if mpob and getattr(mpob, 'leaf_standards', None):
                 std = mpob.leaf_standards
@@ -2468,20 +2539,179 @@ class AnalysisEngine:
                     v = std.get(k) if k else None
                     v_def = DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(k) if k else None
                     leaf_optimal.append(self._optimal_from_standard(v, v_def))
-            if leaf_categories and leaf_avg:
+            
+            if leaf_categories and leaf_means:
+                # Main leaf comparison chart
                 viz = {
                     'type': 'bar_chart',
-                    'title': 'Leaf Parameters — Average vs MPOB Optimal',
+                    'title': '🍃 Leaf Parameters — Current vs MPOB Optimal',
+                    'subtitle': 'Comparison of average values against MPOB standards',
                     'data': {
                         'categories': leaf_categories,
                         'series': [
-                            {'name': 'Average', 'values': leaf_avg}
-                        ] + ([{'name': 'Optimal', 'values': leaf_optimal}] if leaf_optimal and len(leaf_optimal) == len(leaf_avg) else [])
+                            {'name': 'Current Average', 'values': leaf_means, 'color': '#32CD32'},
+                            {'name': 'MPOB Optimal', 'values': leaf_optimal, 'color': '#FFD700'}
+                        ] if leaf_optimal and len(leaf_optimal) == len(leaf_means) else [
+                            {'name': 'Current Average', 'values': leaf_means, 'color': '#32CD32'}
+                        ]
+                    },
+                    'options': {
+                        'show_legend': True,
+                        'show_values': True,
+                        'bar_width': 0.6,
+                        'y_axis_title': 'Value (%)',
+                        'x_axis_title': 'Parameters'
                     }
                 }
                 visualizations.append(viz)
-        except Exception:
-            pass
+
+                # Leaf parameters range chart
+                if leaf_mins and leaf_maxs:
+                    viz_range = {
+                        'type': 'range_chart',
+                        'title': '📊 Leaf Parameters Range Analysis',
+                        'subtitle': 'Minimum, Maximum, and Average values with standard deviation',
+                        'data': {
+                            'categories': leaf_categories,
+                            'series': [
+                                {'name': 'Minimum', 'values': leaf_mins, 'color': '#FF6B6B'},
+                                {'name': 'Average', 'values': leaf_means, 'color': '#90EE90'},
+                                {'name': 'Maximum', 'values': leaf_maxs, 'color': '#98FB98'},
+                                {'name': 'MPOB Optimal', 'values': leaf_optimal, 'color': '#FFD700'}
+                            ] if leaf_optimal and len(leaf_optimal) == len(leaf_means) else [
+                                {'name': 'Minimum', 'values': leaf_mins, 'color': '#FF6B6B'},
+                                {'name': 'Average', 'values': leaf_means, 'color': '#90EE90'},
+                                {'name': 'Maximum', 'values': leaf_maxs, 'color': '#98FB98'}
+                            ]
+                        },
+                        'options': {
+                            'show_legend': True,
+                            'show_error_bars': True,
+                            'error_values': leaf_stds
+                        }
+                    }
+                    visualizations.append(viz_range)
+
+                # Leaf parameters deviation chart
+                if leaf_optimal and len(leaf_optimal) == len(leaf_means):
+                    deviations = calculate_deviations(leaf_means, leaf_optimal)
+                    viz_dev = {
+                        'type': 'deviation_chart',
+                        'title': '📈 Leaf Parameters Deviation from Optimal (%)',
+                        'subtitle': 'Percentage deviation from MPOB optimal values',
+                        'data': {
+                            'categories': leaf_categories,
+                            'series': [
+                                {'name': 'Deviation %', 'values': deviations, 'color': '#FF6B6B' if any(d < 0 for d in deviations) else '#90EE90'}
+                            ]
+                        },
+                        'options': {
+                            'show_zero_line': True,
+                            'y_axis_title': 'Deviation (%)',
+                            'x_axis_title': 'Parameters',
+                            'color_positive': '#90EE90',
+                            'color_negative': '#FF6B6B'
+                        }
+                    }
+                    visualizations.append(viz_dev)
+
+        except Exception as e:
+            self.logger.warning(f"Error building leaf visualizations: {e}")
+
+        # 3. Nutrient Balance Analysis (Radar Chart)
+        try:
+            if soil_means and leaf_means and soil_categories and leaf_categories:
+                # Create a radar chart for nutrient balance
+                radar_categories = ['pH', 'N', 'P', 'K', 'Mg', 'Ca']
+                radar_values = []
+                radar_optimal = []
+                
+                # Map soil and leaf data to radar chart
+                soil_radar_map = {'pH': 0, 'Nitrogen %': 1, 'Total P (mg/kg)': 2, 'Exch. K (meq%)': 3, 'Exch. Mg (meq%)': 4, 'Exch. Ca (meq%)': 5}
+                leaf_radar_map = {'N %': 1, 'P %': 2, 'K %': 3, 'Mg %': 4, 'Ca %': 5}
+                
+                for i, cat in enumerate(radar_categories):
+                    if i == 0:  # pH from soil
+                        val = soil_means[soil_categories.index('pH')] if 'pH' in soil_categories else 0
+                        opt = soil_optimal[soil_categories.index('pH')] if 'pH' in soil_categories and soil_optimal else 0
+                    else:  # Nutrients from both soil and leaf
+                        soil_val = 0
+                        leaf_val = 0
+                        soil_opt = 0
+                        leaf_opt = 0
+                        
+                        for soil_cat, idx in soil_radar_map.items():
+                            if idx == i and soil_cat in soil_categories:
+                                soil_val = soil_means[soil_categories.index(soil_cat)]
+                                if soil_optimal and len(soil_optimal) > soil_categories.index(soil_cat):
+                                    soil_opt = soil_optimal[soil_categories.index(soil_cat)]
+                        
+                        for leaf_cat, idx in leaf_radar_map.items():
+                            if idx == i and leaf_cat in leaf_categories:
+                                leaf_val = leaf_means[leaf_categories.index(leaf_cat)]
+                                if leaf_optimal and len(leaf_optimal) > leaf_categories.index(leaf_cat):
+                                    leaf_opt = leaf_optimal[leaf_categories.index(leaf_cat)]
+                        
+                        # Average soil and leaf values for radar chart
+                        val = (soil_val + leaf_val) / 2 if soil_val > 0 and leaf_val > 0 else max(soil_val, leaf_val)
+                        opt = (soil_opt + leaf_opt) / 2 if soil_opt > 0 and leaf_opt > 0 else max(soil_opt, leaf_opt)
+                    
+                    radar_values.append(val)
+                    radar_optimal.append(opt)
+                
+                viz_radar = {
+                    'type': 'radar_chart',
+                    'title': '🎯 Nutrient Balance Analysis',
+                    'subtitle': 'Comprehensive view of soil and leaf nutrient status',
+                    'data': {
+                        'categories': radar_categories,
+                        'series': [
+                            {'name': 'Current Status', 'values': radar_values, 'color': '#4ECDC4'},
+                            {'name': 'Optimal Range', 'values': radar_optimal, 'color': '#FFD700'}
+                        ]
+                    },
+                    'options': {
+                        'show_legend': True,
+                        'fill_area': True,
+                        'show_grid': True
+                    }
+                }
+                visualizations.append(viz_radar)
+
+        except Exception as e:
+            self.logger.warning(f"Error building radar chart: {e}")
+
+        # 4. Data Quality and Confidence Indicators
+        try:
+            # Calculate data quality metrics
+            total_params = len(soil_categories) + len(leaf_categories) if 'soil_categories' in locals() and 'leaf_categories' in locals() else 0
+            params_with_optimal = len([v for v in (soil_optimal + leaf_optimal) if v > 0]) if 'soil_optimal' in locals() and 'leaf_optimal' in locals() else 0
+            quality_score = (params_with_optimal / total_params * 100) if total_params > 0 else 0
+            
+            viz_quality = {
+                'type': 'gauge_chart',
+                'title': '📊 Data Quality Score',
+                'subtitle': 'Overall data completeness and reliability',
+                'data': {
+                    'value': quality_score,
+                    'max_value': 100,
+                    'thresholds': [
+                        {'value': 80, 'color': '#4ECDC4', 'label': 'Excellent'},
+                        {'value': 60, 'color': '#FFD700', 'label': 'Good'},
+                        {'value': 40, 'color': '#FFA500', 'label': 'Fair'},
+                        {'value': 0, 'color': '#FF6B6B', 'label': 'Poor'}
+                    ]
+                },
+                'options': {
+                    'show_value': True,
+                    'show_thresholds': True,
+                    'unit': '%'
+                }
+            }
+            visualizations.append(viz_quality)
+
+        except Exception as e:
+            self.logger.warning(f"Error building quality chart: {e}")
 
         return visualizations
 
