@@ -31,6 +31,7 @@ try:
     import google.auth
     import google.auth.compute_engine
     import google.auth.transport.requests
+    import google.auth.transport.grpc
     
     # Override the default credential discovery to never use metadata service
     original_default = google.auth.default
@@ -43,6 +44,23 @@ try:
     def disabled_compute_engine_credentials(*args, **kwargs):
         raise Exception("Compute Engine credentials disabled for Streamlit Cloud")
     google.auth.compute_engine.Credentials = disabled_compute_engine_credentials
+    
+    # Override the metadata service functions directly
+    def disabled_metadata_get(*args, **kwargs):
+        raise Exception("Metadata service disabled for Streamlit Cloud")
+    
+    # Patch the metadata module
+    if hasattr(google.auth.compute_engine, '_metadata'):
+        google.auth.compute_engine._metadata.get = disabled_metadata_get
+        google.auth.compute_engine._metadata.get_service_account_info = disabled_metadata_get
+    
+    # Override the transport layer to prevent metadata service calls
+    def disabled_transport_request(*args, **kwargs):
+        raise Exception("Metadata service disabled for Streamlit Cloud")
+    
+    # Patch the transport modules
+    if hasattr(google.auth.transport.requests, 'Request'):
+        google.auth.transport.requests.Request = disabled_transport_request
     
 except ImportError:
     pass

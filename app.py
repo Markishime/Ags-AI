@@ -54,12 +54,19 @@ from auth_utils import (
 import json
 from datetime import datetime
 
-# Import pages
-from modules.dashboard import show_dashboard
-from modules.upload import show_upload_page
-from modules.results import show_results_page
-from modules.history import show_history_page
-from modules.admin import show_admin_panel
+# Add modules to path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
+
+# Import pages with error handling
+try:
+    from modules.dashboard import show_dashboard
+    from modules.upload import show_upload_page
+    from modules.results import show_results_page
+    from modules.history import show_history_page
+    from modules.admin import show_admin_panel
+except ImportError as e:
+    st.error(f"Import error: {e}")
+    st.stop()
 
 # Page configuration
 st.set_page_config(
