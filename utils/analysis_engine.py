@@ -9,6 +9,16 @@ from datetime import datetime
 from utils.reference_search import reference_search_engine
 import pandas as pd
 
+# Set environment variables to prevent metadata service usage
+# This must be done before any Google Cloud libraries are imported
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
+os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
+os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
+os.environ['GCE_METADATA_HOST'] = ''
+os.environ['GCE_METADATA_ROOT'] = ''
+os.environ['GCE_METADATA_TIMEOUT'] = '0'
+os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
+
 # LangChain imports for Google Gemini
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI

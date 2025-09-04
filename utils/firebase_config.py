@@ -9,6 +9,16 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Set environment variables globally to prevent metadata service usage
+# This must be done before any Google Cloud libraries are imported
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
+os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
+os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
+os.environ['GCE_METADATA_HOST'] = ''
+os.environ['GCE_METADATA_ROOT'] = ''
+os.environ['GCE_METADATA_TIMEOUT'] = '0'
+os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
+
 def initialize_firebase() -> bool:
     """Initialize Firebase Admin SDK
     
@@ -26,6 +36,15 @@ def initialize_firebase() -> bool:
         os.environ['GCE_METADATA_ROOT'] = ''
         # Force use of service account credentials
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_account'
+        
+        # Set additional environment variables to prevent metadata service usage
+        os.environ['GCE_METADATA_TIMEOUT'] = '0'
+        os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
+        os.environ['GOOGLE_CLOUD_PROJECT'] = 'agriai-cbd8b'
+        
+        # Disable metadata service for all Google Cloud libraries
+        os.environ['GOOGLE_CLOUD_DISABLE_METADATA'] = 'true'
+        os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
         
         # Check if Firebase is already initialized
         if firebase_admin._apps:
@@ -82,6 +101,24 @@ def initialize_firebase() -> bool:
                     raise Exception("Metadata service disabled for Streamlit Cloud")
                 compute_engine._metadata.get = _disabled_metadata_get
                 compute_engine._metadata.get_service_account_info = _disabled_metadata_get
+                
+                # Also patch the credentials class to prevent metadata service usage
+                def _disabled_refresh(self, request):
+                    raise Exception("Metadata service disabled for Streamlit Cloud")
+                compute_engine.Credentials.refresh = _disabled_refresh
+                
+            except ImportError:
+                pass
+            
+            # Additional monkey patching for Google Cloud libraries
+            try:
+                import google.auth.transport.requests
+                # Override the default credential discovery
+                original_default = google.auth.default
+                def patched_default(scopes=None, request=None):
+                    # Return our service account credentials instead of trying metadata service
+                    return (cred, project_id)
+                google.auth.default = patched_default
             except ImportError:
                 pass
             
