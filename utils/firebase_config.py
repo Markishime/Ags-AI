@@ -20,6 +20,8 @@ def initialize_firebase() -> bool:
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ''
         os.environ['GOOGLE_CLOUD_PROJECT'] = \
             'agriai-cbd8b'
+        # Disable metadata service completely
+        os.environ['GOOGLE_AUTH_DISABLE_METADATA'] = 'true'
         
         # Check if Firebase is already initialized
         if firebase_admin._apps:
@@ -55,6 +57,11 @@ def initialize_firebase() -> bool:
                     'project_id', 'agriai-cbd8b'
                 )
             })
+            
+            # Set the credentials as default for all Google Cloud services
+            import google.auth
+            project_id = firebase_creds.get('project_id', 'agriai-cbd8b')
+            google.auth.default = lambda: (cred, project_id)
             
             print(f"Firebase initialized successfully with storage bucket: {storage_bucket}")
             return True
@@ -167,7 +174,14 @@ def get_firestore_client():
         firestore.Client: Firestore client instance
     """
     try:
-        return firestore.client()
+        # Get credentials explicitly to avoid metadata service
+        firebase_creds = get_firebase_credentials()
+        if firebase_creds:
+            cred = credentials.Certificate(firebase_creds)
+            return firestore.client(credentials=cred)
+        else:
+            # Fallback to default client (should work if Firebase is initialized)
+            return firestore.client()
     except Exception as e:
         # Firebase initialization handled elsewhere, silently return None
         return None
@@ -179,7 +193,14 @@ def get_storage_bucket():
         storage.Bucket: Storage bucket instance
     """
     try:
-        return storage.bucket()
+        # Get credentials explicitly to avoid metadata service
+        firebase_creds = get_firebase_credentials()
+        if firebase_creds:
+            cred = credentials.Certificate(firebase_creds)
+            return storage.bucket(credentials=cred)
+        else:
+            # Fallback to default bucket (should work if Firebase is initialized)
+            return storage.bucket()
     except Exception as e:
         st.error(f"Failed to get Storage bucket: {str(e)}")
         return None
