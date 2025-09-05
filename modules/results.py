@@ -464,7 +464,7 @@ def show_results_page():
                     st.download_button(
                         label="💾 Download PDF",
                         data=pdf_bytes,
-                        file_name=f"agricultural_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        file_name=f"agricultural_analysis_report.pdf",
                         mime="application/pdf",
                         type="primary"
                     )
@@ -2877,9 +2877,9 @@ def should_show_visualizations(step_result):
     if should_show_forecast_graph(step_result):
         return False
     
-    # Get step number and exclude step 4 and step 5 (Economic Impact & ROI Analysis)
+    # Get step number and exclude step 2, step 4 and step 5 (Issue Diagnosis, Economic Impact & ROI Analysis)
     step_number = step_result.get('step_number', 0)
-    if step_number == 4 or step_number == 5:
+    if step_number == 2 or step_number == 4 or step_number == 5:
         return False
     
     # Get step content
@@ -2962,34 +2962,8 @@ def generate_contextual_visualizations(step_result, analysis_data):
                     visualizations.append(mpob_viz)
         
         elif step_number == 2:  # Issue Diagnosis
-            # Only create bar chart visualizations if visual keywords are present
-            if has_visual_keywords:
-                # Create issues severity bar chart (converted from pie chart)
-                issues_viz = create_issues_severity_bar_viz(step_result, analysis_data)
-                if issues_viz:
-                    visualizations.append(issues_viz)
-                
-                # Create nutrient deficiency bar chart (converted from heatmap)
-                deficiency_viz = create_nutrient_deficiency_bar_viz(soil_params, leaf_params)
-                if deficiency_viz:
-                    visualizations.append(deficiency_viz)
-                
-                # Create actual vs optimal bar charts only if visual keywords are present
-                if soil_params.get('parameter_statistics'):
-                    soil_viz = create_actual_vs_optimal_viz(soil_params['parameter_statistics'], 'soil')
-                    if soil_viz:
-                        visualizations.append(soil_viz)
-                
-                if leaf_params.get('parameter_statistics'):
-                    leaf_viz = create_actual_vs_optimal_viz(leaf_params['parameter_statistics'], 'leaf')
-                    if leaf_viz:
-                        visualizations.append(leaf_viz)
-                
-                # Create MPOB standards comparison if requested and visual keywords are present
-                if 'mpob standards' in combined_text or 'vs mpob standards' in combined_text:
-                    mpob_viz = create_mpob_standards_comparison_viz(soil_params, leaf_params)
-                    if mpob_viz:
-                        visualizations.append(mpob_viz)
+            # No visualizations for Step 2 - Data Visualizations section removed
+            pass
         
         elif step_number == 3:  # Solution Recommendations
             # Create solution priority chart

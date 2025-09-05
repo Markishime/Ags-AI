@@ -165,7 +165,10 @@ class PDFReportGenerator:
             if options.get('include_step_analysis', True):
                 story.extend(self._create_comprehensive_step_by_step_analysis(analysis_data))
             
-            # 6. References (if enabled)
+            # 6. Economic Forecast Tables (always included for step-by-step)
+            story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
+            
+            # 8. References (if enabled)
             if options.get('include_references', True):
                 story.extend(self._create_references_section(analysis_data))
             
@@ -181,6 +184,10 @@ class PDFReportGenerator:
             # Economic analysis (always included for comprehensive)
             if 'economic_analysis' in analysis_data:
                 story.extend(self._create_comprehensive_economic_section(analysis_data['economic_analysis']))
+            
+            # Economic forecast tables and charts (always included for comprehensive)
+            story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
+            story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
             
             # Yield forecast (always included for comprehensive)
             if 'yield_forecast' in analysis_data:
@@ -1334,8 +1341,10 @@ class PDFReportGenerator:
             
             # Step-specific tables and content
             if step_number == 1:
-                # Step 1: Data Analysis - Add all data tables
+                # Step 1: Data Analysis - Add all data tables and visualizations
                 story.extend(self._create_step1_data_tables(step, analysis_data))
+                # Add Step 1 visualizations
+                story.extend(self._create_contextual_visualizations(step, 1, analysis_data))
             elif step_number == 2:
                 # Step 2: Issue Diagnosis - Add diagnostic tables
                 story.extend(self._create_step2_diagnostic_tables(step))
@@ -1346,14 +1355,16 @@ class PDFReportGenerator:
                 # Step 4: Regenerative Agriculture - Add regenerative strategy tables
                 story.extend(self._create_step4_regenerative_tables(step))
             elif step_number == 5:
-                # Step 5: Economic Impact - Add comprehensive economic tables
+                # Step 5: Economic Impact - Add comprehensive economic tables only
                 story.extend(self._create_step5_economic_tables(step))
+                # Add economic forecast tables only (no yield forecast graph)
+                story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
             elif step_number == 6:
-                # Step 6: Yield Forecast - Add forecast tables
-                story.extend(self._create_step6_forecast_tables(step))
+                # Step 6: Yield Forecast - Add forecast graph only (no tables)
+                story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
             
-            # Visualizations and Charts - Generate if visual keywords detected
-            if has_visual_keywords:
+            # Visualizations and Charts - Generate if visual keywords detected (Step 1 handled separately)
+            if has_visual_keywords and step_number != 1:
                 story.extend(self._create_step_visualizations(step, step_number))
                 # Also generate additional charts based on step content
                 story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
@@ -2340,6 +2351,23 @@ class PDFReportGenerator:
                         story.append(Image(img_buffer, width=6*inch, height=4*inch))
                         story.append(Spacer(1, 8))
                 
+                # Create nutrient ratio charts
+                if soil_params.get('parameter_statistics'):
+                    soil_ratio_chart = _create_nutrient_ratio_chart(soil_params['parameter_statistics'], 'soil')
+                    if soil_ratio_chart:
+                        story.append(Paragraph("Soil Nutrient Ratios:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(soil_ratio_chart)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                
+                if leaf_params.get('parameter_statistics'):
+                    leaf_ratio_chart = _create_nutrient_ratio_chart(leaf_params['parameter_statistics'], 'leaf')
+                    if leaf_ratio_chart:
+                        story.append(Paragraph("Leaf Nutrient Ratios:", self.styles['Heading3']))
+                        img_buffer = io.BytesIO(leaf_ratio_chart)
+                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                        story.append(Spacer(1, 8))
+                
             
             elif step_number == 2:  # Issue Diagnosis
                 # Charts removed as requested
@@ -2537,7 +2565,72 @@ class PDFReportGenerator:
         story.extend(self._create_nutrient_status_tables(step))
         
         return story
-
+    
+    def _create_step1_visualizations_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create Step 1 visualizations section with all charts and graphs"""
+        story = []
+        
+        # Step 1 Visualizations header
+        story.append(Paragraph("Step 1 Visualizations", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        try:
+            # Get raw data for visualization
+            analysis_results = analysis_data.get('analysis_results', {})
+            raw_data = analysis_results.get('raw_data', {})
+            soil_params = raw_data.get('soil_parameters', {})
+            leaf_params = raw_data.get('leaf_parameters', {})
+            
+            # Create nutrient comparison charts
+            if soil_params.get('parameter_statistics') or leaf_params.get('parameter_statistics'):
+                chart_image = self._create_nutrient_comparison_chart(soil_params, leaf_params)
+                if chart_image:
+                    story.append(Paragraph("Nutrient Analysis Visualization:", self.styles['Heading3']))
+                    img_buffer = io.BytesIO(chart_image)
+                    story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                    story.append(Spacer(1, 8))
+            
+            # Create actual vs optimal bar charts
+            if soil_params.get('parameter_statistics'):
+                soil_chart = _create_actual_vs_optimal_chart(soil_params['parameter_statistics'], 'soil')
+                if soil_chart:
+                    story.append(Paragraph("Soil Nutrients: Actual vs Optimal Levels:", self.styles['Heading3']))
+                    img_buffer = io.BytesIO(soil_chart)
+                    story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                    story.append(Spacer(1, 8))
+            
+            if leaf_params.get('parameter_statistics'):
+                leaf_chart = _create_actual_vs_optimal_chart(leaf_params['parameter_statistics'], 'leaf')
+                if leaf_chart:
+                    story.append(Paragraph("Leaf Nutrients: Actual vs Optimal Levels:", self.styles['Heading3']))
+                    img_buffer = io.BytesIO(leaf_chart)
+                    story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                    story.append(Spacer(1, 8))
+            
+            # Create nutrient ratio charts
+            if soil_params.get('parameter_statistics'):
+                soil_ratio_chart = _create_nutrient_ratio_chart(soil_params['parameter_statistics'], 'soil')
+                if soil_ratio_chart:
+                    story.append(Paragraph("Soil Nutrient Ratios:", self.styles['Heading3']))
+                    img_buffer = io.BytesIO(soil_ratio_chart)
+                    story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                    story.append(Spacer(1, 8))
+            
+            if leaf_params.get('parameter_statistics'):
+                leaf_ratio_chart = _create_nutrient_ratio_chart(leaf_params['parameter_statistics'], 'leaf')
+                if leaf_ratio_chart:
+                    story.append(Paragraph("Leaf Nutrient Ratios:", self.styles['Heading3']))
+                    img_buffer = io.BytesIO(leaf_ratio_chart)
+                    story.append(Image(img_buffer, width=6*inch, height=4*inch))
+                    story.append(Spacer(1, 8))
+        
+        except Exception as e:
+            logger.warning(f"Could not create Step 1 visualizations: {str(e)}")
+            story.append(Paragraph("Step 1 visualizations not available.", self.styles['CustomBody']))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
     def _create_step2_diagnostic_tables(self, step: Dict[str, Any]) -> List:
         """Create diagnostic tables for Step 2: Issue Diagnosis"""
         story = []
@@ -3437,12 +3530,7 @@ class PDFReportGenerator:
                 story.append(table)
                 story.append(Spacer(1, 12))
                 
-                # Add assumptions if available
-                if 'assumptions' in econ and econ['assumptions']:
-                    story.append(Paragraph("Economic Forecast Assumptions:", self.styles['Heading3']))
-                    for assumption in econ['assumptions']:
-                        story.append(Paragraph(f"• {assumption}", self.styles['CustomBody']))
-                    story.append(Spacer(1, 8))
+                # Assumptions section removed as requested
                 
                 # Add note
                 story.append(Paragraph("<i>Note: RM values are based on current market rates and typical plantation economics.</i>", self.styles['CustomBody']))
@@ -3575,12 +3663,7 @@ class PDFReportGenerator:
             story.append(Image(buffer, width=6*inch, height=3.6*inch))
             story.append(Spacer(1, 12))
             
-            # Add assumptions
-            if 'assumptions' in forecast_step:
-                story.append(Paragraph("Assumptions:", self.styles['Heading3']))
-                for assumption in forecast_step['assumptions']:
-                    story.append(Paragraph(f"• {assumption}", self.styles['CustomBody']))
-                story.append(Spacer(1, 8))
+            # Assumptions section removed as requested
             
             plt.close(fig)
         else:
@@ -3630,19 +3713,7 @@ class PDFReportGenerator:
             story.append(Image(buffer, width=6*inch, height=3.6*inch))
             story.append(Spacer(1, 12))
             
-            # Add assumptions
-            story.append(Paragraph("Projection Assumptions:", self.styles['Heading3']))
-            assumptions = [
-                "Projections based on typical oil palm plantation improvement scenarios",
-                "High investment includes comprehensive soil amendments and precision fertilization",
-                "Medium investment focuses on targeted nutrient management",
-                "Low investment emphasizes basic soil health improvements",
-                "Results may vary based on specific field conditions and implementation"
-            ]
-            
-            for assumption in assumptions:
-                story.append(Paragraph(f"• {assumption}", self.styles['CustomBody']))
-            story.append(Spacer(1, 8))
+            # Assumptions section removed as requested
             
             plt.close(fig)
         
@@ -4033,13 +4104,27 @@ def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_t
         if not categories:
             return None
         
-        # Create subplots - one for each parameter
+        # Create subplots - one for each parameter with better layout
         num_params = len(categories)
-        fig, axes = plt.subplots(1, num_params, figsize=(4*num_params, 6))
+        
+        # Calculate optimal layout - use 2 rows if more than 5 parameters
+        if num_params > 5:
+            rows = 2
+            cols = (num_params + 1) // 2
+        else:
+            rows = 1
+            cols = num_params
+        
+        # Make each chart wider and taller for better readability
+        fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 8*rows))
         
         # If only one parameter, axes won't be a list
         if num_params == 1:
             axes = [axes]
+        elif rows == 1:
+            axes = axes
+        else:
+            axes = axes.flatten()
         
         # Define colors
         actual_color = '#3498db' if parameter_type == 'soil' else '#2ecc71'
@@ -4087,10 +4172,15 @@ def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_t
             if i == 0:
                 axes[i].legend(['Observed', 'Recommended'], loc='upper right', fontsize=9)
         
-        # Set main title
-        fig.suptitle(f'{parameter_type.title()} Nutrients: Actual vs Optimal Levels', fontsize=14, fontweight='bold', y=0.95)
+        # Hide unused subplots
+        for i in range(num_params, len(axes)):
+            axes[i].set_visible(False)
         
-        plt.tight_layout()
+        # Set main title
+        fig.suptitle(f'{parameter_type.title()} Nutrients: Actual vs Optimal Levels', fontsize=16, fontweight='bold', y=0.95)
+        
+        # Improve layout with more spacing
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         
         # Save to bytes
         img_buffer = io.BytesIO()
@@ -4106,4 +4196,207 @@ def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_t
     except Exception as e:
         logger.warning(f"Error creating actual vs optimal chart: {e}")
         return None
+
+
+def _create_nutrient_ratio_chart(parameter_stats: Dict[str, Any], parameter_type: str) -> Optional[bytes]:
+    """Create nutrient ratio chart for PDF with individual bars for each ratio"""
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        # Calculate nutrient ratios
+        if parameter_type == 'soil':
+            ratios = _calculate_soil_nutrient_ratios(parameter_stats)
+            optimal_ranges = {
+                'N:P': (10, 15),
+                'N:K': (1, 2),
+                'Ca:Mg': (2, 4),
+                'K:Mg': (0.2, 0.5),
+                'C:N': (10, 20)
+            }
+        else:  # leaf
+            ratios = _calculate_leaf_nutrient_ratios(parameter_stats)
+            optimal_ranges = {
+                'N:P': (8, 12),
+                'N:K': (1.5, 2.5),
+                'Ca:Mg': (2, 3),
+                'K:Mg': (0.3, 0.6),
+                'P:K': (0.4, 0.8)
+            }
+        
+        if not ratios:
+            return None
+        
+        # Filter out zero ratios
+        valid_ratios = {k: v for k, v in ratios.items() if v > 0}
+        if not valid_ratios:
+            return None
+        
+        categories = list(valid_ratios.keys())
+        values = list(valid_ratios.values())
+        
+        # Create subplots - one for each ratio
+        num_params = len(categories)
+        
+        # Calculate optimal layout
+        if num_params > 4:
+            rows = 2
+            cols = (num_params + 1) // 2
+        else:
+            rows = 1
+            cols = num_params
+        
+        fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 8*rows))
+        if num_params == 1:
+            axes = [axes]
+        elif rows == 1:
+            axes = axes
+        else:
+            axes = axes.flatten()
+        
+        # Define colors
+        current_color = '#2ecc71'  # Green for current ratios
+        optimal_color = '#e67e22'  # Orange for optimal ranges
+        
+        # Create chart for each ratio
+        for i, ratio_name in enumerate(categories):
+            current_value = values[i]
+            
+            # Calculate appropriate scale for this ratio
+            max_val = current_value
+            min_val = 0
+            
+            # Add optimal range if available
+            if ratio_name in optimal_ranges:
+                min_opt, max_opt = optimal_ranges[ratio_name]
+                optimal_midpoint = (min_opt + max_opt) / 2
+                max_val = max(current_value, max_opt)
+                min_val = min(current_value, min_opt)
+            else:
+                optimal_midpoint = current_value * 1.2  # Default if no optimal range
+            
+            # Add padding to the scale
+            range_val = max_val - min_val
+            if range_val == 0:
+                range_val = max_val * 0.1 if max_val > 0 else 1
+            
+            y_max = max_val + (range_val * 0.2)
+            y_min = max(0, min_val - (range_val * 0.1))
+            
+            # Create bars
+            x_pos = [0, 1]
+            heights = [current_value, optimal_midpoint]
+            colors = [current_color, optimal_color]
+            labels = ['Current', 'Optimal']
+            
+            bars = axes[i].bar(x_pos, heights, color=colors, alpha=0.8, width=0.6)
+            
+            # Add value labels on bars
+            for bar, height in zip(bars, heights):
+                axes[i].text(bar.get_x() + bar.get_width()/2., height + (y_max - y_min) * 0.02,
+                           f'{height:.2f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+            
+            # Add optimal range lines if available
+            if ratio_name in optimal_ranges:
+                min_opt, max_opt = optimal_ranges[ratio_name]
+                axes[i].axhline(y=min_opt, color='orange', linestyle='--', alpha=0.7, linewidth=1)
+                axes[i].axhline(y=max_opt, color='orange', linestyle='--', alpha=0.7, linewidth=1)
+                axes[i].text(1.5, min_opt, f'Min: {min_opt:.1f}', fontsize=8, va='center')
+                axes[i].text(1.5, max_opt, f'Max: {max_opt:.1f}', fontsize=8, va='center')
+            
+            # Customize subplot
+            axes[i].set_title(ratio_name, fontsize=12, fontweight='bold', pad=10)
+            axes[i].set_ylim(y_min, y_max)
+            axes[i].set_xticks(x_pos)
+            axes[i].set_xticklabels(labels, fontsize=10)
+            axes[i].grid(True, alpha=0.3, linestyle='--')
+            axes[i].set_ylabel('Ratio Value', fontsize=10)
+            
+            # Only show legend on first chart
+            if i == 0:
+                axes[i].legend(['Current Ratio', 'Optimal Range (Midpoint)'], loc='upper right', fontsize=9)
+        
+        # Hide unused subplots
+        for i in range(num_params, len(axes)):
+            axes[i].set_visible(False)
+        
+        # Set main title
+        fig.suptitle(f'{parameter_type.title()} Nutrient Ratios', fontsize=16, fontweight='bold', y=0.95)
+        
+        # Improve layout with more spacing
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        
+        # Save to bytes
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+        img_buffer.seek(0)
+        chart_bytes = img_buffer.getvalue()
+        
+        plt.clf()
+        plt.close('all')
+        
+        return chart_bytes
+        
+    except Exception as e:
+        logger.error(f"Error creating nutrient ratio chart: {str(e)}")
+        return None
+
+
+def _calculate_soil_nutrient_ratios(soil_stats: Dict[str, Any]) -> Dict[str, float]:
+    """Calculate key soil nutrient ratios"""
+    ratios = {}
+    
+    try:
+        # Get average values
+        n_avg = soil_stats.get('Nitrogen_%', {}).get('average', 0)
+        p_avg = soil_stats.get('Total_P_mg_kg', {}).get('average', 0)
+        k_avg = soil_stats.get('Exchangeable_K_meq%', {}).get('average', 0)
+        ca_avg = soil_stats.get('Exchangeable_Ca_meq%', {}).get('average', 0)
+        mg_avg = soil_stats.get('Exchangeable_Mg_meq%', {}).get('average', 0)
+        oc_avg = soil_stats.get('Organic_Carbon_%', {}).get('average', 0)
+        
+        # Calculate ratios (avoid division by zero)
+        if p_avg > 0:
+            ratios['N:P'] = n_avg / (p_avg / 1000) if p_avg > 0 else 0  # Convert mg/kg to %
+        if k_avg > 0:
+            ratios['N:K'] = n_avg / k_avg if k_avg > 0 else 0
+        if mg_avg > 0:
+            ratios['Ca:Mg'] = ca_avg / mg_avg if mg_avg > 0 else 0
+            ratios['K:Mg'] = k_avg / mg_avg if mg_avg > 0 else 0
+        if n_avg > 0:
+            ratios['C:N'] = oc_avg / n_avg if n_avg > 0 else 0
+            
+    except Exception as e:
+        logger.error(f"Error calculating soil nutrient ratios: {e}")
+    
+    return ratios
+
+
+def _calculate_leaf_nutrient_ratios(leaf_stats: Dict[str, Any]) -> Dict[str, float]:
+    """Calculate key leaf nutrient ratios"""
+    ratios = {}
+    
+    try:
+        # Get average values
+        n_avg = leaf_stats.get('Nitrogen_%', {}).get('average', 0)
+        p_avg = leaf_stats.get('Phosphorus_%', {}).get('average', 0)
+        k_avg = leaf_stats.get('Potassium_%', {}).get('average', 0)
+        ca_avg = leaf_stats.get('Calcium_%', {}).get('average', 0)
+        mg_avg = leaf_stats.get('Magnesium_%', {}).get('average', 0)
+        
+        # Calculate ratios (avoid division by zero)
+        if p_avg > 0:
+            ratios['N:P'] = n_avg / p_avg if p_avg > 0 else 0
+        if k_avg > 0:
+            ratios['N:K'] = n_avg / k_avg if k_avg > 0 else 0
+        if mg_avg > 0:
+            ratios['Ca:Mg'] = ca_avg / mg_avg if mg_avg > 0 else 0
+            ratios['K:Mg'] = k_avg / mg_avg if mg_avg > 0 else 0
+        if k_avg > 0 and p_avg > 0:
+            ratios['P:K'] = p_avg / k_avg if k_avg > 0 else 0
+            
+    except Exception as e:
+        logger.error(f"Error calculating leaf nutrient ratios: {e}")
+    
+    return ratios
 
