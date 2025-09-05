@@ -2750,7 +2750,8 @@ def display_enhanced_step_result(step_result, step_number):
             st.markdown("")
     
     # Display visualizations only if step instructions contain visualization keywords
-    if should_show_visualizations(step_result):
+    # Skip visualizations for economic forecast steps
+    if should_show_visualizations(step_result) and not should_show_forecast_graph(step_result):
         # Check for existing visualizations first
         has_existing_viz = 'visualizations' in analysis_data and analysis_data['visualizations']
         
@@ -2789,7 +2790,7 @@ def display_enhanced_step_result(step_result, step_number):
                 st.error("Error displaying visualizations")
     else:
         # Show farmer message for step 2 when no visual keywords are present
-        if step_number == 2:
+        if step_number == 2 and not should_show_forecast_graph(step_result):
             st.markdown("""<div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 4px solid #f39c12;">
                 <h4 style="color: #8b4513; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">🌾 Message for Farmers</h4>
                 <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">
