@@ -369,14 +369,18 @@ def show_results_page():
     # Show print instructions if button was clicked
     if st.session_state.get('show_print_instructions', False):
         with st.container():
-            st.info("💡 **Print Instructions:** Press `Ctrl+P` (Windows) or `Cmd+P` (Mac) to print this page")
+            st.info("💡 **Print Instructions:** Use Streamlit's built-in print functionality for best results")
             st.markdown("""
-            **Important Print Settings:**
-            - **Hide Sidebar:** Hide the sidebar when printing
-            - **Remove Headers/Footers:** 
-              - **Chrome/Edge:** In print dialog, click "More settings" → Uncheck "Headers and footers"
-              - **Firefox:** In print dialog, click "More Settings" → Uncheck "Print headers and footers"  
-              - **Safari:** In print dialog, click "Show Details" → Uncheck "Print headers and footers"
+            **How to Print Using Streamlit:**
+            1. **Click the 3 dots (⋮) in the upper right corner** of the page
+            2. **Select "Print"** from the dropdown menu
+            3. **Streamlit will automatically:**
+               - Hide the sidebar and navigation elements
+               - Remove browser headers and footers
+               - Optimize the layout for printing
+               - Include all content in the print output
+            
+            **Alternative:** You can also use `Ctrl+P` (Windows) or `Cmd+P` (Mac) for browser print
             """)
             
             col1, col2 = st.columns([1, 1])
@@ -2785,6 +2789,23 @@ def display_enhanced_step_result(step_result, step_number):
             except Exception as e:
                 logger.error(f"Error displaying visualizations: {e}")
                 st.error("Error displaying visualizations")
+    else:
+        # Show farmer message for step 2 when no visual keywords are present
+        if step_number == 2:
+            st.markdown("""<div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 4px solid #f39c12;">
+                <h4 style="color: #8b4513; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">🌾 Message for Farmers</h4>
+                <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">
+                    <strong>Dear Farmer,</strong><br><br>
+                    This step focuses on identifying and diagnosing agricultural issues in your plantation. 
+                    While no visual charts are needed for this particular analysis, the detailed findings above 
+                    provide you with clear, actionable insights about your soil and crop health.<br><br>
+                    <strong>Key Points:</strong><br>
+                    • Review the detailed analysis above for specific issues identified<br>
+                    • Pay attention to the severity levels and recommended actions<br>
+                    • Consider the next steps in the analysis for solution recommendations<br><br>
+                    <em>Your agricultural success is our priority. The analysis continues with practical solutions in the next steps.</em>
+                </p>
+            </div>""", unsafe_allow_html=True)
     
     # Display forecast graph if this step has yield forecast data
     if should_show_forecast_graph(step_result) and has_yield_forecast_data(analysis_data):
@@ -2892,6 +2913,18 @@ def generate_contextual_visualizations(step_result, analysis_data):
         step_analysis = step_result.get('detailed_analysis', '')
         combined_text = f"{step_instructions} {step_summary} {step_analysis}".lower()
         
+        # Check for visual keywords
+        visual_keywords = [
+            'visual', 'visualization', 'visualizations', 'chart', 'charts', 'graph', 'graphs', 
+            'plot', 'plots', 'diagram', 'diagrams', 'comparison', 'compare', 'visual comparison', 
+            'visualize', 'display', 'show', 'illustrate', 'visual comparisons', 'show visual',
+            'show visual comparisons', 'plantation values vs mpob standards', 'vs mpob standards',
+            'mpob standards', 'standards comparison', 'bar chart', 'line chart', 'pie chart',
+            'scatter plot', 'histogram', 'radar chart', 'gauge chart', 'treemap', 'heatmap',
+            'box plot', 'violin plot', 'bubble chart', 'area chart', 'doughnut chart'
+        ]
+        has_visual_keywords = any(keyword in combined_text for keyword in visual_keywords)
+        
         # Generate visualizations based on step number and content
         if step_number == 1:  # Data Analysis
             # Create nutrient comparison charts
@@ -2919,15 +2952,34 @@ def generate_contextual_visualizations(step_result, analysis_data):
                     visualizations.append(mpob_viz)
         
         elif step_number == 2:  # Issue Diagnosis
-            # Create issues severity chart
-            issues_viz = create_issues_severity_viz(step_result, analysis_data)
-            if issues_viz:
-                visualizations.append(issues_viz)
-            
-            # Create nutrient deficiency heatmap
-            deficiency_viz = create_nutrient_deficiency_heatmap(soil_params, leaf_params)
-            if deficiency_viz:
-                visualizations.append(deficiency_viz)
+            # Only create visualizations if visual keywords are present
+            if has_visual_keywords:
+                # Create issues severity chart
+                issues_viz = create_issues_severity_viz(step_result, analysis_data)
+                if issues_viz:
+                    visualizations.append(issues_viz)
+                
+                # Create nutrient deficiency heatmap
+                deficiency_viz = create_nutrient_deficiency_heatmap(soil_params, leaf_params)
+                if deficiency_viz:
+                    visualizations.append(deficiency_viz)
+                
+                # Create actual vs optimal bar charts only if visual keywords are present
+                if soil_params.get('parameter_statistics'):
+                    soil_viz = create_actual_vs_optimal_viz(soil_params['parameter_statistics'], 'soil')
+                    if soil_viz:
+                        visualizations.append(soil_viz)
+                
+                if leaf_params.get('parameter_statistics'):
+                    leaf_viz = create_actual_vs_optimal_viz(leaf_params['parameter_statistics'], 'leaf')
+                    if leaf_viz:
+                        visualizations.append(leaf_viz)
+                
+                # Create MPOB standards comparison if requested and visual keywords are present
+                if 'mpob standards' in combined_text or 'vs mpob standards' in combined_text:
+                    mpob_viz = create_mpob_standards_comparison_viz(soil_params, leaf_params)
+                    if mpob_viz:
+                        visualizations.append(mpob_viz)
         
         elif step_number == 3:  # Solution Recommendations
             # Create solution priority chart
@@ -3888,7 +3940,8 @@ def display_enhanced_bar_chart(data, title, options=None):
             
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Enhanced bar chart data format not recognized")
+            # Silently skip if data format not recognized - don't show error message
+            return
     except ImportError:
         st.info("Plotly not available for chart display")
 
