@@ -2791,7 +2791,7 @@ def display_visualization(viz_data, viz_number):
     elif viz_type == 'deviation_chart':
         display_deviation_chart(data, title, options)
     elif viz_type == 'radar_chart':
-        display_radar_chart(data, title, options)
+        return
     elif viz_type == 'gauge_chart':
         display_gauge_chart(data, title, options)
     elif viz_type == 'pie_chart':
@@ -2802,7 +2802,9 @@ def display_visualization(viz_data, viz_number):
         display_scatter_plot(data, title)
     elif viz_type == 'actual_vs_optimal_bar':
         display_actual_vs_optimal_bar(data, title, options)
-
+    elif viz_type == 'nutrient_ratio_diagram':
+        # Skip ratio analysis visualizations - no longer displayed
+        return
     elif viz_type == 'multi_axis_chart':
         display_multi_axis_chart(data, title, options)
     elif viz_type == 'heatmap':
@@ -4015,54 +4017,7 @@ def display_deviation_chart(data, title, options=None):
     except ImportError:
         st.info("Plotly not available for chart display")
 
-def display_radar_chart(data, title, options=None):
-    """Display radar chart for nutrient balance analysis"""
-    try:
-        import plotly.graph_objects as go
-        
-        if 'categories' in data and 'series' in data:
-            categories = data['categories']
-            series = data['series']
-            
-            fig = go.Figure()
-            
-            for series_data in series:
-                if isinstance(series_data, dict) and 'name' in series_data and 'values' in series_data:
-                    name = series_data['name']
-                    values = series_data['values']
-                    color = series_data.get('color', '#4ECDC4')
-                    
-                    fig.add_trace(go.Scatterpolar(
-                        r=values,
-                        theta=categories,
-                        fill='toself' if options.get('fill_area', False) else 'none',
-                        name=name,
-                        line_color=color,
-                        marker=dict(color=color, size=8)
-                    ))
-            
-            fig.update_layout(
-                polar=dict(
-                    radialaxis=dict(
-                        visible=True,
-                        range=[0, max([max(s['values']) for s in series if 'values' in s])]
-                    )
-                ),
-                title=dict(
-                    text=title,
-                    x=0.5,
-                    font=dict(size=16, color='#2E7D32')
-                ),
-                showlegend=options.get('show_legend', True),
-                font=dict(size=12),
-                height=500
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Radar chart data format not recognized")
-    except ImportError:
-        st.info("Plotly not available for chart display")
+
 
 def display_gauge_chart(data, title, options=None):
     """Display gauge chart for data quality and confidence indicators"""
