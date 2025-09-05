@@ -142,6 +142,10 @@ def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
         monthly_counts = {}
         common_issues = {}
         recent_activity = []
+        issue_patterns = {}
+        nutrient_issues = {}
+        soil_issues = {}
+        leaf_issues = {}
         
         for doc in docs:
             data = doc.to_dict()
@@ -168,26 +172,66 @@ def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
                 month_key = created_at.strftime('%Y-%m') if hasattr(created_at, 'strftime') else '2024-01'
                 monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
             
-            # Extract common issues from analysis results
+            # Extract detailed issues from analysis results
             analysis_results = data.get('analysis_results', {})
+            
+            # Extract from key_findings
             if 'key_findings' in analysis_results:
                 findings = analysis_results['key_findings']
                 if isinstance(findings, list):
                     for finding in findings:
                         if isinstance(finding, dict) and 'finding' in finding:
                             finding_text = finding['finding'].lower()
-                            # Simple keyword extraction for common issues
+                            # Enhanced keyword extraction for common issues
                             if 'deficiency' in finding_text or 'low' in finding_text:
                                 common_issues['Nutrient Deficiency'] = common_issues.get('Nutrient Deficiency', 0) + 1
                             elif 'excess' in finding_text or 'high' in finding_text:
                                 common_issues['Nutrient Excess'] = common_issues.get('Nutrient Excess', 0) + 1
-                            elif 'ph' in finding_text:
+                            elif 'ph' in finding_text or 'acidity' in finding_text:
                                 common_issues['pH Issues'] = common_issues.get('pH Issues', 0) + 1
+                            elif 'potassium' in finding_text:
+                                common_issues['Potassium Issues'] = common_issues.get('Potassium Issues', 0) + 1
+                            elif 'nitrogen' in finding_text:
+                                common_issues['Nitrogen Issues'] = common_issues.get('Nitrogen Issues', 0) + 1
+                            elif 'phosphorus' in finding_text:
+                                common_issues['Phosphorus Issues'] = common_issues.get('Phosphorus Issues', 0) + 1
+                            elif 'magnesium' in finding_text:
+                                common_issues['Magnesium Issues'] = common_issues.get('Magnesium Issues', 0) + 1
+                            elif 'calcium' in finding_text:
+                                common_issues['Calcium Issues'] = common_issues.get('Calcium Issues', 0) + 1
+            
+            # Extract from step-by-step analysis
+            step_results = analysis_results.get('step_results', [])
+            if isinstance(step_results, list):
+                for step in step_results:
+                    if isinstance(step, dict):
+                        step_analysis = step.get('detailed_analysis', '')
+                        if step_analysis:
+                            step_text = step_analysis.lower()
+                            # Extract specific issues from step analysis
+                            if 'severe soil acidity' in step_text or 'low ph' in step_text:
+                                common_issues['Severe Soil Acidity'] = common_issues.get('Severe Soil Acidity', 0) + 1
+                            elif 'nutrient deficiency' in step_text:
+                                common_issues['Nutrient Deficiency'] = common_issues.get('Nutrient Deficiency', 0) + 1
+                            elif 'excess' in step_text or 'high' in step_text:
+                                common_issues['Nutrient Excess'] = common_issues.get('Nutrient Excess', 0) + 1
+                            elif 'potassium deficiency' in step_text:
+                                common_issues['Potassium Deficiency'] = common_issues.get('Potassium Deficiency', 0) + 1
+                            elif 'nitrogen deficiency' in step_text:
+                                common_issues['Nitrogen Deficiency'] = common_issues.get('Nitrogen Deficiency', 0) + 1
+                            elif 'phosphorus deficiency' in step_text:
+                                common_issues['Phosphorus Deficiency'] = common_issues.get('Phosphorus Deficiency', 0) + 1
             
             # Recent activity
             if len(recent_activity) < 10:
+                report_types = data.get('report_types', ['Unknown'])
+                if isinstance(report_types, list):
+                    report_type_str = ', '.join(report_types)
+                else:
+                    report_type_str = str(report_types)
+                
                 recent_activity.append({
-                    'description': f"Analysis completed - {', '.join(data.get('report_types', ['Unknown']))}",
+                    'description': f"Analysis completed - {report_type_str}",
                     'date': created_at.strftime('%Y-%m-%d') if hasattr(created_at, 'strftime') else 'Unknown'
                 })
         
@@ -196,28 +240,161 @@ def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
         avg_processing_time = total_processing_time / total_analyses if total_analyses > 0 else 0
         data_quality_score = min(10, (success_rate / 10) + (total_recommendations / total_analyses / 5)) if total_analyses > 0 else 0
         
-        # Format monthly trends
-        monthly_trends = [{'month': month, 'count': count} for month, count in sorted(monthly_counts.items())]
+        # Format monthly trends with better data
+        monthly_trends = []
+        for month, count in sorted(monthly_counts.items()):
+            monthly_trends.append({
+                'month': month,
+                'count': count,
+                'formatted_month': datetime.strptime(month, '%Y-%m').strftime('%b %Y')
+            })
         
-        # Format common issues
-        common_issues_list = [{'issue': issue, 'count': count} for issue, count in sorted(common_issues.items(), key=lambda x: x[1], reverse=True)]
+        # Format common issues with better categorization
+        common_issues_list = []
+        for issue, count in sorted(common_issues.items(), key=lambda x: x[1], reverse=True):
+            common_issues_list.append({
+                'issue': issue,
+                'count': count,
+                'percentage': (count / total_analyses * 100) if total_analyses > 0 else 0
+            })
         
-        # Generate AI insights
+        # Generate enhanced AI insights based on actual agricultural data
         ai_insights = []
-        if total_analyses >= 3:
-            if success_rate > 80:
-                ai_insights.append({
-                    'title': 'High Analysis Success Rate',
-                    'description': f'Your analyses are completing successfully {success_rate:.1f}% of the time, indicating good data quality.',
-                    'recommendation': 'Continue uploading clear, high-quality agricultural reports for best results.'
-                })
-            
+        if total_analyses >= 1:
+            # Agricultural-specific insights based on common issues
             if len(common_issues_list) > 0:
                 top_issue = common_issues_list[0]
+                
+                # Soil Acidity Insights
+                if 'Severe Soil Acidity' in top_issue['issue'] or 'Soil Acidity' in top_issue['issue']:
+                    ai_insights.append({
+                        'title': '🌱 Critical Soil Acidity Issue Detected',
+                        'description': f'Soil pH levels are critically low in {top_issue["count"]} analyses ({top_issue["percentage"]:.1f}% of all analyses). This severely impacts nutrient availability and root health.',
+                        'recommendation': 'Apply agricultural lime (CaCO3) at 2-4 tons/hectare. Target pH 5.5-6.5 for optimal oil palm growth. Monitor pH monthly after application.',
+                        'type': 'warning',
+                        'priority': 'high'
+                    })
+                
+                # Nutrient Deficiency Insights
+                elif 'Potassium Deficiency' in top_issue['issue']:
+                    ai_insights.append({
+                        'title': '🍃 Potassium Deficiency Pattern',
+                        'description': f'Potassium deficiency detected in {top_issue["count"]} analyses ({top_issue["percentage"]:.1f}% of all analyses). K is crucial for oil palm fruit development and disease resistance.',
+                        'recommendation': 'Apply Muriate of Potash (KCl) at 1.5-2.0 kg/tree/year. Split application: 50% in March-April, 50% in September-October.',
+                        'type': 'insight',
+                        'priority': 'high'
+                    })
+                
+                elif 'Nitrogen Deficiency' in top_issue['issue']:
+                    ai_insights.append({
+                        'title': '🌿 Nitrogen Deficiency Detected',
+                        'description': f'Nitrogen deficiency found in {top_issue["count"]} analyses ({top_issue["percentage"]:.1f}% of all analyses). N is essential for vegetative growth and leaf development.',
+                        'recommendation': 'Apply Urea (46% N) at 1.0-1.5 kg/tree/year. Apply in 3-4 split doses during wet season for better uptake.',
+                        'type': 'insight',
+                        'priority': 'high'
+                    })
+                
+                elif 'Phosphorus Deficiency' in top_issue['issue']:
+                    ai_insights.append({
+                        'title': '🌾 Phosphorus Deficiency Pattern',
+                        'description': f'Phosphorus deficiency identified in {top_issue["count"]} analyses ({top_issue["percentage"]:.1f}% of all analyses). P is vital for root development and energy transfer.',
+                        'recommendation': 'Apply Triple Super Phosphate (TSP) at 0.5-1.0 kg/tree/year. Apply near root zone and incorporate into soil.',
+                        'type': 'insight',
+                        'priority': 'high'
+                    })
+                
+                elif 'Magnesium Deficiency' in top_issue['issue']:
+                    ai_insights.append({
+                        'title': '🌿 Magnesium Deficiency Alert',
+                        'description': f'Magnesium deficiency detected in {top_issue["count"]} analyses ({top_issue["percentage"]:.1f}% of all analyses). Mg is critical for chlorophyll production and photosynthesis.',
+                        'recommendation': 'Apply Epsom Salt (MgSO4) at 0.5-1.0 kg/tree/year or Dolomite Lime for both pH and Mg correction.',
+                        'type': 'insight',
+                        'priority': 'medium'
+                    })
+                
+                elif 'Calcium Deficiency' in top_issue['issue']:
+                    ai_insights.append({
+                        'title': '🌱 Calcium Deficiency Pattern',
+                        'description': f'Calcium deficiency found in {top_issue["count"]} analyses ({top_issue["percentage"]:.1f}% of all analyses). Ca is essential for cell wall strength and fruit quality.',
+                        'recommendation': 'Apply Gypsum (CaSO4) at 1.0-2.0 kg/tree/year or Agricultural Lime for pH and Ca correction.',
+                        'type': 'insight',
+                        'priority': 'medium'
+                    })
+                
+                # Multiple Issues Pattern
+                if len(common_issues_list) > 3:
+                    ai_insights.append({
+                        'title': '🔍 Complex Nutrient Imbalance Detected',
+                        'description': f'Multiple nutrient issues identified: {len(common_issues_list)} different problems across your analyses. This suggests soil nutrient imbalance.',
+                        'recommendation': 'Conduct comprehensive soil analysis and develop a balanced fertilization program. Consider soil pH correction first, then address individual nutrient deficiencies.',
+                        'type': 'warning',
+                        'priority': 'high'
+                    })
+            
+            # Analysis Frequency Insights
+            if len(monthly_trends) > 1:
+                recent_months = monthly_trends[-2:]
+                if len(recent_months) == 2:
+                    trend_direction = "increasing" if recent_months[1]['count'] > recent_months[0]['count'] else "decreasing"
+                    if trend_direction == "increasing":
+                        ai_insights.append({
+                            'title': '📈 Excellent Monitoring Frequency',
+                            'description': f'Your analysis frequency is increasing from {recent_months[0]["count"]} to {recent_months[1]["count"]} analyses per month. Regular monitoring is key to optimal oil palm management.',
+                            'recommendation': 'Maintain this monitoring schedule. Consider seasonal analysis timing: pre-monsoon (March) and post-monsoon (October) for best results.',
+                            'type': 'success',
+                            'priority': 'low'
+                        })
+                    else:
+                        ai_insights.append({
+                            'title': '📉 Analysis Frequency Declining',
+                            'description': f'Analysis frequency decreased from {recent_months[0]["count"]} to {recent_months[1]["count"]} analyses per month. Regular monitoring helps catch issues early.',
+                            'recommendation': 'Increase analysis frequency to monthly or bi-monthly. Early detection of nutrient issues saves costs and improves yield.',
+                            'type': 'info',
+                            'priority': 'medium'
+                        })
+            
+            # Data Quality Insights
+            if data_quality_score > 8:
                 ai_insights.append({
-                    'title': f'Most Common Issue: {top_issue["issue"]}',
-                    'description': f'This issue appears in {top_issue["count"]} of your analyses.',
-                    'recommendation': 'Consider focusing on this area for improvement in your agricultural practices.'
+                    'title': '✅ Excellent Data Quality',
+                    'description': f'Your data quality score is {data_quality_score:.1f}/10, indicating high-quality agricultural reports and accurate analysis results.',
+                    'recommendation': 'Maintain current data collection practices. High-quality data leads to more accurate recommendations and better crop management.',
+                    'type': 'success',
+                    'priority': 'low'
+                })
+            elif data_quality_score > 6:
+                ai_insights.append({
+                    'title': '📊 Good Data Quality',
+                    'description': f'Your data quality score is {data_quality_score:.1f}/10, showing good report quality with room for improvement.',
+                    'recommendation': 'Ensure clear, well-lit photos of lab reports. Avoid shadows and ensure all text is readable for better OCR accuracy.',
+                    'type': 'info',
+                    'priority': 'low'
+                })
+            else:
+                ai_insights.append({
+                    'title': '⚠️ Data Quality Needs Improvement',
+                    'description': f'Your data quality score is {data_quality_score:.1f}/10, which may affect analysis accuracy and recommendation quality.',
+                    'recommendation': 'Improve photo quality: use good lighting, avoid blur, ensure complete report visibility. Consider retaking photos if results seem inaccurate.',
+                    'type': 'warning',
+                    'priority': 'medium'
+                })
+            
+            # Success Rate Insights
+            if success_rate > 90:
+                ai_insights.append({
+                    'title': '🎯 High Analysis Success Rate',
+                    'description': f'Your analyses complete successfully {success_rate:.1f}% of the time, indicating excellent data quality and system performance.',
+                    'recommendation': 'Continue your current data collection practices. High success rates ensure reliable agricultural insights.',
+                    'type': 'success',
+                    'priority': 'low'
+                })
+            elif success_rate < 70:
+                ai_insights.append({
+                    'title': '⚠️ Analysis Success Rate Low',
+                    'description': f'Analysis success rate is {success_rate:.1f}%, which may indicate data quality issues affecting agricultural insights.',
+                    'recommendation': 'Check report image quality and format. Ensure reports are complete and clearly visible. Contact support if issues persist.',
+                    'type': 'warning',
+                    'priority': 'high'
                 })
         
         return {
@@ -241,10 +418,28 @@ def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
 def display_user_overview_section(user_info, user_id):
     """Display simple user overview"""
     st.markdown("---")
-    st.markdown("## 👋 Welcome Back!")
     
-    # Simple welcome message without statistics
-    st.markdown(f"Welcome back, **{user_info.get('name', 'User')}**! Ready to analyze your agricultural reports?")
+    # Enhanced welcome section with agriculture theme
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        border: 3px solid #2E8B57;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    ">
+        <div style="position: absolute; top: -10px; right: -10px; font-size: 4rem; opacity: 0.1;">🌱</div>
+        <div style="position: absolute; bottom: -10px; left: -10px; font-size: 3rem; opacity: 0.1;">🌴</div>
+        <div style="position: relative; z-index: 1;">
+            <h2 style="color: #2E8B57; margin: 0 0 1rem 0; text-align: center;">🌱 Welcome Back, """ + user_info.get('name', 'User') + """!</h2>
+            <p style="color: #2E8B57; margin: 0; text-align: center; font-size: 1.1rem; font-weight: 500;">
+                Ready to revolutionize your oil palm cultivation with AI-powered insights?
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 @st.cache_data(ttl=30)
 def _cached_recent_analyses(user_id: str) -> List[Dict[str, Any]]:
@@ -272,36 +467,93 @@ def _cached_recent_analyses(user_id: str) -> List[Dict[str, Any]]:
 def display_recent_reports_section(user_id):
     """Display recent reports in simple format"""
     st.markdown("---")
-    st.markdown("## 📊 Recent Reports")
+    st.markdown("## 📊 Recent Agricultural Reports")
     
     try:
         analyses_list = _cached_recent_analyses(user_id)
         
         if analyses_list:
             for i, analysis in enumerate(analyses_list):
-                # Create simple report card
+                # Create enhanced report card with agriculture theme
                 created_at = analysis.get('created_at')
                 if hasattr(created_at, 'strftime'):
                     date_str = created_at.strftime('%B %d, %Y')
                 else:
                     date_str = str(created_at) if created_at else 'Unknown'
                 
+                # Determine report type and icon
+                report_types = analysis.get('report_types', [])
+                if isinstance(report_types, list) and report_types:
+                    report_type = report_types[0]
+                else:
+                    # Try to determine from raw_data
+                    raw_data = analysis.get('raw_data', {})
+                    if raw_data.get('soil_data') and raw_data.get('leaf_data'):
+                        report_type = 'Combined'
+                    elif raw_data.get('soil_data'):
+                        report_type = 'Soil'
+                    elif raw_data.get('leaf_data'):
+                        report_type = 'Leaf'
+                    else:
+                        report_type = 'Agricultural'
+                
+                # Choose icon based on report type
+                icon_map = {
+                    'soil': '🌱',
+                    'leaf': '🍃',
+                    'combined': '🌴',
+                    'agricultural': '🌱',
+                    'unknown': '📋'
+                }
+                icon = icon_map.get(report_type.lower(), '🌱')
+                
                 st.markdown(f"""
                 <div style="
-                    background: white;
-                    padding: 15px;
-                    border-radius: 10px;
-                    border-left: 4px solid #667eea;
-                    margin-bottom: 10px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+                    padding: 20px;
+                    border-radius: 15px;
+                    border: 2px solid #2E8B57;
+                    margin-bottom: 15px;
+                    box-shadow: 0 4px 15px rgba(46, 139, 87, 0.2);
+                    position: relative;
+                    overflow: hidden;
                 ">
-                    <h4 style="margin: 0 0 5px 0; color: #2c3e50;">Report #{i+1}</h4>
-                    <p style="margin: 0; color: #666; font-size: 14px;">Created: {date_str}</p>
-                    <p style="margin: 5px 0 0 0; color: #2c3e50;">Status: Completed</p>
+                    <div style="position: absolute; top: -10px; right: -10px; font-size: 3rem; opacity: 0.1;">{icon}</div>
+                    <div style="position: relative; z-index: 1;">
+                        <h4 style="margin: 0 0 10px 0; color: #2E8B57; font-size: 1.2rem;">
+                            {icon} Agricultural Report #{i+1}
+                        </h4>
+                        <p style="margin: 0 0 5px 0; color: #2E8B57; font-size: 14px; font-weight: 500;">
+                            📅 Created: {date_str}
+                        </p>
+                        <p style="margin: 0 0 5px 0; color: #2E8B57; font-size: 14px;">
+                            📊 Type: {report_type.title()} Analysis
+                        </p>
+                        <p style="margin: 0; color: #32CD32; font-size: 14px; font-weight: 500;">
+                            ✅ Status: AI Analysis Complete
+                        </p>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("📝 No reports found. Upload your first agricultural report to get started!")
+            st.markdown("""
+            <div style="
+                background: linear-gradient(135deg, #fff8dc 0%, #f0e68c 100%);
+                padding: 2rem;
+                border-radius: 15px;
+                border: 2px solid #DAA520;
+                text-align: center;
+                margin: 2rem 0;
+            ">
+                <h3 style="color: #DAA520; margin: 0 0 1rem 0;">🌱 No Reports Found</h3>
+                <p style="color: #DAA520; margin: 0 0 1.5rem 0; font-size: 1.1rem;">
+                    Upload your first oil palm agricultural report to get started with AI analysis!
+                </p>
+                <p style="color: #DAA520; margin: 0; font-size: 0.9rem;">
+                    Our AI will analyze your soil and leaf data to provide intelligent insights.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
             
     except Exception as e:
         st.error(f"Error loading recent reports: {str(e)}")
@@ -309,83 +561,232 @@ def display_recent_reports_section(user_id):
 def display_simple_quick_actions():
     """Display simplified quick actions"""
     st.markdown("---")
-    st.markdown("## ⚡ Quick Actions")
+    st.markdown("## ⚡ AI Agriculture Actions")
     
-    # Primary action
-    if st.button("📤 Analyze Files", width='stretch', type="primary"):
-        st.session_state.current_page = 'upload'
-        st.rerun()
+    # Enhanced quick actions with agriculture theme
+    col1, col2 = st.columns(2)
     
-    # Secondary actions
-    if st.button("📈 View History", width='stretch'):
-        st.session_state.current_page = 'history'
-        st.rerun()
+    with col1:
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #2E8B57 0%, #32CD32 100%);
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(46, 139, 87, 0.3);
+        ">
+            <h4 style="margin: 0 0 1rem 0; color: white;">🌱 Analyze Agricultural Reports</h4>
+            <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">
+                Upload your oil palm soil and leaf test reports for AI analysis
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("📤 Start AI Analysis", width='stretch', type="primary"):
+            st.session_state.current_page = 'upload'
+            st.rerun()
+    
+    with col2:
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #4169E1 0%, #32CD32 100%);
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 15px rgba(65, 105, 225, 0.3);
+        ">
+            <h4 style="margin: 0 0 1rem 0; color: white;">📈 View Analysis History</h4>
+            <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">
+                Review your past agricultural analyses and insights
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("📊 View History", width='stretch'):
+            st.session_state.current_page = 'history'
+            st.rerun()
 
 def display_simple_user_profile(user_info):
     """Display simplified user profile card"""
     st.markdown("---")
-    st.markdown("## 👤 Your Profile")
+    st.markdown("## 👤 AI Agriculture Profile")
     
     st.markdown(f"""
     <div style="
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        padding: 20px;
-        border-radius: 15px;
+        background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%);
+        padding: 25px;
+        border-radius: 20px;
         color: white;
         text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        box-shadow: 0 8px 32px rgba(46, 139, 87, 0.3);
+        position: relative;
+        overflow: hidden;
     ">
-        <div style="
-            width: 60px;
-            height: 60px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 15px auto;
-            font-size: 24px;
-        ">
-            👤
+        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">🌴</div>
+        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🤖</div>
+        <div style="position: relative; z-index: 1;">
+            <div style="
+                width: 80px;
+                height: 80px;
+                background: rgba(255,255,255,0.25);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 20px auto;
+                font-size: 32px;
+                border: 3px solid rgba(255,255,255,0.3);
+                backdrop-filter: blur(10px);
+            ">
+                🌱
+            </div>
+            <h3 style="margin: 0 0 10px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                {user_info.get('name', 'User')}
+            </h3>
+            <p style="margin: 0 0 15px 0; opacity: 0.9; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
+                {user_info.get('email', 'No email')}
+            </p>
+            <div style="
+                background: rgba(255,255,255,0.2);
+                padding: 10px;
+                border-radius: 10px;
+                margin: 15px 0;
+                backdrop-filter: blur(10px);
+            ">
+                <p style="margin: 0; font-size: 14px; opacity: 0.9;">
+                    🌱 AI Agriculture Member since {user_info.get('created_at', 'Unknown')}
+                </p>
+            </div>
         </div>
-        <h3 style="margin: 0 0 5px 0;">{user_info.get('name', 'User')}</h3>
-        <p style="margin: 0 0 10px 0; opacity: 0.9;">{user_info.get('email', 'No email')}</p>
-        <p style="margin: 0; font-size: 14px; opacity: 0.8;">Member since {user_info.get('created_at', 'Unknown')}</p>
     </div>
     """, unsafe_allow_html=True)
 
 def display_simple_system_status():
     """Display simple system status"""
     st.markdown("---")
-    st.markdown("## 🔧 System Status")
+    st.markdown("## 🔧 AI Agriculture System Status")
     
     st.markdown("""
     <div style="
-        background: linear-gradient(135deg, #43e97b, #38f9d7);
-        padding: 15px;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #32CD32 0%, #90EE90 100%);
+        padding: 20px;
+        border-radius: 15px;
         color: white;
         text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 15px rgba(50, 205, 50, 0.3);
+        position: relative;
+        overflow: hidden;
     ">
-        <h4 style="margin: 0 0 5px 0;">✅ All Systems Operational</h4>
-        <p style="margin: 0; font-size: 14px; opacity: 0.9;">AI Analysis: Ready</p>
-        <p style="margin: 0; font-size: 14px; opacity: 0.9;">Database: Connected</p>
+        <div style="position: absolute; top: -10px; right: -10px; font-size: 4rem; opacity: 0.1;">🤖</div>
+        <div style="position: relative; z-index: 1;">
+            <h4 style="margin: 0 0 15px 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
+                ✅ AI Agriculture Systems Operational
+            </h4>
+            <div style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-top: 15px;
+            ">
+                <div style="
+                    background: rgba(255,255,255,0.2);
+                    padding: 10px;
+                    border-radius: 8px;
+                    backdrop-filter: blur(10px);
+                ">
+                    <p style="margin: 0; font-size: 14px; font-weight: 500;">🌱 AI Analysis: Ready</p>
+                </div>
+                <div style="
+                    background: rgba(255,255,255,0.2);
+                    padding: 10px;
+                    border-radius: 8px;
+                    backdrop-filter: blur(10px);
+                ">
+                    <p style="margin: 0; font-size: 14px; font-weight: 500;">🌴 Database: Connected</p>
+                </div>
+                <div style="
+                    background: rgba(255,255,255,0.2);
+                    padding: 10px;
+                    border-radius: 8px;
+                    backdrop-filter: blur(10px);
+                ">
+                    <p style="margin: 0; font-size: 14px; font-weight: 500;">📊 OCR: Active</p>
+                </div>
+                <div style="
+                    background: rgba(255,255,255,0.2);
+                    padding: 10px;
+                    border-radius: 8px;
+                    backdrop-filter: blur(10px);
+                ">
+                    <p style="margin: 0; font-size: 14px; font-weight: 500;">🔬 Analysis: Online</p>
+                </div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
 # ===== HEADER SECTION =====
 def display_dashboard_header():
     """Display dashboard header with real-time clock and logout"""
+    # Enhanced header with agriculture theme
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%);
+        padding: 1.5rem;
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(46, 139, 87, 0.3);
+    ">
+        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">🌴</div>
+        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🤖</div>
+        <div style="position: relative; z-index: 1;">
+            <h1 style="color: white; margin: 0 0 0.5rem 0; font-size: 2.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                🌴 Dashboard
+            </h1>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([2, 1, 1])
     
     with col1:
-        st.markdown('<h1 style="color: #2E8B57; text-align: left;">🏠 Dashboard</h1>', unsafe_allow_html=True)
+        # Real-time clock with agriculture theme
+        current_time = datetime.now().strftime("%H:%M:%S")
+        current_date = datetime.now().strftime("%B %d, %Y")
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+            padding: 1rem;
+            border-radius: 10px;
+            border: 2px solid #2E8B57;
+            text-align: center;
+        ">
+            <h3 style="color: #2E8B57; margin: 0 0 0.5rem 0;">🕐 {current_time}</h3>
+            <p style="color: #2E8B57; margin: 0; font-size: 0.9rem;">{current_date}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        # Real-time clock
-        current_time = datetime.now().strftime("%H:%M:%S")
-        st.metric("🕐 Current Time", current_time)
+        # System status indicator
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #90EE90 0%, #32CD32 100%);
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        ">
+            <h4 style="margin: 0 0 0.5rem 0;">🌱 System Status</h4>
+            <p style="margin: 0; font-size: 0.9rem;">All Systems Operational</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
         if st.button("🚪 Logout", type="secondary", use_container_width=True):
@@ -1590,14 +1991,53 @@ def delete_analysis(analysis_id: str):
 
 def display_analytics_insights_tab(user_id):
     """Display Analytics & Insights tab content"""
-    st.markdown("## 📈 Analytics & Insights")
-    st.markdown("Discover patterns and insights from your agricultural analysis data")
+    # Enhanced header with agriculture theme
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(46, 139, 87, 0.3);
+    ">
+        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">📊</div>
+        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🤖</div>
+        <div style="position: relative; z-index: 1;">
+            <h2 style="color: white; margin: 0 0 1rem 0; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                📈 AI Agriculture Analytics & Insights
+            </h2>
+            <p style="color: #f0f8ff; margin: 0; text-align: center; font-size: 1.1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
+                Discover intelligent patterns and insights from your oil palm agricultural analysis data
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Get user analytics data
     analytics_data = _cached_user_analytics(user_id)
     
     if not analytics_data or analytics_data['total_analyses'] == 0:
-        st.info("No analysis data available yet. Upload some agricultural reports to see insights!")
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #fff8dc 0%, #f0e68c 100%);
+            padding: 3rem;
+            border-radius: 15px;
+            border: 3px solid #DAA520;
+            text-align: center;
+            margin: 2rem 0;
+        ">
+            <h3 style="color: #DAA520; margin: 0 0 1.5rem 0; font-size: 1.8rem;">🌱 No Analysis Data Available Yet</h3>
+            <p style="color: #DAA520; margin: 0 0 2rem 0; font-size: 1.2rem;">
+                Upload your first oil palm agricultural report to unlock AI-powered insights and analytics!
+            </p>
+            <p style="color: #DAA520; margin: 0; font-size: 1rem;">
+                Our AI will analyze your soil and leaf data to provide intelligent recommendations and trend analysis.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
     # Create columns for different analytics sections
@@ -1613,44 +2053,36 @@ def display_analytics_insights_tab(user_id):
             import plotly.express as px
             import pandas as pd
             
+            # Create enhanced trend chart
             df = pd.DataFrame(monthly_data)
-            fig = px.line(df, x='month', y='count', 
+            fig = px.line(df, x='formatted_month', y='count', 
                          title='Monthly Analysis Count',
-                         markers=True)
-            fig.update_layout(height=300)
+                         markers=True,
+                         line_shape='spline')
+            fig.update_layout(
+                height=300,
+                xaxis_title="Month",
+                yaxis_title="Number of Analyses",
+                hovermode='x unified'
+            )
+            fig.update_traces(
+                line=dict(width=3),
+                marker=dict(size=8)
+            )
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Show trend summary
+            if len(monthly_data) > 1:
+                recent_count = monthly_data[-1]['count']
+                previous_count = monthly_data[-2]['count'] if len(monthly_data) > 1 else 0
+                trend_change = recent_count - previous_count
+                trend_text = "increased" if trend_change > 0 else "decreased" if trend_change < 0 else "unchanged"
+                st.caption(f"📈 Analysis activity {trend_text} by {abs(trend_change)} from last month")
         else:
             st.info("Analysis trends will appear after multiple analyses")
         
-        # Most Common Issues
-        st.markdown("### 🎯 Most Common Issues")
-        common_issues = analytics_data.get('common_issues', [])
-        if common_issues:
-            for issue in common_issues[:5]:
-                st.markdown(f"• {issue['issue']} ({issue['count']} times)")
-        else:
-            st.info("Issue patterns will appear after multiple analyses")
     
     with col2:
-        # Performance Metrics
-        st.markdown("### ⚡ Performance Metrics")
-        
-        # Analysis success rate
-        success_rate = analytics_data.get('success_rate', 0)
-        st.metric("Success Rate", f"{success_rate:.1f}%")
-        
-        # Average processing time
-        avg_time = analytics_data.get('avg_processing_time', 0)
-        st.metric("Avg Processing Time", f"{avg_time:.1f} seconds")
-        
-        # Data quality score
-        quality_score = analytics_data.get('data_quality_score', 0)
-        st.metric("Data Quality Score", f"{quality_score:.1f}/10")
-        
-        # Recommendations Generated
-        total_recs = analytics_data.get('total_recommendations', 0)
-        st.metric("Total Recommendations", total_recs)
-        
         # Recent Activity
         st.markdown("### 📅 Recent Activity")
         recent_activity = analytics_data.get('recent_activity', [])
@@ -1660,22 +2092,101 @@ def display_analytics_insights_tab(user_id):
         else:
             st.info("Recent activity will appear here")
     
-    # Insights and Recommendations
+    # Enhanced AI-Generated Insights
     st.markdown("### 💡 AI-Generated Insights")
     insights = analytics_data.get('ai_insights', [])
     if insights:
-        for insight in insights:
-            with st.expander(f"🔍 {insight['title']}", expanded=False):
-                st.markdown(insight['description'])
-                if 'recommendation' in insight:
-                    st.markdown(f"**Recommendation:** {insight['recommendation']}")
+        # Group insights by priority
+        high_priority = [i for i in insights if i.get('priority') == 'high']
+        medium_priority = [i for i in insights if i.get('priority') == 'medium']
+        low_priority = [i for i in insights if i.get('priority') == 'low']
+        
+        # Display high priority insights first
+        if high_priority:
+            st.markdown("#### 🔴 High Priority Insights")
+            for insight in high_priority:
+                insight_type = insight.get('type', 'info')
+                icon_map = {
+                    'success': '✅',
+                    'warning': '⚠️',
+                    'info': 'ℹ️',
+                    'insight': '💡',
+                    'trend': '📈'
+                }
+                icon = icon_map.get(insight_type, 'ℹ️')
+                
+                with st.expander(f"{icon} {insight['title']}", expanded=True):
+                    st.markdown(insight['description'])
+                    if 'recommendation' in insight:
+                        st.markdown(f"**💡 Recommendation:** {insight['recommendation']}")
+        
+        # Display medium priority insights
+        if medium_priority:
+            st.markdown("#### 🟡 Medium Priority Insights")
+            for insight in medium_priority:
+                insight_type = insight.get('type', 'info')
+                icon_map = {
+                    'success': '✅',
+                    'warning': '⚠️',
+                    'info': 'ℹ️',
+                    'insight': '💡',
+                    'trend': '📈'
+                }
+                icon = icon_map.get(insight_type, 'ℹ️')
+                
+                with st.expander(f"{icon} {insight['title']}", expanded=False):
+                    st.markdown(insight['description'])
+                    if 'recommendation' in insight:
+                        st.markdown(f"**💡 Recommendation:** {insight['recommendation']}")
+        
+        # Display low priority insights
+        if low_priority:
+            st.markdown("#### 🟢 Additional Insights")
+            for insight in low_priority:
+                insight_type = insight.get('type', 'info')
+                icon_map = {
+                    'success': '✅',
+                    'warning': '⚠️',
+                    'info': 'ℹ️',
+                    'insight': '💡',
+                    'trend': '📈'
+                }
+                icon = icon_map.get(insight_type, 'ℹ️')
+                
+                with st.expander(f"{icon} {insight['title']}", expanded=False):
+                    st.markdown(insight['description'])
+                    if 'recommendation' in insight:
+                        st.markdown(f"**💡 Recommendation:** {insight['recommendation']}")
     else:
         st.info("AI insights will be generated as you complete more analyses")
+    
 
 def display_help_us_improve_tab():
     """Display Help Us Improve tab content"""
-    st.markdown("## 💬 Help Us Improve")
-    st.markdown("Your feedback helps us make our agricultural analysis platform better!")
+    # Enhanced header with agriculture theme
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(46, 139, 87, 0.3);
+    ">
+        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">💬</div>
+        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🌱</div>
+        <div style="position: relative; z-index: 1;">
+            <h2 style="color: white; margin: 0 0 1rem 0; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                💬 Help Us Improve AI Agriculture
+            </h2>
+            <p style="color: #f0f8ff; margin: 0; text-align: center; font-size: 1.1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
+                Your feedback helps us make our AI-powered agricultural analysis platform better for oil palm cultivation!
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Import the feedback system
     try:

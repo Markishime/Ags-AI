@@ -48,11 +48,11 @@ try:
 except Exception:
     from upload import show_upload_page
 
-from modules.results import show_results_page
+    from modules.results import show_results_page
 
-from modules.history import show_history_page
+    from modules.history import show_history_page
 
-from modules.admin import show_admin_panel
+    from modules.admin import show_admin_panel
 
 # Page configuration
 st.set_page_config(
@@ -415,8 +415,8 @@ def show_home_page():
                 <p style="margin: 0; font-size: 0.9rem;">Get AI insights in minutes</p>
             </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
     
     col_a, col_b = st.columns(2)
     
@@ -451,7 +451,7 @@ def show_home_page():
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     # Final CTA
     st.markdown("""
@@ -472,7 +472,7 @@ def show_home_page():
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
 
 def show_login_page():
@@ -743,6 +743,51 @@ def show_settings_page():
     
     if st.button("🗑️ Delete Account", use_container_width=True, type="secondary"):
         st.warning("Account deletion functionality would be implemented here.")
+
+def show_upload_page():
+    """Display upload page"""
+    try:
+        from modules.upload import show_upload_page as upload_page
+        upload_page()
+    except ImportError:
+        st.error("Upload module not available")
+        st.info("Please contact support if this issue persists.")
+
+def show_results_page():
+    """Display results page"""
+    try:
+        from modules.results import show_results_page as results_page
+        results_page()
+    except ImportError:
+        st.error("Results module not available")
+        st.info("Please contact support if this issue persists.")
+
+def show_history_page():
+    """Display history page"""
+    try:
+        from modules.history import show_history_page as history_page
+        history_page()
+    except ImportError:
+        st.error("History module not available")
+        st.info("Please contact support if this issue persists.")
+
+def show_dashboard():
+    """Display dashboard page"""
+    try:
+        from modules.dashboard import show_dashboard as dashboard_page
+        dashboard_page()
+    except ImportError:
+        st.error("Dashboard module not available")
+        st.info("Please contact support if this issue persists.")
+
+def show_admin_panel():
+    """Display admin panel"""
+    try:
+        from modules.admin import show_admin_panel as admin_page
+        admin_page()
+    except ImportError:
+        st.error("Admin module not available")
+        st.info("Please contact support if this issue persists.")
 
 def main():
     """Main application function"""

@@ -1568,6 +1568,10 @@ class PromptAnalyzer:
                 text_parts.append(f"- Expected Impact: {issue.get('impact', 'Unknown')}")
                 text_parts.append("")
         
+        # Add visual comparison text to trigger visualization generation
+        text_parts.append("## 📊 Visual Comparison\n")
+        text_parts.append("Visual comparison charts will be generated to show the relationship between actual values and MPOB standards.")
+        
         return "\n".join(text_parts)
     
     def _format_step3_text(self, result: Dict[str, Any]) -> str:

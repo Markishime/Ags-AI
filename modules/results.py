@@ -2696,19 +2696,13 @@ def display_enhanced_step_result(step_result, step_number):
         elif not isinstance(detailed_text, str):
             detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
         
-        # Filter out QuickChart URLs and visual comparison markdown
+        # Filter out QuickChart URLs but preserve visual comparison text for proper chart generation
         import re
-        # Remove QuickChart URLs and visual comparison markdown
-        detailed_text = re.sub(r'Visual Comparison:.*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+        # Remove QuickChart URLs but keep the visual comparison text
         detailed_text = re.sub(r'!\[.*?\]\(https://quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
-        detailed_text = re.sub(r'Visual Comparison:.*?\)', '', detailed_text, flags=re.DOTALL)
         
-        # Additional filtering for Step 2 - remove specific unwanted text
-        if step_number == 2:
-            # Remove the specific unwanted text mentioned by user
-            detailed_text = re.sub(r'!\[Soil pH vs MPOB Standard\].*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
-            detailed_text = re.sub(r'!\[.*?Soil pH.*?MPOB.*?\].*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
-            detailed_text = re.sub(r'!\[.*?pH.*?MPOB.*?\].*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+        # For Step 2, we want to keep the visual comparison text but remove the actual QuickChart URLs
+        # This allows the visualization generation to work properly
         
         # Split into paragraphs for better formatting
         paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
@@ -2877,9 +2871,9 @@ def should_show_visualizations(step_result):
     if should_show_forecast_graph(step_result):
         return False
     
-    # Get step number and exclude step 2, step 4 and step 5 (Issue Diagnosis, Economic Impact & ROI Analysis)
+    # Get step number and exclude step 4 and step 5 (Economic Impact & ROI Analysis)
     step_number = step_result.get('step_number', 0)
-    if step_number == 2 or step_number == 4 or step_number == 5:
+    if step_number == 4 or step_number == 5:
         return False
     
     # Get step content
@@ -2962,8 +2956,23 @@ def generate_contextual_visualizations(step_result, analysis_data):
                     visualizations.append(mpob_viz)
         
         elif step_number == 2:  # Issue Diagnosis
-            # No visualizations for Step 2 - Data Visualizations section removed
-            pass
+            # Generate visualizations for Step 2 if visual keywords are present
+            if has_visual_keywords:
+                # Create issues severity bar chart
+                issues_viz = create_issues_severity_bar_viz(step_result, analysis_data)
+                if issues_viz:
+                    visualizations.append(issues_viz)
+                
+                # Create nutrient deficiency bar chart
+                deficiency_viz = create_nutrient_deficiency_bar_viz(soil_params, leaf_params)
+                if deficiency_viz:
+                    visualizations.append(deficiency_viz)
+                
+                # Create specific issue visualizations based on content
+                if 'soil acidity' in combined_text or 'ph' in combined_text or 'severe soil acidity' in combined_text:
+                    soil_ph_viz = create_soil_ph_comparison_viz(soil_params)
+                    if soil_ph_viz:
+                        visualizations.append(soil_ph_viz)
         
         elif step_number == 3:  # Solution Recommendations
             # Create solution priority chart
@@ -6416,6 +6425,64 @@ def create_issues_severity_bar_viz(step_result, analysis_data):
         
     except Exception as e:
         logger.error(f"Error creating issues severity bar visualization: {e}")
+        return None
+
+def create_soil_ph_comparison_viz(soil_params):
+    """Create soil pH comparison visualization against MPOB standard"""
+    try:
+        if not soil_params or 'parameter_statistics' not in soil_params:
+            return None
+        
+        param_stats = soil_params['parameter_statistics']
+        ph_data = param_stats.get('pH', {})
+        
+        if not ph_data or 'values' not in ph_data:
+            return None
+        
+        ph_values = ph_data['values']
+        if not ph_values:
+            return None
+        
+        # MPOB optimal pH range: 4.5-6.5, minimum 4.5
+        mpob_optimal_min = 4.5
+        mpob_optimal_max = 6.5
+        
+        # Create sample labels (S1, S2, etc.)
+        sample_labels = [f"S{i+1}" for i in range(len(ph_values))]
+        
+        # Create the visualization data
+        return {
+            'type': 'actual_vs_optimal_bar',
+            'title': 'Soil pH vs MPOB Standard',
+            'subtitle': 'Comparison of actual pH values against MPOB optimal range',
+            'data': {
+                'categories': sample_labels,
+                'series': [
+                    {
+                        'name': 'Sample pH',
+                        'values': ph_values,
+                        'color': '#ff6384'
+                    },
+                    {
+                        'name': 'MPOB Optimum Minimum',
+                        'values': [mpob_optimal_min] * len(ph_values),
+                        'color': '#4bc0c0'
+                    }
+                ]
+            },
+            'options': {
+                'show_legend': True,
+                'show_values': True,
+                'y_axis_title': 'pH Value',
+                'x_axis_title': 'Sample',
+                'show_target_line': True,
+                'target_value': mpob_optimal_min,
+                'target_label': 'MPOB Minimum (4.5)'
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating soil pH comparison visualization: {e}")
         return None
 
 def create_nutrient_deficiency_bar_viz(soil_params, leaf_params):
