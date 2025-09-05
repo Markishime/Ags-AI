@@ -2867,11 +2867,48 @@ class PDFReportGenerator:
     
     def _extract_economic_data(self, analysis_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract economic data from various sources in analysis_data"""
-        # 1. Check direct economic_forecast
+        # 1. Check direct economic_forecast in analysis_data
         if 'economic_forecast' in analysis_data and analysis_data['economic_forecast']:
             return analysis_data['economic_forecast']
         
-        # 2. Check step-by-step analysis for economic data
+        # 2. Check analysis_results for economic_forecast
+        if 'analysis_results' in analysis_data:
+            analysis_results = analysis_data['analysis_results']
+            if 'economic_forecast' in analysis_results and analysis_results['economic_forecast']:
+                return analysis_results['economic_forecast']
+        
+        # 3. Check for investment_scenarios in analysis_data
+        if 'investment_scenarios' in analysis_data and analysis_data['investment_scenarios']:
+            # Convert investment_scenarios to the expected format
+            investment_scenarios = analysis_data['investment_scenarios']
+            scenarios = {}
+            for level, data in investment_scenarios.items():
+                if isinstance(data, dict):
+                    scenarios[level] = {
+                        'total_cost': data.get('total_cost', 0),
+                        'additional_revenue': data.get('additional_revenue', data.get('return', 0)),
+                        'roi_percentage': data.get('roi_percentage', data.get('roi', 0)),
+                        'payback_months': data.get('payback_months', data.get('payback_period', 0))
+                    }
+            return {'scenarios': scenarios}
+        
+        # 4. Check analysis_results for investment_scenarios
+        if 'analysis_results' in analysis_data:
+            analysis_results = analysis_data['analysis_results']
+            if 'investment_scenarios' in analysis_results and analysis_results['investment_scenarios']:
+                investment_scenarios = analysis_results['investment_scenarios']
+                scenarios = {}
+                for level, data in investment_scenarios.items():
+                    if isinstance(data, dict):
+                        scenarios[level] = {
+                            'total_cost': data.get('total_cost', 0),
+                            'additional_revenue': data.get('additional_revenue', data.get('return', 0)),
+                            'roi_percentage': data.get('roi_percentage', data.get('roi', 0)),
+                            'payback_months': data.get('payback_months', data.get('payback_period', 0))
+                        }
+                return {'scenarios': scenarios}
+        
+        # 5. Check step-by-step analysis for economic data
         step_results = analysis_data.get('step_by_step_analysis', [])
         for step in step_results:
             if step.get('step_number') == 5 and 'economic_analysis' in step:
@@ -2879,11 +2916,11 @@ class PDFReportGenerator:
             elif 'economic_analysis' in step and step['economic_analysis']:
                 return step['economic_analysis']
         
-        # 3. Check analysis_results
+        # 6. Check for economic_forecast in nested analysis_results
         if 'analysis_results' in analysis_data:
             analysis_results = analysis_data['analysis_results']
-            if 'economic_forecast' in analysis_results:
-                return analysis_results['economic_forecast']
+            if 'analysis_results' in analysis_results and 'economic_forecast' in analysis_results['analysis_results']:
+                return analysis_results['analysis_results']['economic_forecast']
         
         return None
     
@@ -3207,6 +3244,20 @@ class PDFReportGenerator:
         story.append(Spacer(1, 12))
         
         economic_data = self._extract_economic_data(analysis_data)
+        
+        # Debug: Log what we found
+        if economic_data:
+            print(f"PDF Debug - Found economic_data: {list(economic_data.keys())}")
+            if 'scenarios' in economic_data:
+                print(f"PDF Debug - Found scenarios: {list(economic_data['scenarios'].keys())}")
+                for key, value in economic_data['scenarios'].items():
+                    if isinstance(value, dict):
+                        print(f"PDF Debug - Scenario {key}: {list(value.keys())}")
+            else:
+                print("PDF Debug - No scenarios found in economic_data")
+        else:
+            print("PDF Debug - No economic_data found")
+        
         if economic_data and 'scenarios' in economic_data:
             scenarios = economic_data['scenarios']
             
@@ -3224,7 +3275,11 @@ class PDFReportGenerator:
             for metric_name, metric_key in metrics:
                 row = [metric_name]
                 for investment_type in ['high', 'medium', 'low']:
-                    scenario_key = f"{investment_type}_investment"
+                    # Check both the direct key and the _investment suffix
+                    scenario_key = investment_type
+                    if scenario_key not in scenarios:
+                        scenario_key = f"{investment_type}_investment"
+                    
                     if scenario_key in scenarios:
                         value = scenarios[scenario_key].get(metric_key, 0)
                         if 'RM' in metric_name:
@@ -3251,6 +3306,10 @@ class PDFReportGenerator:
                 ]))
                 story.append(table)
                 story.append(Spacer(1, 12))
+        else:
+            # No economic data available
+            story.append(Paragraph("Economic forecast data not available.", self.styles['CustomBody']))
+            story.append(Spacer(1, 12))
         
         return story
     
