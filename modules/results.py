@@ -372,10 +372,10 @@ def show_results_page():
             st.info("💡 **Print Instructions:** Use Streamlit's built-in print functionality for best results")
             st.markdown("""
             **How to Print Using Streamlit:**
-            1. **Click the 3 dots (⋮) in the upper right corner** of the page
-            2. **Select "Print"** from the dropdown menu
-            3. **Streamlit will automatically:**
-               - Hide the sidebar and navigation elements
+            1. **Hide the sidebar first** (click the << in the top corner of the sidebar)
+            2. **Click the 3 dots (⋮) in the upper right corner** of the page
+            3. **Select "Print"** from the dropdown menu
+            4. **Streamlit will automatically:**
                - Remove browser headers and footers
                - Optimize the layout for printing
                - Include all content in the print output
