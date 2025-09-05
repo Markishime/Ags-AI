@@ -379,8 +379,6 @@ def show_results_page():
                - Remove browser headers and footers
                - Optimize the layout for printing
                - Include all content in the print output
-            
-            **Alternative:** You can also use `Ctrl+P` (Windows) or `Cmd+P` (Mac) for browser print
             """)
             
             col1, col2 = st.columns([1, 1])
