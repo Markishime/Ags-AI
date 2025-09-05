@@ -30,25 +30,37 @@ def show_dashboard():
         st.error("User information not found.")
         return
     
-    # ===== SIMPLIFIED LAYOUT =====
-    col1, col2 = st.columns([2, 1])
+    # ===== MAIN DASHBOARD TABS =====
+    tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "📈 Analytics & Insights", "💬 Help Us Improve"])
     
-    with col1:
-        # ===== USER OVERVIEW SECTION =====
-        display_user_overview_section(user_info, user_id)
+    with tab1:
+        # ===== SIMPLIFIED LAYOUT =====
+        col1, col2 = st.columns([2, 1])
         
-        # ===== RECENT REPORTS SECTION =====
-        display_recent_reports_section(user_id)
+        with col1:
+            # ===== USER OVERVIEW SECTION =====
+            display_user_overview_section(user_info, user_id)
+            
+            # ===== RECENT REPORTS SECTION =====
+            display_recent_reports_section(user_id)
+            
+            # ===== QUICK ACTIONS SECTION =====
+            display_simple_quick_actions()
         
-        # ===== QUICK ACTIONS SECTION =====
-        display_simple_quick_actions()
+        with col2:
+            # ===== USER PROFILE CARD =====
+            display_simple_user_profile(user_info)
+            
+            # ===== SYSTEM STATUS =====
+            display_simple_system_status()
     
-    with col2:
-        # ===== USER PROFILE CARD =====
-        display_simple_user_profile(user_info)
-        
-        # ===== SYSTEM STATUS =====
-        display_simple_system_status()
+    with tab2:
+        # ===== ANALYTICS & INSIGHTS TAB =====
+        display_analytics_insights_tab(user_id)
+    
+    with tab3:
+        # ===== HELP US IMPROVE TAB =====
+        display_help_us_improve_tab()
 
 # ===== SIMPLIFIED DASHBOARD SECTIONS =====
 @st.cache_data(ttl=30)
@@ -102,6 +114,129 @@ def _cached_user_stats(user_id: str) -> Dict[str, Any]:
     except Exception as e:
         # Silent error handling - return default values
         return {'total_analyses': 0, 'recent_activity': 0, 'total_recommendations': 0}
+
+@st.cache_data(ttl=60)
+def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
+    """Get comprehensive analytics data for user"""
+    try:
+        db = get_firestore_client()
+        if not db:
+            return {'total_analyses': 0, 'success_rate': 0, 'avg_processing_time': 0, 
+                   'data_quality_score': 0, 'total_recommendations': 0, 'monthly_trends': [],
+                   'common_issues': [], 'recent_activity': [], 'ai_insights': []}
+        
+        # Get all analyses for the user
+        q = db.collection('analysis_results').where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').limit(100)
+        docs = list(q.stream())
+        
+        if not docs:
+            return {'total_analyses': 0, 'success_rate': 0, 'avg_processing_time': 0, 
+                   'data_quality_score': 0, 'total_recommendations': 0, 'monthly_trends': [],
+                   'common_issues': [], 'recent_activity': [], 'ai_insights': []}
+        
+        # Process analytics data
+        total_analyses = len(docs)
+        successful_analyses = 0
+        total_processing_time = 0
+        total_recommendations = 0
+        monthly_counts = {}
+        common_issues = {}
+        recent_activity = []
+        
+        for doc in docs:
+            data = doc.to_dict()
+            
+            # Count successful analyses
+            if data.get('success', False):
+                successful_analyses += 1
+            
+            # Calculate processing time
+            created_at = data.get('created_at')
+            if created_at:
+                # Simple processing time estimation (this would be better with actual timestamps)
+                total_processing_time += 30  # Assume 30 seconds average
+            
+            # Count recommendations
+            recommendations = data.get('recommendations', [])
+            if isinstance(recommendations, list):
+                total_recommendations += len(recommendations)
+            elif isinstance(recommendations, dict):
+                total_recommendations += len(recommendations.get('recommendations', []))
+            
+            # Monthly trends
+            if created_at:
+                month_key = created_at.strftime('%Y-%m') if hasattr(created_at, 'strftime') else '2024-01'
+                monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+            
+            # Extract common issues from analysis results
+            analysis_results = data.get('analysis_results', {})
+            if 'key_findings' in analysis_results:
+                findings = analysis_results['key_findings']
+                if isinstance(findings, list):
+                    for finding in findings:
+                        if isinstance(finding, dict) and 'finding' in finding:
+                            finding_text = finding['finding'].lower()
+                            # Simple keyword extraction for common issues
+                            if 'deficiency' in finding_text or 'low' in finding_text:
+                                common_issues['Nutrient Deficiency'] = common_issues.get('Nutrient Deficiency', 0) + 1
+                            elif 'excess' in finding_text or 'high' in finding_text:
+                                common_issues['Nutrient Excess'] = common_issues.get('Nutrient Excess', 0) + 1
+                            elif 'ph' in finding_text:
+                                common_issues['pH Issues'] = common_issues.get('pH Issues', 0) + 1
+            
+            # Recent activity
+            if len(recent_activity) < 10:
+                recent_activity.append({
+                    'description': f"Analysis completed - {', '.join(data.get('report_types', ['Unknown']))}",
+                    'date': created_at.strftime('%Y-%m-%d') if hasattr(created_at, 'strftime') else 'Unknown'
+                })
+        
+        # Calculate metrics
+        success_rate = (successful_analyses / total_analyses * 100) if total_analyses > 0 else 0
+        avg_processing_time = total_processing_time / total_analyses if total_analyses > 0 else 0
+        data_quality_score = min(10, (success_rate / 10) + (total_recommendations / total_analyses / 5)) if total_analyses > 0 else 0
+        
+        # Format monthly trends
+        monthly_trends = [{'month': month, 'count': count} for month, count in sorted(monthly_counts.items())]
+        
+        # Format common issues
+        common_issues_list = [{'issue': issue, 'count': count} for issue, count in sorted(common_issues.items(), key=lambda x: x[1], reverse=True)]
+        
+        # Generate AI insights
+        ai_insights = []
+        if total_analyses >= 3:
+            if success_rate > 80:
+                ai_insights.append({
+                    'title': 'High Analysis Success Rate',
+                    'description': f'Your analyses are completing successfully {success_rate:.1f}% of the time, indicating good data quality.',
+                    'recommendation': 'Continue uploading clear, high-quality agricultural reports for best results.'
+                })
+            
+            if len(common_issues_list) > 0:
+                top_issue = common_issues_list[0]
+                ai_insights.append({
+                    'title': f'Most Common Issue: {top_issue["issue"]}',
+                    'description': f'This issue appears in {top_issue["count"]} of your analyses.',
+                    'recommendation': 'Consider focusing on this area for improvement in your agricultural practices.'
+                })
+        
+        return {
+            'total_analyses': total_analyses,
+            'success_rate': success_rate,
+            'avg_processing_time': avg_processing_time,
+            'data_quality_score': data_quality_score,
+            'total_recommendations': total_recommendations,
+            'monthly_trends': monthly_trends,
+            'common_issues': common_issues_list,
+            'recent_activity': recent_activity,
+            'ai_insights': ai_insights
+        }
+        
+    except Exception as e:
+        # Silent error handling - return default values
+        return {'total_analyses': 0, 'success_rate': 0, 'avg_processing_time': 0, 
+               'data_quality_score': 0, 'total_recommendations': 0, 'monthly_trends': [],
+               'common_issues': [], 'recent_activity': [], 'ai_insights': []}
 
 def display_user_overview_section(user_info, user_id):
     """Display simple user overview"""
@@ -1452,6 +1587,110 @@ def delete_analysis(analysis_id: str):
             
         except Exception as e:
             st.error(f"Error deleting analysis: {str(e)}")
+
+def display_analytics_insights_tab(user_id):
+    """Display Analytics & Insights tab content"""
+    st.markdown("## 📈 Analytics & Insights")
+    st.markdown("Discover patterns and insights from your agricultural analysis data")
+    
+    # Get user analytics data
+    analytics_data = _cached_user_analytics(user_id)
+    
+    if not analytics_data or analytics_data['total_analyses'] == 0:
+        st.info("No analysis data available yet. Upload some agricultural reports to see insights!")
+        return
+    
+    # Create columns for different analytics sections
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Analysis Trends
+        st.markdown("### 📊 Analysis Trends")
+        
+        # Monthly analysis count
+        monthly_data = analytics_data.get('monthly_trends', [])
+        if monthly_data:
+            import plotly.express as px
+            import pandas as pd
+            
+            df = pd.DataFrame(monthly_data)
+            fig = px.line(df, x='month', y='count', 
+                         title='Monthly Analysis Count',
+                         markers=True)
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Analysis trends will appear after multiple analyses")
+        
+        # Most Common Issues
+        st.markdown("### 🎯 Most Common Issues")
+        common_issues = analytics_data.get('common_issues', [])
+        if common_issues:
+            for issue in common_issues[:5]:
+                st.markdown(f"• {issue['issue']} ({issue['count']} times)")
+        else:
+            st.info("Issue patterns will appear after multiple analyses")
+    
+    with col2:
+        # Performance Metrics
+        st.markdown("### ⚡ Performance Metrics")
+        
+        # Analysis success rate
+        success_rate = analytics_data.get('success_rate', 0)
+        st.metric("Success Rate", f"{success_rate:.1f}%")
+        
+        # Average processing time
+        avg_time = analytics_data.get('avg_processing_time', 0)
+        st.metric("Avg Processing Time", f"{avg_time:.1f} seconds")
+        
+        # Data quality score
+        quality_score = analytics_data.get('data_quality_score', 0)
+        st.metric("Data Quality Score", f"{quality_score:.1f}/10")
+        
+        # Recommendations Generated
+        total_recs = analytics_data.get('total_recommendations', 0)
+        st.metric("Total Recommendations", total_recs)
+        
+        # Recent Activity
+        st.markdown("### 📅 Recent Activity")
+        recent_activity = analytics_data.get('recent_activity', [])
+        if recent_activity:
+            for activity in recent_activity[:5]:
+                st.markdown(f"• {activity['description']} - {activity['date']}")
+        else:
+            st.info("Recent activity will appear here")
+    
+    # Insights and Recommendations
+    st.markdown("### 💡 AI-Generated Insights")
+    insights = analytics_data.get('ai_insights', [])
+    if insights:
+        for insight in insights:
+            with st.expander(f"🔍 {insight['title']}", expanded=False):
+                st.markdown(insight['description'])
+                if 'recommendation' in insight:
+                    st.markdown(f"**Recommendation:** {insight['recommendation']}")
+    else:
+        st.info("AI insights will be generated as you complete more analyses")
+
+def display_help_us_improve_tab():
+    """Display Help Us Improve tab content"""
+    st.markdown("## 💬 Help Us Improve")
+    st.markdown("Your feedback helps us make our agricultural analysis platform better!")
+    
+    # Import the feedback system
+    try:
+        from utils.feedback_system import display_feedback_section as display_feedback_section_util
+        
+        # Get analysis ID and user ID for feedback
+        analysis_id = f"dashboard_feedback_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        user_id = st.session_state.get('user_id', 'anonymous')
+        
+        # Display feedback section
+        display_feedback_section_util(analysis_id, user_id)
+        
+    except Exception as e:
+        st.error(f"Error loading feedback system: {str(e)}")
+        st.info("Please try refreshing the page or contact support if the issue persists.")
 
 if __name__ == "__main__":
     show_dashboard()

@@ -132,23 +132,45 @@ class PDFReportGenerator:
         
         if is_step_by_step:
             # Comprehensive PDF format with step-by-step analysis and visualizations
-            story.extend(self._create_enhanced_executive_summary(analysis_data))
-            story.extend(self._create_enhanced_key_findings(analysis_data))
-            story.extend(self._create_comprehensive_step_by_step_analysis(analysis_data))
+            # Include ALL sections from results page to match exactly what user sees
             
-            # Enhanced Economic Analysis Section
+            # 1. Results Header (metadata)
+            story.extend(self._create_results_header_section(analysis_data, metadata))
+            
+            # 2. Raw Data Section (if enabled)
+            if options.get('include_raw_data', True):
+                story.extend(self._create_raw_data_section(analysis_data))
+            
+            # 3. Executive Summary (if enabled)
+            if options.get('include_summary', True):
+                story.extend(self._create_enhanced_executive_summary(analysis_data))
+            
+            # 4. Key Findings (if enabled)
+            if options.get('include_key_findings', True):
+                story.extend(self._create_enhanced_key_findings(analysis_data))
+            
+            # 5. Step-by-Step Analysis (if enabled)
+            if options.get('include_step_analysis', True):
+                story.extend(self._create_comprehensive_step_by_step_analysis(analysis_data))
+            
+            # 6. References (if enabled)
+            if options.get('include_references', True):
+                story.extend(self._create_references_section(analysis_data))
+            
+            # 7. Economic Analysis (always included for comprehensive analysis)
             story.extend(self._create_comprehensive_economic_analysis(analysis_data))
             
-            # Enhanced Yield Forecast and Projections
+            # 8. Yield Forecast and Projections (always included)
             story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
             story.extend(self._create_yield_projections_section(analysis_data))
             
-            # Investment Scenarios and ROI Analysis
+            # 9. Investment Scenarios and ROI Analysis (always included)
             story.extend(self._create_investment_scenarios_section(analysis_data))
             
-            # Cost-Benefit Analysis
+            # 10. Cost-Benefit Analysis (always included)
             story.extend(self._create_cost_benefit_analysis_section(analysis_data))
             
+            # 11. Conclusion (always included)
             story.extend(self._create_enhanced_conclusion(analysis_data))
         elif 'summary_metrics' in analysis_data and 'health_indicators' in analysis_data:
             # Comprehensive analysis format
@@ -811,12 +833,10 @@ class PDFReportGenerator:
             # Display key findings - exact same format as results page
             for i, finding_data in enumerate(all_key_findings, 1):
                 finding = finding_data['finding']
-                source = finding_data['source']
                 
                 # Create finding paragraph with proper formatting - exact same as results page
                 finding_text = f"<b>Key Finding {i}:</b> {finding}"
                 story.append(Paragraph(finding_text, self.styles['CustomBody']))
-                story.append(Paragraph(f"<i>📋 Source: {source}</i>", self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
         else:
             story.append(Paragraph("📋 No key findings available from the analysis results.", self.styles['CustomBody']))
@@ -1405,14 +1425,9 @@ class PDFReportGenerator:
             
             # Generate visualizations based on step number and content
             if step_number == 1:  # Data Analysis
-                # Create MPOB standards comparison if requested
-                if 'mpob standards' in combined_text or 'vs mpob standards' in combined_text:
-                    mpob_viz = self._create_mpob_standards_comparison_viz_pdf(step)
-                    if mpob_viz:
-                        visualizations.append(mpob_viz)
-                
                 # Note: Yield projection chart removed from contextual visualizations
                 # as it's now handled in the dedicated forecast graph section
+                pass
             
             elif step_number == 2:  # Issue Diagnosis
                 # Create issues severity chart
@@ -1442,32 +1457,6 @@ class PDFReportGenerator:
             logger.warning(f"Error generating contextual visualizations: {str(e)}")
             return []
     
-    def _create_mpob_standards_comparison_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Create MPOB standards comparison visualization for PDF"""
-        try:
-            # This would need to extract soil/leaf data from step
-            # For now, return a placeholder structure
-            return {
-                'type': 'actual_vs_optimal_bar',
-                'title': '📊 Soil Parameters vs MPOB Standards',
-                'subtitle': 'Comparison of current soil values against MPOB optimal standards',
-                'data': {
-                    'categories': ['pH', 'Nitrogen', 'Phosphorus', 'Potassium'],
-                    'series': [
-                        {'name': 'Current Values', 'values': [6.2, 0.15, 12.5, 0.25], 'color': '#3498db'},
-                        {'name': 'MPOB Optimal', 'values': [6.5, 0.20, 15.0, 0.30], 'color': '#e74c3c'}
-                    ]
-                },
-                'options': {
-                    'show_legend': True,
-                    'show_values': True,
-                    'y_axis_title': 'Values',
-                    'x_axis_title': 'Soil Parameters'
-                }
-            }
-        except Exception as e:
-            logger.warning(f"Error creating MPOB standards comparison: {str(e)}")
-            return None
     
     def _create_yield_projection_viz_pdf(self, yield_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Create yield projection visualization for PDF"""
@@ -2242,22 +2231,6 @@ class PDFReportGenerator:
                         story.append(Image(img_buffer, width=6*inch, height=4*inch))
                         story.append(Spacer(1, 8))
                 
-                # Create nutrient ratio diagrams
-                if soil_params.get('parameter_statistics'):
-                    soil_ratio_chart = _create_nutrient_ratio_chart(soil_params['parameter_statistics'], 'soil')
-                    if soil_ratio_chart:
-                        story.append(Paragraph("Soil Nutrient Ratios Analysis:", self.styles['Heading3']))
-                        img_buffer = io.BytesIO(soil_ratio_chart)
-                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
-                        story.append(Spacer(1, 8))
-                
-                if leaf_params.get('parameter_statistics'):
-                    leaf_ratio_chart = _create_nutrient_ratio_chart(leaf_params['parameter_statistics'], 'leaf')
-                    if leaf_ratio_chart:
-                        story.append(Paragraph("Leaf Nutrient Ratios Analysis:", self.styles['Heading3']))
-                        img_buffer = io.BytesIO(leaf_ratio_chart)
-                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
-                        story.append(Spacer(1, 8))
             
             elif step_number == 2:  # Issue Diagnosis
                 # Create issues severity chart
@@ -3740,6 +3713,142 @@ class PDFReportGenerator:
         
         return story
     
+    def _create_results_header_section(self, analysis_data: Dict[str, Any], metadata: Dict[str, Any]) -> List:
+        """Create results header section with metadata matching the results page"""
+        story = []
+        
+        # Results header
+        story.append(Paragraph("Analysis Results", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        # Create metadata table similar to results page
+        metadata_data = []
+        
+        # Analysis Date
+        timestamp = metadata.get('timestamp') or analysis_data.get('timestamp')
+        if timestamp:
+            if hasattr(timestamp, 'strftime'):
+                formatted_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                formatted_time = str(timestamp)
+            metadata_data.append(['Analysis Date', formatted_time])
+        
+        # Report Types
+        report_types = analysis_data.get('report_types', ['soil', 'leaf'])
+        if report_types:
+            metadata_data.append(['Report Types', ', '.join(report_types)])
+        
+        # Status
+        status = analysis_data.get('status', 'Completed')
+        metadata_data.append(['Status', status.title()])
+        
+        # User Email (if available)
+        user_email = analysis_data.get('user_email')
+        if user_email:
+            metadata_data.append(['User', user_email])
+        
+        if metadata_data:
+            metadata_table = Table(metadata_data)
+            metadata_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(metadata_table)
+            story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_raw_data_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create raw data section for PDF"""
+        story = []
+        
+        # Raw Data header
+        story.append(Paragraph("Raw Analysis Data", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        # Get raw data from analysis
+        raw_data = analysis_data.get('raw_data', {})
+        soil_params = raw_data.get('soil_parameters', {}).get('parameter_statistics', {})
+        leaf_params = raw_data.get('leaf_parameters', {}).get('parameter_statistics', {})
+        
+        # Soil parameters table
+        if soil_params:
+            story.append(Paragraph("Soil Analysis Parameters", self.styles['Heading2']))
+            story.append(Spacer(1, 8))
+            
+            # Create soil parameters table
+            soil_data = [['Parameter', 'Average', 'Min', 'Max', 'Unit']]
+            for param, data in soil_params.items():
+                if isinstance(data, dict) and 'average' in data:
+                    unit = data.get('unit', '')
+                    soil_data.append([
+                        param.replace('_', ' ').title(),
+                        f"{data.get('average', 0):.2f}",
+                        f"{data.get('min', 0):.2f}",
+                        f"{data.get('max', 0):.2f}",
+                        unit
+                    ])
+            
+            if len(soil_data) > 1:
+                soil_table = Table(soil_data)
+                soil_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4CAF50')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(soil_table)
+                story.append(Spacer(1, 12))
+        
+        # Leaf parameters table
+        if leaf_params:
+            story.append(Paragraph("Leaf Analysis Parameters", self.styles['Heading2']))
+            story.append(Spacer(1, 8))
+            
+            # Create leaf parameters table
+            leaf_data = [['Parameter', 'Average', 'Min', 'Max', 'Unit']]
+            for param, data in leaf_params.items():
+                if isinstance(data, dict) and 'average' in data:
+                    unit = data.get('unit', '')
+                    leaf_data.append([
+                        param.replace('_', ' ').title(),
+                        f"{data.get('average', 0):.2f}",
+                        f"{data.get('min', 0):.2f}",
+                        f"{data.get('max', 0):.2f}",
+                        unit
+                    ])
+            
+            if len(leaf_data) > 1:
+                leaf_table = Table(leaf_data)
+                leaf_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')),
+                    ('TEXTCOLOR', (0, 0), (-1, -1), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.lightblue),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                story.append(leaf_table)
+                story.append(Spacer(1, 12))
+        
+        if not soil_params and not leaf_params:
+            story.append(Paragraph("No raw data available for this analysis.", self.styles['CustomBody']))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
     def _create_references_section(self, analysis_data: Dict[str, Any]) -> List:
         """Create references section for step-by-step analysis"""
         story = []
@@ -3961,115 +4070,3 @@ def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_t
         logger.warning(f"Error creating actual vs optimal chart: {e}")
         return None
 
-def _create_nutrient_ratio_chart(parameter_stats: Dict[str, Any], parameter_type: str) -> Optional[bytes]:
-    """Create nutrient ratio analysis chart for PDF"""
-    try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-        
-        # Calculate nutrient ratios
-        ratios = _calculate_nutrient_ratios_pdf(parameter_stats, parameter_type)
-        
-        if not ratios:
-            return None
-        
-        # Create radar chart
-        fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
-        
-        # Extract data for radar chart
-        categories = [ratio['name'] for ratio in ratios]
-        values = [ratio['value'] for ratio in ratios]
-        statuses = [ratio['status'] for ratio in ratios]
-        
-        # Normalize values for radar chart (0-1 scale)
-        max_val = max(values) if values else 1
-        normalized_values = [v / max_val for v in values]
-        
-        # Angles for each category
-        angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
-        angles += angles[:1]  # Complete the circle
-        normalized_values += normalized_values[:1]  # Complete the circle
-        
-        # Plot the radar chart
-        ax.plot(angles, normalized_values, 'o-', linewidth=2, label='Current Ratios')
-        ax.fill(angles, normalized_values, alpha=0.25)
-        
-        # Add optimal zone (normalized to 0.5-0.8 range)
-        optimal_zone = [0.6] * len(angles)
-        ax.plot(angles, optimal_zone, '--', color='green', alpha=0.7, label='Optimal Zone')
-        
-        # Set labels
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(categories)
-        ax.set_ylim(0, 1)
-        ax.set_title(f'{parameter_type.title()} Nutrient Ratios Analysis', fontsize=14, fontweight='bold', pad=20)
-        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
-        ax.grid(True)
-        
-        plt.tight_layout()
-        
-        # Save to bytes
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        img_buffer.seek(0)
-        chart_bytes = img_buffer.getvalue()
-        
-        plt.clf()
-        plt.close('all')
-        
-        return chart_bytes
-        
-    except Exception as e:
-        logger.warning(f"Error creating nutrient ratio chart: {e}")
-        return None
-
-def _calculate_nutrient_ratios_pdf(parameter_stats: Dict[str, Any], parameter_type: str) -> List[Dict[str, Any]]:
-    """Calculate key nutrient ratios for PDF analysis"""
-    try:
-        ratios = []
-        
-        if parameter_type == 'soil':
-            # Key soil nutrient ratios
-            ratio_definitions = {
-                'N:P': {'numerator': 'Nitrogen_%', 'denominator': 'Total_P_mg_kg', 'optimal_range': (10, 20)},
-                'K:Mg': {'numerator': 'Exchangeable_K_meq%', 'denominator': 'Exchangeable_Mg_meq%', 'optimal_range': (2, 5)},
-                'Ca:Mg': {'numerator': 'Exchangeable_Ca_meq%', 'denominator': 'Exchangeable_Mg_meq%', 'optimal_range': (3, 7)},
-                'CEC:Base': {'numerator': 'CEC_meq%', 'denominator': 'Exchangeable_K_meq%', 'optimal_range': (5, 15)}
-            }
-        else:  # leaf
-            # Key leaf nutrient ratios
-            ratio_definitions = {
-                'N:P': {'numerator': 'N_%', 'denominator': 'P_%', 'optimal_range': (10, 20)},
-                'K:Mg': {'numerator': 'K_%', 'denominator': 'Mg_%', 'optimal_range': (2, 5)},
-                'Ca:Mg': {'numerator': 'Ca_%', 'denominator': 'Mg_%', 'optimal_range': (3, 7)},
-                'N:K': {'numerator': 'N_%', 'denominator': 'K_%', 'optimal_range': (1, 3)}
-            }
-        
-        for ratio_name, ratio_info in ratio_definitions.items():
-            num_key = ratio_info['numerator']
-            den_key = ratio_info['denominator']
-            optimal_range = ratio_info['optimal_range']
-            
-            if num_key in parameter_stats and den_key in parameter_stats:
-                numerator_val = parameter_stats[num_key].get('average', 0)
-                denominator_val = parameter_stats[den_key].get('average', 0)
-                
-                if denominator_val > 0:
-                    ratio_value = numerator_val / denominator_val
-                    status = 'optimal' if optimal_range[0] <= ratio_value <= optimal_range[1] else 'suboptimal'
-                    
-                    ratios.append({
-                        'name': ratio_name,
-                        'value': round(ratio_value, 2),
-                        'numerator': num_key,
-                        'denominator': den_key,
-                        'optimal_range': optimal_range,
-                        'status': status,
-                        'description': f"{num_key} to {den_key} ratio"
-                    })
-        
-        return ratios
-        
-    except Exception as e:
-        logger.warning(f"Error calculating nutrient ratios: {e}")
-        return []

@@ -72,6 +72,147 @@ def add_responsive_css():
             }
         }
         
+        /* Print-specific styles */
+        @media print {
+            /* Hide browser print headers and footers */
+            @page {
+                margin: 0.5in;
+                @top-left { content: ""; }
+                @top-center { content: ""; }
+                @top-right { content: ""; }
+                @bottom-left { content: ""; }
+                @bottom-center { content: ""; }
+                @bottom-right { content: ""; }
+            }
+            
+            /* Alternative method to hide headers/footers */
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            .print-only {
+                display: block !important;
+            }
+            
+            body {
+                font-size: 12pt;
+                line-height: 1.4;
+                color: #000 !important;
+                background: #fff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .main-title {
+                font-size: 18pt !important;
+                color: #000 !important;
+            }
+            
+            .section-title {
+                font-size: 14pt !important;
+                color: #000 !important;
+            }
+            
+            .metric-container {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            
+            .step-block {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 20pt;
+            }
+            
+            .chart-container {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            
+            /* Hide Streamlit elements that shouldn't print */
+            .stApp > header,
+            .stApp > div[data-testid="stHeader"],
+            .stApp > div[data-testid="stSidebar"],
+            .stApp > div[data-testid="stToolbar"],
+            .stApp > div[data-testid="stDecoration"],
+            .stApp > div[data-testid="stStatusWidget"],
+            .stApp > div[data-testid="stNotificationContainer"],
+            .stApp > div[data-testid="stSidebar"] {
+                display: none !important;
+            }
+            
+            /* Hide specific sections when printing */
+            .feedback-section,
+            .help-us-improve,
+            .stButton > button,
+            .print-hide {
+                display: none !important;
+            }
+            
+            /* Ensure raw data section is visible when printing */
+            .raw-data-section {
+                display: block !important;
+            }
+            
+            /* Show print indicators */
+            .print-show {
+                display: block !important;
+            }
+            
+            /* Hide everything after references section when printing */
+            .references-section ~ * {
+                display: none !important;
+            }
+            
+            /* Hide the entire sidebar area */
+            .stApp > div[data-testid="stSidebar"] {
+                display: none !important;
+            }
+            
+            /* Ensure main content takes full width when printing */
+            .stApp > div[data-testid="stAppViewContainer"] {
+                width: 100% !important;
+                max-width: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* Ensure all content is visible in print */
+            .stApp > div[data-testid="stAppViewContainer"] {
+                width: 100% !important;
+                max-width: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* Print-friendly button styling */
+            .stButton > button {
+                display: none !important;
+            }
+            
+            /* Print-friendly table styling */
+            .dataframe {
+                border: 1px solid #000 !important;
+                border-collapse: collapse !important;
+            }
+            
+            .dataframe th,
+            .dataframe td {
+                border: 1px solid #000 !important;
+                padding: 8pt !important;
+            }
+            
+            .dataframe th {
+                background-color: #f0f0f0 !important;
+                color: #000 !important;
+            }
+        }
+        
         /* Step container styling */
         .step-container {
             background-color: #ffffff;
@@ -186,14 +327,82 @@ def show_results_page():
                 st.rerun()
         return
     
-    # Responsive page header with refresh functionality
-    header_col1, header_col2 = st.columns([5, 1])
-    with header_col1:
-        st.markdown('<h1 class="main-title">🔍 Analysis Results</h1>', unsafe_allow_html=True)
-    with header_col2:
+    # Responsive page header with centered title and buttons below
+    st.markdown('<h1 class="main-title" style="text-align: center;">🔍 Analysis Results</h1>', unsafe_allow_html=True)
+    
+    # Button row below the title
+    button_col1, button_col2, button_col3 = st.columns([1, 1, 1])
+    with button_col1:
         if st.button("🔄 Refresh", type="secondary", width='stretch'):
             st.cache_data.clear()
             st.rerun()
+    with button_col2:
+        pass  # Empty column for spacing
+    with button_col3:
+        if st.button("🖨️ Print", type="primary", width='stretch'):
+            st.session_state['show_print_instructions'] = True
+            st.rerun()
+    
+    # Show print instructions if button was clicked
+    if st.session_state.get('show_print_instructions', False):
+        with st.container():
+            st.info("💡 **Print Instructions:** Press `Ctrl+P` (Windows) or `Cmd+P` (Mac) to print this page")
+            st.markdown("""
+            **Important Print Settings:**
+            - **Hide Sidebar:** Hide the sidebar when printing
+            - **Remove Headers/Footers:** 
+              - **Chrome/Edge:** In print dialog, click "More settings" → Uncheck "Headers and footers"
+              - **Firefox:** In print dialog, click "More Settings" → Uncheck "Print headers and footers"  
+              - **Safari:** In print dialog, click "Show Details" → Uncheck "Print headers and footers"
+            """)
+            
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("✅ Got it, close this message", type="secondary"):
+                    st.session_state['show_print_instructions'] = False
+                    st.rerun()
+                    # Use JavaScript to open print dialog with custom settings
+                    st.markdown("""
+                    <script>
+                    // Function to hide browser headers/footers and sidebar
+                    function hidePrintElements() {
+                        // Add CSS to hide browser print elements and sidebar
+                        var style = document.createElement('style');
+                        style.textContent = `
+                            @media print {
+                                @page {
+                                    margin: 0.5in;
+                                    @top-left { content: ""; }
+                                    @top-center { content: ""; }
+                                    @top-right { content: ""; }
+                                    @bottom-left { content: ""; }
+                                    @bottom-center { content: ""; }
+                                    @bottom-right { content: ""; }
+                                }
+                                body {
+                                    -webkit-print-color-adjust: exact;
+                                    print-color-adjust: exact;
+                                }
+                                /* Hide sidebar and other UI elements when printing */
+                                .stApp > div[data-testid="stSidebar"],
+                                .stApp > header,
+                                .stApp > div[data-testid="stHeader"],
+                                .stApp > div[data-testid="stToolbar"],
+                                .stApp > div[data-testid="stDecoration"],
+                                .stApp > div[data-testid="stStatusWidget"],
+                                .stApp > div[data-testid="stNotificationContainer"] {
+                                    display: none !important;
+                                }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    
+                    // Hide elements and print
+                    hidePrintElements();
+                    window.print();
+                    </script>
+                    """, unsafe_allow_html=True)
     
     # Check for new analysis data and process it
     try:
@@ -271,17 +480,19 @@ def show_results_page():
             return
         
         # Display results in organized sections
+        st.markdown('<div class="print-show">', unsafe_allow_html=True)
         display_results_header(results_data)
         display_raw_data_section(results_data)  # Add raw data display
         display_summary_section(results_data)
         display_key_findings_section(results_data)  # Key Findings below Executive Summary
         display_step_by_step_results(results_data)
         display_references_section(results_data)  # Display references after step-by-step analysis
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # Display feedback section after step-by-step analysis
-        display_feedback_section(results_data)
+        # Add a marker for print cutoff
+        st.markdown('<div class="references-section"></div>', unsafe_allow_html=True)
         
-        display_download_section(results_data)
+        
         
     except Exception as e:
         st.error(f"❌ Error processing analysis: {str(e)}")
@@ -816,6 +1027,9 @@ def display_raw_data_section(results_data):
     st.markdown("---")
     st.markdown("## 📊 Raw Extracted Data")
     
+    # Add CSS class for print visibility
+    st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
+    
     # Get raw data from multiple possible locations
     # 1. Direct from results_data (for new analysis)
     soil_data = results_data.get('soil_data', {})
@@ -865,14 +1079,17 @@ def display_raw_data_section(results_data):
     if leaf_data and 'parameter_statistics' in leaf_data:
         logger.info(f"Leaf parameter statistics found: {len(leaf_data['parameter_statistics'])} parameters")
     
-    # Create tabs for soil and leaf data
+    # Display soil and leaf data directly without tabs
     if soil_data or leaf_data:
-        tab1, tab2 = st.tabs(["🌱 Soil Analysis Data", "🍃 Leaf Analysis Data"])
-        
-        with tab1:
+        # Display soil data
+        if soil_data:
+            st.markdown("### 🌱 Soil Analysis Data")
             display_soil_data_table(soil_data)
+            st.markdown("")  # Add spacing
         
-        with tab2:
+        # Display leaf data
+        if leaf_data:
+            st.markdown("### 🍃 Leaf Analysis Data")
             display_leaf_data_table(leaf_data)
     else:
         st.info("📋 No raw data available for this analysis.")
@@ -1194,6 +1411,9 @@ def display_leaf_data_table(leaf_data):
             st.info("🍃 Data processed successfully.")
     else:
         st.info("🍃 No leaf data available.")
+    
+    # Close the raw data section div
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def display_summary_section(results_data):
     """Display a comprehensive 20-sentence Executive Summary with agronomic focus"""
@@ -2172,15 +2392,13 @@ def display_key_findings_section(results_data):
         # Display key findings
         for i, finding_data in enumerate(all_key_findings, 1):
             finding = finding_data['finding']
-            source = finding_data['source']
             
             # Enhanced finding display with bold numbering
             st.markdown(
                 f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
-                f'<p style="margin: 0 0 8px 0; font-size: 18px; line-height: 1.6; color: #2c3e50;">'
+                f'<p style="margin: 0; font-size: 18px; line-height: 1.6; color: #2c3e50;">'
                 f'<strong style="color: #007bff; font-size: 20px;">Key Finding {i}:</strong> {finding}'
                 f'</p>'
-                f'<p style="margin: 0; font-size: 13px; color: #6c757d; font-style: italic;">📋 Source: {source}</p>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -2669,16 +2887,6 @@ def generate_contextual_visualizations(step_result, analysis_data):
                 if leaf_viz:
                     visualizations.append(leaf_viz)
             
-            # Create nutrient ratio diagrams
-            if soil_params.get('parameter_statistics'):
-                soil_ratio_viz = create_nutrient_ratio_viz(soil_params['parameter_statistics'], 'soil')
-                if soil_ratio_viz:
-                    visualizations.append(soil_ratio_viz)
-            
-            if leaf_params.get('parameter_statistics'):
-                leaf_ratio_viz = create_nutrient_ratio_viz(leaf_params['parameter_statistics'], 'leaf')
-                if leaf_ratio_viz:
-                    visualizations.append(leaf_ratio_viz)
             
             # Create MPOB standards comparison if requested
             if 'mpob standards' in combined_text or 'vs mpob standards' in combined_text:
@@ -5537,137 +5745,6 @@ def display_feedback_section(results_data):
         # Don't show error to user, just skip feedback section
         pass
 
-def display_download_section(results_data):
-    """Display download options for results with responsive layout"""
-    st.markdown("---")
-    st.markdown("## 📥 Download Results")
-    
-
-    
-    # Responsive download button layout
-    if st.session_state.get('mobile_view', False):
-        # Mobile: single column layout
-        download_col1 = st.container()
-        download_col2 = st.container()
-        download_col3 = st.container()
-    else:
-        # Desktop: three column layout
-        download_col1, download_col2, download_col3 = st.columns([1, 1, 1])
-    
-    with download_col1:
-        if st.button("📄 Download PDF Report", type="primary", width='stretch'):
-            try:
-                pdf_generator = PDFReportGenerator()
-                
-                # Prepare options dictionary
-                options = {
-                    'include_charts': True,
-                    'include_economic': True,
-                    'include_forecast': True
-                }
-                
-                # Prepare analysis data for PDF generation
-                analysis_data = results_data.get('analysis_results', {})
-                
-                # If analysis_results is empty, use the full results_data
-                if not analysis_data:
-                    analysis_data = results_data
-                
-                # Ensure economic_forecast is available at the top level
-                if 'economic_forecast' in results_data and 'economic_forecast' not in analysis_data:
-                    analysis_data['economic_forecast'] = results_data['economic_forecast']
-                
-                pdf_bytes = pdf_generator.generate_report(
-                    analysis_data,
-                    metadata={
-                        'timestamp': results_data.get('timestamp'),
-                        'user_email': results_data.get('user_email'),
-                        'report_types': results_data.get('report_types', [])
-                    },
-                    options=options
-                )
-                
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"agricultural_analysis_report_{timestamp}.pdf"
-                
-                st.download_button(
-                    label="💾 Save PDF",
-                    data=pdf_bytes,
-                    file_name=filename,
-                    mime="application/pdf",
-                    width='stretch'
-                )
-                
-            except Exception as e:
-                st.error(f"Error generating PDF: {str(e)}")
-    
-    with download_col2:
-        if st.button("📈 Download Charts (CSV)", width='stretch'):
-            try:
-                # Extract chart data for CSV export
-                chart_data = extract_chart_data(results_data)
-                
-                if chart_data:
-                    df = pd.DataFrame(chart_data)
-                    csv_data = df.to_csv(index=False)
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"analysis_charts_{timestamp}.csv"
-                    
-                    st.download_button(
-                        label="💾 Save CSV",
-                        data=csv_data,
-                        file_name=filename,
-                        mime="text/csv",
-                        width='stretch'
-                    )
-                else:
-                    st.info("No chart data available for export.")
-                    
-            except Exception as e:
-                st.error(f"Error preparing CSV download: {str(e)}")
-    
-
-
-def extract_chart_data(results_data):
-    """Extract chart data for CSV export"""
-    chart_data = []
-    
-    try:
-        comprehensive_analysis = results_data.get('comprehensive_analysis', {})
-        step_results = comprehensive_analysis.get('step_results', [])
-        
-        for step in step_results:
-            analysis_data = step.get('analysis_data', {})
-            
-            # Extract forecast data
-            if 'yield_projections' in analysis_data:
-                forecast_data = analysis_data['yield_projections']
-                years = list(range(2024, 2029))
-                
-                for i, year in enumerate(years):
-                    row = {'Year': year, 'Metric': 'Yield Projection'}
-                    for level in ['high', 'medium', 'low']:
-                        if level in forecast_data and i < len(forecast_data[level]):
-                            row[f'{level.title()}_Investment'] = forecast_data[level][i]
-                    chart_data.append(row)
-            
-            # Extract economic data
-            if 'investment_scenarios' in analysis_data:
-                scenarios = analysis_data['investment_scenarios']
-                for scenario, data in scenarios.items():
-                    chart_data.append({
-                        'Scenario': scenario.title(),
-                        'Metric': 'Economic Analysis',
-                        'Total_Cost': data.get('total_cost', 0),
-                        'Yield_Increase': data.get('yield_increase', 0),
-                        'ROI': data.get('roi', 0)
-                    })
-        
-        return chart_data
-        
-    except Exception as e:
-        st.error(f"Error extracting chart data: {str(e)}")
-        return []
 
 def create_mpob_standards_comparison_viz(soil_params, leaf_params):
     """Create MPOB standards comparison visualization"""
@@ -6068,4 +6145,150 @@ def create_plantation_vs_mpob_viz(soil_params, leaf_params):
     except Exception as e:
         logger.error(f"Error creating plantation vs MPOB visualization: {e}")
         return None
+
+def _removed_display_print_dialog(results_data):
+    """Display print PDF dialog with options"""
+    st.markdown("---")
+    st.markdown("## 🖨️ Print to PDF")
+    
+    with st.container():
+        st.info("📄 **Print Options:** Choose what to include in your PDF report")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Print options
+            include_raw_data = st.checkbox("📊 Include Raw Data Tables", value=True, help="Include soil and leaf analysis data tables")
+            include_summary = st.checkbox("📋 Include Executive Summary", value=True, help="Include the executive summary section")
+            include_key_findings = st.checkbox("🎯 Include Key Findings", value=True, help="Include key findings section")
+            include_step_analysis = st.checkbox("🔬 Include Step-by-Step Analysis", value=True, help="Include detailed step-by-step analysis")
+            include_references = st.checkbox("📚 Include References", value=True, help="Include research references")
+            include_charts = st.checkbox("📈 Include Charts & Visualizations", value=True, help="Include all charts and visualizations")
+            
+            # PDF options
+            st.markdown("**PDF Options:**")
+            pdf_title = st.text_input("📝 PDF Title", value="Agricultural Analysis Report", help="Custom title for the PDF")
+            include_timestamp = st.checkbox("⏰ Include Timestamp", value=True, help="Add timestamp to PDF header")
+            
+        with col2:
+            st.markdown("**Preview:**")
+            st.markdown(f"📄 **Title:** {pdf_title}")
+            st.markdown(f"📅 **Date:** {results_data.get('timestamp', 'N/A')}")
+            st.markdown(f"📊 **Sections:** {sum([include_raw_data, include_summary, include_key_findings, include_step_analysis, include_references, include_charts])} selected")
+            
+            # Debug information
+            if st.checkbox("🔍 Show Debug Info", help="Show data structure information for troubleshooting"):
+                st.markdown("**Data Structure:**")
+                analysis_results = results_data.get('analysis_results', {})
+                st.markdown(f"• Analysis Results: {'✅' if analysis_results else '❌'}")
+                st.markdown(f"• Step-by-Step Analysis: {'✅' if analysis_results.get('step_by_step_analysis') else '❌'}")
+                st.markdown(f"• Raw Data: {'✅' if analysis_results.get('raw_data') else '❌'}")
+                st.markdown(f"• Economic Forecast: {'✅' if results_data.get('economic_forecast') else '❌'}")
+                st.markdown(f"• Yield Forecast: {'✅' if results_data.get('yield_forecast') else '❌'}")
+            
+            # Generate PDF button
+            if st.button("🖨️ Generate PDF", type="primary", width='stretch'):
+                with st.spinner("🔄 Generating PDF report..."):
+                    try:
+                        # Generate PDF with selected options
+                        pdf_bytes = generate_results_pdf(
+                            results_data,
+                            include_raw_data=include_raw_data,
+                            include_summary=include_summary,
+                            include_key_findings=include_key_findings,
+                            include_step_analysis=include_step_analysis,
+                            include_references=include_references,
+                            include_charts=include_charts,
+                            pdf_title=pdf_title,
+                            include_timestamp=include_timestamp
+                        )
+                        
+                        if pdf_bytes:
+                            # Provide download button
+                            st.success("✅ PDF generated successfully!")
+                            
+                            # Create download button
+                            st.download_button(
+                                label="📥 Download PDF Report",
+                                data=pdf_bytes,
+                                file_name=f"{pdf_title.replace(' ', '_')}_{results_data.get('timestamp', 'report')}.pdf",
+                                mime="application/pdf",
+                                type="primary"
+                            )
+                            
+                            # PDF generated successfully - no need to close dialog since it's always visible
+                        else:
+                            st.error("❌ Failed to generate PDF. Please check the logs for more details.")
+                            st.info("💡 **Troubleshooting:** Make sure your analysis data is complete and try again.")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error generating PDF: {str(e)}")
+                        st.info("💡 **Troubleshooting:** This might be due to missing analysis data. Please try refreshing the page and running the analysis again.")
+                        logger.error(f"PDF generation error: {e}")
+                        import traceback
+                        logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+
+def _removed_generate_results_pdf(results_data, include_raw_data=True, include_summary=True, 
+                        include_key_findings=True, include_step_analysis=True, 
+                        include_references=True, include_charts=True, 
+                        pdf_title="Agricultural Analysis Report", include_timestamp=True):
+    """Generate PDF from results page content"""
+    try:
+        from utils.pdf_utils import PDFReportGenerator
+        
+        # Prepare analysis data for PDF generation (same as existing download functionality)
+        analysis_data = results_data.get('analysis_results', {})
+        
+        # If analysis_results is empty, use the full results_data
+        if not analysis_data:
+            analysis_data = results_data
+        
+        # Ensure economic_forecast is available at the top level
+        if 'economic_forecast' in results_data and 'economic_forecast' not in analysis_data:
+            analysis_data['economic_forecast'] = results_data['economic_forecast']
+        
+        # Ensure yield_forecast is available at the top level
+        if 'yield_forecast' in results_data and 'yield_forecast' not in analysis_data:
+            analysis_data['yield_forecast'] = results_data['yield_forecast']
+        
+        # Create metadata for PDF
+        metadata = {
+            'title': pdf_title,
+            'timestamp': results_data.get('timestamp'),
+            'include_timestamp': include_timestamp,
+            'sections': {
+                'raw_data': include_raw_data,
+                'summary': include_summary,
+                'key_findings': include_key_findings,
+                'step_analysis': include_step_analysis,
+                'references': include_references,
+                'charts': include_charts
+            }
+        }
+        
+        # Create PDF options
+        options = {
+            'include_economic': True,
+            'include_forecast': True,
+            'include_charts': include_charts,
+            'include_raw_data': include_raw_data,
+            'include_summary': include_summary,
+            'include_key_findings': include_key_findings,
+            'include_step_analysis': include_step_analysis,
+            'include_references': include_references
+        }
+        
+        # Generate PDF using existing PDF utils
+        generator = PDFReportGenerator()
+        pdf_bytes = generator.generate_report(analysis_data, metadata, options)
+        
+        return pdf_bytes
+        
+    except Exception as e:
+        logger.error(f"Error generating results PDF: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return None
+
 

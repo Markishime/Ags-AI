@@ -577,19 +577,23 @@ def _group_findings_by_parameter(step_findings):
                     if finding_text.lower() != main_finding.lower():
                         additional_details.append(finding_text)
                 
-                # Create consolidated finding
-                if additional_details:
-                    consolidated_finding = f"{main_finding} Additionally, {' '.join(additional_details[:2])}"  # Limit to 2 additional details
-                else:
-                    consolidated_finding = main_finding
+                # Create consolidated finding by intelligently merging all findings for this parameter
+                all_findings_text = [f['finding'] for f in param_info['findings']]
                 
-                # Use the most comprehensive source
-                sources = [f['source'] for f in param_info['findings']]
-                consolidated_source = f"{param_info['parameter_name']} Analysis ({', '.join(set(sources))})"
+                # Use the most comprehensive finding as base, then add unique details from others
+                consolidated_finding = main_finding
+                
+                # Add unique details from other findings that aren't already covered
+                for finding_text in additional_details:
+                    # Check if this finding adds new information
+                    if not any(phrase in consolidated_finding.lower() for phrase in finding_text.lower().split()[:3]):
+                        # Add only the most important new information
+                        key_phrases = finding_text.split('.')
+                        if key_phrases:
+                            consolidated_finding += f" {key_phrases[0].strip()}."
                 
                 consolidated_findings.append({
-                    'finding': consolidated_finding,
-                    'source': consolidated_source
+                    'finding': consolidated_finding
                 })
     
     return consolidated_findings
@@ -615,8 +619,7 @@ def _generate_intelligent_key_findings(analysis_data, step_results):
             if isinstance(finding, str) and finding.strip():
                 cleaned_finding = _clean_finding_text(finding.strip())
                 all_key_findings.append({
-                    'finding': cleaned_finding,
-                    'source': 'Overall Analysis'
+                    'finding': cleaned_finding
                 })
     
     # 2. Extract key findings from step-by-step analysis with intelligent processing
@@ -682,8 +685,7 @@ def _generate_intelligent_key_findings(analysis_data, step_results):
                             cleaned_finding = _clean_finding_text(finding.strip())
                             if cleaned_finding and len(cleaned_finding) > 20:  # Minimum length filter
                                 step_findings.append({
-                                    'finding': cleaned_finding,
-                                    'source': f"{step_title} ({source_type.replace('_', ' ').title()})"
+                                    'finding': cleaned_finding
                                 })
         
         # Apply intelligent deduplication to step findings with parameter-based grouping
@@ -706,8 +708,7 @@ def _generate_intelligent_key_findings(analysis_data, step_results):
         
         if land_size > 0:
             all_key_findings.append({
-                'finding': f"Farm analysis covers {land_size} {land_unit} of agricultural land with current production of {current_yield} {yield_unit}.",
-                'source': 'Land & Yield Data'
+                'finding': f"Farm analysis covers {land_size} {land_unit} of agricultural land with current production of {current_yield} {yield_unit}."
             })
     
     # Economic forecast
@@ -724,8 +725,7 @@ def _generate_intelligent_key_findings(analysis_data, step_results):
             
             if best_roi > 0:
                 all_key_findings.append({
-                    'finding': f"Economic analysis shows {best_scenario} investment level offers the best ROI of {best_roi:.1f}% with {scenarios[best_scenario].get('payback_months', 0):.1f} months payback period.",
-                    'source': 'Economic Forecast'
+                    'finding': f"Economic analysis shows {best_scenario} investment level offers the best ROI of {best_roi:.1f}% with {scenarios[best_scenario].get('payback_months', 0):.1f} months payback period."
                 })
     
     # Yield forecast
@@ -736,8 +736,7 @@ def _generate_intelligent_key_findings(analysis_data, step_results):
         if projected_yield > 0 and current_yield > 0:
             increase = ((projected_yield - current_yield) / current_yield) * 100
             all_key_findings.append({
-                'finding': f"Yield projection indicates potential increase from {current_yield} to {projected_yield} tonnes/hectare ({increase:.1f}% improvement) with proper management.",
-                'source': 'Yield Forecast'
+                'finding': f"Yield projection indicates potential increase from {current_yield} to {projected_yield} tonnes/hectare ({increase:.1f}% improvement) with proper management."
             })
     
     return all_key_findings
@@ -766,18 +765,15 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
         if ph_value > 0:
             if ph_value < 5.5:
                 findings.append({
-                    'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development.",
-                    'source': 'Soil Analysis - pH'
+                    'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development."
                 })
             elif ph_value > 7.5:
                 findings.append({
-                    'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
-                    'source': 'Soil Analysis - pH'
+                    'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc."
                 })
             else:
                 findings.append({
-                    'finding': f"Soil pH is within optimal range at {ph_value:.1f}, providing good conditions for nutrient availability and root development.",
-                    'source': 'Soil Analysis - pH'
+                    'finding': f"Soil pH is within optimal range at {ph_value:.1f}, providing good conditions for nutrient availability and root development."
                 })
     
     # 2. Soil Nitrogen Analysis
@@ -788,18 +784,15 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
         if n_value > 0:
             if n_value < n_optimal * 0.7:
                 findings.append({
-                    'finding': f"Soil nitrogen is critically deficient at {n_value:.2f}%, well below optimal level of {n_optimal:.2f}%. This severely limits plant growth and leaf development.",
-                    'source': 'Soil Analysis - Nitrogen'
+                    'finding': f"Soil nitrogen is critically deficient at {n_value:.2f}%, well below optimal level of {n_optimal:.2f}%. This severely limits plant growth and leaf development."
                 })
             elif n_value > n_optimal * 1.3:
                 findings.append({
-                    'finding': f"Soil nitrogen is excessive at {n_value:.2f}%, above optimal level of {n_optimal:.2f}%. This may cause nutrient imbalances and environmental concerns.",
-                    'source': 'Soil Analysis - Nitrogen'
+                    'finding': f"Soil nitrogen is excessive at {n_value:.2f}%, above optimal level of {n_optimal:.2f}%. This may cause nutrient imbalances and environmental concerns."
                 })
             else:
                 findings.append({
-                    'finding': f"Soil nitrogen is adequate at {n_value:.2f}%, within optimal range for healthy plant growth.",
-                    'source': 'Soil Analysis - Nitrogen'
+                    'finding': f"Soil nitrogen is adequate at {n_value:.2f}%, within optimal range for healthy plant growth."
                 })
     
     # 3. Soil Phosphorus Analysis
@@ -810,18 +803,15 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
         if p_value > 0:
             if p_value < p_optimal * 0.5:
                 findings.append({
-                    'finding': f"Available phosphorus is critically low at {p_value:.1f} mg/kg, severely below optimal level of {p_optimal} mg/kg. This limits root development and energy transfer.",
-                    'source': 'Soil Analysis - Phosphorus'
+                    'finding': f"Available phosphorus is critically low at {p_value:.1f} mg/kg, severely below optimal level of {p_optimal} mg/kg. This limits root development and energy transfer."
                 })
             elif p_value > p_optimal * 2:
                 findings.append({
-                    'finding': f"Available phosphorus is excessive at {p_value:.1f} mg/kg, well above optimal level of {p_optimal} mg/kg. This may cause nutrient lockup and environmental issues.",
-                    'source': 'Soil Analysis - Phosphorus'
+                    'finding': f"Available phosphorus is excessive at {p_value:.1f} mg/kg, well above optimal level of {p_optimal} mg/kg. This may cause nutrient lockup and environmental issues."
                 })
             else:
                 findings.append({
-                    'finding': f"Available phosphorus is adequate at {p_value:.1f} mg/kg, within optimal range for proper plant development.",
-                    'source': 'Soil Analysis - Phosphorus'
+                    'finding': f"Available phosphorus is adequate at {p_value:.1f} mg/kg, within optimal range for proper plant development."
                 })
     
     # 4. Soil Potassium Analysis
@@ -832,18 +822,15 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
         if k_value > 0:
             if k_value < k_optimal * 0.6:
                 findings.append({
-                    'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq%, below optimal level of {k_optimal:.2f} meq%. This affects water regulation and disease resistance.",
-                    'source': 'Soil Analysis - Potassium'
+                    'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq%, below optimal level of {k_optimal:.2f} meq%. This affects water regulation and disease resistance."
                 })
             elif k_value > k_optimal * 1.5:
                 findings.append({
-                    'finding': f"Exchangeable potassium is high at {k_value:.2f} meq%, above optimal level of {k_optimal:.2f} meq%. This may cause nutrient imbalances.",
-                    'source': 'Soil Analysis - Potassium'
+                    'finding': f"Exchangeable potassium is high at {k_value:.2f} meq%, above optimal level of {k_optimal:.2f} meq%. This may cause nutrient imbalances."
                 })
             else:
                 findings.append({
-                    'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq%, within optimal range for healthy plant function.",
-                    'source': 'Soil Analysis - Potassium'
+                    'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq%, within optimal range for healthy plant function."
                 })
     
     # 5. Leaf Nutrient Analysis
@@ -855,17 +842,14 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 if leaf_n < 2.5:
                     findings.append({
                         'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.5-3.5%. This indicates poor nitrogen uptake and affects photosynthesis.",
-                        'source': 'Leaf Analysis - Nitrogen'
                     })
                 elif leaf_n > 3.5:
                     findings.append({
                         'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.5-3.5%. This may cause nutrient imbalances and delayed maturity.",
-                        'source': 'Leaf Analysis - Nitrogen'
                     })
                 else:
                     findings.append({
                         'finding': f"Leaf nitrogen is optimal at {leaf_n:.1f}%, within recommended range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Nitrogen'
                     })
         
         # Leaf Phosphorus
@@ -875,17 +859,14 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 if leaf_p < 0.15:
                     findings.append({
                         'finding': f"Leaf phosphorus is deficient at {leaf_p:.2f}%, below optimal range of 0.15-0.25%. This limits energy transfer and root development.",
-                        'source': 'Leaf Analysis - Phosphorus'
                     })
                 elif leaf_p > 0.25:
                     findings.append({
                         'finding': f"Leaf phosphorus is high at {leaf_p:.2f}%, above optimal range of 0.15-0.25%. This may indicate over-fertilization.",
-                        'source': 'Leaf Analysis - Phosphorus'
                     })
                 else:
                     findings.append({
                         'finding': f"Leaf phosphorus is adequate at {leaf_p:.2f}%, within optimal range for proper plant function.",
-                        'source': 'Leaf Analysis - Phosphorus'
                     })
         
         # Leaf Potassium
@@ -895,17 +876,14 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 if leaf_k < 1.0:
                     findings.append({
                         'finding': f"Leaf potassium is deficient at {leaf_k:.1f}%, below optimal range of 1.0-1.5%. This affects water regulation and disease resistance.",
-                        'source': 'Leaf Analysis - Potassium'
                     })
                 elif leaf_k > 1.5:
                     findings.append({
                         'finding': f"Leaf potassium is high at {leaf_k:.1f}%, above optimal range of 1.0-1.5%. This may cause nutrient imbalances.",
-                        'source': 'Leaf Analysis - Potassium'
                     })
                 else:
                     findings.append({
                         'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within recommended range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Potassium'
                     })
         
         # Leaf Magnesium
@@ -915,17 +893,14 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 if leaf_mg < 0.2:
                     findings.append({
                         'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below optimal range of 0.2-0.3%. This affects chlorophyll production and photosynthesis.",
-                        'source': 'Leaf Analysis - Magnesium'
                     })
                 elif leaf_mg > 0.3:
                     findings.append({
                         'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range of 0.2-0.3%. This may indicate over-fertilization.",
-                        'source': 'Leaf Analysis - Magnesium'
                     })
                 else:
                     findings.append({
                         'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within optimal range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Magnesium'
                     })
         
         # Leaf Calcium
@@ -935,17 +910,14 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 if leaf_ca < 0.5:
                     findings.append({
                         'finding': f"Leaf calcium is deficient at {leaf_ca:.1f}%, below optimal range of 0.5-1.0%. This affects cell wall strength and fruit quality.",
-                        'source': 'Leaf Analysis - Calcium'
                     })
                 elif leaf_ca > 1.0:
                     findings.append({
                         'finding': f"Leaf calcium is high at {leaf_ca:.1f}%, above optimal range of 0.5-1.0%. This may cause nutrient imbalances.",
-                        'source': 'Leaf Analysis - Calcium'
                     })
                 else:
                     findings.append({
                         'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within recommended range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Calcium'
                     })
         
         # Leaf Boron
@@ -955,17 +927,14 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 if leaf_b < 10:
                     findings.append({
                         'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below optimal range of 10-20 mg/kg. This affects fruit development and pollen viability.",
-                        'source': 'Leaf Analysis - Boron'
                     })
                 elif leaf_b > 20:
                     findings.append({
                         'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range of 10-20 mg/kg. This may cause toxicity symptoms.",
-                        'source': 'Leaf Analysis - Boron'
                     })
                 else:
                     findings.append({
                         'finding': f"Leaf boron is adequate at {leaf_b:.1f} mg/kg, within optimal range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Boron'
                     })
     
     return findings

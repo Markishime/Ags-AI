@@ -4,7 +4,7 @@ import os
 import time
 from datetime import datetime
 
-# Remove global metadata/auth monkey patches; rely on explicit credentials/API keys
+
 
 # Ensure project root and utils are on sys.path
 repo_root = os.path.dirname(__file__)
