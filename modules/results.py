@@ -362,72 +362,7 @@ def show_results_page():
     with button_col2:
         pass  # Empty column for spacing
     with button_col3:
-        if st.button("🖨️ Print", type="primary", width='stretch'):
-            st.session_state['show_print_instructions'] = True
-            st.rerun()
-    
-    # Show print instructions if button was clicked
-    if st.session_state.get('show_print_instructions', False):
-        with st.container():
-            st.info("💡 **Print Instructions:** Use Streamlit's built-in print functionality for best results")
-            st.markdown("""
-            **How to Print Using Streamlit:**
-            1. **Hide the sidebar first** (click the << in the top corner of the sidebar)
-            2. **Click the 3 dots (⋮) in the upper right corner** of the page
-            3. **Select "Print"** from the dropdown menu
-            4. **Streamlit will automatically:**
-               - Remove browser headers and footers
-               - Optimize the layout for printing
-               - Include all content in the print output
-            """)
-            
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("✅ Got it, close this message", type="secondary"):
-                    st.session_state['show_print_instructions'] = False
-                    st.rerun()
-                    # Use JavaScript to open print dialog with custom settings
-                    st.markdown("""
-                    <script>
-                    // Function to hide browser headers/footers and sidebar
-                    function hidePrintElements() {
-                        // Add CSS to hide browser print elements and sidebar
-                        var style = document.createElement('style');
-                        style.textContent = `
-                            @media print {
-                                @page {
-                                    margin: 0.5in;
-                                    @top-left { content: ""; }
-                                    @top-center { content: ""; }
-                                    @top-right { content: ""; }
-                                    @bottom-left { content: ""; }
-                                    @bottom-center { content: ""; }
-                                    @bottom-right { content: ""; }
-                                }
-                                body {
-                                    -webkit-print-color-adjust: exact;
-                                    print-color-adjust: exact;
-                                }
-                                /* Hide sidebar and other UI elements when printing */
-                                .stApp > div[data-testid="stSidebar"],
-                                .stApp > header,
-                                .stApp > div[data-testid="stHeader"],
-                                .stApp > div[data-testid="stToolbar"],
-                                .stApp > div[data-testid="stDecoration"],
-                                .stApp > div[data-testid="stStatusWidget"],
-                                .stApp > div[data-testid="stNotificationContainer"] {
-                                    display: none !important;
-                                }
-                            }
-                        `;
-                        document.head.appendChild(style);
-                    }
-                    
-                    // Hide elements and print
-                    hidePrintElements();
-                    window.print();
-                    </script>
-                    """, unsafe_allow_html=True)
+        pass  # Print button removed as requested
     
     # Check for new analysis data and process it
     try:
@@ -511,7 +446,34 @@ def show_results_page():
         display_summary_section(results_data)
         display_key_findings_section(results_data)  # Key Findings below Executive Summary
         display_step_by_step_results(results_data)
-        display_references_section(results_data)  # Display references after step-by-step analysis
+        
+        
+        # PDF Download section
+        st.markdown("---")
+        st.markdown("## 📄 Download Report")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("📥 Download PDF Report", type="primary", width='stretch'):
+                try:
+                    # Generate PDF
+                    with st.spinner("🔄 Generating PDF report..."):
+                        pdf_bytes = generate_results_pdf(results_data)
+                        
+                    # Download the PDF
+                    st.download_button(
+                        label="💾 Download PDF",
+                        data=pdf_bytes,
+                        file_name=f"agricultural_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        type="primary"
+                    )
+                    st.success("✅ PDF report generated successfully!")
+                    
+                except Exception as e:
+                    st.error(f"❌ Failed to generate PDF: {str(e)}")
+                    st.info("Please try again or contact support if the issue persists.")
+        
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Add a marker for print cutoff
@@ -2540,6 +2502,32 @@ def display_references_section(results_data):
         </p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Download PDF button after references
+    st.markdown("---")
+    st.markdown("## 📄 Download Report")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("📥 Download PDF Report", type="primary", width='stretch'):
+            try:
+                # Generate PDF
+                with st.spinner("🔄 Generating PDF report..."):
+                    pdf_bytes = generate_results_pdf(results_data)
+                    
+                # Download the PDF
+                st.download_button(
+                    label="💾 Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"agricultural_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
+                st.success("✅ PDF report generated successfully!")
+                
+            except Exception as e:
+                st.error(f"❌ Failed to generate PDF: {str(e)}")
+                st.info("Please try again or contact support if the issue persists.")
 
 def display_step_by_step_results(results_data):
     """Display step-by-step analysis results with enhanced LLM response clarity"""
@@ -2708,6 +2696,20 @@ def display_enhanced_step_result(step_result, step_number):
         elif not isinstance(detailed_text, str):
             detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
         
+        # Filter out QuickChart URLs and visual comparison markdown
+        import re
+        # Remove QuickChart URLs and visual comparison markdown
+        detailed_text = re.sub(r'Visual Comparison:.*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+        detailed_text = re.sub(r'!\[.*?\]\(https://quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+        detailed_text = re.sub(r'Visual Comparison:.*?\)', '', detailed_text, flags=re.DOTALL)
+        
+        # Additional filtering for Step 2 - remove specific unwanted text
+        if step_number == 2:
+            # Remove the specific unwanted text mentioned by user
+            detailed_text = re.sub(r'!\[Soil pH vs MPOB Standard\].*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+            detailed_text = re.sub(r'!\[.*?Soil pH.*?MPOB.*?\].*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+            detailed_text = re.sub(r'!\[.*?pH.*?MPOB.*?\].*?quickchart\.io.*?\)', '', detailed_text, flags=re.DOTALL)
+        
         # Split into paragraphs for better formatting
         paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
         
@@ -2773,38 +2775,22 @@ def display_enhanced_step_result(step_result, step_number):
                                 # Add type to viz_data if not present
                                 if 'type' not in viz_data:
                                     viz_data['type'] = viz_type
-                                display_visualization(viz_data, i)
+                                display_visualization(viz_data, i, step_number)
                     elif isinstance(visualizations, list):
                         for i, viz in enumerate(visualizations, 1):
                             if isinstance(viz, dict) and 'type' in viz:
-                                display_visualization(viz, i)
+                                display_visualization(viz, i, step_number)
                 
                 # Display contextual visualizations
                 if contextual_viz:
                     for i, viz_data in enumerate(contextual_viz, 1):
                         if viz_data and isinstance(viz_data, dict):
-                            display_visualization(viz_data, i)
+                            display_visualization(viz_data, i, step_number)
                             
             except Exception as e:
                 logger.error(f"Error displaying visualizations: {e}")
                 st.error("Error displaying visualizations")
-    else:
-        # Show farmer message for step 2 when no visual keywords are present
-        if step_number == 2 and not should_show_forecast_graph(step_result):
-            st.markdown("""<div style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-left: 4px solid #f39c12;">
-                <h4 style="color: #8b4513; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">🌾 Message for Farmers</h4>
-                <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">
-                    <strong>Dear Farmer,</strong><br><br>
-                    This step focuses on identifying and diagnosing agricultural issues in your plantation. 
-                    While no visual charts are needed for this particular analysis, the detailed findings above 
-                    provide you with clear, actionable insights about your soil and crop health.<br><br>
-                    <strong>Key Points:</strong><br>
-                    • Review the detailed analysis above for specific issues identified<br>
-                    • Pay attention to the severity levels and recommended actions<br>
-                    • Consider the next steps in the analysis for solution recommendations<br><br>
-                    <em>Your agricultural success is our priority. The analysis continues with practical solutions in the next steps.</em>
-                </p>
-            </div>""", unsafe_allow_html=True)
+    # No farmer message needed - removed as requested
     
     # Display forecast graph if this step has yield forecast data
     if should_show_forecast_graph(step_result) and has_yield_forecast_data(analysis_data):
@@ -2814,13 +2800,18 @@ def display_single_step_result(step_result, step_number):
     """Legacy function - redirects to enhanced display"""
     display_enhanced_step_result(step_result, step_number)
 
-def display_visualization(viz_data, viz_number):
+def display_visualization(viz_data, viz_number, step_number=None):
     """Display individual visualization based on type with enhanced chart support"""
     viz_type = viz_data.get('type', 'unknown')
     title = viz_data.get('title', f'Visualization {viz_number}')
     subtitle = viz_data.get('subtitle', '')
     data = viz_data.get('data', {})
     options = viz_data.get('options', {})
+    
+    # For Step 2, only show actual_vs_optimal_bar charts (individual bar format)
+    if step_number == 2:
+        if viz_type not in ['actual_vs_optimal_bar']:
+            return
     
     # Display title and subtitle
     st.markdown(f"### {title}")
@@ -2830,27 +2821,43 @@ def display_visualization(viz_data, viz_number):
     if viz_type == 'bar_chart':
         display_enhanced_bar_chart(data, title, options)
     elif viz_type == 'range_chart':
-        display_range_chart(data, title, options)
+        # Skip range analysis visualizations - no longer displayed
+        return
     elif viz_type == 'deviation_chart':
-        display_deviation_chart(data, title, options)
+        # Skip deviation analysis visualizations - no longer displayed
+        return
     elif viz_type == 'radar_chart':
         return
     elif viz_type == 'gauge_chart':
         display_gauge_chart(data, title, options)
     elif viz_type == 'pie_chart':
+        # Skip pie charts for Step 2
+        if step_number == 2:
+            return
         display_pie_chart(data, title)
     elif viz_type == 'line_chart':
+        # Skip line charts for Step 2
+        if step_number == 2:
+            return
         display_line_chart(data, title)
     elif viz_type == 'scatter_plot':
+        # Skip scatter plots for Step 2
+        if step_number == 2:
+            return
         display_scatter_plot(data, title)
     elif viz_type == 'actual_vs_optimal_bar':
         display_actual_vs_optimal_bar(data, title, options)
     elif viz_type == 'nutrient_ratio_diagram':
-        # Skip ratio analysis visualizations - no longer displayed
-        return
+        display_nutrient_ratio_diagram(data, title, options)
     elif viz_type == 'multi_axis_chart':
+        # Skip multi-axis charts for Step 2
+        if step_number == 2:
+            return
         display_multi_axis_chart(data, title, options)
     elif viz_type == 'heatmap':
+        # Skip heatmaps for Step 2
+        if step_number == 2:
+            return
         display_heatmap(data, title, options)
     else:
         st.info(f"Visualization type '{viz_type}' not yet implemented")
@@ -2868,6 +2875,11 @@ def should_show_visualizations(step_result):
     """Check if a step should display visualizations based on visual keywords"""
     # Check if this is a forecast graph step - exclude it from showing Data Visualizations
     if should_show_forecast_graph(step_result):
+        return False
+    
+    # Get step number and exclude step 4 and step 5 (Economic Impact & ROI Analysis)
+    step_number = step_result.get('step_number', 0)
+    if step_number == 4 or step_number == 5:
         return False
     
     # Get step content
@@ -2892,7 +2904,6 @@ def should_show_visualizations(step_result):
     has_visual_keywords = any(keyword in combined_text for keyword in visual_keywords)
     
     # Always show for Step 1, or if visual keywords detected
-    step_number = step_result.get('step_number', 0)
     return step_number == 1 or has_visual_keywords
 
 def generate_contextual_visualizations(step_result, analysis_data):
@@ -2951,15 +2962,15 @@ def generate_contextual_visualizations(step_result, analysis_data):
                     visualizations.append(mpob_viz)
         
         elif step_number == 2:  # Issue Diagnosis
-            # Only create visualizations if visual keywords are present
+            # Only create bar chart visualizations if visual keywords are present
             if has_visual_keywords:
-                # Create issues severity chart
-                issues_viz = create_issues_severity_viz(step_result, analysis_data)
+                # Create issues severity bar chart (converted from pie chart)
+                issues_viz = create_issues_severity_bar_viz(step_result, analysis_data)
                 if issues_viz:
                     visualizations.append(issues_viz)
                 
-                # Create nutrient deficiency heatmap
-                deficiency_viz = create_nutrient_deficiency_heatmap(soil_params, leaf_params)
+                # Create nutrient deficiency bar chart (converted from heatmap)
+                deficiency_viz = create_nutrient_deficiency_bar_viz(soil_params, leaf_params)
                 if deficiency_viz:
                     visualizations.append(deficiency_viz)
                 
@@ -3126,23 +3137,46 @@ def create_actual_vs_optimal_viz(parameter_stats, parameter_type):
                     categories.append(display_name)
                     actual_values.append(actual_val)
                     
-                    # Get optimal value
+                    # Get optimal value with correct MPOB standards
                     optimal_val = 0
-                    if mpob:
-                        if parameter_type == 'soil' and hasattr(mpob, 'soil_standards'):
-                            std = mpob.soil_standards
-                            if param_key == 'pH':
-                                optimal_val = std.get('pH', 5.0)
-                            elif param_key == 'Nitrogen_%':
-                                optimal_val = std.get('Nitrogen', 2.5)
-                            # Add more mappings as needed
-                        elif parameter_type == 'leaf' and hasattr(mpob, 'leaf_standards'):
-                            std = mpob.leaf_standards
-                            if param_key == 'N_%':
-                                optimal_val = std.get('N', 2.5)
-                            elif param_key == 'P_%':
-                                optimal_val = std.get('P', 0.15)
-                            # Add more mappings as needed
+                    if parameter_type == 'soil':
+                        # Use correct MPOB soil standards
+                        if param_key == 'pH':
+                            optimal_val = 5.0
+                        elif param_key == 'Nitrogen_%':
+                            optimal_val = 0.125
+                        elif param_key == 'Organic_Carbon_%':
+                            optimal_val = 2.0
+                        elif param_key == 'Total_P_mg_kg':
+                            optimal_val = 30
+                        elif param_key == 'Available_P_mg_kg':
+                            optimal_val = 22
+                        elif param_key == 'Exchangeable_K_meq%':
+                            optimal_val = 0.20
+                        elif param_key == 'Exchangeable_Ca_meq%':
+                            optimal_val = 3.0
+                        elif param_key == 'Exchangeable_Mg_meq%':
+                            optimal_val = 1.15
+                        elif param_key == 'CEC_meq%':
+                            optimal_val = 12.0
+                    else:  # leaf
+                        # Use correct MPOB leaf standards
+                        if param_key == 'N_%':
+                            optimal_val = 2.6
+                        elif param_key == 'P_%':
+                            optimal_val = 0.165
+                        elif param_key == 'K_%':
+                            optimal_val = 1.05
+                        elif param_key == 'Mg_%':
+                            optimal_val = 0.30
+                        elif param_key == 'Ca_%':
+                            optimal_val = 0.60
+                        elif param_key == 'B_mg_kg':
+                            optimal_val = 20
+                        elif param_key == 'Cu_mg_kg':
+                            optimal_val = 7.5
+                        elif param_key == 'Zn_mg_kg':
+                            optimal_val = 20
                     
                     optimal_values.append(optimal_val)
         
@@ -3380,20 +3414,16 @@ def display_step_specific_content(step_result, step_number):
         display_forecast_graph_content(analysis_data, step_number, step_title)
 
 def display_bar_chart(data, title):
-    """Display enhanced bar chart visualization with better styling"""
+    """Display bar chart with separate charts for each parameter"""
     try:
-        import plotly.express as px
         import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
         import pandas as pd
-        
-        # Debug: Log the data structure
-        logger.info(f"Bar chart data structure: {data}")
-        logger.info(f"Bar chart data type: {type(data)}")
-        logger.info(f"Bar chart data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
         
         # Handle different data formats
         categories = None
         values = None
+        series = None
         
         if isinstance(data, dict):
             # Standard format: data has 'categories' and 'values' keys
@@ -3403,41 +3433,7 @@ def display_bar_chart(data, title):
             # Series format: data has 'categories' and 'series' keys
             elif 'categories' in data and 'series' in data:
                 categories = data['categories']
-                # Handle series data - could be a list of values or list of dicts
-                series_data = data['series']
-                logger.info(f"Series data type: {type(series_data)}")
-                logger.info(f"Series data content: {series_data}")
-                
-                if isinstance(series_data, list) and len(series_data) > 0:
-                    if isinstance(series_data[0], dict):
-                        # Series contains dicts with 'name' and 'data' keys
-                        values = series_data[0].get('data', [])
-                        logger.info(f"Extracted values from dict: {values}")
-                    else:
-                        # Series is a simple list of values
-                        values = series_data
-                        logger.info(f"Using series as values: {values}")
-                elif isinstance(series_data, dict):
-                    # Series might be a single dict with 'data' key
-                    values = series_data.get('data', [])
-                    logger.info(f"Extracted values from single dict: {values}")
-                elif isinstance(series_data, (int, float)):
-                    # Series might be a single numeric value
-                    values = [series_data]
-                    logger.info(f"Using single numeric value: {values}")
-                else:
-                    # Try to convert to list if possible
-                    try:
-                        if hasattr(series_data, '__iter__') and not isinstance(series_data, str):
-                            values = list(series_data)
-                            logger.info(f"Converted iterable to list: {values}")
-                        else:
-                            values = [series_data] if series_data is not None else []
-                            logger.info(f"Single value converted to list: {values}")
-                    except Exception as e:
-                        values = []
-                        logger.error(f"Failed to process series data: {e}")
-                        logger.info(f"Series data is empty or not processable: {type(series_data)}")
+                series = data['series']
             # Alternative format: data might have different key names
             elif 'labels' in data and 'values' in data:
                 categories = data['labels']
@@ -3453,32 +3449,199 @@ def display_bar_chart(data, title):
                     values = nested_data['values']
                 elif 'categories' in nested_data and 'series' in nested_data:
                     categories = nested_data['categories']
-                    series_data = nested_data['series']
-                    if isinstance(series_data, list) and len(series_data) > 0:
-                        if isinstance(series_data[0], dict):
-                            values = series_data[0].get('data', [])
-                        else:
-                            values = series_data
-                    elif isinstance(series_data, dict):
-                        values = series_data.get('data', [])
-                    else:
-                        values = []
+                    series = nested_data['series']
                 elif 'labels' in nested_data and 'values' in nested_data:
                     categories = nested_data['labels']
                     values = nested_data['values']
         
-        logger.info(f"Final categories: {categories}")
-        logger.info(f"Final values: {values}")
-        logger.info(f"Categories length: {len(categories) if categories else 0}")
-        logger.info(f"Values length: {len(values) if values else 0}")
+        if not categories:
+            st.warning("Bar chart data format not supported")
+            return
         
-        # Additional fallback: if we have categories but no values, try to create dummy values
+        # If we have series data, use it; otherwise use single values
+        if series and isinstance(series, list) and len(series) > 0:
+            # Handle series data - create separate charts for each parameter
+            if isinstance(series[0], dict) and 'values' in series[0]:
+                # Multiple series format
+                actual_values = series[0]['values'] if len(series) > 0 else []
+                optimal_values = series[1]['values'] if len(series) > 1 else []
+                
+                if actual_values and optimal_values:
+                    # Create subplots - one for each parameter
+                    num_params = len(categories)
+                    fig = make_subplots(
+                        rows=1, 
+                        cols=num_params,
+                        subplot_titles=categories,
+                        horizontal_spacing=0.05
+                    )
+                    
+                    # Define colors
+                    actual_color = series[0].get('color', '#3498db')
+                    optimal_color = series[1].get('color', '#e74c3c')
+                    
+                    # Add bars for each parameter
+                    for i, param in enumerate(categories):
+                        actual_val = actual_values[i]
+                        optimal_val = optimal_values[i]
+                        
+                        # Calculate appropriate scale for this parameter
+                        max_val = max(actual_val, optimal_val)
+                        min_val = min(actual_val, optimal_val)
+                        
+                        # Add some padding to the scale
+                        range_val = max_val - min_val
+                        if range_val == 0:
+                            range_val = max_val * 0.1 if max_val > 0 else 1
+                        
+                        y_max = max_val + (range_val * 0.4)  # Increased padding for outside text
+                        y_min = max(0, min_val - (range_val * 0.2))  # Increased padding for outside text
+                        
+                        # Add actual value bar
+                        fig.add_trace(
+                            go.Bar(
+                                x=['Observed'],
+                                y=[actual_val],
+                                name='Observed' if i == 0 else None,
+                                marker_color=actual_color,
+                                text=[f"{actual_val:.1f}"],
+                                textposition='outside',
+                                textfont=dict(size=10, color='black', family='Arial Black'),
+                                showlegend=(i == 0)
+                            ),
+                            row=1, col=i+1
+                        )
+                        
+                        # Add optimal value bar
+                        fig.add_trace(
+                            go.Bar(
+                                x=['Recommended'],
+                                y=[optimal_val],
+                                name='Recommended' if i == 0 else None,
+                                marker_color=optimal_color,
+                                text=[f"{optimal_val:.1f}"],
+                                textposition='outside',
+                                textfont=dict(size=10, color='black', family='Arial Black'),
+                                showlegend=(i == 0)
+                            ),
+                            row=1, col=i+1
+                        )
+                        
+                        # Update y-axis for this subplot
+                        fig.update_yaxes(
+                            range=[y_min, y_max],
+                            row=1, col=i+1,
+                            showgrid=True,
+                            gridwidth=1,
+                            gridcolor='lightgray',
+                            zeroline=True,
+                            zerolinewidth=1,
+                            zerolinecolor='lightgray'
+                        )
+                        
+                        # Update x-axis for this subplot
+                        fig.update_xaxes(
+                            row=1, col=i+1,
+                            showgrid=False,
+                            tickangle=0
+                        )
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title={
+                            'text': title,
+                            'x': 0.5,
+                            'xanchor': 'center',
+                            'font': {'size': 16}
+                        },
+                        height=400,
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        )
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    return
+            else:
+                # Single series format - convert to values
+                values = series
+        elif values:
+            # Single values format - create simple bar chart
+            if len(values) != len(categories):
+                st.warning("Number of categories and values don't match")
+                return
+            
+            # Create subplots - one for each parameter
+            num_params = len(categories)
+            fig = make_subplots(
+                rows=1, 
+                cols=num_params,
+                subplot_titles=categories,
+                horizontal_spacing=0.1
+            )
+            
+            # Add bars for each parameter
+            for i, param in enumerate(categories):
+                val = values[i]
+                
+                # Calculate appropriate scale for this parameter
+                y_max = val * 1.2 if val > 0 else 1
+                y_min = 0
+                
+                # Add value bar
+                fig.add_trace(
+                    go.Bar(
+                        x=['Value'],
+                        y=[val],
+                        marker_color='#3498db',
+                        text=[f"{val:.1f}"],
+                        textposition='auto',
+                        showlegend=False
+                    ),
+                    row=1, col=i+1
+                )
+                
+                # Update y-axis for this subplot
+                fig.update_yaxes(
+                    range=[y_min, y_max],
+                    row=1, col=i+1,
+                    showgrid=True,
+                    gridwidth=1,
+                    gridcolor='lightgray',
+                    zeroline=True,
+                    zerolinewidth=1,
+                    zerolinecolor='lightgray'
+                )
+                
+                # Update x-axis for this subplot
+                fig.update_xaxes(
+                    row=1, col=i+1,
+                    showgrid=False,
+                    tickangle=0
+                )
+            
+            # Update layout
+            fig.update_layout(
+                title={
+                    'text': title,
+                    'x': 0.5,
+                    'xanchor': 'center',
+                    'font': {'size': 16}
+                },
+                height=400,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            return
+        
+        # Fallback: if we have categories but no values, try to create dummy values
         if categories and not values:
-            logger.info("No values found, creating dummy values for visualization")
-            values = [1] * len(categories)  # Create dummy values for visualization
-        
-        # Additional fallback: if we have values but no categories, create generic categories
-        if values and not categories:
             logger.info("No categories found, creating generic categories")
             categories = [f"Item {i+1}" for i in range(len(values))]
         
@@ -3848,9 +4011,10 @@ def display_scatter_plot(data, title):
         st.info("Plotly not available for chart display")
 
 def display_actual_vs_optimal_bar(data, title, options):
-    """Display actual vs optimal bar chart"""
+    """Display actual vs optimal bar chart with separate charts for each parameter"""
     try:
         import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
         import pandas as pd
         
         categories = data.get('categories', [])
@@ -3860,26 +4024,130 @@ def display_actual_vs_optimal_bar(data, title, options):
             st.warning("Bar chart data format not supported")
             return
         
-        # Create the bar chart
-        fig = go.Figure()
+        # Extract actual and optimal values
+        actual_values = series[0]['values'] if len(series) > 0 else []
+        optimal_values = series[1]['values'] if len(series) > 1 else []
         
-        for s in series:
-            fig.add_trace(go.Bar(
-                name=s['name'],
-                x=categories,
-                y=s['values'],
-                marker_color=s.get('color', '#3498db'),
-                text=s['values'],
-                textposition='auto',
-            ))
+        if not actual_values or not optimal_values:
+            st.warning("Insufficient data for bar chart")
+            return
         
+        # Create subplots - one for each parameter
+        num_params = len(categories)
+        
+        # Calculate optimal layout - if more than 4 parameters, use 2 rows
+        if num_params > 4:
+            rows = 2
+            cols = (num_params + 1) // 2
+        else:
+            rows = 1
+            cols = num_params
+        
+        fig = make_subplots(
+            rows=rows, 
+            cols=cols,
+            subplot_titles=categories,
+            horizontal_spacing=0.05,
+            vertical_spacing=0.2
+        )
+        
+        # Define colors
+        actual_color = series[0].get('color', '#3498db')
+        optimal_color = series[1].get('color', '#e74c3c')
+        
+        # Add bars for each parameter
+        for i, param in enumerate(categories):
+            actual_val = actual_values[i]
+            optimal_val = optimal_values[i]
+            
+            # Calculate appropriate scale for this parameter
+            max_val = max(actual_val, optimal_val)
+            min_val = min(actual_val, optimal_val)
+            
+            # Add more padding to the scale to accommodate outside text
+            range_val = max_val - min_val
+            if range_val == 0:
+                range_val = max_val * 0.1 if max_val > 0 else 1
+            
+            y_max = max_val + (range_val * 0.4)  # Increased padding for outside text
+            y_min = max(0, min_val - (range_val * 0.2))  # Increased padding for outside text
+            
+            # Calculate row and column position
+            if rows == 1:
+                row_pos = 1
+                col_pos = i + 1
+            else:
+                row_pos = (i // cols) + 1
+                col_pos = (i % cols) + 1
+            
+            # Add actual value bar
+            fig.add_trace(
+                go.Bar(
+                    x=['Observed'],
+                    y=[actual_val],
+                    name='Observed' if i == 0 else None,  # Only show legend for first chart
+                    marker_color=actual_color,
+                    text=[f"{actual_val:.1f}"],
+                    textposition='outside',
+                    textfont=dict(size=10, color='black', family='Arial Black'),
+                    showlegend=(i == 0)
+                ),
+                row=row_pos, col=col_pos
+            )
+            
+            # Add optimal value bar
+            fig.add_trace(
+                go.Bar(
+                    x=['Recommended'],
+                    y=[optimal_val],
+                    name='Recommended' if i == 0 else None,  # Only show legend for first chart
+                    marker_color=optimal_color,
+                    text=[f"{optimal_val:.1f}"],
+                    textposition='outside',
+                    textfont=dict(size=10, color='black', family='Arial Black'),
+                    showlegend=(i == 0)
+                ),
+                row=row_pos, col=col_pos
+            )
+            
+            # Update y-axis for this subplot
+            fig.update_yaxes(
+                range=[y_min, y_max],
+                row=row_pos, col=col_pos,
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='lightgray',
+                zeroline=True,
+                zerolinewidth=1,
+                zerolinecolor='lightgray',
+                tickfont=dict(size=10)
+            )
+            
+            # Update x-axis for this subplot
+            fig.update_xaxes(
+                row=row_pos, col=col_pos,
+                showgrid=False,
+                tickangle=0,
+                tickfont=dict(size=10)
+            )
+        
+        # Update layout
         fig.update_layout(
-            title=title,
-            xaxis_title=options.get('x_axis_title', 'Parameters'),
-            yaxis_title=options.get('y_axis_title', 'Values'),
-            barmode='group',
-            showlegend=options.get('show_legend', True),
-            height=500
+            title={
+                'text': title,
+                'x': 0.5,
+                'xanchor': 'center',
+                'font': {'size': 16}
+            },
+            height=600 if rows > 1 else 400,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -3891,17 +4159,126 @@ def display_actual_vs_optimal_bar(data, title, options):
 # REMOVED: display_nutrient_ratio_diagram function - Soil/Leaf Nutrient Ratios Analysis no longer needed
 
 def display_enhanced_bar_chart(data, title, options=None):
-    """Display enhanced bar chart with multiple series and better styling"""
+    """Display enhanced bar chart with separate charts for each parameter"""
     try:
-        import plotly.express as px
         import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
         import pandas as pd
         
         if 'categories' in data and 'series' in data:
             categories = data['categories']
             series = data['series']
             
-            fig = go.Figure()
+            # Check if we have multiple series (actual vs optimal format)
+            if len(series) >= 2 and isinstance(series[0], dict) and 'values' in series[0]:
+                # Multiple series format - create separate charts for each parameter
+                actual_values = series[0]['values'] if len(series) > 0 else []
+                optimal_values = series[1]['values'] if len(series) > 1 else []
+                
+                if actual_values and optimal_values:
+                    # Create subplots - one for each parameter
+                    num_params = len(categories)
+                    fig = make_subplots(
+                        rows=1, 
+                        cols=num_params,
+                        subplot_titles=categories,
+                        horizontal_spacing=0.05
+                    )
+                    
+                    # Define colors
+                    actual_color = series[0].get('color', '#3498db')
+                    optimal_color = series[1].get('color', '#e74c3c')
+                    
+                    # Add bars for each parameter
+                    for i, param in enumerate(categories):
+                        actual_val = actual_values[i]
+                        optimal_val = optimal_values[i]
+                        
+                        # Calculate appropriate scale for this parameter
+                        max_val = max(actual_val, optimal_val)
+                        min_val = min(actual_val, optimal_val)
+                        
+                        # Add some padding to the scale
+                        range_val = max_val - min_val
+                        if range_val == 0:
+                            range_val = max_val * 0.1 if max_val > 0 else 1
+                        
+                        y_max = max_val + (range_val * 0.4)  # Increased padding for outside text
+                        y_min = max(0, min_val - (range_val * 0.2))  # Increased padding for outside text
+                        
+                        # Add actual value bar
+                        fig.add_trace(
+                            go.Bar(
+                                x=['Observed'],
+                                y=[actual_val],
+                                name='Observed' if i == 0 else None,
+                                marker_color=actual_color,
+                                text=[f"{actual_val:.1f}"],
+                                textposition='outside',
+                                textfont=dict(size=10, color='black', family='Arial Black'),
+                                showlegend=(i == 0)
+                            ),
+                            row=1, col=i+1
+                        )
+                        
+                        # Add optimal value bar
+                        fig.add_trace(
+                            go.Bar(
+                                x=['Recommended'],
+                                y=[optimal_val],
+                                name='Recommended' if i == 0 else None,
+                                marker_color=optimal_color,
+                                text=[f"{optimal_val:.1f}"],
+                                textposition='outside',
+                                textfont=dict(size=10, color='black', family='Arial Black'),
+                                showlegend=(i == 0)
+                            ),
+                            row=1, col=i+1
+                        )
+                        
+                        # Update y-axis for this subplot
+                        fig.update_yaxes(
+                            range=[y_min, y_max],
+                            row=1, col=i+1,
+                            showgrid=True,
+                            gridwidth=1,
+                            gridcolor='lightgray',
+                            zeroline=True,
+                            zerolinewidth=1,
+                            zerolinecolor='lightgray'
+                        )
+                        
+                        # Update x-axis for this subplot
+                        fig.update_xaxes(
+                            row=1, col=i+1,
+                            showgrid=False,
+                            tickangle=0
+                        )
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title={
+                            'text': title,
+                            'x': 0.5,
+                            'xanchor': 'center',
+                            'font': {'size': 16}
+                        },
+                        height=400,
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        )
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    return
+            else:
+                # Single series or different format - use original logic
+                fig = go.Figure()
             
             # Add each series as a bar trace
             for i, series_data in enumerate(series):
@@ -3916,7 +4293,7 @@ def display_enhanced_bar_chart(data, title, options=None):
                         y=values,
                         marker_color=color,
                         hovertemplate=f'<b>{name}</b><br>%{{x}}: %{{y}}<extra></extra>',
-                        text=values if options.get('show_values', False) else None,
+                            text=values if options and options.get('show_values', False) else None,
                         textposition='auto'
                     ))
             
@@ -3927,10 +4304,10 @@ def display_enhanced_bar_chart(data, title, options=None):
                     x=0.5,
                     font=dict(size=16, color='#2E7D32')
                 ),
-                xaxis_title=options.get('x_axis_title', 'Parameters'),
-                yaxis_title=options.get('y_axis_title', 'Value'),
+                    xaxis_title=options.get('x_axis_title', 'Parameters') if options else 'Parameters',
+                    yaxis_title=options.get('y_axis_title', 'Value') if options else 'Value',
                 barmode='group',
-                showlegend=options.get('show_legend', True),
+                    showlegend=options.get('show_legend', True) if options else True,
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(size=12),
@@ -4193,11 +4570,11 @@ def display_step1_data_analysis(analysis_data):
                     if viz_data and isinstance(viz_data, dict):
                         if 'type' not in viz_data:
                             viz_data['type'] = viz_type
-                        display_visualization(viz_data, i)
+                        display_visualization(viz_data, i, 1)
             elif isinstance(visualizations, list):
                 for i, viz in enumerate(visualizations, 1):
                     if isinstance(viz, dict) and 'type' in viz:
-                        display_visualization(viz, i)
+                        display_visualization(viz, i, 1)
         except Exception as e:
             logger.error(f"Error displaying visualizations: {e}")
             st.error("Error displaying visualizations")
@@ -4541,9 +4918,14 @@ def parse_key_findings(key_findings_text):
     return findings
 
 def display_solution_content(content):
-    """Display solution content with proper formatting"""
+    """Display solution content with proper formatting for detailed agronomic recommendations"""
     # Clean up the content first
     content = content.strip()
+    
+    # Check if this is the detailed agronomic recommendations format
+    if '### Detailed Agronomic Recommendations' in content or '#### Problem' in content:
+        display_detailed_agronomic_recommendations(content)
+        return
     
     # Split content into sections
     sections = content.split('#### **Problem')
@@ -4569,6 +4951,167 @@ def display_solution_content(content):
         else:
             # Problem section
             display_problem_section(section)
+
+def display_detailed_agronomic_recommendations(content):
+    """Display detailed agronomic recommendations with proper formatting"""
+    import re
+    
+    # Clean up the content
+    content = content.replace('\\n', '\n').replace('\\"', '"')
+    
+    # Split by problem sections
+    problems = re.split(r'#### Problem \d+:', content)
+    
+    # Display introduction if present
+    if problems[0].strip():
+        intro_text = problems[0].strip()
+        if '### Detailed Agronomic Recommendations' in intro_text:
+            intro_text = intro_text.replace('### Detailed Agronomic Recommendations', '').strip()
+        
+        if intro_text:
+            st.markdown("""
+            <div style="
+                background: linear-gradient(135deg, #e8f5e8, #ffffff);
+                padding: 20px;
+                border-radius: 12px;
+                margin-bottom: 25px;
+                border-left: 4px solid #28a745;
+                box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2);
+            ">
+                <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 18px; font-weight: 600;">
+                    🌱 Detailed Agronomic Recommendations
+                </h3>
+                <p style="margin: 0; color: #2c3e50; line-height: 1.6; font-size: 16px;">
+                    {intro_text}
+                </p>
+            </div>
+            """.format(intro_text=intro_text), unsafe_allow_html=True)
+    
+    # Display each problem
+    for i, problem in enumerate(problems[1:], 1):
+        if not problem.strip():
+            continue
+            
+        display_agronomic_problem(problem, i)
+
+def display_agronomic_problem(problem_content, problem_number):
+    """Display a single agronomic problem with its solutions"""
+    lines = [line.strip() for line in problem_content.split('\n') if line.strip()]
+    
+    if not lines:
+        return
+    
+    # Extract problem title and rationale
+    problem_title = lines[0]
+    rationale = ""
+    
+    # Find rationale
+    for i, line in enumerate(lines[1:], 1):
+        if line.startswith('Agronomic Rationale:'):
+            rationale = line.replace('Agronomic Rationale:', '').strip()
+            break
+    
+    # Display problem header
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    ">
+        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 600;">
+            🚨 Problem {problem_number}: {problem_title}
+        </h3>
+        {f'<p style="margin: 0; font-size: 16px; opacity: 0.9; line-height: 1.5;">{rationale}</p>' if rationale else ''}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Parse and display investment approaches
+    current_approach = None
+    approach_data = {}
+    
+    for line in lines:
+        if 'High-investment approach' in line:
+            current_approach = 'high'
+        elif 'Moderate-investment approach' in line:
+            current_approach = 'medium'
+        elif 'Low-investment approach' in line:
+            current_approach = 'low'
+        elif line.startswith('* Product:') and current_approach:
+            product = line.replace('* Product:', '').strip()
+            approach_data[current_approach] = approach_data.get(current_approach, {})
+            approach_data[current_approach]['product'] = product
+        elif line.startswith('* Rate:') and current_approach:
+            rate = line.replace('* Rate:', '').strip()
+            approach_data[current_approach]['rate'] = rate
+        elif line.startswith('* Timing & Method:') and current_approach:
+            timing = line.replace('* Timing & Method:', '').strip()
+            approach_data[current_approach]['timing'] = timing
+        elif line.startswith('* Agronomic Effect:') and current_approach:
+            effect = line.replace('* Agronomic Effect:', '').strip()
+            approach_data[current_approach]['effect'] = effect
+        elif line.startswith('* Cost:') and current_approach:
+            cost = line.replace('* Cost:', '').strip()
+            approach_data[current_approach]['cost'] = cost
+    
+    # Display investment approaches
+    for approach_type, data in approach_data.items():
+        if not data:
+            continue
+            
+        # Determine colors and icons based on approach
+        if approach_type == 'high':
+            color = '#e74c3c'
+            bg_color = '#fdf2f2'
+            icon = '💎'
+            title = 'High Investment'
+        elif approach_type == 'medium':
+            color = '#f39c12'
+            bg_color = '#fef9e7'
+            icon = '⚖️'
+            title = 'Moderate Investment'
+        else:  # low
+            color = '#27ae60'
+            bg_color = '#eafaf1'
+            icon = '💰'
+            title = 'Low Investment'
+        
+        st.markdown(f"""
+        <div style="
+            background: {bg_color};
+            border: 2px solid {color};
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        ">
+            <h4 style="margin: 0 0 15px 0; color: {color}; font-size: 18px; font-weight: 600;">
+                {icon} {title} Approach
+            </h4>
+            <div style="margin-bottom: 12px;">
+                <strong style="color: #2c3e50;">Product:</strong> 
+                <span style="color: #2c3e50;">{data.get('product', 'N/A')}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <strong style="color: #2c3e50;">Rate:</strong> 
+                <span style="color: #2c3e50;">{data.get('rate', 'N/A')}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <strong style="color: #2c3e50;">Timing & Method:</strong> 
+                <span style="color: #2c3e50;">{data.get('timing', 'N/A')}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <strong style="color: #2c3e50;">Agronomic Effect:</strong> 
+                <span style="color: #2c3e50;">{data.get('effect', 'N/A')}</span>
+            </div>
+            <div>
+                <strong style="color: {color};">Cost Level:</strong> 
+                <span style="color: {color}; font-weight: 600;">{data.get('cost', 'N/A')}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 def display_problem_section(section):
     """Display a single problem section with solutions"""
@@ -4726,7 +5269,6 @@ def display_step3_solution_recommendations(analysis_data):
             )
             st.markdown("")
     
-    # 2. KEY FINDINGS SECTION - Removed from Step 3
     # Key findings are now consolidated and displayed only after Executive Summary
     
     # 2. DETAILED ANALYSIS SECTION - Enhanced parsing and formatting
@@ -5835,6 +6377,157 @@ def create_nutrient_deficiency_heatmap(soil_params, leaf_params):
         logger.error(f"Error creating nutrient deficiency heatmap: {e}")
         return None
 
+def create_issues_severity_bar_viz(step_result, analysis_data):
+    """Create issues severity bar chart visualization"""
+    try:
+        # Extract issues from step data
+        issues = []
+        if 'issues_identified' in step_result:
+            issues = step_result['issues_identified']
+        elif 'issues_analysis' in analysis_data:
+            issues = analysis_data['issues_analysis'].get('all_issues', [])
+        
+        if not issues:
+            return None
+        
+        # Categorize issues by severity
+        severity_categories = {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0}
+        
+        for issue in issues:
+            if isinstance(issue, dict):
+                severity = issue.get('severity', 'Medium').title()
+                if severity in severity_categories:
+                    severity_categories[severity] += 1
+                else:
+                    severity_categories['Medium'] += 1
+            elif isinstance(issue, str):
+                # Try to extract severity from text
+                issue_lower = issue.lower()
+                if 'critical' in issue_lower or 'severe' in issue_lower:
+                    severity_categories['Critical'] += 1
+                elif 'high' in issue_lower:
+                    severity_categories['High'] += 1
+                elif 'low' in issue_lower:
+                    severity_categories['Low'] += 1
+                else:
+                    severity_categories['Medium'] += 1
+        
+        # Filter out zero values
+        categories = [k for k, v in severity_categories.items() if v > 0]
+        values = [v for k, v in severity_categories.items() if v > 0]
+        colors = ['#e74c3c', '#f39c12', '#f1c40f', '#2ecc71'][:len(categories)]
+        
+        if not categories:
+            return None
+        
+        return {
+            'type': 'actual_vs_optimal_bar',
+            'title': '📊 Issues Distribution by Severity',
+            'subtitle': 'Breakdown of identified issues by severity level',
+            'data': {
+                'categories': categories,
+                'series': [
+                    {'name': 'Issue Count', 'values': values, 'color': '#3498db'},
+                    {'name': 'Target (0)', 'values': [0] * len(categories), 'color': '#e74c3c'}
+                ]
+            },
+            'options': {
+                'show_legend': True,
+                'show_values': True,
+                'y_axis_title': 'Number of Issues',
+                'x_axis_title': 'Severity Level',
+                'show_target_line': False
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating issues severity bar visualization: {e}")
+        return None
+
+def create_nutrient_deficiency_bar_viz(soil_params, leaf_params):
+    """Create nutrient deficiency bar chart visualization"""
+    try:
+        soil_stats = soil_params.get('parameter_statistics', {})
+        leaf_stats = leaf_params.get('parameter_statistics', {})
+        
+        if not soil_stats and not leaf_stats:
+            return None
+        
+        # Get MPOB standards for comparison
+        try:
+            from utils.mpob_standards import get_mpob_standards
+            mpob = get_mpob_standards()
+        except:
+            mpob = None
+        
+        # Prepare bar chart data
+        parameters = []
+        deficiency_counts = {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0}
+        
+        # Soil parameters
+        if soil_stats and mpob:
+            soil_mapping = {
+                'pH': 'pH',
+                'Nitrogen_%': 'nitrogen',
+                'Organic_Carbon_%': 'organic_carbon',
+                'Total_P_mg_kg': 'total_phosphorus',
+                'Available_P_mg_kg': 'available_phosphorus',
+                'Exchangeable_K_meq%': 'exchangeable_potassium',
+                'Exchangeable_Ca_meq%': 'exchangeable_calcium',
+                'Exchangeable_Mg_meq%': 'exchangeable_magnesium',
+                'CEC_meq%': 'cec'
+            }
+            
+            for param_key, mpob_key in soil_mapping.items():
+                if param_key in soil_stats and mpob_key in mpob.get('soil', {}):
+                    actual = soil_stats[param_key].get('average', 0)
+                    optimal = mpob['soil'][mpob_key].get('optimal', 0)
+                    
+                    if actual > 0 and optimal > 0:
+                        deficiency_ratio = actual / optimal
+                        if deficiency_ratio < 0.5:
+                            level = 'Critical'
+                        elif deficiency_ratio < 0.7:
+                            level = 'High'
+                        elif deficiency_ratio < 0.9:
+                            level = 'Medium'
+                        else:
+                            level = 'Low'
+                        
+                        deficiency_counts[level] += 1
+        
+        # Filter out zero values
+        categories = [k for k, v in deficiency_counts.items() if v > 0]
+        values = [v for k, v in deficiency_counts.items() if v > 0]
+        colors = ['#e74c3c', '#f39c12', '#f1c40f', '#2ecc71'][:len(categories)]
+        
+        if not categories:
+            return None
+        
+        return {
+            'type': 'actual_vs_optimal_bar',
+            'title': '📊 Nutrient Deficiency Levels',
+            'subtitle': 'Count of parameters by deficiency severity',
+            'data': {
+                'categories': categories,
+                'series': [
+                    {'name': 'Parameter Count', 'values': values, 'color': '#3498db'},
+                    {'name': 'Target (0)', 'values': [0] * len(categories), 'color': '#e74c3c'}
+                ]
+            },
+            'options': {
+                'show_legend': True,
+                'show_values': True,
+                'y_axis_title': 'Number of Parameters',
+                'x_axis_title': 'Deficiency Level',
+                'show_target_line': False
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating nutrient deficiency bar visualization: {e}")
+        return None
+
 def create_solution_priority_viz(step_result, analysis_data):
     """Create solution priority visualization"""
     try:
@@ -6164,5 +6857,322 @@ def _removed_generate_results_pdf(results_data, include_raw_data=True, include_s
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         return None
+
+def generate_results_pdf(results_data, include_raw_data=True, include_summary=True, 
+                        include_key_findings=True, include_step_analysis=True, 
+                        include_references=False, include_charts=True, 
+                        pdf_title="Agricultural Analysis Report", include_timestamp=True):
+    """Generate comprehensive PDF from results page content - includes ALL details"""
+    try:
+        from utils.pdf_utils import PDFReportGenerator
+        
+        # Prepare analysis data for PDF generation
+        analysis_data = results_data.get('analysis_results', {})
+        
+        # If analysis_results is empty, use the full results_data
+        if not analysis_data:
+            analysis_data = results_data
+        
+        # Ensure all forecast data is available at the top level
+        if 'economic_forecast' in results_data and 'economic_forecast' not in analysis_data:
+            analysis_data['economic_forecast'] = results_data['economic_forecast']
+        
+        if 'yield_forecast' in results_data and 'yield_forecast' not in analysis_data:
+            analysis_data['yield_forecast'] = results_data['yield_forecast']
+        
+        # Include all additional data from results page
+        if 'raw_data' in results_data and 'raw_data' not in analysis_data:
+            analysis_data['raw_data'] = results_data['raw_data']
+        
+        if 'summary_metrics' in results_data and 'summary_metrics' not in analysis_data:
+            analysis_data['summary_metrics'] = results_data['summary_metrics']
+        
+        if 'key_findings' in results_data and 'key_findings' not in analysis_data:
+            analysis_data['key_findings'] = results_data['key_findings']
+        
+        if 'step_by_step_analysis' in results_data and 'step_by_step_analysis' not in analysis_data:
+            analysis_data['step_by_step_analysis'] = results_data['step_by_step_analysis']
+        
+        if 'references' in results_data and 'references' not in analysis_data:
+            analysis_data['references'] = results_data['references']
+        
+        # Create comprehensive metadata for PDF
+        metadata = {
+            'title': pdf_title,
+            'timestamp': results_data.get('timestamp'),
+            'include_timestamp': include_timestamp,
+            'sections': {
+                'raw_data': include_raw_data,
+                'summary': include_summary,
+                'key_findings': include_key_findings,
+                'step_analysis': include_step_analysis,
+                'references': include_references,
+                'charts': include_charts
+            }
+        }
+        
+        # Create comprehensive PDF options - include ALL sections except economic/forecast
+        options = {
+            'include_economic': False,
+            'include_forecast': False,
+            'include_charts': include_charts,
+            'include_raw_data': include_raw_data,
+            'include_summary': include_summary,
+            'include_key_findings': include_key_findings,
+            'include_step_analysis': include_step_analysis,
+            'include_references': include_references,
+            'include_all_details': True  # Ensure all details are included
+        }
+        
+        # Generate comprehensive PDF using existing PDF utils
+        generator = PDFReportGenerator()
+        pdf_bytes = generator.generate_report(analysis_data, metadata, options)
+        
+        return pdf_bytes
+        
+    except Exception as e:
+        logger.error(f"Error generating comprehensive results PDF: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return None
+
+
+def display_nutrient_ratio_diagram(data, title, options=None):
+    """Display nutrient ratio diagram with individual bar charts for each parameter"""
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        
+        categories = data.get('categories', [])
+        values = data.get('values', [])
+        optimal_ranges = data.get('optimal_ranges', {})
+        
+        if not categories or not values:
+            st.info("No nutrient ratio data available")
+            return
+        
+        # Create subplots - one for each ratio parameter
+        num_params = len(categories)
+        
+        # Calculate optimal layout - if more than 4 parameters, use 2 rows
+        if num_params > 4:
+            rows = 2
+            cols = (num_params + 1) // 2
+        else:
+            rows = 1
+            cols = num_params
+        
+        fig = make_subplots(
+            rows=rows, 
+            cols=cols,
+            subplot_titles=categories,
+            horizontal_spacing=0.05,
+            vertical_spacing=0.2
+        )
+        
+        # Define colors
+        current_color = '#2ecc71'  # Green for current ratios
+        optimal_color = '#e67e22'  # Orange for optimal ranges
+        
+        # Add bars for each ratio parameter
+        for i, ratio_name in enumerate(categories):
+            current_value = values[i]
+            
+            # Calculate appropriate scale for this parameter
+            max_val = current_value
+            min_val = 0
+            
+            # Add optimal range if available
+            if ratio_name in optimal_ranges:
+                min_opt, max_opt = optimal_ranges[ratio_name]
+                optimal_midpoint = (min_opt + max_opt) / 2
+                max_val = max(current_value, max_opt)
+                min_val = min(current_value, min_opt)
+            else:
+                optimal_midpoint = current_value * 1.2  # Default if no optimal range
+            
+            # Add more padding to the scale to accommodate outside text
+            range_val = max_val - min_val
+            if range_val == 0:
+                range_val = max_val * 0.1 if max_val > 0 else 1
+            
+            y_max = max_val + (range_val * 0.4)  # Increased padding for outside text
+            y_min = max(0, min_val - (range_val * 0.2))  # Increased padding for outside text
+            
+            # Calculate row and column position
+            if rows == 1:
+                row_pos = 1
+                col_pos = i + 1
+            else:
+                row_pos = (i // cols) + 1
+                col_pos = (i % cols) + 1
+            
+            # Add current ratio bar
+            fig.add_trace(
+                go.Bar(
+                    x=['Current'],
+                    y=[current_value],
+                    name='Current Ratio' if i == 0 else None,  # Only show legend for first chart
+                    marker_color=current_color,
+                    text=[f"{current_value:.2f}"],
+                    textposition='outside',
+                    textfont=dict(size=10, color='black', family='Arial Black'),
+                    showlegend=(i == 0)
+                ),
+                row=row_pos, col=col_pos
+            )
+            
+            # Add optimal range bar if available
+            if ratio_name in optimal_ranges:
+                fig.add_trace(
+                    go.Bar(
+                        x=['Optimal'],
+                        y=[optimal_midpoint],
+                        name='Optimal Range (Midpoint)' if i == 0 else None,  # Only show legend for first chart
+                        marker_color=optimal_color,
+                        text=[f"{optimal_midpoint:.2f}"],
+                        textposition='outside',
+                        textfont=dict(size=10, color='black', family='Arial Black'),
+                        showlegend=(i == 0)
+                    ),
+                    row=row_pos, col=col_pos
+                )
+                
+                # Add range indicators as horizontal lines
+                min_opt, max_opt = optimal_ranges[ratio_name]
+                fig.add_hline(y=min_opt, line_dash="dash", line_color="orange", 
+                             annotation_text=f"Min: {min_opt:.1f}", annotation_position="right",
+                             row=row_pos, col=col_pos)
+                fig.add_hline(y=max_opt, line_dash="dash", line_color="orange", 
+                             annotation_text=f"Max: {max_opt:.1f}", annotation_position="right",
+                             row=row_pos, col=col_pos)
+            
+            # Update y-axis for this subplot
+            fig.update_yaxes(
+                range=[y_min, y_max],
+                row=row_pos, col=col_pos,
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='lightgray'
+            )
+            
+            # Update x-axis for this subplot
+            fig.update_xaxes(
+                row=row_pos, col=col_pos,
+                showgrid=False,
+                tickangle=0
+            )
+        
+        # Update layout
+        fig.update_layout(
+            title=dict(
+                text=title,
+                font=dict(size=16, family='Arial Black')
+            ),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            height=600 if rows > 1 else 400,
+            margin=dict(l=50, r=50, t=80, b=50)
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Add interpretation text
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #17a2b8;">
+            <h5 style="color: #2c3e50; margin: 0 0 10px 0;">📊 Ratio Interpretation Guide</h5>
+            <ul style="margin: 0; padding-left: 20px; color: #495057;">
+                <li><strong>N:P Ratio:</strong> Indicates nitrogen to phosphorus balance (optimal: 8-15)</li>
+                <li><strong>N:K Ratio:</strong> Shows nitrogen to potassium balance (optimal: 1-2.5)</li>
+                <li><strong>Ca:Mg Ratio:</strong> Reflects calcium to magnesium balance (optimal: 2-4)</li>
+                <li><strong>K:Mg Ratio:</strong> Indicates potassium to magnesium balance (optimal: 0.2-0.6)</li>
+                <li><strong>C:N Ratio:</strong> Shows carbon to nitrogen balance (optimal: 10-20)</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying nutrient ratio diagram: {e}")
+        st.error("Error displaying nutrient ratio diagram")
+
+
+def get_ratio_interpretation(ratio_name, current_value, optimal_range):
+    """Get specific interpretation for a nutrient ratio"""
+    if not optimal_range or len(optimal_range) != 2:
+        return ""
+    
+    min_val, max_val = optimal_range
+    status = "optimal"
+    status_color = "#28a745"
+    status_icon = "✅"
+    
+    if current_value < min_val:
+        status = "low"
+        status_color = "#ffc107"
+        status_icon = "⚠️"
+    elif current_value > max_val:
+        status = "high"
+        status_color = "#dc3545"
+        status_icon = "❌"
+    
+    ratio_descriptions = {
+        'N:P': {
+            'description': 'Nitrogen to Phosphorus balance',
+            'soil_optimal': '10-15',
+            'leaf_optimal': '8-12',
+            'impact': 'Affects plant growth and nutrient uptake efficiency'
+        },
+        'N:K': {
+            'description': 'Nitrogen to Potassium balance',
+            'soil_optimal': '1-2',
+            'leaf_optimal': '1.5-2.5',
+            'impact': 'Influences plant vigor and stress resistance'
+        },
+        'Ca:Mg': {
+            'description': 'Calcium to Magnesium balance',
+            'soil_optimal': '2-4',
+            'leaf_optimal': '2-3',
+            'impact': 'Affects soil structure and nutrient availability'
+        },
+        'K:Mg': {
+            'description': 'Potassium to Magnesium balance',
+            'soil_optimal': '0.2-0.5',
+            'leaf_optimal': '0.3-0.6',
+            'impact': 'Influences enzyme activity and protein synthesis'
+        },
+        'C:N': {
+            'description': 'Carbon to Nitrogen balance',
+            'soil_optimal': '10-20',
+            'leaf_optimal': '10-20',
+            'impact': 'Affects organic matter decomposition and nutrient cycling'
+        },
+        'P:K': {
+            'description': 'Phosphorus to Potassium balance',
+            'soil_optimal': '0.4-0.8',
+            'leaf_optimal': '0.4-0.8',
+            'impact': 'Influences energy transfer and root development'
+        }
+    }
+    
+    ratio_info = ratio_descriptions.get(ratio_name, {})
+    description = ratio_info.get('description', f'{ratio_name} ratio')
+    impact = ratio_info.get('impact', 'Affects plant health and growth')
+    
+    return f"""
+    <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid {status_color};">
+        <h5 style="color: #2c3e50; margin: 0 0 10px 0;">{status_icon} {ratio_name} Ratio Analysis</h5>
+        <p style="margin: 5px 0; color: #495057;"><strong>Description:</strong> {description}</p>
+        <p style="margin: 5px 0; color: #495057;"><strong>Current Value:</strong> {current_value:.2f}</p>
+        <p style="margin: 5px 0; color: #495057;"><strong>Optimal Range:</strong> {min_val:.1f} - {max_val:.1f}</p>
+        <p style="margin: 5px 0; color: {status_color};"><strong>Status:</strong> {status.upper()}</p>
+        <p style="margin: 5px 0; color: #495057;"><strong>Impact:</strong> {impact}</p>
+    </div>
+    """
 
 

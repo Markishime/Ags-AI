@@ -69,7 +69,8 @@ class PDFReportGenerator:
             textColor=colors.HexColor('#4CAF50'),
             borderWidth=1,
             borderColor=colors.HexColor('#4CAF50'),
-            borderPadding=5
+            borderPadding=5,
+            alignment=4  # Justify
         ))
         
         styles.add(ParagraphStyle(
@@ -77,7 +78,8 @@ class PDFReportGenerator:
             parent=styles['Heading2'],
             fontSize=14,
             spaceAfter=10,
-            textColor=colors.HexColor('#388E3C')
+            textColor=colors.HexColor('#388E3C'),
+            alignment=4  # Justify
         ))
         
         styles.add(ParagraphStyle(
@@ -85,7 +87,8 @@ class PDFReportGenerator:
             parent=styles['Normal'],
             fontSize=11,
             spaceAfter=6,
-            textColor=colors.black
+            textColor=colors.black,
+            alignment=4  # Justify
         ))
         
         styles.add(ParagraphStyle(
@@ -97,7 +100,8 @@ class PDFReportGenerator:
             borderWidth=2,
             borderColor=colors.HexColor('#4CAF50'),
             borderPadding=8,
-            backColor=colors.HexColor('#E8F5E8')
+            backColor=colors.HexColor('#E8F5E8'),
+            alignment=4  # Justify
         ))
         
         styles.add(ParagraphStyle(
@@ -108,8 +112,16 @@ class PDFReportGenerator:
             backColor=colors.HexColor('#FFEBEE'),
             borderWidth=1,
             borderColor=colors.red,
-            borderPadding=5
+            borderPadding=5,
+            alignment=4  # Justify
         ))
+        
+        # Add justification to default styles
+        styles['Normal'].alignment = 4  # Justify
+        styles['Heading1'].alignment = 4  # Justify
+        styles['Heading2'].alignment = 4  # Justify
+        styles['Heading3'].alignment = 4  # Justify
+        styles['BodyText'].alignment = 4  # Justify
         
         return styles
     
@@ -157,20 +169,7 @@ class PDFReportGenerator:
             if options.get('include_references', True):
                 story.extend(self._create_references_section(analysis_data))
             
-            # 7. Economic Analysis (always included for comprehensive analysis)
-            story.extend(self._create_comprehensive_economic_analysis(analysis_data))
-            
-            # 8. Yield Forecast and Projections (always included)
-            story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
-            story.extend(self._create_yield_projections_section(analysis_data))
-            
-            # 9. Investment Scenarios and ROI Analysis (always included)
-            story.extend(self._create_investment_scenarios_section(analysis_data))
-            
-            # 10. Cost-Benefit Analysis (always included)
-            story.extend(self._create_cost_benefit_analysis_section(analysis_data))
-            
-            # 11. Conclusion (always included)
+            # 7. Conclusion (always included)
             story.extend(self._create_enhanced_conclusion(analysis_data))
         elif 'summary_metrics' in analysis_data and 'health_indicators' in analysis_data:
             # Comprehensive analysis format
@@ -1387,8 +1386,6 @@ class PDFReportGenerator:
         # Generate contextual visualizations based on step content
         contextual_viz = self._generate_contextual_visualizations_pdf(step, step_number)
         if contextual_viz:
-            story.append(Paragraph("Contextual Analysis Charts:", self.styles['Heading3']))
-            
             for viz_data in contextual_viz:
                 try:
                     chart_image = self._create_enhanced_chart_image(viz_data)
@@ -1430,15 +1427,8 @@ class PDFReportGenerator:
                 pass
             
             elif step_number == 2:  # Issue Diagnosis
-                # Create issues severity chart
-                issues_viz = self._create_issues_severity_viz_pdf(step)
-                if issues_viz:
-                    visualizations.append(issues_viz)
-                
-                # Create nutrient deficiency heatmap
-                deficiency_viz = self._create_nutrient_deficiency_heatmap_pdf(step)
-                if deficiency_viz:
-                    visualizations.append(deficiency_viz)
+                # Charts removed as requested
+                pass
             
             elif step_number == 3:  # Solution Recommendations
                 # Create solution priority chart
@@ -1521,54 +1511,7 @@ class PDFReportGenerator:
             logger.warning(f"Error creating yield projection visualization: {str(e)}")
             return None
     
-    def _create_issues_severity_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Create issues severity visualization for PDF"""
-        try:
-            # Mock data for demonstration
-            return {
-                'type': 'pie_chart',
-                'title': '🚨 Issues Severity Distribution',
-                'subtitle': 'Breakdown of identified issues by severity level',
-                'data': {
-                    'categories': ['Critical', 'High', 'Medium', 'Low'],
-                    'values': [2, 3, 5, 2],
-                    'colors': ['#e74c3c', '#f39c12', '#f1c40f', '#2ecc71']
-                },
-                'options': {
-                    'show_legend': True,
-                    'show_values': True,
-                    'show_percentages': True
-                }
-            }
-        except Exception as e:
-            logger.warning(f"Error creating issues severity visualization: {str(e)}")
-            return None
     
-    def _create_nutrient_deficiency_heatmap_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Create nutrient deficiency heatmap for PDF"""
-        try:
-            return {
-                'type': 'heatmap',
-                'title': '🔥 Nutrient Deficiency Heatmap',
-                'subtitle': 'Visual representation of nutrient deficiency levels',
-                'data': {
-                    'parameters': ['pH', 'Nitrogen', 'Phosphorus', 'Potassium', 'Magnesium'],
-                    'levels': ['High', 'Critical', 'Medium', 'Low', 'High'],
-                    'color_scale': {
-                        'Critical': '#e74c3c',
-                        'High': '#f39c12',
-                        'Medium': '#f1c40f',
-                        'Low': '#2ecc71'
-                    }
-                },
-                'options': {
-                    'show_legend': True,
-                    'show_values': True
-                }
-            }
-        except Exception as e:
-            logger.warning(f"Error creating nutrient deficiency heatmap: {str(e)}")
-            return None
     
     def _create_solution_priority_viz_pdf(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Create solution priority visualization for PDF"""
@@ -1728,13 +1671,11 @@ class PDFReportGenerator:
             return None
     
     def _create_actual_vs_optimal_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
-        """Create actual vs optimal bar chart for PDF"""
+        """Create actual vs optimal bar chart for PDF with separate charts for each parameter"""
         try:
             import matplotlib.pyplot as plt
             import io
             import numpy as np
-            
-            fig, ax = plt.subplots(figsize=(12, 8))
             
             categories = data.get('categories', [])
             series = data.get('series', [])
@@ -1742,43 +1683,83 @@ class PDFReportGenerator:
             if not categories or not series:
                 return None
             
-            x = np.arange(len(categories))
-            width = 0.35
-            
             # Extract actual and optimal values
-            actual_values = []
-            optimal_values = []
+            actual_values = series[0]['values'] if len(series) > 0 else []
+            optimal_values = series[1]['values'] if len(series) > 1 else []
             
-            for series_data in series:
-                if series_data.get('name') == 'Current Values' or series_data.get('name') == 'Actual Levels':
-                    actual_values = series_data.get('values', [])
-                elif series_data.get('name') == 'MPOB Optimal' or series_data.get('name') == 'Optimal Levels':
-                    optimal_values = series_data.get('values', [])
+            if not actual_values or not optimal_values:
+                return None
             
-            if actual_values and optimal_values:
-                bars1 = ax.bar(x - width/2, actual_values, width, 
-                             label='Current Values', color='#3498db', alpha=0.8)
-                bars2 = ax.bar(x + width/2, optimal_values, width, 
-                             label='Optimal Values', color='#e74c3c', alpha=0.8)
+            # Create subplots - one for each parameter
+            num_params = len(categories)
+            
+            # Calculate optimal layout - if more than 4 parameters, use 2 rows
+            if num_params > 4:
+                rows = 2
+                cols = (num_params + 1) // 2
+            else:
+                rows = 1
+                cols = num_params
+            
+            fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 4*rows))
+            
+            # If only one parameter, axes won't be a list
+            if num_params == 1:
+                axes = [axes]
+            elif rows == 1:
+                axes = axes.flatten() if hasattr(axes, 'flatten') else axes
+            else:
+                axes = axes.flatten()
+            
+            # Define colors
+            actual_color = series[0].get('color', '#3498db')
+            optimal_color = series[1].get('color', '#e74c3c')
+            
+            # Create chart for each parameter
+            for i, param in enumerate(categories):
+                actual_val = actual_values[i]
+                optimal_val = optimal_values[i]
+                
+                # Calculate appropriate scale for this parameter
+                max_val = max(actual_val, optimal_val)
+                min_val = min(actual_val, optimal_val)
+                
+                # Add some padding to the scale
+                range_val = max_val - min_val
+                if range_val == 0:
+                    range_val = max_val * 0.1 if max_val > 0 else 1
+                
+                y_max = max_val + (range_val * 0.2)
+                y_min = max(0, min_val - (range_val * 0.1))
+                
+                # Create bars
+                x_pos = [0, 1]
+                heights = [actual_val, optimal_val]
+                colors = [actual_color, optimal_color]
+                labels = ['Observed', 'Recommended']
+                
+                bars = axes[i].bar(x_pos, heights, color=colors, alpha=0.8, width=0.6)
                 
                 # Add value labels on bars
-                for bar in bars1:
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                           f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+                for bar, height in zip(bars, heights):
+                    axes[i].text(bar.get_x() + bar.get_width()/2., height + (y_max - y_min) * 0.02,
+                               f'{height:.1f}', ha='center', va='bottom', fontsize=12, fontweight='bold')
                 
-                for bar in bars2:
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                           f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+                # Customize subplot
+                axes[i].set_title(param, fontsize=14, fontweight='bold', pad=15)
+                axes[i].set_ylim(y_min, y_max)
+                axes[i].set_xticks(x_pos)
+                axes[i].set_xticklabels(labels, fontsize=12)
+                axes[i].grid(True, alpha=0.3, linestyle='--')
+                axes[i].set_ylabel('Values', fontsize=12)
+                axes[i].tick_params(axis='both', which='major', labelsize=10)
+                
+                # Only show legend on first chart
+                if i == 0:
+                    axes[i].legend(['Observed', 'Recommended'], loc='upper right', fontsize=10)
             
-            ax.set_xlabel(options.get('x_axis_title', 'Parameters'))
-            ax.set_ylabel(options.get('y_axis_title', 'Values'))
-            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-            ax.set_xticks(x)
-            ax.set_xticklabels(categories, rotation=45, ha='right')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            # Set main title
+            fig.suptitle(title, fontsize=14, fontweight='bold', y=0.95)
             
             plt.tight_layout()
             
@@ -2012,43 +1993,171 @@ class PDFReportGenerator:
             return None
     
     def _create_bar_chart_pdf(self, data: Dict[str, Any], title: str, options: Dict[str, Any]) -> Optional[bytes]:
-        """Create bar chart for PDF"""
+        """Create bar chart for PDF with separate charts for each parameter"""
         try:
             import matplotlib.pyplot as plt
             import io
             import numpy as np
             
-            fig, ax = plt.subplots(figsize=(12, 8))
-            
             categories = data.get('categories', [])
             values = data.get('values', [])
+            series = data.get('series', [])
             
-            if not categories or not values:
+            if not categories:
                 return None
             
-            bars = ax.bar(categories, values, color='#2E7D32', alpha=0.8)
+            # Check if we have series data (actual vs optimal format)
+            if series and len(series) >= 2 and isinstance(series[0], dict) and 'values' in series[0]:
+                # Multiple series format - create separate charts for each parameter
+                actual_values = series[0]['values'] if len(series) > 0 else []
+                optimal_values = series[1]['values'] if len(series) > 1 else []
+                
+                if actual_values and optimal_values:
+                    # Create subplots - one for each parameter
+                    num_params = len(categories)
+                    
+                    # Calculate optimal layout - if more than 4 parameters, use 2 rows
+                    if num_params > 4:
+                        rows = 2
+                        cols = (num_params + 1) // 2
+                    else:
+                        rows = 1
+                        cols = num_params
+                    
+                    fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 4*rows))
+                    
+                    # If only one parameter, axes won't be a list
+                    if num_params == 1:
+                        axes = [axes]
+                    elif rows == 1:
+                        axes = axes.flatten() if hasattr(axes, 'flatten') else axes
+                    else:
+                        axes = axes.flatten()
+                    
+                    # Define colors
+                    actual_color = series[0].get('color', '#3498db')
+                    optimal_color = series[1].get('color', '#e74c3c')
+                    
+                    # Create chart for each parameter
+                    for i, param in enumerate(categories):
+                        actual_val = actual_values[i]
+                        optimal_val = optimal_values[i]
+                        
+                        # Calculate appropriate scale for this parameter
+                        max_val = max(actual_val, optimal_val)
+                        min_val = min(actual_val, optimal_val)
+                        
+                        # Add some padding to the scale
+                        range_val = max_val - min_val
+                        if range_val == 0:
+                            range_val = max_val * 0.1 if max_val > 0 else 1
+                        
+                        y_max = max_val + (range_val * 0.2)
+                        y_min = max(0, min_val - (range_val * 0.1))
+                        
+                        # Create bars
+                        x_pos = [0, 1]
+                        heights = [actual_val, optimal_val]
+                        colors = [actual_color, optimal_color]
+                        labels = ['Observed', 'Recommended']
+                        
+                        bars = axes[i].bar(x_pos, heights, color=colors, alpha=0.8, width=0.6)
             
             # Add value labels on bars
-            for bar in bars:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                       f'{height:.2f}', ha='center', va='bottom', fontsize=10)
+                        for bar, height in zip(bars, heights):
+                            axes[i].text(bar.get_x() + bar.get_width()/2., height + (y_max - y_min) * 0.02,
+                                       f'{height:.1f}', ha='center', va='bottom', fontsize=12, fontweight='bold')
+                        
+                        # Customize subplot
+                        axes[i].set_title(param, fontsize=14, fontweight='bold', pad=15)
+                        axes[i].set_ylim(y_min, y_max)
+                        axes[i].set_xticks(x_pos)
+                        axes[i].set_xticklabels(labels, fontsize=12)
+                        axes[i].grid(True, alpha=0.3, linestyle='--')
+                        axes[i].set_ylabel('Values', fontsize=12)
+                        axes[i].tick_params(axis='both', which='major', labelsize=10)
+                        
+                        # Only show legend on first chart
+                        if i == 0:
+                            axes[i].legend(['Observed', 'Recommended'], loc='upper right', fontsize=10)
+                    
+                    # Set main title
+                    fig.suptitle(title, fontsize=14, fontweight='bold', y=0.95)
             
-            ax.set_xlabel(options.get('x_axis_title', 'Categories'))
-            ax.set_ylabel(options.get('y_axis_title', 'Values'))
-            ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-            ax.tick_params(axis='x', rotation=45)
-            ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    
+                    # Save to bytes
+                    img_buffer = io.BytesIO()
+                    plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+                    img_buffer.seek(0)
+                    plt.close(fig)
+                    
+                    return img_buffer.getvalue()
             
-            plt.tight_layout()
+            elif values:
+                # Single values format - create simple bar chart
+                if len(values) != len(categories):
+                    return None
+                
+                # Create subplots - one for each parameter
+                num_params = len(categories)
+                
+                # Calculate optimal layout - if more than 4 parameters, use 2 rows
+                if num_params > 4:
+                    rows = 2
+                    cols = (num_params + 1) // 2
+                else:
+                    rows = 1
+                    cols = num_params
+                
+                fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 4*rows))
+                
+                # If only one parameter, axes won't be a list
+                if num_params == 1:
+                    axes = [axes]
+                elif rows == 1:
+                    axes = axes.flatten() if hasattr(axes, 'flatten') else axes
+                else:
+                    axes = axes.flatten()
+                
+                # Create chart for each parameter
+                for i, param in enumerate(categories):
+                    val = values[i]
+                    
+                    # Calculate appropriate scale for this parameter
+                    y_max = val * 1.2 if val > 0 else 1
+                    y_min = 0
+                    
+                    # Create bar
+                    bars = axes[i].bar([0], [val], color='#3498db', alpha=0.8, width=0.6)
+                    
+                    # Add value label on bar
+                    axes[i].text(0, val + (y_max - y_min) * 0.02,
+                               f'{val:.1f}', ha='center', va='bottom', fontsize=12, fontweight='bold')
+                    
+                    # Customize subplot
+                    axes[i].set_title(param, fontsize=14, fontweight='bold', pad=15)
+                    axes[i].set_ylim(y_min, y_max)
+                    axes[i].set_xticks([0])
+                    axes[i].set_xticklabels(['Value'], fontsize=12)
+                    axes[i].grid(True, alpha=0.3, linestyle='--')
+                    axes[i].set_ylabel('Values', fontsize=12)
+                    axes[i].tick_params(axis='both', which='major', labelsize=10)
+                
+                # Set main title
+                fig.suptitle(title, fontsize=14, fontweight='bold', y=0.95)
+                
+                plt.tight_layout()
+                
+                # Save to bytes
+                img_buffer = io.BytesIO()
+                plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+                img_buffer.seek(0)
+                plt.close(fig)
+                
+                return img_buffer.getvalue()
             
-            # Save to bytes
-            img_buffer = io.BytesIO()
-            plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
-            img_buffer.seek(0)
-            plt.close(fig)
-            
-            return img_buffer.getvalue()
+            return None
             
         except Exception as e:
             logger.warning(f"Error creating bar chart: {str(e)}")
@@ -2233,15 +2342,8 @@ class PDFReportGenerator:
                 
             
             elif step_number == 2:  # Issue Diagnosis
-                # Create issues severity chart
-                issues = analysis_data.get('issues_analysis', {}).get('all_issues', [])
-                if issues:
-                    chart_image = self._create_issues_severity_chart(issues)
-                    if chart_image:
-                        story.append(Paragraph("Issues Severity Analysis:", self.styles['Heading3']))
-                        img_buffer = io.BytesIO(chart_image)
-                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
-                        story.append(Spacer(1, 8))
+                # Charts removed as requested
+                pass
             
             elif step_number == 3:  # Solution Recommendations
                 # Create solution impact chart
@@ -2255,15 +2357,8 @@ class PDFReportGenerator:
                         story.append(Spacer(1, 8))
             
             elif step_number == 5:  # Economic Impact
-                # Create economic analysis chart
-                economic_data = analysis_data.get('economic_forecast', {})
-                if economic_data:
-                    chart_image = self._create_economic_analysis_chart(economic_data)
-                    if chart_image:
-                        story.append(Paragraph("Economic Impact Visualization:", self.styles['Heading3']))
-                        img_buffer = io.BytesIO(chart_image)
-                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
-                        story.append(Spacer(1, 8))
+                # Economic Impact Visualization removed as requested
+                pass
             
             elif step_number == 6:  # Yield Forecast
                 # Create yield projection chart
@@ -2357,51 +2452,6 @@ class PDFReportGenerator:
             logger.warning(f"Could not create nutrient comparison chart: {str(e)}")
             return None
     
-    def _create_issues_severity_chart(self, issues: List[Dict[str, Any]]) -> Optional[bytes]:
-        """Create issues severity chart"""
-        try:
-            import matplotlib.pyplot as plt
-            import numpy as np
-            
-            plt.clf()
-            plt.close('all')
-            
-            if not issues:
-                return None
-            
-            # Count issues by severity
-            severity_counts = {}
-            for issue in issues:
-                severity = issue.get('severity', 'Unknown')
-                severity_counts[severity] = severity_counts.get(severity, 0) + 1
-            
-            if not severity_counts:
-                return None
-            
-            # Create pie chart
-            fig, ax = plt.subplots(figsize=(8, 6))
-            
-            labels = list(severity_counts.keys())
-            sizes = list(severity_counts.values())
-            colors = ['red', 'orange', 'yellow', 'green', 'blue']
-            
-            ax.pie(sizes, labels=labels, colors=colors[:len(labels)], autopct='%1.1f%%', startangle=90)
-            ax.set_title('Issues Distribution by Severity')
-            
-            plt.tight_layout()
-            
-            # Save to bytes
-            img_buffer = io.BytesIO()
-            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-            img_buffer.seek(0)
-            result = img_buffer.getvalue()
-            
-            plt.close(fig)
-            return result
-            
-        except Exception as e:
-            logger.warning(f"Could not create issues severity chart: {str(e)}")
-            return None
     
     def _create_solution_impact_chart(self, recommendations: List[Dict[str, Any]]) -> Optional[bytes]:
         """Create solution impact chart"""
@@ -2460,48 +2510,6 @@ class PDFReportGenerator:
             logger.warning(f"Could not create solution impact chart: {str(e)}")
             return None
     
-    def _create_economic_analysis_chart(self, economic_data: Dict[str, Any]) -> Optional[bytes]:
-        """Create economic analysis chart"""
-        try:
-            import matplotlib.pyplot as plt
-            import numpy as np
-            
-            plt.clf()
-            plt.close('all')
-            
-            # Extract economic data
-            years = [1, 2, 3, 4, 5]
-            roi_values = []
-            
-            # Mock ROI data based on economic forecast
-            base_roi = economic_data.get('projected_roi', 15)
-            for year in years:
-                roi_values.append(base_roi + (year - 1) * 2)  # Increasing ROI over time
-            
-            # Create line chart
-            fig, ax = plt.subplots(figsize=(10, 6))
-            
-            ax.plot(years, roi_values, marker='o', linewidth=2, markersize=8)
-            ax.set_xlabel('Years')
-            ax.set_ylabel('ROI (%)')
-            ax.set_title('Projected Return on Investment')
-            ax.grid(True, alpha=0.3)
-            ax.set_ylim(0, max(roi_values) * 1.2)
-            
-            plt.tight_layout()
-            
-            # Save to bytes
-            img_buffer = io.BytesIO()
-            plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-            img_buffer.seek(0)
-            result = img_buffer.getvalue()
-            
-            plt.close(fig)
-            return result
-            
-        except Exception as e:
-            logger.warning(f"Could not create economic analysis chart: {str(e)}")
-            return None
     
     def _create_step1_data_tables(self, step: Dict[str, Any], analysis_data: Dict[str, Any]) -> List:
         """Create data tables for Step 1: Data Analysis"""
@@ -3832,7 +3840,8 @@ class PDFReportGenerator:
                 leaf_table = Table(leaf_data)
                 leaf_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')),
-                    ('TEXTCOLOR', (0, 0), (-1, -1), colors.whitesmoke),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                     ('FONTSIZE', (0, 0), (-1, -1), 12),
@@ -4024,34 +4033,62 @@ def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_t
         if not categories:
             return None
         
-        # Create the chart
-        fig, ax = plt.subplots(figsize=(12, 8))
-        x = np.arange(len(categories))
-        width = 0.35
+        # Create subplots - one for each parameter
+        num_params = len(categories)
+        fig, axes = plt.subplots(1, num_params, figsize=(4*num_params, 6))
         
-        bars1 = ax.bar(x - width/2, actual_values, width, label='Actual Levels', 
-                      color='#3498db' if parameter_type == 'soil' else '#2ecc71', alpha=0.8)
-        bars2 = ax.bar(x + width/2, optimal_values, width, label='Optimal Levels', 
-                      color='#e74c3c' if parameter_type == 'soil' else '#e67e22', alpha=0.8)
+        # If only one parameter, axes won't be a list
+        if num_params == 1:
+            axes = [axes]
         
-        ax.set_xlabel(f'{parameter_type.title()} Parameters', fontsize=12)
-        ax.set_ylabel('Nutrient Levels', fontsize=12)
-        ax.set_title(f'{parameter_type.title()} Nutrients: Actual vs Optimal Levels', fontsize=14, fontweight='bold')
-        ax.set_xticks(x)
-        ax.set_xticklabels(categories, rotation=45, ha='right')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+        # Define colors
+        actual_color = '#3498db' if parameter_type == 'soil' else '#2ecc71'
+        optimal_color = '#e74c3c' if parameter_type == 'soil' else '#e67e22'
+        
+        # Create chart for each parameter
+        for i, param in enumerate(categories):
+            actual_val = actual_values[i]
+            optimal_val = optimal_values[i]
+            
+            # Calculate appropriate scale for this parameter
+            max_val = max(actual_val, optimal_val)
+            min_val = min(actual_val, optimal_val)
+            
+            # Add some padding to the scale
+            range_val = max_val - min_val
+            if range_val == 0:
+                range_val = max_val * 0.1 if max_val > 0 else 1
+            
+            y_max = max_val + (range_val * 0.2)
+            y_min = max(0, min_val - (range_val * 0.1))
+            
+            # Create bars
+            x_pos = [0, 1]
+            heights = [actual_val, optimal_val]
+            colors = [actual_color, optimal_color]
+            labels = ['Observed', 'Recommended']
+            
+            bars = axes[i].bar(x_pos, heights, color=colors, alpha=0.8, width=0.6)
         
         # Add value labels on bars
-        for bar in bars1:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                   f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+            for bar, height in zip(bars, heights):
+                axes[i].text(bar.get_x() + bar.get_width()/2., height + (y_max - y_min) * 0.02,
+                           f'{height:.1f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+            
+            # Customize subplot
+            axes[i].set_title(param, fontsize=12, fontweight='bold', pad=10)
+            axes[i].set_ylim(y_min, y_max)
+            axes[i].set_xticks(x_pos)
+            axes[i].set_xticklabels(labels, fontsize=10)
+            axes[i].grid(True, alpha=0.3, linestyle='--')
+            axes[i].set_ylabel('Values', fontsize=10)
+            
+            # Only show legend on first chart
+            if i == 0:
+                axes[i].legend(['Observed', 'Recommended'], loc='upper right', fontsize=9)
         
-        for bar in bars2:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                   f'{height:.2f}', ha='center', va='bottom', fontsize=8)
+        # Set main title
+        fig.suptitle(f'{parameter_type.title()} Nutrients: Actual vs Optimal Levels', fontsize=14, fontweight='bold', y=0.95)
         
         plt.tight_layout()
         

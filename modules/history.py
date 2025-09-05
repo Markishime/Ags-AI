@@ -90,24 +90,33 @@ def display_history_statistics():
         for doc in user_analyses:
             analysis_data = doc.to_dict()
             
-            # Get metrics from analysis_metadata
-            analysis_metadata = analysis_data.get('analysis_metadata', {})
-            if analysis_metadata:
-                # Try to extract health score from metadata or calculate from step analysis
-                step_analysis = analysis_data.get('step_by_step_analysis', [])
-                if step_analysis:
-                    # Calculate a simple health score based on number of issues found
-                    total_steps = len(step_analysis)
-                    issues_found = 0
-                    for step in step_analysis:
-                        if 'issues_identified' in step:
-                            issues_found += len(step['issues_identified'])
-                    
-                    # Simple health score calculation (100 - (issues * 10))
-                    health_score = max(0, 100 - (issues_found * 10))
-                    health_scores.append(health_score)
-                    total_issues += issues_found
-                    total_parameters += total_steps
+            # Get step analysis from multiple possible locations
+            step_analysis = analysis_data.get('step_by_step_analysis', [])
+            if not step_analysis:
+                # Try to get from analysis_results
+                analysis_results = analysis_data.get('analysis_results', {})
+                step_analysis = analysis_results.get('step_by_step_analysis', [])
+            
+            if step_analysis:
+                # Calculate a simple health score based on number of issues found
+                total_steps = len(step_analysis)
+                issues_found = 0
+                
+                # Count issues from step analysis
+                for step in step_analysis:
+                    if 'issues_identified' in step:
+                        issues_found += len(step['issues_identified'])
+                    # Also check for other issue-related fields
+                    if 'issues' in step:
+                        issues_found += len(step['issues'])
+                    if 'problems' in step:
+                        issues_found += len(step['problems'])
+                
+                # Simple health score calculation (100 - (issues * 10))
+                health_score = max(0, 100 - (issues_found * 10))
+                health_scores.append(health_score)
+                total_issues += issues_found
+                total_parameters += total_steps
         
         avg_health_score = sum(health_scores) / len(health_scores) if health_scores else 0
         avg_issues_per_analysis = total_issues / completed_analyses if completed_analyses > 0 else 0
@@ -320,37 +329,60 @@ def display_analysis_history():
                 
                 with col2:
                     st.markdown("**📋 Data Summary**")
-                    # Get sample counts from raw_data structure
-                    raw_data = analysis_data.get('raw_data', {})
-                    soil_data = raw_data.get('soil_data', {})
-                    leaf_data = raw_data.get('leaf_data', {})
-                    
+                    # Get sample counts from multiple possible data structures
                     soil_samples = 0
                     leaf_samples = 0
                     
-
+                    # Try to get data from analysis_results first
+                    analysis_results = analysis_data.get('analysis_results', {})
+                    raw_data = analysis_results.get('raw_data', {})
                     
-                    if soil_data and soil_data.get('success'):
-                        # Try different possible data structures
-                        soil_samples_data = soil_data.get('data', {})
-                        if isinstance(soil_samples_data, dict):
-                            soil_samples = len(soil_samples_data.get('samples', []))
-                        elif isinstance(soil_samples_data, list):
-                            soil_samples = len(soil_samples_data)
-                        else:
-                            # If no samples array, count the number of parameters
-                            soil_samples = len([k for k in soil_data.keys() if k not in ['success', 'data', 'metadata']])
+                    # If not found in analysis_results, try direct from analysis_data
+                    if not raw_data:
+                        raw_data = analysis_data.get('raw_data', {})
                     
-                    if leaf_data and leaf_data.get('success'):
-                        # Try different possible data structures
-                        leaf_samples_data = leaf_data.get('data', {})
-                        if isinstance(leaf_samples_data, dict):
-                            leaf_samples = len(leaf_samples_data.get('samples', []))
-                        elif isinstance(leaf_samples_data, list):
-                            leaf_samples = len(leaf_samples_data)
+                    # Extract soil data
+                    soil_data = raw_data.get('soil_data', {})
+                    if soil_data:
+                        # Check for parameter_statistics structure (new format)
+                        if 'parameter_statistics' in soil_data:
+                            soil_samples = len(soil_data['parameter_statistics'])
+                        # Check for samples array
+                        elif 'samples' in soil_data:
+                            soil_samples = len(soil_data['samples'])
+                        # Check for data.samples structure
+                        elif 'data' in soil_data and isinstance(soil_data['data'], dict):
+                            soil_samples = len(soil_data['data'].get('samples', []))
+                        # Check for direct parameters (count non-metadata keys)
                         else:
-                            # If no samples array, count the number of parameters
-                            leaf_samples = len([k for k in leaf_data.keys() if k not in ['success', 'data', 'metadata']])
+                            soil_samples = len([k for k in soil_data.keys() if k not in ['success', 'data', 'metadata', 'parameter_statistics']])
+                    
+                    # Extract leaf data
+                    leaf_data = raw_data.get('leaf_data', {})
+                    if leaf_data:
+                        # Check for parameter_statistics structure (new format)
+                        if 'parameter_statistics' in leaf_data:
+                            leaf_samples = len(leaf_data['parameter_statistics'])
+                        # Check for samples array
+                        elif 'samples' in leaf_data:
+                            leaf_samples = len(leaf_data['samples'])
+                        # Check for data.samples structure
+                        elif 'data' in leaf_data and isinstance(leaf_data['data'], dict):
+                            leaf_samples = len(leaf_data['data'].get('samples', []))
+                        # Check for direct parameters (count non-metadata keys)
+                        else:
+                            leaf_samples = len([k for k in leaf_data.keys() if k not in ['success', 'data', 'metadata', 'parameter_statistics']])
+                    
+                    # If still no samples found, try alternative data structures
+                    if soil_samples == 0 and leaf_samples == 0:
+                        # Try to get from soil_parameters and leaf_parameters
+                        soil_params = analysis_results.get('soil_parameters', {})
+                        leaf_params = analysis_results.get('leaf_parameters', {})
+                        
+                        if soil_params:
+                            soil_samples = len(soil_params)
+                        if leaf_params:
+                            leaf_samples = len(leaf_params)
                     
                     st.write(f"**Soil Samples:** {soil_samples}")
                     st.write(f"**Leaf Samples:** {leaf_samples}")
@@ -365,26 +397,67 @@ def display_analysis_history():
                 
                 with col3:
                     st.markdown("**📈 Analysis Results**")
-                    # Get step-by-step analysis count
+                    
+                    # Get step-by-step analysis count from multiple possible locations
                     step_analysis = analysis_data.get('step_by_step_analysis', [])
+                    if not step_analysis:
+                        # Try to get from analysis_results
+                        analysis_results = analysis_data.get('analysis_results', {})
+                        step_analysis = analysis_results.get('step_by_step_analysis', [])
+                    
                     st.write(f"**Analysis Steps:** {len(step_analysis)}")
                     
-                    # Get key metrics from analysis_metadata
+                    # Get analysis type from multiple possible locations
+                    analysis_type = "Unknown"
                     analysis_metadata = analysis_data.get('analysis_metadata', {})
                     if analysis_metadata:
-                        st.write(f"**Analysis Type:** {analysis_metadata.get('analysis_type', 'Unknown')}")
-                        
-                        # Count data sources more accurately
-                        data_sources_count = 0
+                        analysis_type = analysis_metadata.get('analysis_type', 'Unknown')
+                    else:
+                        # Try to get from analysis_results
+                        analysis_results = analysis_data.get('analysis_results', {})
+                        analysis_metadata = analysis_results.get('analysis_metadata', {})
+                        if analysis_metadata:
+                            analysis_type = analysis_metadata.get('analysis_type', 'Unknown')
+                    
+                    st.write(f"**Analysis Type:** {analysis_type}")
+                    
+                    # Count data sources more accurately
+                    data_sources_count = 0
+                    
+                    # Try to get raw_data from analysis_results first
+                    analysis_results = analysis_data.get('analysis_results', {})
+                    raw_data = analysis_results.get('raw_data', {})
+                    
+                    # If not found in analysis_results, try direct from analysis_data
+                    if not raw_data:
                         raw_data = analysis_data.get('raw_data', {})
-                        if raw_data.get('soil_data', {}).get('success'):
+                    
+                    # Check for soil data
+                    soil_data = raw_data.get('soil_data', {})
+                    if soil_data and (soil_data.get('success') or 'parameter_statistics' in soil_data or len(soil_data) > 1):
+                        data_sources_count += 1
+                    
+                    # Check for leaf data
+                    leaf_data = raw_data.get('leaf_data', {})
+                    if leaf_data and (leaf_data.get('success') or 'parameter_statistics' in leaf_data or len(leaf_data) > 1):
+                        data_sources_count += 1
+                    
+                    # Check for land/yield data
+                    land_yield_data = raw_data.get('land_yield_data', {})
+                    if land_yield_data and len(land_yield_data) > 0:
+                        data_sources_count += 1
+                    
+                    # If still no data sources found, try alternative structures
+                    if data_sources_count == 0:
+                        # Check for soil_parameters and leaf_parameters
+                        if analysis_results.get('soil_parameters', {}):
                             data_sources_count += 1
-                        if raw_data.get('leaf_data', {}).get('success'):
+                        if analysis_results.get('leaf_parameters', {}):
                             data_sources_count += 1
-                        if raw_data.get('land_yield_data', {}):
+                        if analysis_results.get('land_yield_data', {}):
                             data_sources_count += 1
-                        
-                        st.write(f"**Data Sources:** {data_sources_count}")
+                    
+                    st.write(f"**Data Sources:** {data_sources_count}")
                     
                     # Economic forecast info
                     economic_forecast = analysis_data.get('economic_forecast', {})

@@ -48,20 +48,11 @@ try:
 except Exception:
     from upload import show_upload_page
 
-try:
-    from modules.results import show_results_page
-except Exception:
-    from results import show_results_page
+from modules.results import show_results_page
 
-try:
-    from modules.history import show_history_page
-except Exception:
-    from history import show_history_page
+from modules.history import show_history_page
 
-try:
-    from modules.admin import show_admin_panel
-except Exception:
-    from admin import show_admin_panel
+from modules.admin import show_admin_panel
 
 # Page configuration
 st.set_page_config(
@@ -319,20 +310,13 @@ def show_home_page():
         ✅ **Yield Optimization** - 5-year yield forecasting and economic analysis  
         ✅ **Expert Recommendations** - Fertilizer and management guidance  
         
-        ### 📋 Important: Complete Survey First
-        
-        **Before accessing our system, please download and complete our Oil Palm Farmer Survey.**
-        This helps us understand your farming challenges and improve our service.
-        
         ### 🚀 Get Started
         
-        1. **Download** and complete the Oil Palm Farmer Survey below
-        2. **Send** the completed survey to: **a.loladze@agriglobalsolutions.com**
-        3. **Register** for a free account
-        4. **Upload** your SP LAB test report images
-        5. **Analyze** with AI-powered insights
-        6. **Download** comprehensive PDF reports
-        7. **Optimize** your oil palm cultivation
+        1. **Register** for a free account
+        2. **Upload** your SP LAB test report images
+        3. **Analyze** with AI-powered insights
+        4. **Download** comprehensive PDF reports
+        5. **Optimize** your oil palm cultivation
         """, unsafe_allow_html=True)
     
     with col2:
@@ -380,29 +364,6 @@ def show_home_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # Survey download button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("📥 Download Oil Palm Farmer Survey", use_container_width=True, type="primary"):
-            try:
-                from utils.docx_utils import create_survey_download_button
-                from datetime import datetime
-                
-                docx_data = create_survey_download_button()
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"oil_palm_farmer_survey_{timestamp}.docx"
-                
-                st.download_button(
-                    label="💾 Save Survey Form",
-                    data=docx_data,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
-                
-            except Exception as e:
-                st.error(f"Error generating survey form: {str(e)}")
-    
     st.markdown("---")
     
     # Call to action
@@ -412,7 +373,7 @@ def show_home_page():
         st.markdown("""
         <div style="text-align: center; padding: 2rem; background-color: #f0f8f0; border-radius: 10px; margin: 2rem 0;">
             <h3>🌟 Ready to Optimize Your Oil Palm Cultivation?</h3>
-            <p>Complete the survey above, then join thousands of farmers using AGS AI Assistant</p>
+            <p>Join thousands of farmers using AGS AI Assistant</p>
         </div>
         """, unsafe_allow_html=True)
         
