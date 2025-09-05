@@ -2802,8 +2802,7 @@ def display_visualization(viz_data, viz_number):
         display_scatter_plot(data, title)
     elif viz_type == 'actual_vs_optimal_bar':
         display_actual_vs_optimal_bar(data, title, options)
-    elif viz_type == 'nutrient_ratio_diagram':
-        display_nutrient_ratio_diagram(data, title, options)
+
     elif viz_type == 'multi_axis_chart':
         display_multi_axis_chart(data, title, options)
     elif viz_type == 'heatmap':
@@ -3100,89 +3099,9 @@ def create_actual_vs_optimal_viz(parameter_stats, parameter_type):
         logger.error(f"Error creating actual vs optimal visualization: {e}")
         return None
 
-def create_nutrient_ratio_viz(parameter_stats, parameter_type):
-    """Create nutrient ratio analysis diagram"""
-    try:
-        if not parameter_stats:
-            return None
-        
-        # Calculate key nutrient ratios
-        ratios = calculate_nutrient_ratios(parameter_stats, parameter_type)
-        
-        if not ratios:
-            return None
-        
-        return {
-            'type': 'nutrient_ratio_diagram',
-            'title': f'⚖️ {parameter_type.title()} Nutrient Ratios Analysis',
-            'subtitle': 'Key nutrient ratios and their impact on plant health',
-            'data': {
-                'ratios': ratios,
-                'chart_type': 'radar',
-                'center_values': [1.0] * len(ratios)
-            },
-            'options': {
-                'show_optimal_zone': True,
-                'optimal_zone_color': '#2ecc71',
-                'deficient_zone_color': '#e74c3c',
-                'excess_zone_color': '#f39c12'
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Error creating nutrient ratio visualization: {e}")
-        return None
+# REMOVED: create_nutrient_ratio_viz function - Soil/Leaf Nutrient Ratios Analysis no longer needed
 
-def calculate_nutrient_ratios(parameter_stats, parameter_type):
-    """Calculate key nutrient ratios for analysis"""
-    try:
-        ratios = []
-        
-        if parameter_type == 'soil':
-            # Key soil nutrient ratios
-            ratio_definitions = {
-                'N:P': {'numerator': 'Nitrogen_%', 'denominator': 'Total_P_mg_kg', 'optimal_range': (10, 20)},
-                'K:Mg': {'numerator': 'Exchangeable_K_meq%', 'denominator': 'Exchangeable_Mg_meq%', 'optimal_range': (2, 5)},
-                'Ca:Mg': {'numerator': 'Exchangeable_Ca_meq%', 'denominator': 'Exchangeable_Mg_meq%', 'optimal_range': (3, 7)},
-                'CEC:Base': {'numerator': 'CEC_meq%', 'denominator': 'Exchangeable_K_meq%', 'optimal_range': (5, 15)}
-            }
-        else:  # leaf
-            # Key leaf nutrient ratios
-            ratio_definitions = {
-                'N:P': {'numerator': 'N_%', 'denominator': 'P_%', 'optimal_range': (10, 20)},
-                'K:Mg': {'numerator': 'K_%', 'denominator': 'Mg_%', 'optimal_range': (2, 5)},
-                'Ca:Mg': {'numerator': 'Ca_%', 'denominator': 'Mg_%', 'optimal_range': (3, 7)},
-                'N:K': {'numerator': 'N_%', 'denominator': 'K_%', 'optimal_range': (1, 3)}
-            }
-        
-        for ratio_name, ratio_info in ratio_definitions.items():
-            num_key = ratio_info['numerator']
-            den_key = ratio_info['denominator']
-            optimal_range = ratio_info['optimal_range']
-            
-            if num_key in parameter_stats and den_key in parameter_stats:
-                numerator_val = parameter_stats[num_key].get('average', 0)
-                denominator_val = parameter_stats[den_key].get('average', 0)
-                
-                if denominator_val > 0:
-                    ratio_value = numerator_val / denominator_val
-                    status = 'optimal' if optimal_range[0] <= ratio_value <= optimal_range[1] else 'suboptimal'
-                    
-                    ratios.append({
-                        'name': ratio_name,
-                        'value': round(ratio_value, 2),
-                        'numerator': num_key,
-                        'denominator': den_key,
-                        'optimal_range': optimal_range,
-                        'status': status,
-                        'description': f"{num_key} to {den_key} ratio"
-                    })
-        
-        return ratios
-        
-    except Exception as e:
-        logger.error(f"Error calculating nutrient ratios: {e}")
-        return []
+# REMOVED: calculate_nutrient_ratios function - Soil/Leaf Nutrient Ratios Analysis no longer needed
 
 def create_issues_severity_viz(issues):
     """Create issues severity visualization data"""
@@ -3893,82 +3812,7 @@ def display_actual_vs_optimal_bar(data, title, options):
         logger.error(f"Error displaying actual vs optimal bar chart: {e}")
         st.error("Error displaying actual vs optimal bar chart")
 
-def display_nutrient_ratio_diagram(data, title, options):
-    """Display nutrient ratio diagram (radar chart)"""
-    try:
-        import plotly.graph_objects as go
-        import pandas as pd
-        
-        ratios = data.get('ratios', [])
-        
-        if not ratios:
-            st.warning("Nutrient ratio data not available")
-            return
-        
-        # Extract data for radar chart
-        categories = [ratio['name'] for ratio in ratios]
-        values = [ratio['value'] for ratio in ratios]
-        statuses = [ratio['status'] for ratio in ratios]
-        
-        # Normalize values for radar chart (0-1 scale)
-        max_val = max(values) if values else 1
-        normalized_values = [v / max_val for v in values]
-        
-        # Create radar chart
-        fig = go.Figure()
-        
-        # Add the main radar trace
-        fig.add_trace(go.Scatterpolar(
-            r=normalized_values + normalized_values[:1],  # Complete the circle
-            theta=categories + categories[:1],  # Complete the circle
-            fill='toself',
-            name='Current Ratios',
-            line_color='#3498db',
-            fillcolor='rgba(52, 152, 219, 0.3)'
-        ))
-        
-        # Add optimal zone if specified
-        if options.get('show_optimal_zone', False):
-            optimal_zone = [0.6] * (len(categories) + 1)  # Normalized optimal zone
-            fig.add_trace(go.Scatterpolar(
-                r=optimal_zone,
-                theta=categories + categories[:1],
-                fill='toself',
-                name='Optimal Zone',
-                line_color='#2ecc71',
-                fillcolor='rgba(46, 204, 113, 0.1)',
-                line_dash='dash'
-            ))
-        
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 1]
-                )),
-            title=title,
-            showlegend=True,
-            height=500
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Display ratio details table
-        st.markdown("### Ratio Details")
-        ratio_df = pd.DataFrame([
-            {
-                'Ratio': ratio['name'],
-                'Value': ratio['value'],
-                'Status': '✅ Optimal' if ratio['status'] == 'optimal' else '⚠️ Suboptimal',
-                'Range': f"{ratio['optimal_range'][0]}-{ratio['optimal_range'][1]}"
-            }
-            for ratio in ratios
-        ])
-        st.dataframe(ratio_df, use_container_width=True)
-        
-    except Exception as e:
-        logger.error(f"Error displaying nutrient ratio diagram: {e}")
-        st.error("Error displaying nutrient ratio diagram")
+# REMOVED: display_nutrient_ratio_diagram function - Soil/Leaf Nutrient Ratios Analysis no longer needed
 
 def display_enhanced_bar_chart(data, title, options=None):
     """Display enhanced bar chart with multiple series and better styling"""
