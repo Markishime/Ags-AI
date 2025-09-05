@@ -164,9 +164,32 @@ def add_responsive_css():
                 display: block !important;
             }
             
-            /* Hide everything after references section when printing */
-            .references-section ~ * {
-                display: none !important;
+            /* Allow all content to print - removed restriction that hid content after references */
+            
+            /* Ensure all content is visible and printable */
+            .stApp {
+                height: auto !important;
+                overflow: visible !important;
+            }
+            
+            .main .block-container {
+                max-width: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* Better page break handling for long content */
+            .step-block,
+            .section-block,
+            .analysis-section {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            
+            /* Ensure tables and charts print properly */
+            table {
+                page-break-inside: auto;
+                break-inside: auto;
             }
             
             /* Hide the entire sidebar area */
