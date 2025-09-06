@@ -291,133 +291,45 @@ def show_sidebar():
 
 def show_home_page():
     """Display home/landing page"""
-    # Hero section
-    col1, col2 = st.columns([2, 1])
+    
+    # Simple explanation of what the tool does
+    col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #2E8B57 0%, #228B22 50%, #32CD32 100%); padding: 2rem; border-radius: 15px; color: white; margin-bottom: 2rem; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: -20px; right: -20px; font-size: 8rem; opacity: 0.1;">🌴</div>
-            <div style="position: absolute; bottom: -30px; left: -30px; font-size: 6rem; opacity: 0.1;">🤖</div>
-            <h1 style="color: white; margin-bottom: 1rem; font-size: 2.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🌴 AGS AI Assistant</h1>
-            <h2 style="color: #f0f8ff; margin-bottom: 1.5rem; font-size: 1.5rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">AI-Powered Oil Palm Agriculture Intelligence</h2>
-            <p style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">Harness the power of artificial intelligence to revolutionize your oil palm cultivation. 
-            Get precision analysis, smart recommendations, and optimize your plantation's potential with cutting-edge agricultural technology.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        ## 🚀 Why Choose AGS AI Assistant?
-        
-        <div style="background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; margin: 1rem 0; border-left: 4px solid #28a745;">
-            <h4 style="color: #28a745; margin-top: 0;">🎯 Precision Agriculture at Your Fingertips</h4>
-            <p>Our AI-powered system analyzes your soil and leaf test reports with unmatched accuracy, 
-            providing actionable insights to optimize your oil palm cultivation.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        ### ✨ Key Features
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
-            <div style="background: linear-gradient(45deg, #e8f5e8, #c8e6c9); padding: 1rem; border-radius: 8px; border-left: 4px solid #2E8B57; position: relative;">
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 1.5rem; opacity: 0.3;">🌱</div>
-                <h5 style="color: #2E8B57; margin: 0 0 0.5rem 0;">🔬 Smart OCR Extraction</h5>
-                <p style="margin: 0; font-size: 0.9rem;">Extract data from any SP LAB test report with 99%+ accuracy using advanced AI</p>
-            </div>
-            <div style="background: linear-gradient(45deg, #f0f8ff, #e6f3ff); padding: 1rem; border-radius: 8px; border-left: 4px solid #4169E1; position: relative;">
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 1.5rem; opacity: 0.3;">🤖</div>
-                <h5 style="color: #4169E1; margin: 0 0 0.5rem 0;">📊 MPOB Compliance</h5>
-                <p style="margin: 0; font-size: 0.9rem;">Compare against Malaysian Palm Oil Board standards with AI precision</p>
-            </div>
-            <div style="background: linear-gradient(45deg, #fff8dc, #f0e68c); padding: 1rem; border-radius: 8px; border-left: 4px solid #DAA520; position: relative;">
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 1.5rem; opacity: 0.3;">🌴</div>
-                <h5 style="color: #DAA520; margin: 0 0 0.5rem 0;">🤖 AI-Powered Analysis</h5>
-                <p style="margin: 0; font-size: 0.9rem;">Get intelligent insights and recommendations from agricultural AI</p>
-            </div>
-            <div style="background: linear-gradient(45deg, #ffe4e1, #ffb6c1); padding: 1rem; border-radius: 8px; border-left: 4px solid #DC143C; position: relative;">
-                <div style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 1.5rem; opacity: 0.3;">📈</div>
-                <h5 style="color: #DC143C; margin: 0 0 0.5rem 0;">📈 Yield Forecasting</h5>
-                <p style="margin: 0; font-size: 0.9rem;">5-year yield projections and economic analysis powered by AI</p>
-            </div>
+        <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px; margin: 1rem 0; border-left: 4px solid #2E8B57;">
+            <h3 style="color: #2E8B57; margin-top: 0;">What this tool does:</h3>
+            <ul style="color: #333; line-height: 1.8;">
+                <li>Reads your soil and leaf test reports</li>
+                <li>Analyzes the data using AI</li>
+                <li>Gives you farming recommendations</li>
+                <li>Shows yield predictions for your plantation</li>
+            </ul>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%); padding: 2rem; border-radius: 15px; color: white; margin-bottom: 2rem; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: -10px; right: -10px; font-size: 4rem; opacity: 0.2;">🌱</div>
-            <div style="position: absolute; bottom: -10px; left: -10px; font-size: 3rem; opacity: 0.2;">🤖</div>
-            <h3 style="color: white; margin-bottom: 1.5rem; text-align: center; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">🚀 AI Agriculture in 3 Steps</h3>
-            <div style="text-align: center;">
-                <div style="background: rgba(255,255,255,0.25); padding: 1rem; border-radius: 10px; margin: 1rem 0; border: 1px solid rgba(255,255,255,0.3);">
-                    <h4 style="color: white; margin: 0 0 0.5rem 0;">1️⃣ Register</h4>
-                    <p style="margin: 0; font-size: 0.9rem;">Create your AI agriculture account</p>
-                </div>
-                <div style="background: rgba(255,255,255,0.25); padding: 1rem; border-radius: 10px; margin: 1rem 0; border: 1px solid rgba(255,255,255,0.3);">
-                    <h4 style="color: white; margin: 0 0 0.5rem 0;">2️⃣ Upload</h4>
-                    <p style="margin: 0; font-size: 0.9rem;">Upload your oil palm test reports</p>
-                </div>
-                <div style="background: rgba(255,255,255,0.25); padding: 1rem; border-radius: 10px; margin: 1rem 0; border: 1px solid rgba(255,255,255,0.3);">
-                    <h4 style="color: white; margin: 0 0 0.5rem 0;">3️⃣ Analyze</h4>
-                    <p style="margin: 0; font-size: 0.9rem;">Get AI-powered agricultural insights</p>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%); padding: 1.5rem; border-radius: 10px; border: 2px solid #2E8B57; position: relative;">
-            <div style="position: absolute; top: 0.5rem; right: 0.5rem; font-size: 2rem; opacity: 0.3;">🌴</div>
-            <h4 style="color: #2E8B57; margin-top: 0; text-align: center; font-weight: bold;">🤖 AI Agriculture Benefits</h4>
-            <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(46, 139, 87, 0.1); padding: 0.5rem; border-radius: 5px;">
-                    <span style="color: #2E8B57; font-size: 1.2rem;">🌱</span>
-                    <span style="color: #2E8B57; font-weight: 500;">Smart PDF Reports</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(46, 139, 87, 0.1); padding: 0.5rem; border-radius: 5px;">
-                    <span style="color: #2E8B57; font-size: 1.2rem;">📈</span>
-                    <span style="color: #2E8B57; font-weight: 500;">AI Yield Forecasting</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(46, 139, 87, 0.1); padding: 0.5rem; border-radius: 5px;">
-                    <span style="color: #2E8B57; font-size: 1.2rem;">💰</span>
-                    <span style="color: #2E8B57; font-weight: 500;">Economic Analysis</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(46, 139, 87, 0.1); padding: 0.5rem; border-radius: 5px;">
-                    <span style="color: #2E8B57; font-size: 1.2rem;">🎯</span>
-                    <span style="color: #2E8B57; font-weight: 500;">AI Recommendations</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(46, 139, 87, 0.1); padding: 0.5rem; border-radius: 5px;">
-                    <span style="color: #2E8B57; font-size: 1.2rem;">📊</span>
-                    <span style="color: #2E8B57; font-weight: 500;">MPOB Compliance</span>
-                </div>
-            </div>
+        <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px; margin: 1rem 0; border-left: 4px solid #2E8B57;">
+            <h3 style="color: #2E8B57; margin-top: 0;">How to use it:</h3>
+            <ol style="color: #333; line-height: 1.8;">
+                <li>Create an account or login</li>
+                <li>Upload your test reports</li>
+                <li>Enter your farm details</li>
+                <li>Get your analysis results</li>
+            </ol>
         </div>
         """, unsafe_allow_html=True)
     
-    st.divider()
-    
-    
-    # Call to action
+    # Simple call to action
     st.markdown("""
-    <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%); border-radius: 15px; margin: 2rem 0; color: white; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">🌴</div>
-        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🤖</div>
-        <h2 style="color: white; margin-bottom: 1rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🌟 Ready to Revolutionize Your Oil Palm Agriculture?</h2>
-        <p style="font-size: 1.2rem; margin-bottom: 2rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">Join the AI agriculture revolution and maximize your oil palm yield with cutting-edge technology</p>
-        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-            <div style="background: rgba(255,255,255,0.25); padding: 1rem 2rem; border-radius: 25px; border: 2px solid rgba(255,255,255,0.4); backdrop-filter: blur(10px);">
-                <h4 style="color: white; margin: 0 0 0.5rem 0;">🚀 Start AI Agriculture</h4>
-                <p style="margin: 0; font-size: 0.9rem;">Free AI-powered analysis</p>
-            </div>
-            <div style="background: rgba(255,255,255,0.25); padding: 1rem 2rem; border-radius: 25px; border: 2px solid rgba(255,255,255,0.4); backdrop-filter: blur(10px);">
-                <h4 style="color: white; margin: 0 0 0.5rem 0;">📊 Instant AI Analysis</h4>
-                <p style="margin: 0; font-size: 0.9rem;">Get AI insights in minutes</p>
-            </div>
-        </div>
-        </div>
-        """, unsafe_allow_html=True)
+    <div style="text-align: center; padding: 2rem; background: #f0f8ff; border-radius: 10px; margin: 2rem 0; border: 2px solid #2E8B57;">
+        <h3 style="color: #2E8B57; margin-bottom: 1rem;">Ready to get started?</h3>
+        <p style="color: #333; margin-bottom: 2rem;">Upload your oil palm test reports and get helpful farming advice.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
+    # Simple buttons
     col_a, col_b = st.columns(2)
     
     with col_a:
@@ -429,50 +341,6 @@ def show_home_page():
         if st.button("📝 Create New Account", use_container_width=True):
             st.session_state.current_page = 'register'
             st.rerun()
-    
-    # Features showcase
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%); padding: 2rem; border-radius: 15px; color: white; margin: 2rem 0; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">🌱</div>
-        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🤖</div>
-        <h3 style="color: white; text-align: center; margin-bottom: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎯 Why Choose AI Agriculture?</h3>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;">
-            <div style="background: rgba(255,255,255,0.2); padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.3); backdrop-filter: blur(10px);">
-                <h4 style="color: #ffd700; margin: 0 0 1rem 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">🔬 AI Precision Analysis</h4>
-                <p style="margin: 0; font-size: 0.9rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">Advanced AI algorithms provide accurate analysis of your oil palm test reports with 99%+ accuracy using machine learning.</p>
-            </div>
-            <div style="background: rgba(255,255,255,0.2); padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.3); backdrop-filter: blur(10px);">
-                <h4 style="color: #ffd700; margin: 0 0 1rem 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">📈 Smart Yield Optimization</h4>
-                <p style="margin: 0; font-size: 0.9rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">Get AI-powered 5-year yield forecasts and economic analysis to maximize your oil palm plantation's potential.</p>
-            </div>
-            <div style="background: rgba(255,255,255,0.2); padding: 1.5rem; border-radius: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.3); backdrop-filter: blur(10px);">
-                <h4 style="color: #ffd700; margin: 0 0 1rem 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">🎯 AI Expert Guidance</h4>
-                <p style="margin: 0; font-size: 0.9rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">Receive personalized AI recommendations based on MPOB standards and agricultural best practices.</p>
-            </div>
-        </div>
-    </div>
-        """, unsafe_allow_html=True)
-    
-    # Final CTA
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem; background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%); border-radius: 15px; margin: 2rem 0; border: 3px solid #2E8B57; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -10px; right: -10px; font-size: 4rem; opacity: 0.1;">🌴</div>
-        <div style="position: absolute; bottom: -10px; left: -10px; font-size: 3rem; opacity: 0.1;">🤖</div>
-        <h3 style="color: #2E8B57; margin-bottom: 1rem; font-weight: bold;">🚀 Ready to Start AI Agriculture?</h3>
-        <p style="color: #2E8B57; margin-bottom: 2rem; font-weight: 500;">Transform your oil palm cultivation today with cutting-edge AI technology</p>
-        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-            <div style="background: linear-gradient(45deg, #2E8B57, #32CD32); padding: 0.8rem 2rem; border-radius: 25px; color: white; font-weight: bold; box-shadow: 0 4px 8px rgba(46, 139, 87, 0.3);">
-                🌱 Upload Your Oil Palm Report
-            </div>
-            <div style="background: linear-gradient(45deg, #4169E1, #32CD32); padding: 0.8rem 2rem; border-radius: 25px; color: white; font-weight: bold; box-shadow: 0 4px 8px rgba(65, 105, 225, 0.3);">
-                🤖 Get AI Analysis
-            </div>
-            <div style="background: linear-gradient(45deg, #DAA520, #2E8B57); padding: 0.8rem 2rem; border-radius: 25px; color: white; font-weight: bold; box-shadow: 0 4px 8px rgba(218, 165, 32, 0.3);">
-                📈 Maximize Your Yield
-            </div>
-        </div>
-    </div>
-        """, unsafe_allow_html=True)
     
 
 def show_login_page():
