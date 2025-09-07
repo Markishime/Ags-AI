@@ -640,6 +640,13 @@ def show_reset_password_page(token: str):
                 if result.get('success'):
                     st.success("Your password has been updated. Please log in.")
                     if st.button("🔑 Go to Login", use_container_width=True):
+                        # Clear reset token from session and URL before navigating
+                        try:
+                            if 'reset_token' in st.session_state:
+                                del st.session_state['reset_token']
+                            st.query_params.clear()
+                        except Exception:
+                            pass
                         st.session_state.current_page = 'login'
                         st.rerun()
                 else:
