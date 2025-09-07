@@ -420,6 +420,8 @@ def display_analysis_history():
                             st.warning("Click again to confirm deletion")
                 
                 # Show detailed summary if available
+                analysis_results_local = analysis_data.get('analysis_results', {})
+                step_analysis = analysis_data.get('step_by_step_analysis', []) or analysis_results_local.get('step_by_step_analysis', [])
                 if step_analysis and status.lower() == 'completed':
                     st.markdown("---")
                     st.markdown("**📋 Analysis Summary**")
