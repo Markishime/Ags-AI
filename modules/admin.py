@@ -42,9 +42,8 @@ def show_admin_panel():
         st.error("Access denied. Admin privileges required.")
         return
     
-    # Admin navigation (remove System Analytics and Settings)
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📊 Dashboard", 
+    # Admin navigation (Dashboard removed)
+    tab1, tab2, tab3, tab4 = st.tabs([
         "👥 User Management", 
         "🤖 AI Configuration", 
         "📈 Feedback Analytics",
@@ -52,83 +51,23 @@ def show_admin_panel():
     ])
     
     with tab1:
-        show_admin_dashboard()
-    
-    with tab2:
         show_user_management()
     
-    with tab3:
+    with tab2:
         show_ai_configuration()
     
-    with tab4:
+    with tab3:
         display_feedback_analytics()
     
-    with tab5:
+    with tab4:
         from modules.config_management import show_config_management
         show_config_management()
     
     # Removed System Analytics and Settings tabs per request
 
 def show_admin_dashboard():
-    """Display admin dashboard with system overview"""
-    st.header("📊 System Dashboard")
-    
-    # Get system statistics
-    stats = get_system_statistics()
-    
-    # Display key metrics (only Total Users as requested)
-    col1, _, _, _ = st.columns(4)
-    with col1:
-        st.metric(label="Total Users", value=stats['total_users'], delta=f"+{stats['new_users_today']} today")
-    
-    # Additional features on the System Dashboard
-    st.markdown("---")
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        st.subheader("Configuration Summary")
-        try:
-            cfg_items = [
-                ("AI Model", "gemini-2.5-pro"),
-                ("RAG Enabled", "Yes"),
-                ("Response Format", "structured"),
-                ("Log Level", "INFO"),
-            ]
-            for k, v in cfg_items:
-                st.write(f"• {k}: {v}")
-        except Exception:
-            st.info("Configuration summary not available.")
-        
-        st.subheader("Email Delivery Status")
-        st.write("• Provider: SMTP (Gmail)")
-        st.write("• From: configured in secrets")
-        st.write("• Last reset email: N/A")
-    
-    with col_b:
-        st.subheader("Storage Usage")
-        st.write("• Firestore Documents: N/A")
-        st.write("• Storage Bucket: N/A")
-        st.write("• Approx. Size: N/A")
-        
-        st.subheader("Pending Admin Tasks")
-        st.write("• 0 pending approvals")
-        st.write("• 0 flagged feedback items")
-    
-    st.markdown("---")
-    st.subheader("Quick Links")
-    q1, q2, q3 = st.columns(3)
-    with q1:
-        if st.button("👥 User Management", use_container_width=True):
-            st.session_state.current_page = 'admin'
-            st.rerun()
-    with q2:
-        if st.button("🤖 AI Configuration", use_container_width=True):
-            st.session_state.current_page = 'admin'
-            st.rerun()
-    with q3:
-        if st.button("📚 References", use_container_width=True):
-            st.session_state.current_page = 'admin'
-            st.rerun()
+    """Dashboard removed by request."""
+    st.info("Dashboard has been removed.")
 
 def get_system_statistics() -> Dict[str, Any]:
     """Get system statistics for dashboard"""
