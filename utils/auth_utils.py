@@ -629,6 +629,12 @@ Hello,\n\nFollow this link to reset your {app_name} password for your {to_email}
             username = smtp_cfg.get('username')
             password = smtp_cfg.get('password')
             from_email = smtp_cfg.get('from_email', username)
+            # For Gmail SMTP, force From to the authenticated account to avoid rewrites/SPF issues
+            try:
+                if isinstance(host, str) and 'gmail' in host.lower():
+                    from_email = username
+            except Exception:
+                pass
             if not all([host, port, username, password, from_email]):
                 return {'success': False, 'message': 'Incomplete SMTP configuration'}
 
