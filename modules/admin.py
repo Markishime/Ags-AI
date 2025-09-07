@@ -80,46 +80,18 @@ def show_admin_dashboard():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric(
-            label="Total Users",
-            value=stats['total_users'],
-            delta=f"+{stats['new_users_today']} today"
-        )
+        st.metric(label="Total Users", value=stats['total_users'], delta=f"+{stats['new_users_today']} today")
     
     with col2:
-        st.metric(
-            label="Active Users (7d)",
-            value=stats['active_users_7d'],
-            delta=f"{stats['active_users_change']}% vs last week"
-        )
+        st.metric(label="Active Users (7d)", value=stats['active_users_7d'], delta=f"{stats['active_users_change']}% vs last week")
     
     with col3:
-        st.metric(
-            label="Total Analyses",
-            value=stats['total_analyses'],
-            delta=f"+{stats['analyses_today']} today"
-        )
+        st.metric(label="Total Analyses", value=stats['total_analyses'], delta=f"+{stats['analyses_today']} today")
     
     with col4:
-        # Replaced System Health with Queued Tasks metric
-        st.metric(
-            label="Queued Tasks",
-            value=stats.get('queued_tasks', 0),
-            delta=f"+{stats.get('tasks_today', 0)} today"
-        )
+        st.metric(label="Queued Tasks", value=stats.get('queued_tasks', 0))
     
-    # Display charts
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        display_feature_adoption()
-    
-    with col2:
-        display_data_pipeline_status()
-    
-    # Recent activity
-    st.subheader("Admin Shortcuts")
-    display_admin_shortcuts()
+    # Charts and extra panels removed per request
 
 def get_system_statistics() -> Dict[str, Any]:
     """Get system statistics for dashboard"""
