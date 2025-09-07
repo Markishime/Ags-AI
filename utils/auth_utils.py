@@ -421,7 +421,25 @@ class AuthManager:
             user_doc = matching[0]
             user_data = user_doc.to_dict()
             expires = user_data.get('reset_expires')
-            if not expires or expires <= datetime.now():
+            if not expires:
+                return {'success': False, 'message': 'Reset link has expired'}
+            # Normalize timezone for safe comparison
+            try:
+                if hasattr(expires, 'tzinfo') and expires.tzinfo is not None:
+                    from datetime import timezone
+                    now_cmp = datetime.now(expires.tzinfo)
+                else:
+                    now_cmp = datetime.now()
+                if expires <= now_cmp:
+                    return {'success': False, 'message': 'Reset link has expired'}
+            except Exception:
+                # Fallback to naive comparison
+                if getattr(expires, 'replace', None):
+                    expires_naive = expires.replace(tzinfo=None)
+                    if expires_naive <= datetime.now():
+                        return {'success': False, 'message': 'Reset link has expired'}
+                else:
+                    return {'success': False, 'message': 'Invalid expiration timestamp'}
                 return {'success': False, 'message': 'Reset link has expired'}
 
             # Update password and clear reset fields
