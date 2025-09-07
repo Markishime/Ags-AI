@@ -213,13 +213,14 @@ def initialize_app():
         # Try to restore authentication from browser storage
         restore_authentication_state()
 
-    # If reset token present in URL, route to reset page
+    # If reset token present in URL, route to reset page only when on home (don't override sidebar nav)
     try:
         reset_token = st.query_params.get('reset_token')
         if reset_token:
-            st.session_state.current_page = 'reset_password'
-            st.session_state.reset_token = reset_token
-            # Do not clear query params yet; reset page may rely on it
+            if st.session_state.current_page == 'home':
+                st.session_state.current_page = 'reset_password'
+                st.session_state.reset_token = reset_token
+                # Do not clear query params yet; reset page may rely on it
     except Exception:
         pass
 
