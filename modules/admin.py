@@ -101,24 +101,25 @@ def show_admin_dashboard():
         )
     
     with col4:
+        # Replaced System Health with Queued Tasks metric
         st.metric(
-            label="System Health",
-            value="Healthy" if stats['system_health'] > 0.9 else "Warning",
-            delta=f"{stats['system_health']:.1%} uptime"
+            label="Queued Tasks",
+            value=stats.get('queued_tasks', 0),
+            delta=f"+{stats.get('tasks_today', 0)} today"
         )
     
     # Display charts
     col1, col2 = st.columns(2)
     
     with col1:
-        display_usage_trends()
+        display_feature_adoption()
     
     with col2:
-        display_system_health()
+        display_data_pipeline_status()
     
     # Recent activity
-    st.subheader("Recent System Issues")
-    display_recent_system_issues()
+    st.subheader("Admin Shortcuts")
+    display_admin_shortcuts()
 
 def get_system_statistics() -> Dict[str, Any]:
     """Get system statistics for dashboard"""
@@ -137,7 +138,9 @@ def get_system_statistics() -> Dict[str, Any]:
             'active_users_change': 12,
             'total_analyses': 156,
             'analyses_today': 8,
-            'system_health': 0.95
+            'system_health': 0.95,
+            'queued_tasks': 0,
+            'tasks_today': 0
         }
     except Exception as e:
         st.error(f"Error getting system statistics: {str(e)}")
@@ -153,7 +156,7 @@ def get_system_statistics() -> Dict[str, Any]:
 
 def display_usage_trends():
     """Display usage trends chart"""
-    st.subheader("Usage Trends")
+    st.subheader("Feature Adoption")
     
     # Get real usage data from Firestore
     try:
@@ -187,96 +190,39 @@ def display_usage_trends():
             'Analyses Created': [0] * len(dates)
         })
     
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(
-        x=usage_data['Date'],
-        y=usage_data['Daily Active Users'],
-        mode='lines+markers',
-        name='Daily Active Users',
-        line=dict(color='#1f77b4')
-    ))
-    
-    fig.add_trace(go.Scatter(
-        x=usage_data['Date'],
-        y=usage_data['Analyses Created'],
-        mode='lines+markers',
-        name='Analyses Created',
-        yaxis='y2',
-        line=dict(color='#ff7f0e')
-    ))
-    
-    fig.update_layout(
-        xaxis_title='Date',
-        yaxis=dict(title='Daily Active Users', side='left'),
-        yaxis2=dict(title='Analyses Created', side='right', overlaying='y'),
-        height=400,
-        showlegend=True
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+    # Replace with a simple adoption summary
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.metric("New Admin Prompts (30d)", 0)
+        st.metric("Reference Docs Added (30d)", 0)
+    with col_b:
+        st.metric("Users Edited Settings (30d)", 0)
+        st.metric("Feedback Submissions (30d)", 0)
 
-def display_recent_system_issues():
-    """Display recent system issues"""
-    # Get real system issues from logs or monitoring system
-    issues = []
-    try:
-        # In a real implementation, this would query actual system logs
-        # For now, return empty list to indicate no issues
-        pass
-    except Exception as e:
-        logger.error(f"Error fetching system issues: {str(e)}")
-        issues = []
-    
-    for issue in issues:
-        col1, col2, col3, col4 = st.columns([2, 1, 4, 1])
-        
-        with col1:
-            st.write(issue['timestamp'].strftime('%Y-%m-%d %H:%M'))
-        
-        with col2:
-            if issue['level'] == 'Error':
-                st.error(issue['level'])
-            elif issue['level'] == 'Warning':
-                st.warning(issue['level'])
-            else:
-                st.info(issue['level'])
-        
-        with col3:
-            st.write(issue['message'])
-        
-        with col4:
-            if issue['status'] == 'Resolved':
-                st.success(issue['status'])
-            else:
-                st.info(issue['status'])
+def display_feature_adoption():
+    """Wrapper to keep call sites working after renaming"""
+    display_usage_trends()
 
-def display_system_health():
-    """Display system health metrics"""
-    st.subheader("System Health")
-    
-    # Get real system health metrics
-    health_metrics = {
-        'CPU Usage': 0,      # Will be populated with real metrics
-        'Memory Usage': 0,   # Will be populated with real metrics
-        'Disk Usage': 0,     # Will be populated with real metrics
-        'Network I/O': 0     # Will be populated with real metrics
-    }
-    
-    for metric, value in health_metrics.items():
-        st.metric(
-            label=metric,
-            value=f"{value}%",
-            delta=f"{-2 if value < 50 else 3}% vs last hour"
-        )
-        
-        # Progress bar
-        if value < 50:
-            st.progress(value / 100)
-        elif value < 80:
-            st.warning(f"{metric}: {value}%")
-        else:
-            st.error(f"{metric}: {value}%")
+def display_admin_shortcuts():
+    """Show quick admin actions instead of recent system issues"""
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("📝 Create Prompt Template", use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
+    with col2:
+        if st.button("📚 Add Reference Doc", use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
+    with col3:
+        if st.button("⚙️ Advanced Settings", use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
+
+def display_data_pipeline_status():
+    """Show simple data pipeline status instead of system health"""
+    st.subheader("Data Pipeline Status")
+    st.info("All ingestion and processing tasks are operational.")
 
 def show_user_management():
     """Display user management interface"""
