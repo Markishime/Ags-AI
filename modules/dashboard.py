@@ -467,7 +467,7 @@ def _cached_recent_analyses(user_id: str) -> List[Dict[str, Any]]:
 def display_recent_reports_section(user_id):
     """Display recent reports in simple format"""
     st.markdown("---")
-    st.markdown("## 📊 Recent Agricultural Reports")
+    st.markdown("## 📊 Previous Reports")
     
     try:
         analyses_list = _cached_recent_analyses(user_id)
@@ -2083,14 +2083,9 @@ def display_analytics_insights_tab(user_id):
         
     
     with col2:
-        # Recent Activity
-        st.markdown("### 📅 Recent Activity")
-        recent_activity = analytics_data.get('recent_activity', [])
-        if recent_activity:
-            for activity in recent_activity[:5]:
-                st.markdown(f"• {activity['description']} - {activity['date']}")
-        else:
-            st.info("Recent activity will appear here")
+        # Placeholder for optional secondary analytics; recent activity removed
+        st.markdown("### 📊 Additional Analytics")
+        st.info("More analytics will appear here as your data grows.")
     
     # Enhanced AI-Generated Insights
     st.markdown("### 💡 AI-Generated Insights")

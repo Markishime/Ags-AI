@@ -4,6 +4,9 @@ import secrets
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from firebase_admin import auth, firestore
 from firebase_config import get_firestore_client, COLLECTIONS
 
@@ -330,10 +333,24 @@ class AuthManager:
                 'reset_token': reset_token,
                 'reset_expires': reset_expires
             })
-            
-            # In a real application, you would send an email here
-            # For demo purposes, we'll just return success
-            return {'success': True, 'message': 'Password reset link sent to your email'}
+
+            # Attempt to send reset email if SMTP is configured
+            reset_link = self._build_reset_link(reset_token)
+            email_result = self._send_reset_email(email, reset_link)
+
+            if email_result.get('success'):
+                return {
+                    'success': True,
+                    'message': 'Password reset link sent to your email',
+                    'reset_link': reset_link
+                }
+            else:
+                # Enforce email sending requirement, but include link for manual use/debugging
+                return {
+                    'success': False,
+                    'message': email_result.get('message', 'Failed to send reset email'),
+                    'reset_link': reset_link
+                }
             
         except Exception as e:
             return {'success': False, 'message': f'Reset error: {str(e)}'}
@@ -378,6 +395,46 @@ class AuthManager:
             
         except Exception as e:
             return {'success': False, 'message': f'Password change error: {str(e)}'}
+
+    def finalize_password_reset(self, token: str, new_password: str) -> Dict[str, Any]:
+        """Finalize password reset using token and set a new password.
+        Args:
+            token: Reset token from email link
+            new_password: New password to set
+        Returns:
+            dict with success and message
+        """
+        try:
+            if not token or not new_password:
+                return {'success': False, 'message': 'Invalid token or password'}
+
+            if len(new_password) < 6:
+                return {'success': False, 'message': 'Password must be at least 6 characters'}
+
+            db = self._get_db()
+            users_ref = db.collection(COLLECTIONS['users'])
+            # Query for user with this reset token
+            matching = users_ref.where('reset_token', '==', token).limit(1).get()
+            if not matching:
+                return {'success': False, 'message': 'Invalid or used reset link'}
+
+            user_doc = matching[0]
+            user_data = user_doc.to_dict()
+            expires = user_data.get('reset_expires')
+            if not expires or expires <= datetime.now():
+                return {'success': False, 'message': 'Reset link has expired'}
+
+            # Update password and clear reset fields
+            user_doc.reference.update({
+                'password_hash': self._hash_password(new_password),
+                'password_changed_at': datetime.now(),
+                'reset_token': None,
+                'reset_expires': None
+            })
+
+            return {'success': True, 'message': 'Your password has been updated'}
+        except Exception as e:
+            return {'success': False, 'message': f'Reset finalize error: {str(e)}'}
     
     def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user by document ID
@@ -428,6 +485,156 @@ class AuthManager:
             
         except Exception as e:
             return {'success': False, 'message': f'Update error: {str(e)}'}
+
+    def _build_reset_link(self, token: str) -> str:
+        """Build a reset link pointing back to the app with token in query params"""
+        try:
+            import streamlit as st
+            base_url = None
+            # Prefer explicit base_url in secrets
+            try:
+                if hasattr(st, 'secrets') and 'app' in st.secrets:
+                    base_url = st.secrets['app'].get('base_url')
+            except Exception:
+                base_url = None
+
+            # Fallback to a generic localhost if base_url is not configured
+            if not base_url:
+                base_url = 'http://localhost:8501'
+
+            return f"{base_url}?reset_token={token}"
+        except Exception:
+            return f"http://localhost:8501?reset_token={token}"
+
+    def _send_reset_email(self, to_email: str, reset_link: str) -> Dict[str, Any]:
+        """Send password reset email using SendGrid/SES/SMTP depending on configuration."""
+        try:
+            import streamlit as st
+            # Prepare shared content
+            try:
+                app_name = st.secrets.get('app', {}).get('name', 'AGS AI Assistant') if hasattr(st, 'secrets') else 'AGS AI Assistant'
+            except Exception:
+                app_name = 'AGS AI Assistant'
+            subject = f"Reset your password for {app_name}"
+            text_body = f"""
+Hello,\n\nFollow this link to reset your {app_name} password for your {to_email} account.\n\n{reset_link}\n\nIf you didn’t ask to reset your password, you can ignore this email.\n\nThanks,\n\nYour {app_name} team\n"""
+            html_body = f"""
+            <div style=\"font-family: Arial, sans-serif; background: #f6fff6; padding: 24px;\">
+              <div style=\"max-width: 560px; margin: 0 auto; background: white; border: 1px solid #e6efe6; border-radius: 12px; overflow: hidden;\">
+                <div style=\"background: linear-gradient(90deg, #2E8B57 0%, #228B22 100%); padding: 16px; text-align: center; color: white;\">
+                  <h2 style=\"margin: 0;\">🌴 {app_name}</h2>
+                  <p style=\"margin: 4px 0 0 0; opacity: 0.9;\">Reset your password</p>
+                </div>
+                <div style=\"padding: 24px; color: #244224;\">
+                  <p>Hello,</p>
+                  <p>Follow this link to reset your <b>{app_name}</b> password for your <b>{to_email}</b> account.</p>
+                  <div style=\"text-align: center; margin: 24px 0;\">
+                    <a href=\"{reset_link}\" style=\"background: #2E8B57; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; display: inline-block;\">Reset Password</a>
+                  </div>
+                  <p style=\"font-size: 14px; color: #456b45;\">If you didn’t ask to reset your password, you can ignore this email.</p>
+                  <p style=\"font-size: 14px; color: #456b45;\">If the button doesn’t work, copy and paste this link into your browser:</p>
+                  <p style=\"word-break: break-all; font-size: 12px; color: #2E8B57;\">{reset_link}</p>
+                  <p style=\"margin-top: 16px; font-size: 12px; color: #567a56;\">This link will expire in 1 hour.</p>
+                </div>
+                <div style=\"background: #f2fbf2; padding: 12px; text-align: center; color: #456b45; font-size: 12px;\">
+                  © 2025 {app_name}
+                </div>
+              </div>
+            </div>
+            """
+
+            # 1) SendGrid
+            try:
+                if hasattr(st, 'secrets') and 'sendgrid' in st.secrets:
+                    sg_cfg = st.secrets['sendgrid']
+                    api_key = sg_cfg.get('api_key')
+                    sg_from = sg_cfg.get('from_email')
+                    if api_key and sg_from:
+                        import requests
+                        payload = {
+                            "personalizations": [{"to": [{"email": to_email}]}],
+                            "from": {"email": sg_from, "name": app_name},
+                            "subject": subject,
+                            "content": [
+                                {"type": "text/plain", "value": text_body},
+                                {"type": "text/html", "value": html_body}
+                            ]
+                        }
+                        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+                        resp = requests.post("https://api.sendgrid.com/v3/mail/send", json=payload, headers=headers, timeout=15)
+                        if resp.status_code in (200, 202):
+                            return {'success': True, 'message': 'Email sent via SendGrid'}
+            except Exception:
+                pass
+
+            # 2) Amazon SES
+            try:
+                if hasattr(st, 'secrets') and 'ses' in st.secrets:
+                    ses_cfg = st.secrets['ses']
+                    aws_key = ses_cfg.get('aws_access_key_id')
+                    aws_secret = ses_cfg.get('aws_secret_access_key')
+                    region = ses_cfg.get('region') or 'us-east-1'
+                    ses_from = ses_cfg.get('from_email')
+                    if aws_key and aws_secret and ses_from:
+                        try:
+                            import boto3
+                            ses_client = boto3.client('ses', region_name=region, aws_access_key_id=aws_key, aws_secret_access_key=aws_secret)
+                            ses_client.send_email(
+                                Source=ses_from,
+                                Destination={'ToAddresses': [to_email]},
+                                Message={
+                                    'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                                    'Body': {
+                                        'Text': {'Data': text_body, 'Charset': 'UTF-8'},
+                                        'Html': {'Data': html_body, 'Charset': 'UTF-8'}
+                                    }
+                                }
+                            )
+                            return {'success': True, 'message': 'Email sent via Amazon SES'}
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            # 3) SMTP fallback
+            smtp_cfg = None
+            try:
+                if hasattr(st, 'secrets') and 'smtp' in st.secrets:
+                    smtp_cfg = st.secrets['smtp']
+            except Exception:
+                smtp_cfg = None
+            if not smtp_cfg:
+                return {'success': False, 'message': 'No email provider configured'}
+
+            host = smtp_cfg.get('host')
+            port = int(smtp_cfg.get('port', 587))
+            username = smtp_cfg.get('username')
+            password = smtp_cfg.get('password')
+            from_email = smtp_cfg.get('from_email', username)
+            if not all([host, port, username, password, from_email]):
+                return {'success': False, 'message': 'Incomplete SMTP configuration'}
+
+            message = MIMEMultipart('alternative')
+            message['From'] = from_email
+            message['To'] = to_email
+            message['Subject'] = subject
+            message.attach(MIMEText(text_body, 'plain'))
+            message.attach(MIMEText(html_body, 'html'))
+
+            use_ssl = bool(smtp_cfg.get('ssl', False)) or int(port) == 465
+            if use_ssl:
+                with smtplib.SMTP_SSL(host, port) as server:
+                    server.login(username, password)
+                    server.sendmail(username, to_email, message.as_string())
+            else:
+                with smtplib.SMTP(host, port) as server:
+                    server.starttls()
+                    server.login(username, password)
+                    server.sendmail(username, to_email, message.as_string())
+
+            return {'success': True, 'message': 'Email sent via SMTP'}
+        except Exception as e:
+            return {'success': False, 'message': f'Email error: {str(e)}'}
     
     def _hash_password(self, password: str) -> str:
         """Hash password using SHA-256 with salt
@@ -612,6 +819,10 @@ def register_user(email: str, password: str, full_name: str, farm_name: str = ""
 def reset_password(email: str) -> bool:
     """Reset user password"""
     return auth_manager.reset_password(email)
+
+def finalize_password_reset(token: str, new_password: str) -> Dict[str, Any]:
+    """Finalize password reset with token"""
+    return auth_manager.finalize_password_reset(token, new_password)
 
 def logout_user() -> None:
     """Logout current user"""

@@ -17,8 +17,9 @@ if utils_dir not in sys.path:
 # Import utilities
 from firebase_config import initialize_firebase, initialize_admin_codes
 from auth_utils import (
-    login_user, register_user, reset_password, 
-    logout_user, is_logged_in, is_admin, admin_signup, admin_signup_with_code
+    login_user, register_user, reset_password,
+    logout_user, is_logged_in, is_admin, admin_signup, admin_signup_with_code,
+    finalize_password_reset
 )
 import json
 from datetime import datetime
@@ -211,6 +212,16 @@ def initialize_app():
     if not st.session_state.authenticated:
         # Try to restore authentication from browser storage
         restore_authentication_state()
+
+    # If reset token present in URL, route to reset page
+    try:
+        reset_token = st.query_params.get('reset_token')
+        if reset_token:
+            st.session_state.current_page = 'reset_password'
+            st.session_state.reset_token = reset_token
+            # Do not clear query params yet; reset page may rely on it
+    except Exception:
+        pass
 
 def show_header():
     """Display application header"""
@@ -545,6 +556,7 @@ def show_forgot_password_page():
     st.subheader("🔄 Reset Your Password")
     
     st.info("Enter your email address and we'll send you instructions to reset your password.")
+    st.caption("If you don't see the email in your inbox within a few minutes, please check your Spam/Junk folder.")
     
     with st.form("forgot_password_form"):
         email = st.text_input("📧 Email", placeholder="Enter your email")
@@ -561,14 +573,78 @@ def show_forgot_password_page():
     
     if reset_button:
         if email:
-            with st.spinner("Sending reset link..."):
-                if reset_password(email):
-                    st.success("Password reset link sent to your email!")
+            with st.spinner("Generating reset link..."):
+                result = reset_password(email)
+                # reset_password returns dict in our utils; keep backward compat
+                if isinstance(result, dict):
+                    link = result.get('reset_link')
+                    if result.get('success'):
+                        st.success("Password reset link sent to your email!")
+                    else:
+                        st.error(result.get('message', 'Failed to send reset email.'))
+                    if link:
+                        st.info("Copy this link if email hasn't arrived yet:")
+                        st.code(link)
                 else:
-                    st.error("Failed to send reset link. Please check your email address.")
+                    if result:
+                        st.success("Password reset link sent to your email!")
+                    else:
+                        st.error("Failed to send reset link.")
         else:
             st.error("Please enter your email address.")
     
+    st.markdown("</div>", unsafe_allow_html=True)
+
+def show_reset_password_page(token: str):
+    """Display AGS-themed reset password UI for users coming from email link"""
+    st.markdown(
+        """
+        <div class="auth-container">
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div style="background: linear-gradient(90deg, #2E8B57 0%, #228B22 100%); padding: 1rem; border-radius: 10px; text-align: center; color: white; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">🌴 AGS AI Assistant</h3>
+            <p style="margin: 4px 0 0 0;">Set a new password</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if not token:
+        st.error("Invalid or missing reset link. Please request a new password reset.")
+        if st.button("🔙 Back to Forgot Password", use_container_width=True):
+            st.session_state.current_page = 'forgot_password'
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    with st.form("reset_pw_form"):
+        new_pw = st.text_input("🔒 New Password", type="password")
+        confirm_pw = st.text_input("🔒 Confirm New Password", type="password")
+        submitted = st.form_submit_button("✅ Update Password", use_container_width=True, type="primary")
+
+    if submitted:
+        if not new_pw or not confirm_pw:
+            st.error("Please fill in both password fields.")
+        elif new_pw != confirm_pw:
+            st.error("Passwords do not match.")
+        elif len(new_pw) < 6:
+            st.error("Password must be at least 6 characters long.")
+        else:
+            with st.spinner("Updating password..."):
+                result = finalize_password_reset(token, new_pw)
+                if result.get('success'):
+                    st.success("Your password has been updated. Please log in.")
+                    if st.button("🔑 Go to Login", use_container_width=True):
+                        st.session_state.current_page = 'login'
+                        st.rerun()
+                else:
+                    st.error(result.get('message', 'Failed to update password.'))
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 def show_settings_page():
@@ -681,6 +757,9 @@ def main():
         show_admin_register_page()
     elif current_page == 'forgot_password':
         show_forgot_password_page()
+    elif current_page == 'reset_password':
+        token = st.session_state.get('reset_token') or st.query_params.get('reset_token')
+        show_reset_password_page(token)
     elif current_page == 'upload':
         # Require authentication for upload/analyze functionality
         if st.session_state.authenticated:

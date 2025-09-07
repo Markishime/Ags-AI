@@ -32,9 +32,6 @@ def show_history_page():
     
     st.markdown('<h1 style="color: #2E8B57; text-align: center;">📋 Analysis History</h1>', unsafe_allow_html=True)
     
-    # Display statistics dashboard
-    display_history_statistics()
-    
     # Display analysis history
     display_analysis_history()
     
@@ -335,129 +332,57 @@ def display_analysis_history():
                     
                     # Try to get data from analysis_results first
                     analysis_results = analysis_data.get('analysis_results', {})
-                    raw_data = analysis_results.get('raw_data', {})
-                    
-                    # If not found in analysis_results, try direct from analysis_data
-                    if not raw_data:
-                        raw_data = analysis_data.get('raw_data', {})
+                    raw_data = analysis_results.get('raw_data', {}) or analysis_data.get('raw_data', {})
                     
                     # Extract soil data
-                    soil_data = raw_data.get('soil_data', {})
+                    soil_data = raw_data.get('soil_data', {}) or analysis_results.get('soil_data', {}) or analysis_data.get('soil_data', {})
                     if soil_data:
-                        # Check for parameter_statistics structure (new format)
-                        if 'parameter_statistics' in soil_data:
-                            soil_samples = len(soil_data['parameter_statistics'])
-                        # Check for samples array
-                        elif 'samples' in soil_data:
-                            soil_samples = len(soil_data['samples'])
-                        # Check for data.samples structure
-                        elif 'data' in soil_data and isinstance(soil_data['data'], dict):
-                            soil_samples = len(soil_data['data'].get('samples', []))
-                        # Check for direct parameters (count non-metadata keys)
-                        else:
-                            soil_samples = len([k for k in soil_data.keys() if k not in ['success', 'data', 'metadata', 'parameter_statistics']])
+                        if isinstance(soil_data, dict):
+                            if 'parameter_statistics' in soil_data and isinstance(soil_data['parameter_statistics'], (list, dict)):
+                                soil_samples = len(soil_data['parameter_statistics']) if isinstance(soil_data['parameter_statistics'], list) else len(soil_data['parameter_statistics'].keys())
+                            elif 'samples' in soil_data and isinstance(soil_data['samples'], list):
+                                soil_samples = len(soil_data['samples'])
+                            elif 'data' in soil_data and isinstance(soil_data['data'], dict):
+                                soil_samples = len(soil_data['data'].get('samples', []))
                     
                     # Extract leaf data
-                    leaf_data = raw_data.get('leaf_data', {})
+                    leaf_data = raw_data.get('leaf_data', {}) or analysis_results.get('leaf_data', {}) or analysis_data.get('leaf_data', {})
                     if leaf_data:
-                        # Check for parameter_statistics structure (new format)
-                        if 'parameter_statistics' in leaf_data:
-                            leaf_samples = len(leaf_data['parameter_statistics'])
-                        # Check for samples array
-                        elif 'samples' in leaf_data:
-                            leaf_samples = len(leaf_data['samples'])
-                        # Check for data.samples structure
-                        elif 'data' in leaf_data and isinstance(leaf_data['data'], dict):
-                            leaf_samples = len(leaf_data['data'].get('samples', []))
-                        # Check for direct parameters (count non-metadata keys)
-                        else:
-                            leaf_samples = len([k for k in leaf_data.keys() if k not in ['success', 'data', 'metadata', 'parameter_statistics']])
+                        if isinstance(leaf_data, dict):
+                            if 'parameter_statistics' in leaf_data and isinstance(leaf_data['parameter_statistics'], (list, dict)):
+                                leaf_samples = len(leaf_data['parameter_statistics']) if isinstance(leaf_data['parameter_statistics'], list) else len(leaf_data['parameter_statistics'].keys())
+                            elif 'samples' in leaf_data and isinstance(leaf_data['samples'], list):
+                                leaf_samples = len(leaf_data['samples'])
+                            elif 'data' in leaf_data and isinstance(leaf_data['data'], dict):
+                                leaf_samples = len(leaf_data['data'].get('samples', []))
                     
-                    # If still no samples found, try alternative data structures
-                    if soil_samples == 0 and leaf_samples == 0:
-                        # Try to get from soil_parameters and leaf_parameters
-                        soil_params = analysis_results.get('soil_parameters', {})
-                        leaf_params = analysis_results.get('leaf_parameters', {})
-                        
-                        if soil_params:
-                            soil_samples = len(soil_params)
-                        if leaf_params:
-                            leaf_samples = len(leaf_params)
+                    # If still no samples found, try alternative parameter structures
+                    if soil_samples == 0 and isinstance(analysis_results.get('soil_parameters', {}), dict):
+                        soil_samples = len(analysis_results.get('soil_parameters', {}))
+                    if leaf_samples == 0 and isinstance(analysis_results.get('leaf_parameters', {}), dict):
+                        leaf_samples = len(analysis_results.get('leaf_parameters', {}))
                     
-                    st.write(f"**Soil Samples:** {soil_samples}")
-                    st.write(f"**Leaf Samples:** {leaf_samples}")
+                    # Render only when available to avoid confusing zeros
+                    if soil_samples > 0:
+                        st.write(f"**Soil Samples:** {soil_samples}")
+                    if leaf_samples > 0:
+                        st.write(f"**Leaf Samples:** {leaf_samples}")
                     
                     # Land/Yield data from raw_data
-                    land_yield = raw_data.get('land_yield_data', {})
-                    if land_yield:
-                        st.write(f"**Land Size:** {land_yield.get('land_size', 'N/A')} {land_yield.get('land_unit', 'hectares')}")
-                        st.write(f"**Current Yield:** {land_yield.get('current_yield', 'N/A')} {land_yield.get('yield_unit', 'tonnes/ha')}")
+                    land_yield = raw_data.get('land_yield_data', {}) or analysis_results.get('land_yield_data', {}) or analysis_data.get('land_yield_data', {})
+                    if land_yield and (land_yield.get('land_size') or land_yield.get('current_yield')):
+                        land_size = land_yield.get('land_size', 'N/A')
+                        land_unit = land_yield.get('land_unit', 'hectares')
+                        current_yield = land_yield.get('current_yield', 'N/A')
+                        yield_unit = land_yield.get('yield_unit', 'tonnes/ha')
+                        st.write(f"**Land Size:** {land_size} {land_unit}")
+                        st.write(f"**Current Yield:** {current_yield} {yield_unit}")
                     else:
                         st.write("**Land/Yield Data:** Not available")
                 
                 with col3:
-                    st.markdown("**📈 Analysis Results**")
-                    
-                    # Get step-by-step analysis count from multiple possible locations
-                    step_analysis = analysis_data.get('step_by_step_analysis', [])
-                    if not step_analysis:
-                        # Try to get from analysis_results
-                        analysis_results = analysis_data.get('analysis_results', {})
-                        step_analysis = analysis_results.get('step_by_step_analysis', [])
-                    
-                    st.write(f"**Analysis Steps:** {len(step_analysis)}")
-                    
-                    # Get analysis type from multiple possible locations
-                    analysis_type = "Unknown"
-                    analysis_metadata = analysis_data.get('analysis_metadata', {})
-                    if analysis_metadata:
-                        analysis_type = analysis_metadata.get('analysis_type', 'Unknown')
-                    else:
-                        # Try to get from analysis_results
-                        analysis_results = analysis_data.get('analysis_results', {})
-                        analysis_metadata = analysis_results.get('analysis_metadata', {})
-                        if analysis_metadata:
-                            analysis_type = analysis_metadata.get('analysis_type', 'Unknown')
-                    
-                    st.write(f"**Analysis Type:** {analysis_type}")
-                    
-                    # Count data sources more accurately
-                    data_sources_count = 0
-                    
-                    # Try to get raw_data from analysis_results first
-                    analysis_results = analysis_data.get('analysis_results', {})
-                    raw_data = analysis_results.get('raw_data', {})
-                    
-                    # If not found in analysis_results, try direct from analysis_data
-                    if not raw_data:
-                        raw_data = analysis_data.get('raw_data', {})
-                    
-                    # Check for soil data
-                    soil_data = raw_data.get('soil_data', {})
-                    if soil_data and (soil_data.get('success') or 'parameter_statistics' in soil_data or len(soil_data) > 1):
-                        data_sources_count += 1
-                    
-                    # Check for leaf data
-                    leaf_data = raw_data.get('leaf_data', {})
-                    if leaf_data and (leaf_data.get('success') or 'parameter_statistics' in leaf_data or len(leaf_data) > 1):
-                        data_sources_count += 1
-                    
-                    # Check for land/yield data
-                    land_yield_data = raw_data.get('land_yield_data', {})
-                    if land_yield_data and len(land_yield_data) > 0:
-                        data_sources_count += 1
-                    
-                    # If still no data sources found, try alternative structures
-                    if data_sources_count == 0:
-                        # Check for soil_parameters and leaf_parameters
-                        if analysis_results.get('soil_parameters', {}):
-                            data_sources_count += 1
-                        if analysis_results.get('leaf_parameters', {}):
-                            data_sources_count += 1
-                        if analysis_results.get('land_yield_data', {}):
-                            data_sources_count += 1
-                    
-                    st.write(f"**Data Sources:** {data_sources_count}")
+                    # Intentionally left blank: hide Analysis Results section (steps/type/data sources)
+                    pass
                     
                     # Economic forecast info
                     economic_forecast = analysis_data.get('economic_forecast', {})
@@ -482,7 +407,7 @@ def display_analysis_history():
                         st.session_state.current_page = 'results'
                         st.rerun()
                     
-                    if st.button("📥 Download PDF", key=f"pdf_{doc.id}"):
+                    if st.button("📄 Generate PDF", key=f"pdf_{doc.id}"):
                         # Generate and download PDF
                         _download_analysis_pdf(analysis_data, doc.id)
                     
@@ -509,14 +434,7 @@ def display_analysis_history():
                                 finding = finding_data['finding'] if isinstance(finding_data, dict) else finding_data
                                 st.write(f"{i}. {finding}")
                     
-                    # Show economic forecast summary
-                    if economic_forecast:
-                        scenarios = economic_forecast.get('scenarios', {})
-                        if scenarios:
-                            st.markdown("**Economic Forecast:**")
-                            for level, data in scenarios.items():
-                                if isinstance(data, dict):
-                                    st.write(f"• **{level.title()} Investment:** ROI {data.get('roi_percentage', 0):.1f}%, Payback {data.get('payback_months', 0):.1f} months")
+                    # Economic forecast details omitted on history view
         
     except Exception as e:
         st.error(f"Error loading history: {str(e)}")
@@ -1059,45 +977,40 @@ def _search_in_analysis_content(analysis_data: dict, search_term: str) -> bool:
         return False
 
 def _download_analysis_pdf(analysis_data: dict, analysis_id: str):
-    """Download analysis as PDF"""
+    """Download analysis as PDF using the same generator as results page"""
     try:
-        from utils.pdf_utils import PDFReportGenerator
-        
-        # Generate PDF
-        pdf_generator = PDFReportGenerator()
-        
+        # Reuse the same PDF generator used on results page for consistency
+        from modules.results import generate_results_pdf
+
         if not analysis_data:
             st.error("No analysis data available for PDF generation")
             return
-        
-        # Prepare metadata
-        metadata = {
-            'report_type': 'historical',
-            'lab_number': f'HIST-{analysis_id[:8]}',
-            'sample_date': analysis_data.get('created_at', datetime.now()).strftime('%Y-%m-%d'),
-            'farm_name': 'Historical Analysis'
+
+        # Build a results-like payload to maximize section coverage
+        results_payload = {
+            'analysis_results': analysis_data,
+            'timestamp': analysis_data.get('created_at', datetime.now()),
         }
-        
-        # Generate PDF
-        options = {
-            'include_charts': True,
-            'include_economic': True,
-            'include_forecast': True
-        }
-        
-        pdf_buffer = pdf_generator.generate_report(analysis_data, metadata, options)
-        
-        # Create download button
-        timestamp = analysis_data.get('created_at', datetime.now()).strftime("%Y%m%d_%H%M%S")
-        filename = f"historical_analysis_{timestamp}.pdf"
-        
+        # Promote common optional fields if present
+        for key in ['raw_data', 'summary_metrics', 'key_findings', 'step_by_step_analysis', 'references', 'economic_forecast', 'yield_forecast']:
+            if key in analysis_data:
+                results_payload[key] = analysis_data.get(key)
+
+        with st.spinner("🔄 Generating PDF report..."):
+            pdf_bytes = generate_results_pdf(results_payload)
+
+        if not pdf_bytes:
+            st.error("Failed to generate PDF report.")
+            return
+
+        filename = f"agricultural_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         st.download_button(
-            label="💾 Download PDF Report",
-            data=pdf_buffer,
+            label="💾 Save PDF",
+            data=pdf_bytes,
             file_name=filename,
             mime="application/pdf"
         )
-        
+
     except Exception as e:
         st.error(f"Error generating PDF: {str(e)}")
 
