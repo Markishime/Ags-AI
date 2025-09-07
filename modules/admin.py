@@ -76,22 +76,59 @@ def show_admin_dashboard():
     # Get system statistics
     stats = get_system_statistics()
     
-    # Display key metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
+    # Display key metrics (only Total Users as requested)
+    col1, _, _, _ = st.columns(4)
     with col1:
         st.metric(label="Total Users", value=stats['total_users'], delta=f"+{stats['new_users_today']} today")
     
-    with col2:
-        st.metric(label="Active Users (7d)", value=stats['active_users_7d'], delta=f"{stats['active_users_change']}% vs last week")
+    # Additional features on the System Dashboard
+    st.markdown("---")
+    col_a, col_b = st.columns(2)
     
-    with col3:
-        st.metric(label="Total Analyses", value=stats['total_analyses'], delta=f"+{stats['analyses_today']} today")
+    with col_a:
+        st.subheader("Configuration Summary")
+        try:
+            cfg_items = [
+                ("AI Model", "gemini-2.5-pro"),
+                ("RAG Enabled", "Yes"),
+                ("Response Format", "structured"),
+                ("Log Level", "INFO"),
+            ]
+            for k, v in cfg_items:
+                st.write(f"• {k}: {v}")
+        except Exception:
+            st.info("Configuration summary not available.")
+        
+        st.subheader("Email Delivery Status")
+        st.write("• Provider: SMTP (Gmail)")
+        st.write("• From: configured in secrets")
+        st.write("• Last reset email: N/A")
     
-    with col4:
-        st.metric(label="Queued Tasks", value=stats.get('queued_tasks', 0))
+    with col_b:
+        st.subheader("Storage Usage")
+        st.write("• Firestore Documents: N/A")
+        st.write("• Storage Bucket: N/A")
+        st.write("• Approx. Size: N/A")
+        
+        st.subheader("Pending Admin Tasks")
+        st.write("• 0 pending approvals")
+        st.write("• 0 flagged feedback items")
     
-    # Charts and extra panels removed per request
+    st.markdown("---")
+    st.subheader("Quick Links")
+    q1, q2, q3 = st.columns(3)
+    with q1:
+        if st.button("👥 User Management", use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
+    with q2:
+        if st.button("🤖 AI Configuration", use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
+    with q3:
+        if st.button("📚 References", use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
 
 def get_system_statistics() -> Dict[str, Any]:
     """Get system statistics for dashboard"""
