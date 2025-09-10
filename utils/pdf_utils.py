@@ -3304,6 +3304,11 @@ class PDFReportGenerator:
             
             # Add baseline if available
             baseline_yield = yield_forecast.get('baseline_yield', 0)
+            # Ensure baseline_yield is numeric
+            try:
+                baseline_yield = float(baseline_yield) if baseline_yield is not None else 0
+            except (ValueError, TypeError):
+                baseline_yield = 0
             if baseline_yield > 0:
                 ax.axhline(y=baseline_yield, color='gray', linestyle='--', alpha=0.7, label=f'Current Baseline: {baseline_yield:.1f} t/ha')
             
@@ -3739,6 +3744,11 @@ class PDFReportGenerator:
             
             # Get baseline yield
             baseline_yield = yield_forecast.get('baseline_yield', 0)
+            # Ensure baseline_yield is numeric
+            try:
+                baseline_yield = float(baseline_yield) if baseline_yield is not None else 0
+            except (ValueError, TypeError):
+                baseline_yield = 0
             
             # Add baseline reference line
             if baseline_yield > 0:

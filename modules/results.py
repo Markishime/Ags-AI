@@ -2869,9 +2869,9 @@ def display_visualization(viz_data, viz_number, step_number=None):
     data = viz_data.get('data', {})
     options = viz_data.get('options', {})
     
-    # For Step 2, only show actual_vs_optimal_bar charts (individual bar format)
+    # For Step 2, show issue diagnosis and comparison charts
     if step_number == 2:
-        if viz_type not in ['actual_vs_optimal_bar']:
+        if viz_type not in ['actual_vs_optimal_bar', 'issue_severity_chart', 'parameter_comparison_chart', 'visual_comparison_chart', 'issue_diagnosis_chart']:
             return
     
     # Display title and subtitle
@@ -2908,6 +2908,14 @@ def display_visualization(viz_data, viz_number, step_number=None):
         display_scatter_plot(data, title)
     elif viz_type == 'actual_vs_optimal_bar':
         display_actual_vs_optimal_bar(data, title, options)
+    elif viz_type == 'issue_severity_chart':
+        display_issue_severity_chart(data, title, options)
+    elif viz_type == 'parameter_comparison_chart':
+        display_parameter_comparison_chart(data, title, options)
+    elif viz_type == 'visual_comparison_chart':
+        display_visual_comparison_chart(data, title, options)
+    elif viz_type == 'issue_diagnosis_chart':
+        display_issue_diagnosis_chart(data, title, options)
     elif viz_type == 'nutrient_ratio_diagram':
         display_nutrient_ratio_diagram(data, title, options)
     elif viz_type == 'multi_axis_chart':
@@ -5370,7 +5378,21 @@ def display_step3_solution_recommendations(analysis_data):
         
         st.markdown("")
     
-    # 3. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
+    # 3. TABLES SECTION - Display detailed tables if available
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("### 📊 Detailed Data Tables")
+        for table in analysis_data['tables']:
+            if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
+                st.markdown(f"**{table['title']}**")
+                if table.get('subtitle'):
+                    st.markdown(f"*{table['subtitle']}*")
+                # Create a DataFrame for better display
+                import pandas as pd
+                df = pd.DataFrame(table['rows'], columns=table['headers'])
+                st.dataframe(df, use_container_width=True)
+                st.markdown("")
+    
+    # 4. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
     # This section shows the main analysis results from the LLM
     excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
@@ -5389,7 +5411,21 @@ def display_step3_solution_recommendations(analysis_data):
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for idx, item in enumerate(value, 1):
-                    if isinstance(item, (dict, list)):
+                    if isinstance(item, dict):
+                        # Check if it's a table structure
+                        if 'title' in item and 'headers' in item and 'rows' in item:
+                            st.markdown(f"**{item.get('title', f'Table {idx}')}**")
+                            if item.get('subtitle'):
+                                st.markdown(f"*{item['subtitle']}*")
+                            # Create a DataFrame for better display
+                            import pandas as pd
+                            df = pd.DataFrame(item['rows'], columns=item['headers'])
+                            st.dataframe(df, use_container_width=True)
+                            st.markdown("")
+                        else:
+                            st.markdown(f"- Item {idx}:")
+                            st.json(item)
+                    elif isinstance(item, list):
                         st.markdown(f"- Item {idx}:")
                         st.json(item)
                     else:
@@ -7293,5 +7329,190 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
         <p style="margin: 5px 0; color: #495057;"><strong>Impact:</strong> {impact}</p>
     </div>
     """
+
+
+def display_issue_severity_chart(data, title, options):
+    """Display issue severity chart for Step 2"""
+    try:
+        categories = data.get('categories', [])
+        values = data.get('values', [])
+        severity_labels = data.get('severity_labels', ['Critical', 'High', 'Medium', 'Low', 'Unknown'])
+        
+        if not categories or not values:
+            st.warning("No data available for issue severity chart")
+            return
+        
+        # Create a DataFrame for the chart
+        import pandas as pd
+        df = pd.DataFrame({
+            'Parameter': categories,
+            'Severity Level': values
+        })
+        
+        # Create the chart
+        import plotly.express as px
+        fig = px.bar(df, x='Parameter', y='Severity Level', 
+                    title=title,
+                    color='Severity Level',
+                    color_continuous_scale='Reds_r')
+        
+        fig.update_layout(
+            xaxis_title=options.get('x_axis_title', 'Parameters with Issues'),
+            yaxis_title=options.get('y_axis_title', 'Severity Level'),
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying issue severity chart: {e}")
+        st.error("Error displaying issue severity chart")
+
+
+def display_parameter_comparison_chart(data, title, options):
+    """Display parameter comparison chart for Step 2"""
+    try:
+        categories = data.get('categories', [])
+        values = data.get('values', [])
+        optimal_values = data.get('optimal_values', [])
+        
+        if not categories or not values:
+            st.warning("No data available for parameter comparison chart")
+            return
+        
+        # Create a DataFrame for the chart
+        import pandas as pd
+        df = pd.DataFrame({
+            'Parameter': categories,
+            'Current Severity': values,
+            'Target Level': optimal_values
+        })
+        
+        # Create the chart
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            name='Current Severity',
+            x=categories,
+            y=values,
+            marker_color='lightcoral'
+        ))
+        
+        if optimal_values:
+            fig.add_trace(go.Bar(
+                name='Target Level',
+                x=categories,
+                y=optimal_values,
+                marker_color='lightgreen'
+            ))
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title=options.get('x_axis_title', 'Parameters'),
+            yaxis_title=options.get('y_axis_title', 'Issue Severity'),
+            barmode='group'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying parameter comparison chart: {e}")
+        st.error("Error displaying parameter comparison chart")
+
+
+def display_visual_comparison_chart(data, title, options):
+    """Display visual comparison chart for Step 2"""
+    try:
+        categories = data.get('categories', [])
+        actual_values = data.get('actual_values', [])
+        optimal_values = data.get('optimal_values', [])
+        
+        if not categories or not actual_values or not optimal_values:
+            st.warning("No data available for visual comparison chart")
+            return
+        
+        # Create a DataFrame for the chart
+        import pandas as pd
+        df = pd.DataFrame({
+            'Parameter': categories,
+            'Actual Values': actual_values,
+            'Optimal Values': optimal_values
+        })
+        
+        # Create the chart
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            name='Actual Values',
+            x=categories,
+            y=actual_values,
+            marker_color='lightblue'
+        ))
+        
+        fig.add_trace(go.Bar(
+            name='Optimal Values',
+            x=categories,
+            y=optimal_values,
+            marker_color='lightgreen'
+        ))
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title=options.get('x_axis_title', 'Parameters'),
+            yaxis_title=options.get('y_axis_title', 'Parameter Values'),
+            barmode='group'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying visual comparison chart: {e}")
+        st.error("Error displaying visual comparison chart")
+
+
+def display_issue_diagnosis_chart(data, title, options):
+    """Display issue diagnosis overview chart for Step 2"""
+    try:
+        categories = data.get('categories', [])
+        values = data.get('values', [])
+        optimal_range = data.get('optimal_range', [])
+        
+        if not categories or not values:
+            st.warning("No data available for issue diagnosis chart")
+            return
+        
+        # Create a DataFrame for the chart
+        import pandas as pd
+        df = pd.DataFrame({
+            'Category': categories,
+            'Health Score': values
+        })
+        
+        # Create the chart
+        import plotly.express as px
+        fig = px.bar(df, x='Category', y='Health Score', 
+                    title=title,
+                    color='Health Score',
+                    color_continuous_scale='RdYlGn')
+        
+        # Add optimal range line if available
+        if optimal_range and len(optimal_range) == len(categories):
+            for i, (cat, opt_val) in enumerate(zip(categories, optimal_range)):
+                fig.add_hline(y=opt_val, line_dash="dash", line_color="red", 
+                            annotation_text=f"Target: {opt_val}", annotation_position="top right")
+        
+        fig.update_layout(
+            xaxis_title=options.get('x_axis_title', 'Analysis Categories'),
+            yaxis_title=options.get('y_axis_title', 'Health Score (%)'),
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except Exception as e:
+        logger.error(f"Error displaying issue diagnosis chart: {e}")
+        st.error("Error displaying issue diagnosis chart")
 
 

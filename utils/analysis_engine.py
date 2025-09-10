@@ -3203,15 +3203,89 @@ class AnalysisEngine:
                     }
                     visualizations.append(viz_parameter_comparison)
             
-            # Add visual comparison chart
-            viz_visual_comparison = {
+            # Add visual comparison chart with real data
+            viz_visual_comparison = self._create_real_data_visual_comparison(soil_params, leaf_params)
+            if viz_visual_comparison:
+                visualizations.append(viz_visual_comparison)
+            
+        except Exception as e:
+            self.logger.warning(f"Error building Step 2 visualizations: {e}")
+        
+        return visualizations
+
+    def _create_real_data_visual_comparison(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create visual comparison chart with real parameter data"""
+        try:
+            # Get MPOB standards
+            try:
+                mpob = get_mpob_standards()
+            except Exception:
+                mpob = None
+            
+            categories = []
+            actual_values = []
+            optimal_values = []
+            
+            # Process soil parameters
+            soil_stats = soil_params.get('parameter_statistics', {}) if soil_params else {}
+            soil_standards = mpob.soil_standards if mpob else {}
+            
+            soil_map = {
+                'pH': 'pH',
+                'Nitrogen_%': 'Nitrogen',
+                'Organic_Carbon_%': 'Organic_Carbon',
+                'Total_P_mg_kg': 'Total_P',
+                'Available_P_mg_kg': 'Available_P',
+                'Exchangeable_K_meq%': 'Exch_K',
+                'Exchangeable_Ca_meq%': 'Exch_Ca',
+                'Exchangeable_Mg_meq%': 'Exch_Mg'
+            }
+            
+            for param_key, std_key in soil_map.items():
+                if param_key in soil_stats:
+                    stats = soil_stats[param_key]
+                    current = stats.get('mean', stats.get('average', 0))
+                    optimal = self._optimal_from_standard(soil_standards.get(std_key), DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(std_key))
+                    
+                    if isinstance(current, (int, float)) and isinstance(optimal, (int, float)) and optimal > 0:
+                        categories.append(param_key.replace('_', ' ').title())
+                        actual_values.append(float(current))
+                        optimal_values.append(float(optimal))
+            
+            # Process leaf parameters
+            leaf_stats = leaf_params.get('parameter_statistics', {}) if leaf_params else {}
+            leaf_standards = mpob.leaf_standards if mpob else {}
+            
+            leaf_map = {
+                'N_%': 'N',
+                'P_%': 'P',
+                'K_%': 'K',
+                'Mg_%': 'Mg',
+                'Ca_%': 'Ca'
+            }
+            
+            for param_key, std_key in leaf_map.items():
+                if param_key in leaf_stats:
+                    stats = leaf_stats[param_key]
+                    current = stats.get('mean', stats.get('average', 0))
+                    optimal = self._optimal_from_standard(leaf_standards.get(std_key), DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(std_key))
+                    
+                    if isinstance(current, (int, float)) and isinstance(optimal, (int, float)) and optimal > 0:
+                        categories.append(param_key.replace('_', ' ').title())
+                        actual_values.append(float(current))
+                        optimal_values.append(float(optimal))
+            
+            if not categories or not actual_values or not optimal_values:
+                return None
+            
+            return {
                 'type': 'visual_comparison_chart',
                 'title': '📈 Visual Comparison Analysis',
                 'subtitle': 'Visual comparison of actual values vs MPOB standards for issue diagnosis',
                 'data': {
-                    'categories': ['Soil pH', 'N Levels', 'P Levels', 'K Levels', 'Mg Levels'],
-                    'actual_values': [6.2, 2.1, 15.5, 0.8, 0.6],  # Placeholder values
-                    'optimal_values': [6.5, 2.5, 20.0, 1.2, 0.8]
+                    'categories': categories,
+                    'actual_values': actual_values,
+                    'optimal_values': optimal_values
                 },
                 'options': {
                     'show_legend': True,
@@ -3221,12 +3295,10 @@ class AnalysisEngine:
                     'chart_type': 'comparison'
                 }
             }
-            visualizations.append(viz_visual_comparison)
             
         except Exception as e:
-            self.logger.warning(f"Error building Step 2 visualizations: {e}")
-        
-        return visualizations
+            self.logger.warning(f"Error creating real data visual comparison: {e}")
+            return None
 
     def _create_nutrient_ratios_diagrams(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Create nutrient ratio diagrams for soil and leaf parameters"""
@@ -3478,7 +3550,27 @@ class AnalysisEngine:
             if comparison_table:
                 tables.append(comparison_table)
             
-            # 4. Land Yield Data Table (if available)
+            # 4. Nutrient Ratios Table
+            ratios_table = self._create_nutrient_ratios_table(soil_params, leaf_params)
+            if ratios_table:
+                tables.append(ratios_table)
+            
+            # 5. Three-Tier Solutions Table (Step 3)
+            solutions_table = self._create_three_tier_solutions_table(soil_params, leaf_params, land_yield_data)
+            if solutions_table:
+                tables.append(solutions_table)
+            
+            # 6. Regenerative Agriculture Strategies Table (Step 4)
+            regenerative_table = self._create_regenerative_strategies_table(soil_params, leaf_params, land_yield_data)
+            if regenerative_table:
+                tables.append(regenerative_table)
+            
+            # 7. Economic Impact Forecast Table (Step 5)
+            economic_table = self._create_economic_impact_table(soil_params, leaf_params, land_yield_data)
+            if economic_table:
+                tables.append(economic_table)
+            
+            # 8. Land Yield Data Table (if available)
             if land_yield_data:
                 yield_table = self._create_yield_data_table(land_yield_data)
                 if yield_table:
@@ -3490,56 +3582,567 @@ class AnalysisEngine:
         return tables
 
     def _create_data_echo_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Create data echo table showing raw sample data"""
+        """Create comprehensive data echo table as per prompt requirements"""
         try:
-            # Get sample data
+            # Get sample data and metadata
             soil_samples = soil_params.get('samples', []) if soil_params else []
             leaf_samples = leaf_params.get('samples', []) if leaf_params else []
+            soil_metadata = soil_params.get('metadata', {}) if soil_params else {}
+            leaf_metadata = leaf_params.get('metadata', {}) if leaf_params else {}
             
-            if not soil_samples and not leaf_samples:
-                return None
+            # Define all standard parameters that should be included
+            soil_parameters = [
+                'pH', 'Nitrogen_%', 'Organic_Carbon_%', 'Total_P_mg_kg', 'Available_P_mg_kg',
+                'Exchangeable_K_meq%', 'Exchangeable_Ca_meq%', 'Exchangeable_Mg_meq%', 'CEC_meq%'
+            ]
             
-            # Prepare headers
-            headers = ['Sample ID', 'Type', 'Parameter', 'Value', 'Unit']
+            leaf_parameters = [
+                'N_%', 'P_%', 'K_%', 'Mg_%', 'Ca_%', 'B_mg_kg', 'Cu_mg_kg', 'Zn_mg_kg'
+            ]
+            
+            # Prepare headers as per prompt requirements
+            headers = ['Parameter', 'Type', 'Value', 'Unit', 'Source File', 'Page Number']
             rows = []
             
-            # Add soil sample data
-            for i, sample in enumerate(soil_samples):
-                sample_id = f"SOIL_{i+1:03d}"
-                for param, value in sample.items():
-                    if isinstance(value, (int, float)) and value is not None:
-                        rows.append([
-                            sample_id,
-                            'Soil',
-                            param.replace('_', ' ').title(),
-                            f"{value:.2f}" if isinstance(value, float) else str(value),
-                            self._get_parameter_unit(param)
-                        ])
+            # Process soil parameters
+            for param in soil_parameters:
+                # Check if parameter exists in any soil sample
+                found_value = None
+                source_file = "Missing"
+                page_number = "Missing"
+                
+                for sample in soil_samples:
+                    if param in sample and sample[param] is not None:
+                        found_value = sample[param]
+                        source_file = soil_metadata.get('source_file', 'Unknown')
+                        page_number = soil_metadata.get('page_number', 'Unknown')
+                        break
+                
+                value_str = f"{found_value:.2f}" if isinstance(found_value, (int, float)) else "Missing"
+                rows.append([
+                    param.replace('_', ' ').title(),
+                    'Soil',
+                    value_str,
+                    self._get_parameter_unit(param),
+                    source_file,
+                    page_number
+                ])
             
-            # Add leaf sample data
-            for i, sample in enumerate(leaf_samples):
-                sample_id = f"LEAF_{i+1:03d}"
-                for param, value in sample.items():
-                    if isinstance(value, (int, float)) and value is not None:
-                        rows.append([
-                            sample_id,
-                            'Leaf',
-                            param.replace('_', ' ').title(),
-                            f"{value:.2f}" if isinstance(value, float) else str(value),
-                            self._get_parameter_unit(param)
-                        ])
+            # Process leaf parameters
+            for param in leaf_parameters:
+                # Check if parameter exists in any leaf sample
+                found_value = None
+                source_file = "Missing"
+                page_number = "Missing"
+                
+                for sample in leaf_samples:
+                    if param in sample and sample[param] is not None:
+                        found_value = sample[param]
+                        source_file = leaf_metadata.get('source_file', 'Unknown')
+                        page_number = leaf_metadata.get('page_number', 'Unknown')
+                        break
+                
+                value_str = f"{found_value:.2f}" if isinstance(found_value, (int, float)) else "Missing"
+                rows.append([
+                    param.replace('_', ' ').title(),
+                    'Leaf',
+                    value_str,
+                    self._get_parameter_unit(param),
+                    source_file,
+                    page_number
+                ])
             
             return {
-                'title': '📊 Data Echo Table - Raw Sample Data',
-                'subtitle': 'Complete raw data from all uploaded samples',
+                'title': '📊 Data Echo Table - Complete Parameter Analysis',
+                'subtitle': 'All soil and leaf parameters with values, units, source files, and page numbers',
                 'headers': headers,
-                'rows': rows[:100],  # Limit to first 100 rows for performance
-                'total_samples': len(soil_samples) + len(leaf_samples),
-                'note': f'Showing first 100 data points from {len(soil_samples)} soil and {len(leaf_samples)} leaf samples'
+                'rows': rows,
+                'total_parameters': len(soil_parameters) + len(leaf_parameters),
+                'note': 'Shows all standard parameters. Missing parameters are marked as "Missing"'
             }
             
         except Exception as e:
             self.logger.warning(f"Error creating data echo table: {e}")
+            return None
+
+    def _create_nutrient_ratios_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create nutrient ratios table as per prompt requirements"""
+        try:
+            headers = ['Ratio', 'Type', 'Current Value', 'Reference Range', 'Status']
+            rows = []
+            
+            # Calculate soil ratios
+            soil_stats = soil_params.get('parameter_statistics', {}) if soil_params else {}
+            soil_ratios = self._calculate_soil_nutrient_ratios(soil_stats)
+            
+            # Soil ratio reference ranges
+            soil_reference_ranges = {
+                'N:P': (10, 15),
+                'N:K': (1, 2),
+                'Ca:Mg': (2, 4),
+                'K:Mg': (0.2, 0.5),
+                'C:N': (10, 20)
+            }
+            
+            for ratio_name, current_value in soil_ratios.items():
+                if current_value > 0:
+                    ref_range = soil_reference_ranges.get(ratio_name, (0, 0))
+                    min_val, max_val = ref_range
+                    
+                    if min_val <= current_value <= max_val:
+                        status = "Optimal"
+                    elif current_value < min_val:
+                        status = "Low"
+                    else:
+                        status = "High"
+                    
+                    rows.append([
+                        ratio_name,
+                        'Soil',
+                        f"{current_value:.2f}",
+                        f"{min_val}-{max_val}",
+                        status
+                    ])
+            
+            # Calculate leaf ratios
+            leaf_stats = leaf_params.get('parameter_statistics', {}) if leaf_params else {}
+            leaf_ratios = self._calculate_leaf_nutrient_ratios(leaf_stats)
+            
+            # Leaf ratio reference ranges
+            leaf_reference_ranges = {
+                'N:P': (8, 12),
+                'N:K': (1.5, 2.5),
+                'Ca:Mg': (2, 3),
+                'K:Mg': (0.3, 0.6),
+                'P:K': (0.4, 0.8)
+            }
+            
+            for ratio_name, current_value in leaf_ratios.items():
+                if current_value > 0:
+                    ref_range = leaf_reference_ranges.get(ratio_name, (0, 0))
+                    min_val, max_val = ref_range
+                    
+                    if min_val <= current_value <= max_val:
+                        status = "Optimal"
+                    elif current_value < min_val:
+                        status = "Low"
+                    else:
+                        status = "High"
+                    
+                    rows.append([
+                        ratio_name,
+                        'Leaf',
+                        f"{current_value:.2f}",
+                        f"{min_val}-{max_val}",
+                        status
+                    ])
+            
+            if not rows:
+                return None
+            
+            return {
+                'title': '⚖️ Nutrient Ratios Analysis',
+                'subtitle': 'Key nutrient ratios compared against optimal reference ranges',
+                'headers': headers,
+                'rows': rows,
+                'note': 'Ratios outside optimal ranges may indicate nutrient imbalances'
+            }
+            
+        except Exception as e:
+            self.logger.warning(f"Error creating nutrient ratios table: {e}")
+            return None
+
+    def _create_three_tier_solutions_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any], land_yield_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create three-tier solutions table as per prompt requirements"""
+        try:
+            headers = ['Problem', 'High Investment', 'Medium Investment', 'Low Investment', 'Cost Level']
+            rows = []
+            
+            # Get parameter statistics
+            soil_stats = soil_params.get('parameter_statistics', {}) if soil_params else {}
+            leaf_stats = leaf_params.get('parameter_statistics', {}) if leaf_params else {}
+            
+            # Get palms per hectare
+            palms_per_ha = land_yield_data.get('palms_per_hectare', 0) if land_yield_data else 0
+            if palms_per_ha == 0:
+                palms_per_ha = "Missing"
+            
+            # Identify problems and create solutions
+            problems = self._identify_agronomic_problems(soil_stats, leaf_stats)
+            
+            for problem in problems:
+                problem_name = problem.get('name', 'Unknown Problem')
+                problem_type = problem.get('type', 'Unknown')
+                severity = problem.get('severity', 'Medium')
+                
+                # Generate three-tier solutions
+                high_solution = self._generate_high_investment_solution(problem, palms_per_ha)
+                medium_solution = self._generate_medium_investment_solution(problem, palms_per_ha)
+                low_solution = self._generate_low_investment_solution(problem, palms_per_ha)
+                
+                rows.append([
+                    problem_name,
+                    high_solution,
+                    medium_solution,
+                    low_solution,
+                    f"High/Medium/Low"
+                ])
+            
+            if not rows:
+                return None
+            
+            return {
+                'title': '💡 Three-Tier Solution Recommendations',
+                'subtitle': 'High, Medium, and Low investment approaches for each identified problem',
+                'headers': headers,
+                'rows': rows,
+                'note': 'All solutions use Malaysian products with specific rates, timing, and methods'
+            }
+            
+        except Exception as e:
+            self.logger.warning(f"Error creating three-tier solutions table: {e}")
+            return None
+
+    def _identify_agronomic_problems(self, soil_stats: Dict[str, Any], leaf_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Identify agronomic problems from parameter data"""
+        problems = []
+        
+        try:
+            # Check soil pH
+            ph_avg = soil_stats.get('pH', {}).get('average', 0)
+            if ph_avg > 0 and ph_avg < 4.5:
+                problems.append({
+                    'name': 'Low Soil pH (Acidity)',
+                    'type': 'soil_ph',
+                    'severity': 'High' if ph_avg < 4.0 else 'Medium',
+                    'current_value': ph_avg,
+                    'target_value': 5.0
+                })
+            elif ph_avg > 0 and ph_avg > 5.5:
+                problems.append({
+                    'name': 'High Soil pH (Alkalinity)',
+                    'type': 'soil_ph',
+                    'severity': 'Medium',
+                    'current_value': ph_avg,
+                    'target_value': 5.0
+                })
+            
+            # Check available phosphorus
+            p_avg = soil_stats.get('Available_P_mg_kg', {}).get('average', 0)
+            if p_avg > 0 and p_avg < 15:
+                problems.append({
+                    'name': 'Low Available Phosphorus',
+                    'type': 'phosphorus',
+                    'severity': 'High' if p_avg < 10 else 'Medium',
+                    'current_value': p_avg,
+                    'target_value': 22
+                })
+            
+            # Check potassium
+            k_avg = soil_stats.get('Exchangeable_K_meq%', {}).get('average', 0)
+            if k_avg > 0 and k_avg < 0.15:
+                problems.append({
+                    'name': 'Low Exchangeable Potassium',
+                    'type': 'potassium',
+                    'severity': 'High' if k_avg < 0.10 else 'Medium',
+                    'current_value': k_avg,
+                    'target_value': 0.20
+                })
+            
+            # Check magnesium
+            mg_avg = soil_stats.get('Exchangeable_Mg_meq%', {}).get('average', 0)
+            if mg_avg > 0 and mg_avg < 0.8:
+                problems.append({
+                    'name': 'Low Exchangeable Magnesium',
+                    'type': 'magnesium',
+                    'severity': 'High' if mg_avg < 0.5 else 'Medium',
+                    'current_value': mg_avg,
+                    'target_value': 1.15
+                })
+            
+            # Check leaf boron
+            b_avg = leaf_stats.get('B_mg_kg', {}).get('average', 0)
+            if b_avg > 0 and b_avg < 15:
+                problems.append({
+                    'name': 'Low Leaf Boron',
+                    'type': 'boron',
+                    'severity': 'High' if b_avg < 12 else 'Medium',
+                    'current_value': b_avg,
+                    'target_value': 20
+                })
+            
+        except Exception as e:
+            self.logger.warning(f"Error identifying agronomic problems: {e}")
+        
+        return problems
+
+    def _generate_high_investment_solution(self, problem: Dict[str, Any], palms_per_ha) -> str:
+        """Generate high investment solution with Malaysian products"""
+        problem_type = problem.get('type', '')
+        severity = problem.get('severity', 'Medium')
+        
+        if problem_type == 'soil_ph':
+            if problem.get('current_value', 0) < 4.5:
+                return "GML 2,500-3,000 kg/ha, broadcast and incorporate, apply in 2-3 split applications. Cost: High"
+            else:
+                return "Sulfur 500-800 kg/ha, broadcast and incorporate, apply once. Cost: High"
+        
+        elif problem_type == 'phosphorus':
+            return "Rock Phosphate 300 kg/ha + TSP 150 kg/ha, band application near root zone, apply annually. Cost: High"
+        
+        elif problem_type == 'potassium':
+            return "MOP 700 kg/ha + SOP 200 kg/ha, broadcast application, apply in 2-3 splits. Cost: High"
+        
+        elif problem_type == 'magnesium':
+            return "Kieserite 200 kg/ha + Dolomite 1,000 kg/ha, broadcast application, apply annually. Cost: High"
+        
+        elif problem_type == 'boron':
+            return "Borax 15-20 kg/ha, foliar spray, apply 2-3 times per year. Cost: High"
+        
+        return "Customized high-investment solution based on specific problem analysis. Cost: High"
+
+    def _generate_medium_investment_solution(self, problem: Dict[str, Any], palms_per_ha) -> str:
+        """Generate medium investment solution with Malaysian products"""
+        problem_type = problem.get('type', '')
+        
+        if problem_type == 'soil_ph':
+            if problem.get('current_value', 0) < 4.5:
+                return "GML 1,500-2,000 kg/ha, broadcast application, apply annually. Cost: Medium"
+            else:
+                return "Sulfur 300-500 kg/ha, broadcast application, apply once. Cost: Medium"
+        
+        elif problem_type == 'phosphorus':
+            return "Rock Phosphate 200 kg/ha + SSP 100 kg/ha, band application, apply annually. Cost: Medium"
+        
+        elif problem_type == 'potassium':
+            return "MOP 500 kg/ha, broadcast application, apply in 2 splits. Cost: Medium"
+        
+        elif problem_type == 'magnesium':
+            return "Kieserite 100 kg/ha + Dolomite 500 kg/ha, broadcast application, apply annually. Cost: Medium"
+        
+        elif problem_type == 'boron':
+            return "Borax 10-15 kg/ha, soil application, apply once per year. Cost: Medium"
+        
+        return "Balanced medium-investment solution with moderate cost and effectiveness. Cost: Medium"
+
+    def _generate_low_investment_solution(self, problem: Dict[str, Any], palms_per_ha) -> str:
+        """Generate low investment solution with Malaysian products"""
+        problem_type = problem.get('type', '')
+        
+        if problem_type == 'soil_ph':
+            if problem.get('current_value', 0) < 4.5:
+                return "GML 1,000-1,500 kg/ha, broadcast application, apply annually. Cost: Low"
+            else:
+                return "Sulfur 200-300 kg/ha, broadcast application, apply once. Cost: Low"
+        
+        elif problem_type == 'phosphorus':
+            return "Rock Phosphate 150 kg/ha, band application, apply annually. Cost: Low"
+        
+        elif problem_type == 'potassium':
+            return "MOP 400 kg/ha, broadcast application, apply once. Cost: Low"
+        
+        elif problem_type == 'magnesium':
+            return "Dolomite 500 kg/ha, broadcast application, apply annually. Cost: Low"
+        
+        elif problem_type == 'boron':
+            return "Borax 5-10 kg/ha, soil application, apply once per year. Cost: Low"
+        
+        return "Affordable low-investment solution with gradual improvement. Cost: Low"
+
+    def _create_regenerative_strategies_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any], land_yield_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create regenerative agriculture strategies table as per prompt requirements"""
+        try:
+            headers = ['Practice', 'Rate/Method', 'Mechanism', 'Nutrient Contribution', 'Short-term Effect', 'Long-term Effect']
+            rows = []
+            
+            # Get current yield for calculations
+            current_yield = land_yield_data.get('current_yield', 0) if land_yield_data else 0
+            land_size = land_yield_data.get('land_size_ha', 0) if land_yield_data else 0
+            
+            # EFB Mulching
+            rows.append([
+                'EFB Mulching',
+                '40-60 t/ha annually',
+                'Organic matter addition, moisture retention, weed suppression',
+                'K2O: 200-300 kg/ha, N: 50-80 kg/ha, P2O5: 20-30 kg/ha',
+                'Improved soil moisture, reduced weed pressure',
+                'Enhanced soil structure, increased organic matter content'
+            ])
+            
+            # Composting
+            rows.append([
+                'Composting',
+                '10-15 t/ha annually',
+                'Microbial activity enhancement, nutrient cycling',
+                'N: 30-50 kg/ha, P2O5: 15-25 kg/ha, K2O: 40-60 kg/ha',
+                'Improved soil biological activity',
+                'Sustainable nutrient cycling, enhanced soil health'
+            ])
+            
+            # Leguminous Cover Crops
+            rows.append([
+                'Leguminous Cover Crops',
+                'Pueraria phaseoloides 2-3 kg/ha seed',
+                'Nitrogen fixation, soil protection, erosion control',
+                'N: 80-120 kg/ha annually from fixation',
+                'Reduced soil erosion, nitrogen addition',
+                'Improved soil fertility, reduced fertilizer needs'
+            ])
+            
+            # Biochar Application
+            rows.append([
+                'Biochar Application',
+                '5-10 t/ha one-time application',
+                'Carbon sequestration, improved water retention, pH buffering',
+                'Minimal direct nutrients, enhanced nutrient retention',
+                'Improved water holding capacity',
+                'Long-term carbon storage, enhanced soil resilience'
+            ])
+            
+            # Reduced Tillage
+            rows.append([
+                'Reduced Tillage',
+                'Minimal soil disturbance practices',
+                'Soil structure preservation, organic matter retention',
+                'Reduced nutrient leaching, improved nutrient availability',
+                'Reduced soil compaction',
+                'Enhanced soil health, improved water infiltration'
+            ])
+            
+            # Green Manure
+            rows.append([
+                'Green Manure',
+                'Mucuna pruriens 3-4 kg/ha seed',
+                'Biomass incorporation, nutrient cycling',
+                'N: 60-100 kg/ha, organic matter: 2-3 t/ha',
+                'Rapid soil improvement',
+                'Sustainable nutrient management, soil building'
+            ])
+            
+            return {
+                'title': '🌱 Regenerative Agriculture Strategies',
+                'subtitle': 'Sustainable practices with rates, mechanisms, and quantified benefits',
+                'headers': headers,
+                'rows': rows,
+                'note': 'Nutrient contributions should be deducted from fertilizer recommendations'
+            }
+            
+        except Exception as e:
+            self.logger.warning(f"Error creating regenerative strategies table: {e}")
+            return None
+
+    def _create_economic_impact_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any], land_yield_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create economic impact forecast table as per prompt requirements"""
+        try:
+            headers = ['Scenario', 'Yield Improvement (t/ha)', 'Input Cost (RM/ha)', 'Revenue (RM/ha)', 'Profit (RM/ha)', 'ROI (%)']
+            rows = []
+            
+            # Get land data
+            current_yield = land_yield_data.get('current_yield', 0) if land_yield_data else 0
+            land_size = land_yield_data.get('land_size_ha', 0) if land_yield_data else 0
+            palms_per_ha = land_yield_data.get('palms_per_hectare', 0) if land_yield_data else 0
+            
+            # Check if required data is available
+            if current_yield == 0 or land_size == 0:
+                return {
+                    'title': '💰 Economic Impact Forecast',
+                    'subtitle': 'Economic analysis requires current yield and land size data',
+                    'headers': headers,
+                    'rows': [['Data Required', 'Missing', 'Missing', 'Missing', 'Missing', 'Missing']],
+                    'note': 'Current yield and land size data are required for economic analysis'
+                }
+            
+            # FFB Price range (single range for entire report)
+            ffb_price_low = 400  # RM per tonne
+            ffb_price_high = 500  # RM per tonne
+            
+            # Input cost ranges (RM per tonne)
+            input_costs = {
+                'GML': {'low': 120, 'high': 150},
+                'MOP': {'low': 800, 'high': 1000},
+                'Urea': {'low': 1200, 'high': 1400},
+                'Rock_Phosphate': {'low': 400, 'high': 500},
+                'Kieserite': {'low': 600, 'high': 750},
+                'Borax': {'low': 3000, 'high': 3500}
+            }
+            
+            # High Investment Scenario
+            high_yield_improvement = (2.5, 4.0)  # t/ha range
+            high_input_cost = (1800, 2200)  # RM/ha range
+            high_revenue_low = (current_yield + high_yield_improvement[0]) * ffb_price_low
+            high_revenue_high = (current_yield + high_yield_improvement[1]) * ffb_price_high
+            high_profit_low = high_revenue_low - high_input_cost[1]
+            high_profit_high = high_revenue_high - high_input_cost[0]
+            high_roi_low = (high_profit_low / high_input_cost[1]) * 100
+            high_roi_high = (high_profit_high / high_input_cost[0]) * 100
+            
+            rows.append([
+                'High Investment',
+                f"{high_yield_improvement[0]}-{high_yield_improvement[1]}",
+                f"{high_input_cost[0]}-{high_input_cost[1]}",
+                f"{high_revenue_low:.0f}-{high_revenue_high:.0f}",
+                f"{high_profit_low:.0f}-{high_profit_high:.0f}",
+                f"{high_roi_low:.1f}-{high_roi_high:.1f}"
+            ])
+            
+            # Medium Investment Scenario
+            medium_yield_improvement = (1.5, 2.5)  # t/ha range
+            medium_input_cost = (1200, 1500)  # RM/ha range
+            medium_revenue_low = (current_yield + medium_yield_improvement[0]) * ffb_price_low
+            medium_revenue_high = (current_yield + medium_yield_improvement[1]) * ffb_price_high
+            medium_profit_low = medium_revenue_low - medium_input_cost[1]
+            medium_profit_high = medium_revenue_high - medium_input_cost[0]
+            medium_roi_low = (medium_profit_low / medium_input_cost[1]) * 100
+            medium_roi_high = (medium_profit_high / medium_input_cost[0]) * 100
+            
+            rows.append([
+                'Medium Investment',
+                f"{medium_yield_improvement[0]}-{medium_yield_improvement[1]}",
+                f"{medium_input_cost[0]}-{medium_input_cost[1]}",
+                f"{medium_revenue_low:.0f}-{medium_revenue_high:.0f}",
+                f"{medium_profit_low:.0f}-{medium_profit_high:.0f}",
+                f"{medium_roi_low:.1f}-{medium_roi_high:.1f}"
+            ])
+            
+            # Low Investment Scenario
+            low_yield_improvement = (0.8, 1.5)  # t/ha range
+            low_input_cost = (600, 900)  # RM/ha range
+            low_revenue_low = (current_yield + low_yield_improvement[0]) * ffb_price_low
+            low_revenue_high = (current_yield + low_yield_improvement[1]) * ffb_price_high
+            low_profit_low = low_revenue_low - low_input_cost[1]
+            low_profit_high = low_revenue_high - low_input_cost[0]
+            low_roi_low = (low_profit_low / low_input_cost[1]) * 100
+            low_roi_high = (low_profit_high / low_input_cost[0]) * 100
+            
+            rows.append([
+                'Low Investment',
+                f"{low_yield_improvement[0]}-{low_yield_improvement[1]}",
+                f"{low_input_cost[0]}-{low_input_cost[1]}",
+                f"{low_revenue_low:.0f}-{low_revenue_high:.0f}",
+                f"{low_profit_low:.0f}-{low_profit_high:.0f}",
+                f"{low_roi_low:.1f}-{low_roi_high:.1f}"
+            ])
+            
+            # Add assumptions row
+            rows.append([
+                'Assumptions',
+                f"FFB Price: RM {ffb_price_low}-{ffb_price_high}/t",
+                f"Current Yield: {current_yield:.1f} t/ha",
+                f"Land Size: {land_size:.1f} ha",
+                f"Palms/ha: {palms_per_ha if palms_per_ha != 0 else 'Missing'}",
+                'RM values are approximate'
+            ])
+            
+            return {
+                'title': '💰 Economic Impact Forecast',
+                'subtitle': '5-year economic projections with yield improvements and ROI analysis',
+                'headers': headers,
+                'rows': rows,
+                'note': 'RM values are approximate and represent recent historical price and cost ranges'
+            }
+            
+        except Exception as e:
+            self.logger.warning(f"Error creating economic impact table: {e}")
             return None
 
     def _create_statistical_summary_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
@@ -3604,7 +4207,7 @@ class AnalysisEngine:
             return None
 
     def _create_mpob_comparison_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Create MPOB standards comparison table"""
+        """Create MPOB standards comparison table - Show ALL standard parameters"""
         try:
             headers = ['Parameter', 'Type', 'Current Value', 'MPOB Optimal', 'Status', 'Deviation %']
             rows = []
@@ -3615,7 +4218,7 @@ class AnalysisEngine:
             except Exception:
                 mpob = None
             
-            # Process soil parameters
+            # Process soil parameters - Show ALL 9 standard parameters
             soil_stats = soil_params.get('parameter_statistics', {}) if soil_params else {}
             soil_standards = mpob.soil_standards if mpob else {}
             
@@ -3632,6 +4235,7 @@ class AnalysisEngine:
             }
             
             for param_key, std_key in soil_map.items():
+                # Always show the parameter, even if not in uploaded data
                 if param_key in soil_stats:
                     stats = soil_stats[param_key]
                     current = stats.get('mean', stats.get('average', 0))
@@ -3648,8 +4252,30 @@ class AnalysisEngine:
                             status,
                             f"{deviation:+.1f}%"
                         ])
+                    else:
+                        # Parameter exists but has invalid data
+                        optimal = self._optimal_from_standard(soil_standards.get(std_key), DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(std_key))
+                        rows.append([
+                            param_key.replace('_', ' ').title(),
+                            'Soil',
+                            "Invalid Data",
+                            f"{optimal:.2f}",
+                            "N/A",
+                            "N/A"
+                        ])
+                else:
+                    # Parameter not in uploaded data - show as not available
+                    optimal = self._optimal_from_standard(soil_standards.get(std_key), DEFAULT_MPOB_STANDARDS.get('soil_standards', {}).get(std_key))
+                    rows.append([
+                        param_key.replace('_', ' ').title(),
+                        'Soil',
+                        "Not Available",
+                        f"{optimal:.2f}",
+                        "N/A",
+                        "N/A"
+                    ])
             
-            # Process leaf parameters
+            # Process leaf parameters - Show ALL 8 standard parameters
             leaf_stats = leaf_params.get('parameter_statistics', {}) if leaf_params else {}
             leaf_standards = mpob.leaf_standards if mpob else {}
             
@@ -3665,6 +4291,7 @@ class AnalysisEngine:
             }
             
             for param_key, std_key in leaf_map.items():
+                # Always show the parameter, even if not in uploaded data
                 if param_key in leaf_stats:
                     stats = leaf_stats[param_key]
                     current = stats.get('mean', stats.get('average', 0))
@@ -3681,6 +4308,28 @@ class AnalysisEngine:
                             status,
                             f"{deviation:+.1f}%"
                         ])
+                    else:
+                        # Parameter exists but has invalid data
+                        optimal = self._optimal_from_standard(leaf_standards.get(std_key), DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(std_key))
+                        rows.append([
+                            param_key.replace('_', ' ').title(),
+                            'Leaf',
+                            "Invalid Data",
+                            f"{optimal:.2f}",
+                            "N/A",
+                            "N/A"
+                        ])
+                else:
+                    # Parameter not in uploaded data - show as not available
+                    optimal = self._optimal_from_standard(leaf_standards.get(std_key), DEFAULT_MPOB_STANDARDS.get('leaf_standards', {}).get(std_key))
+                    rows.append([
+                        param_key.replace('_', ' ').title(),
+                        'Leaf',
+                        "Not Available",
+                        f"{optimal:.2f}",
+                        "N/A",
+                        "N/A"
+                    ])
             
             return {
                 'title': '🎯 MPOB Standards Comparison Table',
