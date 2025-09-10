@@ -17,7 +17,7 @@ sys.path.append(os.path.join(
 
 # Import utilities
 from utils.firebase_config import get_firestore_client, COLLECTIONS
-from google.cloud.firestore import Query
+from google.cloud.firestore import Query, FieldFilter
 from utils.pdf_utils import PDFReportGenerator
 from utils.analysis_engine import AnalysisEngine
 from utils.ocr_utils import extract_data_from_image
@@ -499,7 +499,6 @@ def load_latest_results():
                 'user_email': st.session_state.get('user_email'),
                 'timestamp': current_analysis.get('timestamp', datetime.now()),
                 'status': current_analysis.get('status', 'completed'),
-                'analysis_results': current_analysis.get('analysis_results', {}),
                 'soil_data': current_analysis.get('soil_data', {}),
                 'leaf_data': current_analysis.get('leaf_data', {}),
                 'land_yield_data': current_analysis.get('land_yield_data', {}),
@@ -507,12 +506,39 @@ def load_latest_results():
                 'success': True
             }
             
+            # Get analysis_results from session state if available (to avoid Firebase validation issues)
+            if 'stored_analysis_results' in st.session_state:
+                result_id = current_analysis.get('id')
+                if result_id and result_id in st.session_state.stored_analysis_results:
+                    results_data['analysis_results'] = st.session_state.stored_analysis_results[result_id]
+                else:
+                    # Fallback to the original method if not found in session state
+                    results_data['analysis_results'] = current_analysis.get('analysis_results', {})
+            
             # Clear current_analysis from session state after loading
             del st.session_state.current_analysis
             
             return results_data
         
-        # If no current analysis, load latest from database
+        # Check if there are any stored analysis results in session state (newly completed)
+        if 'stored_analysis_results' in st.session_state and st.session_state.stored_analysis_results:
+            # Get the most recent analysis result from session state
+            latest_id = max(st.session_state.stored_analysis_results.keys())
+            latest_analysis = st.session_state.stored_analysis_results[latest_id]
+            
+            # Create results data structure
+            results_data = {
+                'id': latest_id,
+                'user_email': st.session_state.get('user_email'),
+                'timestamp': datetime.now(),
+                'status': 'completed',
+                'report_types': ['soil', 'leaf'],
+                'success': True,
+                'analysis_results': latest_analysis
+            }
+            return results_data
+        
+        # If no stored results, try to load from database (legacy data)
         db = get_firestore_client()
         user_email = st.session_state.get('user_email')
         
@@ -521,7 +547,7 @@ def load_latest_results():
         
         # Query for the latest analysis results
         analyses_ref = db.collection(COLLECTIONS['analysis_results'])
-        query = analyses_ref.where('user_email', '==', user_email).order_by('timestamp', direction=Query.DESCENDING).limit(1)
+        query = analyses_ref.where(filter=FieldFilter('user_email', '==', user_email)).order_by('timestamp', direction=Query.DESCENDING).limit(1)
         
         docs = query.stream()
         for doc in docs:
@@ -900,54 +926,69 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if not user_email:
             return {'success': False, 'message': 'User email not found'}
         
-        # Prepare data for Firestore
-        firestore_data = {
+        # Skip Firestore data preparation to avoid nested entity errors
+        # Results will be displayed directly in the results page
+        
+        # Final completion step with celebration animation
+        progress_bar.progress(100)
+        
+        # Show completion animation
+        completion_indicators = ["🎉", "✨", "🌟", "🚀", "💫", "🎯", "🏆", "✅"]
+        for i in range(5):  # Show celebration animation
+            indicator = completion_indicators[i % len(completion_indicators)]
+            status_text.text(f"🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. {indicator}")
+            if working_indicator:
+                working_indicator.markdown(f"🎉 **System Status:** {indicator} Analysis Complete! | 🏆 SUCCESS!")
+            time.sleep(0.4)
+        
+        status_text.text("🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. ✅")
+        if time_estimate:
+            time_estimate.text("⏱️ **Completed!** Total processing time: ~2-3 minutes")
+        if step_indicator:
+            step_indicator.text(f"✅ **All {total_steps} steps completed successfully!**")
+        if working_indicator:
+            working_indicator.markdown("🏆 **System Status:** Analysis Complete! | ✅ Ready for Results")
+        
+        # Store analysis results in session state to avoid Firebase validation issues
+        # This completely bypasses any Firebase serialization that might cause nested entity errors
+        if 'stored_analysis_results' not in st.session_state:
+            st.session_state.stored_analysis_results = {}
+        
+        result_id = f"local_{int(time.time())}"
+        st.session_state.stored_analysis_results[result_id] = analysis_results
+        
+        # Return simple data structure without complex nested analysis data
+        display_data = {
+            'success': True,
+            'id': result_id,
             'user_email': user_email,
             'timestamp': datetime.now(),
             'status': 'completed',
             'report_types': ['soil', 'leaf'],
-            'analysis_results': analysis_results,
             'land_yield_data': land_yield_data,
-            'soil_data': soil_data,  # Store raw soil data
-            'leaf_data': leaf_data,  # Store raw leaf data
+            'soil_data': soil_data,
+            'leaf_data': leaf_data,
             'created_at': datetime.now()
+            # analysis_results stored separately in session state
         }
         
-        # Save to Firestore
-        db = get_firestore_client()
-        if db:
-            doc_ref = db.collection(COLLECTIONS['analysis_results']).add(firestore_data)
-            
-            # Final completion step with celebration animation
-            progress_bar.progress(100)
-            
-            # Show completion animation
-            completion_indicators = ["🎉", "✨", "🌟", "🚀", "💫", "🎯", "🏆", "✅"]
-            for i in range(5):  # Show celebration animation
-                indicator = completion_indicators[i % len(completion_indicators)]
-                status_text.text(f"🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. {indicator}")
-                if working_indicator:
-                    working_indicator.markdown(f"🎉 **System Status:** {indicator} Analysis Complete! | 🏆 SUCCESS!")
-                time.sleep(0.4)
-            
-            status_text.text("🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. ✅")
-            if time_estimate:
-                time_estimate.text("⏱️ **Completed!** Total processing time: ~2-3 minutes")
-            if step_indicator:
-                step_indicator.text(f"✅ **All {total_steps} steps completed successfully!**")
-            if working_indicator:
-                working_indicator.markdown("🏆 **System Status:** Analysis Complete! | ✅ Ready for Results")
-            
-            # Return the saved data with success flag
-            firestore_data['success'] = True
-            firestore_data['id'] = doc_ref[1].id
-            return firestore_data
-        else:
-            return {'success': False, 'message': 'Database connection failed'}
+        return display_data
         
     except Exception as e:
         st.error(f"Error processing analysis: {str(e)}")
         return {'success': False, 'message': f'Processing error: {str(e)}'}
+
+def get_analysis_results_from_data(results_data):
+    """Helper function to get analysis results from either results_data or session state"""
+    analysis_results = results_data.get('analysis_results', {})
+    
+    # If analysis_results is empty, try to get it from session state
+    if not analysis_results and 'stored_analysis_results' in st.session_state:
+        result_id = results_data.get('id')
+        if result_id and result_id in st.session_state.stored_analysis_results:
+            analysis_results = st.session_state.stored_analysis_results[result_id]
+    
+    return analysis_results
 
 def display_no_results_message():
     """Display message when no results are found"""
@@ -1023,7 +1064,7 @@ def display_raw_data_section(results_data):
     leaf_data = results_data.get('leaf_data', {})
     
     # 2. From analysis_results.raw_data (processed data from analysis engine)
-    analysis_results = results_data.get('analysis_results', {})
+    analysis_results = get_analysis_results_from_data(results_data)
     if analysis_results and 'raw_data' in analysis_results:
         raw_data = analysis_results['raw_data']
         # Check for new structure with parameter_statistics
@@ -1408,7 +1449,7 @@ def display_summary_section(results_data):
     st.markdown("## 📝 Executive Summary")
     
     # Get analysis data
-    analysis_results = results_data.get('analysis_results', {})
+    analysis_results = get_analysis_results_from_data(results_data)
     raw_data = analysis_results.get('raw_data', {})
     soil_params = raw_data.get('soil_parameters', {})
     leaf_params = raw_data.get('leaf_parameters', {})
@@ -1421,15 +1462,13 @@ def display_summary_section(results_data):
     
     # 1-3: Analysis overview and scope
     total_samples = metadata.get('total_parameters_analyzed', 0)
-    confidence = metadata.get('confidence_level', 'Medium')
     summary_sentences.append(
         f"This comprehensive agronomic analysis evaluates {total_samples} "
         f"key nutritional parameters from both soil and leaf tissue samples "
         f"to assess the current fertility status and plant health of the "
         f"oil palm plantation.")
     summary_sentences.append(
-        f"The analysis demonstrates {confidence.lower()} confidence levels "
-        f"based on data quality assessment and adherence to Malaysian Palm "
+        f"The analysis is based on adherence to Malaysian Palm "
         f"Oil Board (MPOB) standards for optimal oil palm cultivation.")
     summary_sentences.append(
         f"Laboratory results indicate {len(all_issues)} significant "
@@ -2300,25 +2339,36 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
                         'source': 'Leaf Analysis - Potassium'
                     })
         
-        # Leaf Magnesium
+        # Leaf Magnesium - Conditional recommendation considering GML and K:Mg ratio
         if 'Mg_%' in leaf_params:
             leaf_mg = leaf_params['Mg_%'].get('average', 0)
             if leaf_mg > 0:
-                if leaf_mg < 0.2:
+                if leaf_mg < 0.25:  # Only recommend kieserite if clearly deficient
+                    # Check if K:Mg ratio is also problematic
+                    leaf_k = leaf_params.get('K_%', {}).get('average', 0)
+                    if leaf_k > 0:
+                        k_mg_ratio = leaf_k / leaf_mg if leaf_mg > 0 else 0
+                        if k_mg_ratio > 3.0:  # K:Mg ratio too high
+                            findings.append({
+                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}. Kieserite recommended only after GML correction and if K:Mg ratio remains >3.0.",
+                                'source': 'Leaf Analysis - Magnesium'
+                            })
+                        else:
+                            findings.append({
+                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% but K:Mg ratio is acceptable. Consider GML first before kieserite application.",
+                                'source': 'Leaf Analysis - Magnesium'
+                            })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%. Consider GML application first, then kieserite only if needed after GML correction.",
+                            'source': 'Leaf Analysis - Magnesium'
+                        })
+                elif leaf_mg > 0.35:  # Only flag when clearly excessive
                     findings.append({
-                        'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below optimal range of 0.2-0.3%. This affects chlorophyll production and photosynthesis.",
+                        'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range. Monitor for nutrient imbalances.",
                         'source': 'Leaf Analysis - Magnesium'
                     })
-                elif leaf_mg > 0.3:
-                    findings.append({
-                        'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range of 0.2-0.3%. This may indicate over-fertilization.",
-                        'source': 'Leaf Analysis - Magnesium'
-                    })
-                else:
-                    findings.append({
-                        'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within optimal range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Magnesium'
-                    })
+                # No recommendation for adequate levels (0.25-0.35%)
         
         # Leaf Calcium
         if 'Ca_%' in leaf_params:
@@ -2340,25 +2390,21 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
                         'source': 'Leaf Analysis - Calcium'
                     })
         
-        # Leaf Boron
+        # Leaf Boron - Conditional recommendation only when deficient
         if 'B_mg_kg' in leaf_params:
             leaf_b = leaf_params['B_mg_kg'].get('average', 0)
             if leaf_b > 0:
-                if leaf_b < 10:
+                if leaf_b < 12:  # Only recommend when clearly deficient
                     findings.append({
-                        'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below optimal range of 10-20 mg/kg. This affects fruit development and pollen viability.",
+                        'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below critical threshold of 12 mg/kg. Boron supplementation recommended only for this specific deficiency.",
                         'source': 'Leaf Analysis - Boron'
                     })
-                elif leaf_b > 20:
+                elif leaf_b > 25:  # Only flag when clearly excessive
                     findings.append({
-                        'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range of 10-20 mg/kg. This may cause toxicity symptoms.",
+                        'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range. Monitor for toxicity symptoms.",
                         'source': 'Leaf Analysis - Boron'
                     })
-                else:
-                    findings.append({
-                        'finding': f"Leaf boron is adequate at {leaf_b:.1f} mg/kg, within optimal range for healthy palm growth.",
-                        'source': 'Leaf Analysis - Boron'
-                    })
+                # No recommendation for adequate levels (12-25 mg/kg)
     
     return findings
 
@@ -2368,7 +2414,7 @@ def display_key_findings_section(results_data):
     st.markdown("## 🎯 Key Findings")
     
     # Get analysis data
-    analysis_results = results_data.get('analysis_results', {})
+    analysis_results = get_analysis_results_from_data(results_data)
     step_results = analysis_results.get('step_by_step_analysis', [])
     
     # Generate intelligent key findings with proper deduplication using history page function
@@ -2398,34 +2444,26 @@ def display_references_section(results_data):
     st.markdown("## 📚 Research References")
     
     # Get analysis results
-    analysis_results = results_data.get('analysis_results', {})
+    analysis_results = get_analysis_results_from_data(results_data)
     step_results = analysis_results.get('step_by_step_analysis', [])
     
     # Collect all references from all steps
     all_references = {
         'database_references': [],
-        'web_references': [],
         'total_found': 0
     }
     
     for step in step_results:
         if 'references' in step and step['references']:
             refs = step['references']
-            # Merge database references
+            # Merge database references only
             if 'database_references' in refs:
                 for db_ref in refs['database_references']:
                     # Avoid duplicates by checking ID
                     if not any(existing['id'] == db_ref['id'] for existing in all_references['database_references']):
                         all_references['database_references'].append(db_ref)
-            
-            # Merge web references
-            if 'web_references' in refs:
-                for web_ref in refs['web_references']:
-                    # Avoid duplicates by checking URL
-                    if not any(existing['url'] == web_ref['url'] for existing in all_references['web_references']):
-                        all_references['web_references'].append(web_ref)
     
-    all_references['total_found'] = len(all_references['database_references']) + len(all_references['web_references'])
+    all_references['total_found'] = len(all_references['database_references'])
     
     if all_references['total_found'] == 0:
         st.info("📋 No research references found for this analysis.")
@@ -2476,21 +2514,6 @@ def display_references_section(results_data):
                     st.markdown(f"**Content:** {ref['content'][:500]}{'...' if len(ref['content']) > 500 else ''}")
                 st.markdown(f"**Relevance Score:** {ref.get('relevance_score', 0):.2f}")
     
-    # Display web references
-    if all_references['web_references']:
-        st.markdown("### 🌐 Web References")
-        st.markdown("References from web research:")
-        
-        for i, ref in enumerate(all_references['web_references'], 1):
-            with st.expander(f"**{i}. {ref['title']}**", expanded=False):
-                st.markdown(f"**Source:** {ref['source']}")
-                if ref.get('url'):
-                    st.markdown(f"**URL:** [{ref['url']}]({ref['url']})")
-                if ref.get('published_date'):
-                    st.markdown(f"**Published:** {ref['published_date']}")
-                if ref.get('content'):
-                    st.markdown(f"**Content:** {ref['content'][:500]}{'...' if len(ref['content']) > 500 else ''}")
-                st.markdown(f"**Relevance Score:** {ref.get('relevance_score', 0):.2f}")
     
     # Summary
     st.markdown(f"""
@@ -2498,7 +2521,7 @@ def display_references_section(results_data):
         <h4 style="color: #1976d2; margin: 0;">📊 Reference Summary</h4>
         <p style="margin: 5px 0 0 0; color: #424242;">
             Total references found: <strong>{all_references['total_found']}</strong> 
-            ({len(all_references['database_references'])} database, {len(all_references['web_references'])} web)
+            ({len(all_references['database_references'])} database)
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -2533,8 +2556,8 @@ def display_step_by_step_results(results_data):
     """Display step-by-step analysis results with enhanced LLM response clarity"""
     st.markdown("---")
     
-    # Get step results from analysis results
-    analysis_results = results_data.get('analysis_results', {})
+    # Get step results from analysis results using helper function
+    analysis_results = get_analysis_results_from_data(results_data)
     step_results = analysis_results.get('step_by_step_analysis', [])
     total_steps = len(step_results)
     
@@ -2574,6 +2597,12 @@ def display_step_by_step_results(results_data):
     if len(step_results) > 0:
         # Display each step as a separate block with clear visual separation
         for i, step_result in enumerate(step_results):
+            # Ensure step_result is a dictionary
+            if not isinstance(step_result, dict):
+                logger.error(f"Step {i+1} step_result is not a dictionary: {type(step_result)}")
+                st.error(f"❌ Error: Step {i+1} data is not in the expected format")
+                continue
+            
             step_number = step_result.get('step_number', i+1)
             step_title = step_result.get('step_title', f'Step {step_number}')
             
@@ -2650,6 +2679,12 @@ def display_step_block(step_result, step_number, step_title):
 
 def display_enhanced_step_result(step_result, step_number):
     """Display enhanced step results with proper structure and formatting for non-technical users"""
+    # Ensure step_result is a dictionary
+    if not isinstance(step_result, dict):
+        logger.error(f"Step {step_number} step_result is not a dictionary: {type(step_result)}")
+        st.error(f"❌ Error: Step {step_number} data is not in the expected format")
+        return
+    
     analysis_data = step_result
     
     # Debug: Log the structure of analysis_data
@@ -2717,13 +2752,38 @@ def display_enhanced_step_result(step_result, step_number):
                 )
         st.markdown("")
     
-    # 4. ANALYSIS RESULTS SECTION - Show actual LLM results (renamed from Additional Information)
+    # 4. TABLES SECTION - Display detailed tables if available
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("### 📊 Detailed Data Tables")
+        for table in analysis_data['tables']:
+            if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
+                st.markdown(f"**{table['title']}**")
+                # Create a DataFrame for better display
+                import pandas as pd
+                df = pd.DataFrame(table['rows'], columns=table['headers'])
+                st.dataframe(df, use_container_width=True)
+                st.markdown("")
+    
+    # 5. INTERPRETATIONS SECTION - Display detailed interpretations if available
+    if 'interpretations' in analysis_data and analysis_data['interpretations']:
+        st.markdown("### 🔍 Detailed Interpretations")
+        for idx, interpretation in enumerate(analysis_data['interpretations'], 1):
+            if interpretation and interpretation.strip():
+                st.markdown(
+                    f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">'
+                    f'<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #2c3e50;"><strong>Interpretation {idx}:</strong> {interpretation.strip()}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+        st.markdown("")
+    
+    # 6. ANALYSIS RESULTS SECTION - Show actual LLM results (renamed from Additional Information)
     # This section shows the main analysis results from the LLM
-    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
+    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'tables', 'interpretations'])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
     
     if other_fields:
-        st.markdown("### 📊 Analysis Results")
+        st.markdown("### 📊 Additional Analysis Results")
         for key in other_fields:
             value = analysis_data.get(key)
             title = key.replace('_', ' ').title()
@@ -2903,6 +2963,16 @@ def should_show_visualizations(step_result):
 def generate_contextual_visualizations(step_result, analysis_data):
     """Generate contextual visualizations based on step content and visual keywords"""
     try:
+        # Ensure step_result is a dictionary
+        if not isinstance(step_result, dict):
+            logger.error(f"step_result is not a dictionary: {type(step_result)}")
+            return []
+        
+        # Ensure analysis_data is a dictionary
+        if not isinstance(analysis_data, dict):
+            logger.error(f"analysis_data is not a dictionary: {type(analysis_data)}")
+            return []
+        
         step_number = step_result.get('step_number', 0)
         visualizations = []
         
@@ -3373,6 +3443,10 @@ def create_yield_projection_viz(yield_data):
 
 def should_show_forecast_graph(step_result):
     """Check if a step should display the 5-year yield forecast graph"""
+    # Ensure step_result is a dictionary
+    if not isinstance(step_result, dict):
+        return False
+    
     step_description = step_result.get('step_description', '')
     step_title = step_result.get('step_title', '')
     
@@ -5452,9 +5526,9 @@ def display_economic_impact_content(analysis_data):
         with col2:
             st.metric("🏞️ Land Size", f"{land_size:.1f} hectares")
         with col3:
-            # Get medium scenario ROI as representative
-            medium_roi = scenarios.get('medium', {}).get('roi_percentage', 0)
-            st.metric("💰 Estimated ROI", f"{medium_roi:.1f}%")
+            # Get medium scenario ROI range as representative
+            medium_roi_range = scenarios.get('medium', {}).get('roi_percentage_range', 'N/A')
+            st.metric("💰 Estimated ROI", medium_roi_range)
 
         # Projected improvement (% change from current yield to medium scenario new_yield)
         projected_improvement = None
@@ -5762,14 +5836,11 @@ def display_economic_forecast(economic_forecast):
             st.metric("📈 Projected Improvement", "N/A")
     
     with col3:
-        # Get ROI from medium scenario
-        roi_estimate = 0
-        if 'medium' in scenarios and 'roi_percentage' in scenarios['medium']:
-            roi_estimate = scenarios['medium']['roi_percentage']
-        if isinstance(roi_estimate, (int, float)):
-            st.metric("💰 Estimated ROI", f"{roi_estimate:.1f}%")
-        else:
-            st.metric("💰 Estimated ROI", "N/A")
+        # Get ROI range from medium scenario
+        roi_range = "N/A"
+        if 'medium' in scenarios and 'roi_percentage_range' in scenarios['medium']:
+            roi_range = scenarios['medium']['roi_percentage_range']
+        st.metric("💰 Estimated ROI", roi_range)
     
     # Display 5-year projection if available
     five_year_projection = economic_forecast.get('five_year_projection', {})
@@ -6787,7 +6858,7 @@ def _removed_display_print_dialog(results_data):
             # Debug information
             if st.checkbox("🔍 Show Debug Info", help="Show data structure information for troubleshooting"):
                 st.markdown("**Data Structure:**")
-                analysis_results = results_data.get('analysis_results', {})
+                analysis_results = get_analysis_results_from_data(results_data)
                 st.markdown(f"• Analysis Results: {'✅' if analysis_results else '❌'}")
                 st.markdown(f"• Step-by-Step Analysis: {'✅' if analysis_results.get('step_by_step_analysis') else '❌'}")
                 st.markdown(f"• Raw Data: {'✅' if analysis_results.get('raw_data') else '❌'}")

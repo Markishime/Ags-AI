@@ -7,6 +7,7 @@ import streamlit as st
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
+from google.cloud.firestore import FieldFilter
 # Use our configured Firestore client instead of direct import
 import json
 
@@ -91,7 +92,7 @@ class FeedbackLearningSystem:
             
             # Query feedback data
             feedback_ref = db.collection('user_feedback')
-            feedback_query = feedback_ref.where('timestamp', '>=', start_date)
+            feedback_query = feedback_ref.where(filter=FieldFilter('timestamp', '>=', start_date))
             feedback_docs = list(feedback_query.stream())
             
             if not feedback_docs:

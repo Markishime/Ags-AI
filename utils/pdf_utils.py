@@ -339,8 +339,7 @@ class PDFReportGenerator:
             f"to assess the current fertility status and plant health of the "
             f"oil palm plantation.")
         summary_sentences.append(
-            f"The analysis demonstrates {confidence.lower()} confidence levels "
-            f"based on data quality assessment and adherence to Malaysian Palm "
+            f"The analysis is based on adherence to Malaysian Palm "
             f"Oil Board (MPOB) standards for optimal oil palm cultivation.")
         summary_sentences.append(
             f"Laboratory results indicate {len(all_issues)} significant "
@@ -1316,11 +1315,51 @@ class PDFReportGenerator:
             # Detailed Analysis (most relevant content)
             if 'detailed_analysis' in step and step['detailed_analysis']:
                 story.append(Paragraph("Detailed Analysis:", self.styles['Heading3']))
-                # Truncate if too long to keep PDF manageable
+                # Include full detailed analysis without truncation
                 detailed_text = step['detailed_analysis']
-                if len(detailed_text) > 2000:
-                    detailed_text = detailed_text[:2000] + "..."
                 story.append(Paragraph(detailed_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Detailed Data Tables (from enhanced LLM output)
+            if 'tables' in step and step['tables']:
+                story.append(Paragraph("Data Tables:", self.styles['Heading3']))
+                for table in step['tables']:
+                    if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                        story.append(Paragraph(f"<b>{table['title']}</b>", self.styles['CustomBody']))
+                        # Create table
+                        table_data = [table['headers']] + table['rows']
+                        pdf_table = Table(table_data)
+                        pdf_table.setStyle(TableStyle([
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ]))
+                        story.append(pdf_table)
+                        story.append(Spacer(1, 8))
+                story.append(Spacer(1, 8))
+            
+            # Detailed Interpretations (from enhanced LLM output)
+            if 'interpretations' in step and step['interpretations']:
+                story.append(Paragraph("Detailed Interpretations:", self.styles['Heading3']))
+                for i, interpretation in enumerate(step['interpretations'], 1):
+                    story.append(Paragraph(f"<b>Interpretation {i}:</b>", self.styles['CustomBody']))
+                    story.append(Paragraph(interpretation, self.styles['CustomBody']))
+                    story.append(Spacer(1, 6))
+                story.append(Spacer(1, 8))
+            
+            # Statistical Analysis (from enhanced LLM output)
+            if 'statistical_analysis' in step and step['statistical_analysis']:
+                story.append(Paragraph("Statistical Analysis:", self.styles['Heading3']))
+                if isinstance(step['statistical_analysis'], dict):
+                    for key, value in step['statistical_analysis'].items():
+                        story.append(Paragraph(f"<b>{key.replace('_', ' ').title()}:</b> {value}", self.styles['CustomBody']))
+                else:
+                    story.append(Paragraph(str(step['statistical_analysis']), self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
             
             # Issues Identified (crucial for farmers)
@@ -1331,9 +1370,25 @@ class PDFReportGenerator:
                     story.append(Paragraph(issue_text, self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
             
-            # Recommendations (crucial for farmers)
+            # Key Findings (from enhanced LLM output)
+            if 'key_findings' in step and step['key_findings']:
+                story.append(Paragraph("Key Findings:", self.styles['Heading3']))
+                for i, finding in enumerate(step['key_findings'], 1):
+                    finding_text = f"<b>{i}.</b> {finding}"
+                    story.append(Paragraph(finding_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Specific Recommendations (from enhanced LLM output)
+            if 'specific_recommendations' in step and step['specific_recommendations']:
+                story.append(Paragraph("Specific Recommendations:", self.styles['Heading3']))
+                for i, rec in enumerate(step['specific_recommendations'], 1):
+                    rec_text = f"<b>{i}.</b> {rec}"
+                    story.append(Paragraph(rec_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
+            
+            # Legacy recommendations (for backward compatibility)
             if 'recommendations' in step and step['recommendations']:
-                story.append(Paragraph("Recommendations:", self.styles['Heading3']))
+                story.append(Paragraph("Additional Recommendations:", self.styles['Heading3']))
                 for i, rec in enumerate(step['recommendations'], 1):
                     rec_text = f"<b>{i}.</b> {rec}"
                     story.append(Paragraph(rec_text, self.styles['CustomBody']))
@@ -1363,11 +1418,21 @@ class PDFReportGenerator:
                 # Step 6: Yield Forecast - Add forecast graph only (no tables)
                 story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
             
-            # Visualizations and Charts - Generate if visual keywords detected (Step 1 handled separately)
-            if has_visual_keywords and step_number != 1:
-                story.extend(self._create_step_visualizations(step, step_number))
-                # Also generate additional charts based on step content
-                story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
+            # Visualizations and Charts - Include all visualizations from enhanced LLM output
+            if 'visualizations' in step and step['visualizations']:
+                story.append(Paragraph("Visualizations:", self.styles['Heading3']))
+                for viz in step['visualizations']:
+                    if isinstance(viz, dict) and 'type' in viz:
+                        story.append(Paragraph(f"<b>{viz.get('title', 'Chart')}</b>", self.styles['CustomBody']))
+                        # Add chart description if available
+                        if 'description' in viz:
+                            story.append(Paragraph(viz['description'], self.styles['CustomBody']))
+                        story.append(Spacer(1, 6))
+                story.append(Spacer(1, 8))
+            
+            # Generate contextual visualizations for all steps
+            story.extend(self._create_step_visualizations(step, step_number))
+            story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
             
             story.append(Spacer(1, 15))
         
@@ -3204,15 +3269,38 @@ class PDFReportGenerator:
             years = [0, 1, 2, 3, 4, 5]
             year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
             
-            # Plot different investment scenarios
-            if 'high_investment' in yield_forecast and len(yield_forecast['high_investment']) >= 6:
-                ax.plot(years, yield_forecast['high_investment'][:6], 'o-', label='High Investment', linewidth=2, markersize=6)
-            
-            if 'medium_investment' in yield_forecast and len(yield_forecast['medium_investment']) >= 6:
-                ax.plot(years, yield_forecast['medium_investment'][:6], 's-', label='Medium Investment', linewidth=2, markersize=6)
-            
-            if 'low_investment' in yield_forecast and len(yield_forecast['low_investment']) >= 6:
-                ax.plot(years, yield_forecast['low_investment'][:6], '^-', label='Low Investment', linewidth=2, markersize=6)
+            # Plot different investment scenarios - handle both old array format and new range format
+            for investment_type, style, marker in [('high_investment', 'o-', 'o'), ('medium_investment', 's-', 's'), ('low_investment', '^-', '^')]:
+                if investment_type in yield_forecast:
+                    investment_data = yield_forecast[investment_type]
+                    investment_name = investment_type.replace('_', ' ').title()
+                    
+                    if isinstance(investment_data, list) and len(investment_data) >= 6:
+                        # Old array format
+                        ax.plot(years, investment_data[:6], style, label=investment_name, linewidth=2, markersize=6)
+                    elif isinstance(investment_data, dict):
+                        # New range format - extract midpoint values for plotting
+                        range_values = []
+                        for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                            if year in investment_data:
+                                range_str = investment_data[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    try:
+                                        # Extract midpoint from range like "25.5-27.0 t/ha"
+                                        low, high = range_str.replace(' t/ha', '').split('-')
+                                        midpoint = (float(low) + float(high)) / 2
+                                        range_values.append(midpoint)
+                                    except:
+                                        range_values.append(0)
+                                else:
+                                    range_values.append(0)
+                            else:
+                                range_values.append(0)
+                        
+                        if range_values:
+                            # Add baseline as first point
+                            full_values = [baseline_yield] + range_values
+                            ax.plot(years, full_values, style, label=investment_name, linewidth=2, markersize=6)
             
             # Add baseline if available
             baseline_yield = yield_forecast.get('baseline_yield', 0)
@@ -3253,13 +3341,26 @@ class PDFReportGenerator:
         
         table_data = [['Year'] + year_labels]
         
-        # Add rows for each investment level
+        # Add rows for each investment level - handle both old array format and new range format
         for investment_type in ['high_investment', 'medium_investment', 'low_investment']:
-            if investment_type in yield_forecast and len(yield_forecast[investment_type]) >= 6:
+            if investment_type in yield_forecast:
+                investment_data = yield_forecast[investment_type]
                 investment_name = investment_type.replace('_', ' ').title()
                 row = [investment_name]
-                for i in range(6):
-                    row.append(f"{yield_forecast[investment_type][i]:.1f}")
+                
+                if isinstance(investment_data, list) and len(investment_data) >= 6:
+                    # Old array format
+                    for i in range(6):
+                        row.append(f"{investment_data[i]:.1f}")
+                elif isinstance(investment_data, dict):
+                    # New range format
+                    row.append("Current")  # Baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in investment_data:
+                            row.append(investment_data[year])  # Keep the range format
+                        else:
+                            row.append("N/A")
+                
                 table_data.append(row)
         
         if len(table_data) > 1:
@@ -3466,7 +3567,19 @@ class PDFReportGenerator:
             if land_size > 0:
                 story.append(Paragraph(f"<b>Land Size:</b> {land_size:.1f} hectares", self.styles['CustomBody']))
             
-            story.append(Paragraph(f"<b>Oil Palm Price:</b> RM {oil_palm_price:.0f}/tonne", self.styles['CustomBody']))
+            # Add palm density information if available
+            palm_density = econ.get('palm_density_per_hectare', 0)
+            total_palms = econ.get('total_palms', 0)
+            if palm_density > 0:
+                story.append(Paragraph(f"<b>Palm Density:</b> {palm_density} palms/hectare", self.styles['CustomBody']))
+            if total_palms > 0:
+                story.append(Paragraph(f"<b>Total Palms:</b> {total_palms:,} palms", self.styles['CustomBody']))
+            
+            # Handle both old single price and new range format
+            if isinstance(oil_palm_price, str) and '-' in oil_palm_price:
+                story.append(Paragraph(f"<b>Oil Palm Price:</b> {oil_palm_price}", self.styles['CustomBody']))
+            else:
+                story.append(Paragraph(f"<b>Oil Palm Price:</b> RM {oil_palm_price:.0f}/tonne", self.styles['CustomBody']))
             story.append(Spacer(1, 12))
             
             # Cost-Benefit Analysis Table
@@ -3474,19 +3587,19 @@ class PDFReportGenerator:
                 story.append(Paragraph("Cost-Benefit Analysis by Investment Level", self.styles['Heading2']))
                 story.append(Spacer(1, 8))
                 
-                # Create table data with correct field names
+                # Create table data with correct field names - handle both old and new range format
                 table_data = [['Investment Level', 'Total Investment (RM)', 'Expected Return (RM)', 'ROI (%)', 'Payback Period (Months)']]
                 
                 # Process scenarios
                 for scenario_name, scenario_data in scenarios.items():
                     if isinstance(scenario_data, dict):
-                        # Use the correct field names from analysis engine
-                        investment = scenario_data.get('total_cost', 0)
-                        expected_return = scenario_data.get('additional_revenue', 0)
-                        roi = scenario_data.get('roi_percentage', 0)
-                        payback_months = scenario_data.get('payback_months', 0)
+                        # Handle new range format fields
+                        investment = scenario_data.get('total_cost_range', scenario_data.get('total_cost', 0))
+                        expected_return = scenario_data.get('additional_revenue_range', scenario_data.get('additional_revenue', 0))
+                        roi = scenario_data.get('roi_percentage_range', scenario_data.get('roi_percentage', 0))
+                        payback_months = scenario_data.get('payback_months_range', scenario_data.get('payback_months', 0))
                         
-                        # Format values
+                        # Format values - handle both string ranges and numeric values
                         try:
                             investment_formatted = f"{float(investment):,.0f}" if investment != 'N/A' and investment > 0 else 'N/A'
                         except (ValueError, TypeError):
@@ -3800,31 +3913,22 @@ class PDFReportGenerator:
         story.append(Paragraph("Analysis Results", self.styles['Heading1']))
         story.append(Spacer(1, 12))
         
-        # Create metadata table similar to results page
+        # Create simplified metadata table without debug information
         metadata_data = []
         
-        # Analysis Date
+        # Analysis Date only
         timestamp = metadata.get('timestamp') or analysis_data.get('timestamp')
         if timestamp:
             if hasattr(timestamp, 'strftime'):
-                formatted_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                formatted_time = timestamp.strftime("%Y-%m-%d")
             else:
-                formatted_time = str(timestamp)
+                formatted_time = str(timestamp)[:10]  # Just the date part
             metadata_data.append(['Analysis Date', formatted_time])
         
-        # Report Types
+        # Report Types only
         report_types = analysis_data.get('report_types', ['soil', 'leaf'])
         if report_types:
             metadata_data.append(['Report Types', ', '.join(report_types)])
-        
-        # Status
-        status = analysis_data.get('status', 'Completed')
-        metadata_data.append(['Status', status.title()])
-        
-        # User Email (if available)
-        user_email = analysis_data.get('user_email')
-        if user_email:
-            metadata_data.append(['User', user_email])
         
         if metadata_data:
             metadata_table = Table(metadata_data)
@@ -3941,13 +4045,13 @@ class PDFReportGenerator:
         all_references = analysis_data.get('references', {})
         
         if all_references:
-            total_refs = len(all_references.get('database_references', [])) + len(all_references.get('web_references', []))
+            total_refs = len(all_references.get('database_references', []))
             
             if total_refs > 0:
                 story.append(Paragraph(f"<b>Total References Found:</b> {total_refs}", self.styles['CustomBody']))
                 story.append(Spacer(1, 12))
                 
-                # Database references
+                # Database references only
                 if all_references['database_references']:
                     story.append(Paragraph("Database References", self.styles['Heading2']))
                     story.append(Spacer(1, 8))
@@ -3964,25 +4068,8 @@ class PDFReportGenerator:
                         story.append(Paragraph(ref_text, self.styles['CustomBody']))
                         story.append(Spacer(1, 8))
                 
-                # Web references
-                if all_references['web_references']:
-                    story.append(Paragraph("Web References", self.styles['Heading2']))
-                    story.append(Spacer(1, 8))
-                    
-                    for i, ref in enumerate(all_references['web_references'], 1):
-                        ref_text = f"<b>{i}.</b> {ref['title']}<br/>"
-                        ref_text += f"<i>Source:</i> {ref['source']}<br/>"
-                        if ref.get('url'):
-                            ref_text += f"<i>URL:</i> {ref['url']}<br/>"
-                        if ref.get('published_date'):
-                            ref_text += f"<i>Published:</i> {ref['published_date']}<br/>"
-                        ref_text += f"<i>Relevance Score:</i> {ref.get('relevance_score', 0):.2f}"
-                        
-                        story.append(Paragraph(ref_text, self.styles['CustomBody']))
-                        story.append(Spacer(1, 8))
-                
                 # Summary
-                story.append(Paragraph(f"<b>Total references found:</b> {total_refs} ({len(all_references['database_references'])} database, {len(all_references['web_references'])} web)", self.styles['CustomBody']))
+                story.append(Paragraph(f"<b>Total references found:</b> {total_refs} ({len(all_references['database_references'])} database)", self.styles['CustomBody']))
         
         return story
     
@@ -4004,16 +4091,7 @@ class PDFReportGenerator:
         ))
         story.append(Spacer(1, 15))
         
-        # Technical Details
-        story.append(Paragraph("Technical Details", self.styles['CustomSubheading']))
-        story.append(Paragraph(
-            "Analysis Engine: AGS AI-powered agricultural analysis system\n"
-            "AI Model: Advanced machine learning algorithms trained on agricultural data\n"
-            "Standards Database: MPOB official guidelines and best practices\n"
-            "Report Generation: Automated PDF generation with comprehensive insights",
-            self.styles['CustomBody']
-        ))
-        story.append(Spacer(1, 15))
+        # Remove technical details section to avoid debug output
         
         # Disclaimer
         story.append(Paragraph("Disclaimer", self.styles['CustomSubheading']))

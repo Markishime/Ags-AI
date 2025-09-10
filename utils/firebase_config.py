@@ -2,6 +2,7 @@ import os
 import json
 import firebase_admin
 from firebase_admin import credentials, firestore, auth, storage
+from google.cloud.firestore import FieldFilter
 import streamlit as st
 from typing import Optional
 
@@ -222,7 +223,7 @@ def initialize_admin_codes():
         admin_codes_ref = db.collection(COLLECTIONS['admin_codes'])
         
         # Check if default admin code already exists
-        existing_codes = admin_codes_ref.where('is_default', '==', True).limit(1).get()
+        existing_codes = admin_codes_ref.where(filter=FieldFilter('is_default', '==', True)).limit(1).get()
         
         if existing_codes:
             # Return existing default code

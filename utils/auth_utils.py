@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from firebase_admin import auth, firestore
 from firebase_config import get_firestore_client, COLLECTIONS
+from google.cloud.firestore import FieldFilter
 
 class AuthManager:
     """Handle user authentication and management"""
@@ -38,7 +39,7 @@ class AuthManager:
             admin_codes_ref = db.collection(COLLECTIONS['admin_codes'])
             
             # Find matching admin code
-            matching_codes = admin_codes_ref.where('code', '==', admin_code).limit(1).get()
+            matching_codes = admin_codes_ref.where(filter=FieldFilter('code', '==', admin_code)).limit(1).get()
             
             for doc in matching_codes:
                 code_data = doc.to_dict()
@@ -81,7 +82,7 @@ class AuthManager:
             # Get user from Firestore
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
-            user_query = users_ref.where('email', '==', email.lower()).limit(1)
+            user_query = users_ref.where(filter=FieldFilter('email', '==', email.lower())).limit(1)
             users = user_query.get()
             
             if not users:
@@ -140,7 +141,7 @@ class AuthManager:
             # Check if user already exists
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
-            existing_user = users_ref.where('email', '==', email.lower()).limit(1).get()
+            existing_user = users_ref.where(filter=FieldFilter('email', '==', email.lower())).limit(1).get()
             
             if existing_user:
                 return {'success': False, 'message': 'User already exists with this email'}
@@ -192,7 +193,7 @@ class AuthManager:
             # Check if user already exists
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
-            existing_user = users_ref.where('email', '==', email.lower()).limit(1).get()
+            existing_user = users_ref.where(filter=FieldFilter('email', '==', email.lower())).limit(1).get()
             
             if existing_user:
                 return {'success': False, 'message': 'User already exists with this email'}
@@ -261,7 +262,7 @@ class AuthManager:
             # Check if user already exists
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
-            existing_user = users_ref.where('email', '==', email.lower()).limit(1).get()
+            existing_user = users_ref.where(filter=FieldFilter('email', '==', email.lower())).limit(1).get()
             
             if existing_user:
                 return {'success': False, 'message': 'User already exists with this email'}
@@ -317,7 +318,7 @@ class AuthManager:
             # Check if user exists
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
-            user_query = users_ref.where('email', '==', email.lower()).limit(1)
+            user_query = users_ref.where(filter=FieldFilter('email', '==', email.lower())).limit(1)
             users = user_query.get()
             
             if not users:
@@ -414,7 +415,7 @@ class AuthManager:
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
             # Query for user with this reset token
-            matching = users_ref.where('reset_token', '==', token).limit(1).get()
+            matching = users_ref.where(filter=FieldFilter('reset_token', '==', token)).limit(1).get()
             if not matching:
                 return {'success': False, 'message': 'Invalid or used reset link'}
 
@@ -712,7 +713,7 @@ Hello,\n\nFollow this link to reset your {app_name} password for your {to_email}
             users_ref = db.collection(COLLECTIONS['users'])
             
             # Check if default admin exists
-            admin_query = users_ref.where('email', '==', 'agsadmin@ags.ai').limit(1)
+            admin_query = users_ref.where(filter=FieldFilter('email', '==', 'agsadmin@ags.ai')).limit(1)
             existing_admin = admin_query.get()
             
             if not existing_admin:
@@ -797,7 +798,7 @@ Hello,\n\nFollow this link to reset your {app_name} password for your {to_email}
             # Check if user already exists
             db = self._get_db()
             users_ref = db.collection(COLLECTIONS['users'])
-            existing_user = users_ref.where('email', '==', email.lower()).limit(1).get()
+            existing_user = users_ref.where(filter=FieldFilter('email', '==', email.lower())).limit(1).get()
             
             if existing_user:
                 st.error('User already exists with this email')

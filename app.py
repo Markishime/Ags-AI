@@ -17,7 +17,7 @@ if utils_dir not in sys.path:
 # Import utilities
 from firebase_config import initialize_firebase, initialize_admin_codes
 from auth_utils import (
-    login_user, register_user, reset_password,
+    login_user, register_user, reset_password, 
     logout_user, is_logged_in, is_admin, admin_signup, admin_signup_with_code,
     finalize_password_reset
 )
@@ -338,8 +338,8 @@ def show_home_page():
     <div style="text-align: center; padding: 2rem; background: #f0f8ff; border-radius: 10px; margin: 2rem 0; border: 2px solid #2E8B57;">
         <h3 style="color: #2E8B57; margin-bottom: 1rem;">Ready to get started?</h3>
         <p style="color: #333; margin-bottom: 2rem;">Upload your oil palm test reports and get helpful farming advice.</p>
-    </div>
-    """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
     
     # Simple buttons
     col_a, col_b = st.columns(2)
@@ -652,7 +652,7 @@ def show_reset_password_page(token: str):
                         st.rerun()
                 else:
                     st.error(result.get('message', 'Failed to update password.'))
-
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
 def show_settings_page():

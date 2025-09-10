@@ -1,24 +1,15 @@
 """
 Reference Search Module for Agricultural Analysis
-Searches both Firestore database and web for relevant references
+Searches Firestore database for relevant references
 """
 
-import os
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
-import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-try:
-    from tavily import TavilyClient
-    TAVILY_AVAILABLE = True
-except ImportError:
-    TAVILY_AVAILABLE = False
-    logger.warning("Tavily client not available. Web search will be disabled.")
 
 try:
     # Use our configured Firestore client instead of direct import
@@ -30,42 +21,26 @@ except ImportError:
 
 
 class ReferenceSearchEngine:
-    """Search engine for finding relevant references from database and web"""
+    """Search engine for finding relevant references from database"""
     
     def __init__(self):
-        self.tavily_client = None
         self.firestore_client = None
         self._initialize_clients()
     
     def _initialize_clients(self):
-        """Initialize Tavily and Firestore clients"""
-        # Initialize Tavily client
-        if TAVILY_AVAILABLE:
-            # Use Streamlit secrets only (no env fallback)
-            tavily_api_key = None
-            try:
-                import streamlit as st
-                if hasattr(st, 'secrets') and 'tavily' in st.secrets:
-                    tavily_api_key = st.secrets.tavily.get('tavily_api_key')
-            except:
-                pass
-                
-            if tavily_api_key:
-                try:
-                    self.tavily_client = TavilyClient(api_key=tavily_api_key)
-                    logger.info("Tavily client initialized successfully")
-                except Exception as e:
-                    logger.error(f"Failed to initialize Tavily client: {str(e)}")
-            else:
-                logger.warning("TAVILY API key not found in Streamlit secrets")
-        
+        """Initialize Firestore client"""
         # Initialize Firestore client
         if FIRESTORE_AVAILABLE:
             try:
                 self.firestore_client = get_firestore_client()
-                logger.info("Firestore client initialized successfully")
+                if self.firestore_client:
+                    logger.info("Firestore client initialized successfully")
+                else:
+                    logger.warning("Firestore client returned None - check Firebase configuration")
             except Exception as e:
                 logger.error(f"Failed to initialize Firestore client: {str(e)}")
+        else:
+            logger.warning("Firestore not available - database search disabled")
     
     def search_database_references(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search for references in Firestore reference_documents collection with enhanced PDF support"""
@@ -144,8 +119,7 @@ class ReferenceSearchEngine:
         # Fallback to filename without extension
         file_name = doc_data.get('file_name', '')
         if file_name:
-            import os
-            name_without_ext = os.path.splitext(file_name)[0]
+            name_without_ext = file_name.rsplit('.', 1)[0] if '.' in file_name else file_name
             if name_without_ext:
                 return name_without_ext.replace('_', ' ').replace('-', ' ').title()
         
@@ -184,115 +158,6 @@ class ReferenceSearchEngine:
         
         return ' '.join(content_parts) if content_parts else 'No content available'
     
-    def search_web_references(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search for references on the web using Tavily API with enhanced search strategies"""
-        if not self.tavily_client:
-            logger.warning("Tavily client not available")
-            return []
-        
-        try:
-            # Create multiple search queries for comprehensive results
-            search_queries = self._create_search_queries(query)
-            all_results = []
-            
-            # Search with different query variations
-            for search_query in search_queries:
-                try:
-                    response = self.tavily_client.search(
-                        query=search_query,
-                        search_depth="advanced",
-                        max_results=limit // len(search_queries) + 2,  # Distribute results across queries
-                        include_domains=["researchgate.net", "sciencedirect.com", "mpob.gov.my", 
-                                       "fao.org", "cabi.org", "springer.com", "wiley.com", 
-                                       "academic.oup.com", "nature.com", "frontiersin.org"],
-                        exclude_domains=["wikipedia.org", "reddit.com", "youtube.com", "facebook.com"]
-                    )
-                    
-                    for result in response.get('results', []):
-                        all_results.append({
-                            'title': result.get('title', 'Untitled'),
-                            'content': result.get('content', ''),
-                            'source': 'Web',
-                            'url': result.get('url', ''),
-                            'published_date': result.get('published_date', ''),
-                            'relevance_score': result.get('score', 0.0),
-                            'search_query_used': search_query
-                        })
-                        
-                except Exception as e:
-                    logger.warning(f"Error with search query '{search_query}': {str(e)}")
-                    continue
-            
-            # Remove duplicates based on URL
-            seen_urls = set()
-            unique_results = []
-            for result in all_results:
-                url = result.get('url', '')
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    unique_results.append(result)
-            
-            # Sort by relevance and limit results
-            unique_results.sort(key=lambda x: x['relevance_score'], reverse=True)
-            logger.info(f"Found {len(unique_results)} unique web references for query: {query}")
-            return unique_results[:limit]
-            
-        except Exception as e:
-            logger.error(f"Error searching web references: {str(e)}")
-            return []
-    
-    def _create_search_queries(self, original_query: str) -> List[str]:
-        """Create multiple search query variations for comprehensive results"""
-        query_terms = original_query.lower().split()
-        
-        # Base agricultural terms
-        base_terms = ['oil palm', 'cultivation', 'malaysia']
-        
-        # Extract key terms from original query
-        important_terms = ['nutrient', 'fertilizer', 'soil', 'yield', 'economic', 'forecast', 
-                          'analysis', 'recommendations', 'management', 'sustainability', 'regenerative']
-        
-        found_terms = [term for term in important_terms if term in query_terms]
-        
-        # Create different query variations
-        queries = []
-        
-        # 1. Original query (truncated)
-        if len(original_query) <= 400:
-            queries.append(original_query)
-        
-        # 2. Base + found terms
-        if found_terms:
-            base_query = f"{' '.join(base_terms)} {' '.join(found_terms[:3])}"
-            if len(base_query) <= 400:
-                queries.append(base_query)
-        
-        # 3. Specific agricultural focus
-        agri_query = f"oil palm cultivation malaysia agricultural practices"
-        if len(agri_query) <= 400:
-            queries.append(agri_query)
-        
-        # 4. Research focus
-        research_query = f"oil palm research malaysia scientific studies"
-        if len(research_query) <= 400:
-            queries.append(research_query)
-        
-        # 5. Economic focus
-        economic_query = f"oil palm economics malaysia yield optimization"
-        if len(economic_query) <= 400:
-            queries.append(economic_query)
-        
-        # Ensure all queries are under 400 characters
-        final_queries = []
-        for query in queries:
-            if len(query) > 400:
-                query = query[:397] + "..."
-            final_queries.append(query)
-        
-        # Remove duplicates and limit to 3 queries max
-        unique_queries = list(dict.fromkeys(final_queries))[:3]
-        
-        return unique_queries if unique_queries else [f"oil palm cultivation malaysia"]
     
     def _calculate_relevance_score(self, query_terms: List[str], text: str) -> float:
         """Calculate relevance score based on term frequency"""
@@ -311,22 +176,18 @@ class ReferenceSearchEngine:
         
         return min(score, 1.0)  # Cap at 1.0
     
-    def search_all_references(self, query: str, db_limit: int = 8, web_limit: int = 8) -> Dict[str, List[Dict[str, Any]]]:
-        """Search both database and web for references with enhanced limits"""
-        logger.info(f"Searching references for query: {query}")
+    def search_all_references(self, query: str, db_limit: int = 8) -> Dict[str, Any]:
+        """Search database for references"""
+        logger.info(f"Searching database references for query: {query}")
         
-        # Search database references
+        # Search database references only
         db_results = self.search_database_references(query, db_limit)
         logger.info(f"Found {len(db_results)} database references")
         
-        # Search web references
-        web_results = self.search_web_references(query, web_limit)
-        logger.info(f"Found {len(web_results)} web references")
-        
         return {
             'database_references': db_results,
-            'web_references': web_results,
-            'total_found': len(db_results) + len(web_results),
+            'web_references': [],  # Empty list for compatibility
+            'total_found': len(db_results),
             'search_query': query,
             'search_timestamp': datetime.now().isoformat()
         }
@@ -340,7 +201,7 @@ class ReferenceSearchEngine:
         formatted_text.append("## 📚 Research References")
         formatted_text.append("")
         
-        # Database references
+        # Database references only
         db_refs = references.get('database_references', [])
         if db_refs:
             formatted_text.append("### 🗄️ Database References")
@@ -355,21 +216,6 @@ class ReferenceSearchEngine:
                 formatted_text.append(f"   - Relevance: {ref.get('relevance_score', 0):.2f}")
                 formatted_text.append("")
         
-        # Web references
-        web_refs = references.get('web_references', [])
-        if web_refs:
-            formatted_text.append("### 🌐 Web References")
-            formatted_text.append("")
-            for i, ref in enumerate(web_refs, 1):
-                formatted_text.append(f"**{i}. {ref['title']}**")
-                formatted_text.append(f"   - Source: {ref['source']}")
-                if ref.get('url'):
-                    formatted_text.append(f"   - URL: {ref['url']}")
-                if ref.get('published_date'):
-                    formatted_text.append(f"   - Published: {ref['published_date']}")
-                formatted_text.append(f"   - Relevance: {ref.get('relevance_score', 0):.2f}")
-                formatted_text.append("")
-        
         return "\n".join(formatted_text)
     
     def get_reference_summary(self, references: Dict[str, List[Dict[str, Any]]]) -> str:
@@ -378,13 +224,12 @@ class ReferenceSearchEngine:
             return "No relevant references found to support this analysis."
         
         db_count = len(references.get('database_references', []))
-        web_count = len(references.get('web_references', []))
         
         summary_parts = []
-        summary_parts.append(f"Analysis supported by {db_count} database reference(s) and {web_count} web reference(s).")
+        summary_parts.append(f"Analysis supported by {db_count} database reference(s).")
         
         # Add key insights from top references
-        all_refs = references.get('database_references', []) + references.get('web_references', [])
+        all_refs = references.get('database_references', [])
         if all_refs:
             # Sort by relevance score
             sorted_refs = sorted(all_refs, key=lambda x: x.get('relevance_score', 0), reverse=True)

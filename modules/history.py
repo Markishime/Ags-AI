@@ -10,7 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'
 
 # Import utilities
 from utils.firebase_config import get_firestore_client, COLLECTIONS
-from google.cloud.firestore import Query
+from google.cloud.firestore import Query, FieldFilter
 
 def show_history_page():
     """Main history page - displays past analysis results"""
@@ -67,7 +67,7 @@ def display_history_statistics():
         
         # Get all user analyses for statistics from analysis_results collection
         analyses_ref = db.collection('analysis_results')
-        user_analyses = analyses_ref.where('user_id', '==', user_id).get()
+        user_analyses = analyses_ref.where(filter=FieldFilter('user_id', '==', user_id)).get()
         
 
         
@@ -255,7 +255,7 @@ def display_analysis_history():
         
         # Get user's analyses from analysis_results collection using correct field
         analyses_ref = db.collection('analysis_results')
-        query = analyses_ref.where('user_id', '==', user_id).order_by('created_at', direction=Query.DESCENDING).limit(limit)
+        query = analyses_ref.where(filter=FieldFilter('user_id', '==', user_id)).order_by('created_at', direction=Query.DESCENDING).limit(limit)
         
         user_analyses = query.get()
         
@@ -879,22 +879,32 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                         'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within recommended range for healthy palm growth.",
                     })
         
-        # Leaf Magnesium
+        # Leaf Magnesium - Conditional recommendation considering GML and K:Mg ratio
         if 'Mg_%' in leaf_params:
             leaf_mg = leaf_params['Mg_%'].get('average', 0)
             if leaf_mg > 0:
-                if leaf_mg < 0.2:
+                if leaf_mg < 0.25:  # Only recommend kieserite if clearly deficient
+                    # Check if K:Mg ratio is also problematic
+                    leaf_k = leaf_params.get('K_%', {}).get('average', 0)
+                    if leaf_k > 0:
+                        k_mg_ratio = leaf_k / leaf_mg if leaf_mg > 0 else 0
+                        if k_mg_ratio > 3.0:  # K:Mg ratio too high
+                            findings.append({
+                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}. Kieserite recommended only after GML correction and if K:Mg ratio remains >3.0.",
+                            })
+                        else:
+                            findings.append({
+                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% but K:Mg ratio is acceptable. Consider GML first before kieserite application.",
+                            })
+                    else:
+                        findings.append({
+                            'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%. Consider GML application first, then kieserite only if needed after GML correction.",
+                        })
+                elif leaf_mg > 0.35:  # Only flag when clearly excessive
                     findings.append({
-                        'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below optimal range of 0.2-0.3%. This affects chlorophyll production and photosynthesis.",
+                        'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range. Monitor for nutrient imbalances.",
                     })
-                elif leaf_mg > 0.3:
-                    findings.append({
-                        'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range of 0.2-0.3%. This may indicate over-fertilization.",
-                    })
-                else:
-                    findings.append({
-                        'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within optimal range for healthy palm growth.",
-                    })
+                # No recommendation for adequate levels (0.25-0.35%)
         
         # Leaf Calcium
         if 'Ca_%' in leaf_params:
@@ -913,22 +923,19 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                         'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within recommended range for healthy palm growth.",
                     })
         
-        # Leaf Boron
+        # Leaf Boron - Conditional recommendation only when deficient
         if 'B_mg_kg' in leaf_params:
             leaf_b = leaf_params['B_mg_kg'].get('average', 0)
             if leaf_b > 0:
-                if leaf_b < 10:
+                if leaf_b < 12:  # Only recommend when clearly deficient
                     findings.append({
-                        'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below optimal range of 10-20 mg/kg. This affects fruit development and pollen viability.",
+                        'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below critical threshold of 12 mg/kg. Boron supplementation recommended only for this specific deficiency.",
                     })
-                elif leaf_b > 20:
+                elif leaf_b > 25:  # Only flag when clearly excessive
                     findings.append({
-                        'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range of 10-20 mg/kg. This may cause toxicity symptoms.",
+                        'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range. Monitor for toxicity symptoms.",
                     })
-                else:
-                    findings.append({
-                        'finding': f"Leaf boron is adequate at {leaf_b:.1f} mg/kg, within optimal range for healthy palm growth.",
-                    })
+                # No recommendation for adequate levels (12-25 mg/kg)
     
     return findings
 

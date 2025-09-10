@@ -86,7 +86,8 @@ def upload_section():
             'land_size': 0,
             'land_unit': 'hectares',
             'current_yield': 0,
-            'yield_unit': 'tonnes/hectare'
+            'yield_unit': 'tonnes/hectare',
+            'palm_density': 148  # Default palms per hectare
         }
     
     # Load saved land & yield data from Firestore if user is authenticated
@@ -294,7 +295,7 @@ def upload_section():
     st.markdown("### 🌾 Land & Yield Information (Required)")
     st.markdown("*This information is essential for generating accurate economic forecasts and 5-year yield projections*")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("#### 📏 Land Size")
@@ -336,9 +337,22 @@ def upload_section():
         st.session_state.land_yield_data['current_yield'] = current_yield
         st.session_state.land_yield_data['yield_unit'] = yield_unit
     
+    with col3:
+        st.markdown("#### 🌴 Palm Density")
+        palm_density = st.number_input(
+            "Palms per Hectare",
+            min_value=100,
+            max_value=200,
+            value=st.session_state.land_yield_data['palm_density'],
+            step=1,
+            help="Enter the number of oil palm trees per hectare (typical range: 136-148 palms/ha)",
+            key="palm_density_input"
+        )
+        st.session_state.land_yield_data['palm_density'] = palm_density
+    
     # Display summary of entered data
     if land_size > 0 or current_yield > 0:
-        st.info(f"📊 **Summary:** {land_size} {land_unit} | {current_yield} {yield_unit}")
+        st.info(f"📊 **Summary:** {land_size} {land_unit} | {current_yield} {yield_unit} | {palm_density} palms/ha")
     
     # Save button for land & yield data
     col_save1, col_save2, col_save3 = st.columns([1, 2, 1])

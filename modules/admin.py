@@ -23,6 +23,7 @@ except Exception:
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
 
 from utils.firebase_config import get_firestore_client, COLLECTIONS
+from google.cloud.firestore import FieldFilter
 from utils.auth_utils import get_all_users, is_admin, get_user_by_id
 from utils.ai_config_utils import load_ai_configuration, save_ai_configuration, reset_ai_configuration, validate_prompt_template
 from utils.feedback_system import display_feedback_analytics
@@ -155,15 +156,15 @@ def display_admin_shortcuts():
     """Show quick admin actions instead of recent system issues"""
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📝 Create Prompt Template", use_container_width=True):
+        if st.button("📝 Create Prompt Template", width='stretch'):
             st.session_state.current_page = 'admin'
             st.rerun()
     with col2:
-        if st.button("📚 Add Reference Doc", use_container_width=True):
+        if st.button("📚 Add Reference Doc", width='stretch'):
             st.session_state.current_page = 'admin'
             st.rerun()
     with col3:
-        if st.button("⚙️ Advanced Settings", use_container_width=True):
+        if st.button("⚙️ Advanced Settings", width='stretch'):
             st.session_state.current_page = 'admin'
             st.rerun()
 
@@ -186,16 +187,29 @@ def show_user_management():
             # Create a DataFrame for better display
             user_data = []
             for user in users:
+                # Convert datetime objects to strings for Arrow compatibility
+                created_at = user.get('created_at', 'N/A')
+                if hasattr(created_at, 'strftime'):
+                    created_at = created_at.strftime('%Y-%m-%d %H:%M')
+                elif created_at != 'N/A':
+                    created_at = str(created_at)
+                
+                last_login = user.get('last_login', 'N/A')
+                if hasattr(last_login, 'strftime'):
+                    last_login = last_login.strftime('%Y-%m-%d %H:%M')
+                elif last_login != 'N/A':
+                    last_login = str(last_login)
+                
                 user_data.append({
-                    'Email': user.get('email', 'N/A'),
-                    'Name': user.get('name', 'N/A'),
-                    'Role': user.get('role', 'user'),
-                    'Created': user.get('created_at', 'N/A'),
-                    'Last Login': user.get('last_login', 'N/A')
+                    'Email': str(user.get('email', 'N/A')),
+                    'Name': str(user.get('name', 'N/A')),
+                    'Role': str(user.get('role', 'user')),
+                    'Created': created_at,
+                    'Last Login': last_login
                 })
             
             df = pd.DataFrame(user_data)
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(df, width='stretch')
             
             # User actions
             st.subheader("User Actions")
@@ -272,7 +286,7 @@ def get_active_prompt() -> Optional[Dict[str, Any]]:
     try:
         db = get_firestore_client()
         prompts_ref = db.collection('analysis_prompts')
-        active_query = prompts_ref.where('is_active', '==', True).limit(1)
+        active_query = prompts_ref.where(filter=FieldFilter('is_active', '==', True)).limit(1)
         active_docs = list(active_query.stream())
         
         if active_docs:
@@ -1009,7 +1023,7 @@ def show_reference_materials_config():
         else:
             st.warning("📚 No reference documents found")
     with col2:
-        if st.button("🔄 Refresh", key="refresh_docs", use_container_width=True):
+        if st.button("🔄 Refresh", key="refresh_docs", width='stretch'):
             st.rerun()
     
     st.divider()
@@ -1132,7 +1146,7 @@ def show_reference_materials_config():
         st.write("**Bulk Document Operations**")
     
         # Export documents
-        if st.button("📤 Export All Documents", use_container_width=True):
+        if st.button("📤 Export All Documents", width='stretch'):
             if documents:
                 export_data = []
                 for doc in documents:
@@ -1168,7 +1182,7 @@ def show_reference_materials_config():
                 data = json.load(uploaded_file)
                 if isinstance(data, list):
                     st.success(f"📄 Found {len(data)} documents in file")
-                    if st.button("📥 Import Documents", use_container_width=True):
+                    if st.button("📥 Import Documents", width='stretch'):
                         imported_count = 0
                         for doc_data in data:
                             if save_reference_document(doc_data):
@@ -1183,10 +1197,10 @@ def show_reference_materials_config():
         # Bulk delete
         if filtered_documents:
             st.write("**Bulk Actions**")
-            if st.button("🗑️ Delete Filtered Documents", use_container_width=True, type="secondary"):
+            if st.button("🗑️ Delete Filtered Documents", width='stretch', type="secondary"):
                 if len(filtered_documents) > 0:
                     st.warning(f"⚠️ This will delete {len(filtered_documents)} document(s). This action cannot be undone!")
-                    if st.button("✅ Confirm Delete", use_container_width=True, type="primary"):
+                    if st.button("✅ Confirm Delete", width='stretch', type="primary"):
                         deleted_count = 0
                         for doc in filtered_documents:
                             if delete_reference_document(doc['id']):
@@ -1254,10 +1268,10 @@ def show_reference_materials_config():
                             
                         if len(content) > 300:
                             st.write(f"**Content Preview:**")
-                            st.text_area("", value=content[:300] + "...", height=100, disabled=True, key=f"preview_{i}")
+                            st.text_area("Content Preview", value=content[:300] + "...", height=100, disabled=True, key=f"preview_{i}", label_visibility="collapsed")
                         else:
                             st.write(f"**Content:**")
-                            st.text_area("", value=content, height=100, disabled=True, key=f"content_{i}")
+                            st.text_area("Content", value=content, height=100, disabled=True, key=f"content_{i}", label_visibility="collapsed")
                     
                         # Enhanced tags display
                         tags = doc.get('tags', [])
@@ -1267,19 +1281,19 @@ def show_reference_materials_config():
                 
                     with col2:
                         # Enhanced action buttons
-                        if st.button("✏️ Edit", key=f"edit_doc_{i}", use_container_width=True):
+                        if st.button("✏️ Edit", key=f"edit_doc_{i}", width='stretch'):
                             st.session_state.editing_document = doc
                             st.rerun()
                     
-                        if st.button("👁️ View", key=f"view_doc_{i}", use_container_width=True):
+                        if st.button("👁️ View", key=f"view_doc_{i}", width='stretch'):
                             st.session_state.viewing_document = doc
                             st.rerun()
                         
-                        if st.button("📋 Copy", key=f"copy_doc_{i}", use_container_width=True):
+                        if st.button("📋 Copy", key=f"copy_doc_{i}", width='stretch'):
                             # Copy document data to clipboard (simulated)
                             st.success("📋 Document data copied to clipboard!")
                         
-                        if st.button("🗑️ Delete", key=f"delete_doc_{i}", use_container_width=True, type="secondary"):
+                        if st.button("🗑️ Delete", key=f"delete_doc_{i}", width='stretch', type="secondary"):
                             if delete_reference_document(doc['id']):
                                 st.success("✅ Document deleted!")
                                 st.rerun()
@@ -1303,7 +1317,7 @@ def show_reference_materials_config():
             
             if table_data:
                 df = pd.DataFrame(table_data)
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width='stretch')
     
     elif documents and not filtered_documents:
         st.warning("🔍 No documents match your current filters. Try adjusting your search criteria.")
@@ -1332,12 +1346,12 @@ def show_reference_materials_config():
                 st.write(f"**Tags:** {tag_badges}")
         
         with col2:
-            if st.button("✏️ Edit Document", use_container_width=True):
+            if st.button("✏️ Edit Document", width='stretch'):
                 st.session_state.editing_document = viewing_doc
                 del st.session_state.viewing_document
                 st.rerun()
             
-            if st.button("❌ Close", use_container_width=True):
+            if st.button("❌ Close", width='stretch'):
                 del st.session_state.viewing_document
                 st.rerun()
     

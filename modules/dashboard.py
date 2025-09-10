@@ -11,6 +11,7 @@ import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'utils'))
 
 from firebase_config import get_firestore_client, COLLECTIONS
+from google.cloud.firestore import FieldFilter
 from functools import lru_cache
 from auth_utils import get_user_by_id, update_user_profile
 
@@ -72,14 +73,14 @@ def _cached_user_stats(user_id: str) -> Dict[str, Any]:
         
         # Try both user_id and user_email approaches
         # First try with user_id
-        q = db.collection('analysis_results').where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').limit(50)
+        q = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_id)).order_by('created_at', direction='DESCENDING').limit(50)
         docs = list(q.stream())
         total = len(docs)
         
         # If no results with user_id, try with user_email from session state
         if total == 0 and 'user_email' in st.session_state:
             user_email = st.session_state.get('user_email')
-            q = db.collection('analysis_results').where('user_id', '==', user_email).order_by('created_at', direction='DESCENDING').limit(50)
+            q = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_email)).order_by('created_at', direction='DESCENDING').limit(50)
             docs = list(q.stream())
             total = len(docs)
         
@@ -126,7 +127,7 @@ def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
                    'common_issues': [], 'recent_activity': [], 'ai_insights': []}
         
         # Get all analyses for the user
-        q = db.collection('analysis_results').where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').limit(100)
+        q = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_id)).order_by('created_at', direction='DESCENDING').limit(100)
         docs = list(q.stream())
         
         if not docs:
@@ -450,13 +451,13 @@ def _cached_recent_analyses(user_id: str) -> List[Dict[str, Any]]:
         
         # Try both user_id and user_email approaches
         # First try with user_id
-        q = db.collection('analysis_results').where('user_id', '==', user_id).order_by('created_at', direction='DESCENDING').limit(5)
+        q = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_id)).order_by('created_at', direction='DESCENDING').limit(5)
         docs = list(q.stream())
         
         # If no results with user_id, try with user_email from session state
         if len(docs) == 0 and 'user_email' in st.session_state:
             user_email = st.session_state.get('user_email')
-            q = db.collection('analysis_results').where('user_id', '==', user_email).order_by('created_at', direction='DESCENDING').limit(5)
+            q = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_email)).order_by('created_at', direction='DESCENDING').limit(5)
             docs = list(q.stream())
         
         return [{**d.to_dict(), 'id': d.id} for d in docs]
@@ -882,13 +883,13 @@ def get_comprehensive_user_statistics(user_id: str) -> Dict[str, Any]:
         
         # Get all user analyses from analysis_results collection
         # Try both user_id and user_email approaches
-        analyses_ref = db.collection('analysis_results').where('user_id', '==', user_id)
+        analyses_ref = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_id))
         analyses = analyses_ref.get()
         
         # If no results with user_id, try with user_email from session state
         if len(analyses) == 0 and 'user_email' in st.session_state:
             user_email = st.session_state.get('user_email')
-            analyses_ref = db.collection('analysis_results').where('user_id', '==', user_email)
+            analyses_ref = db.collection('analysis_results').where(filter=FieldFilter('user_id', '==', user_email))
             analyses = analyses_ref.get()
         
         total_analyses = len(analyses)
@@ -1015,7 +1016,7 @@ def get_detailed_recent_analyses(user_id: str, limit: int = 10) -> List[Dict[str
         
         # Get recent analyses
         analyses_ref = (db.collection(COLLECTIONS['analyses'])
-                       .where('user_id', '==', user_id)
+                       .where(filter=FieldFilter('user_id', '==', user_id))
                        .order_by('created_at', direction='DESCENDING')
                        .limit(limit))
         
@@ -1099,8 +1100,8 @@ def display_monthly_trends_chart(user_id: str):
         from datetime import timezone
         twelve_months_ago = datetime.now(timezone.utc) - timedelta(days=365)
         analyses_ref = (db.collection(COLLECTIONS['analyses'])
-                       .where('user_id', '==', user_id)
-                       .where('created_at', '>=', twelve_months_ago))
+                       .where(filter=FieldFilter('user_id', '==', user_id))
+                       .where(filter=FieldFilter('created_at', '>=', twelve_months_ago)))
         
         analyses = analyses_ref.get()
         
@@ -1207,7 +1208,7 @@ def display_issue_analysis_chart(user_id: str):
             st.info("Unable to load issue data.")
             return
         
-        analyses_ref = db.collection(COLLECTIONS['analyses']).where('user_id', '==', user_id)
+        analyses_ref = db.collection(COLLECTIONS['analyses']).where(filter=FieldFilter('user_id', '==', user_id))
         analyses = analyses_ref.get()
         
         if not analyses:
@@ -1270,7 +1271,7 @@ def display_recommendation_patterns_chart(user_id: str):
             st.info("Unable to load recommendation data.")
             return
         
-        analyses_ref = db.collection(COLLECTIONS['analyses']).where('user_id', '==', user_id)
+        analyses_ref = db.collection(COLLECTIONS['analyses']).where(filter=FieldFilter('user_id', '==', user_id))
         analyses = analyses_ref.get()
         
         if not analyses:
@@ -1358,7 +1359,7 @@ def get_comprehensive_analytics(user_id: str) -> Dict[str, Any]:
         if not db:
             return {}
         
-        analyses_ref = db.collection(COLLECTIONS['analyses']).where('user_id', '==', user_id)
+        analyses_ref = db.collection(COLLECTIONS['analyses']).where(filter=FieldFilter('user_id', '==', user_id))
         analyses = analyses_ref.get()
         
         if not analyses:
