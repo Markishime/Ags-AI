@@ -2769,9 +2769,16 @@ def display_enhanced_step_result(step_result, step_number):
         st.markdown("### 🔍 Detailed Interpretations")
         for idx, interpretation in enumerate(analysis_data['interpretations'], 1):
             if interpretation and interpretation.strip():
+                # Remove any existing "Interpretation X:" prefix to avoid duplication
+                clean_interpretation = interpretation.strip()
+                if clean_interpretation.startswith(f"Interpretation {idx}:"):
+                    clean_interpretation = clean_interpretation.replace(f"Interpretation {idx}:", "").strip()
+                elif clean_interpretation.startswith(f"Detailed interpretation {idx}"):
+                    clean_interpretation = clean_interpretation.replace(f"Detailed interpretation {idx}", "").strip()
+                
                 st.markdown(
                     f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">'
-                    f'<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #2c3e50;"><strong>Interpretation {idx}:</strong> {interpretation.strip()}</p>'
+                    f'<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #2c3e50;"><strong>Interpretation {idx}:</strong> {clean_interpretation}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
