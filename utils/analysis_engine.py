@@ -3762,8 +3762,12 @@ class AnalysisEngine:
             soil_stats = soil_params.get('parameter_statistics', {}) if soil_params else {}
             leaf_stats = leaf_params.get('parameter_statistics', {}) if leaf_params else {}
             
-            # Get palms per hectare
-            palms_per_ha = land_yield_data.get('palms_per_hectare', 0) if land_yield_data else 0
+            # Get palms per hectare with proper type conversion
+            palms_per_ha = land_yield_data.get('palms_per_hectare', land_yield_data.get('palm_density', 0)) if land_yield_data else 0
+            try:
+                palms_per_ha = float(palms_per_ha) if palms_per_ha is not None else 0
+            except (ValueError, TypeError):
+                palms_per_ha = 0
             if palms_per_ha == 0:
                 palms_per_ha = "Missing"
             
@@ -3955,9 +3959,19 @@ class AnalysisEngine:
             headers = ['Practice', 'Rate/Method', 'Mechanism', 'Nutrient Contribution', 'Short-term Effect', 'Long-term Effect']
             rows = []
             
-            # Get current yield for calculations
+            # Get current yield for calculations with proper type conversion
             current_yield = land_yield_data.get('current_yield', 0) if land_yield_data else 0
-            land_size = land_yield_data.get('land_size_ha', 0) if land_yield_data else 0
+            land_size = land_yield_data.get('land_size_ha', land_yield_data.get('land_size', 0)) if land_yield_data else 0
+            
+            try:
+                current_yield = float(current_yield) if current_yield is not None else 0
+            except (ValueError, TypeError):
+                current_yield = 0
+                
+            try:
+                land_size = float(land_size) if land_size is not None else 0
+            except (ValueError, TypeError):
+                land_size = 0
             
             # EFB Mulching
             rows.append([
@@ -4037,10 +4051,26 @@ class AnalysisEngine:
             headers = ['Scenario', 'Yield Improvement (t/ha)', 'Input Cost (RM/ha)', 'Revenue (RM/ha)', 'Profit (RM/ha)', 'ROI (%)']
             rows = []
             
-            # Get land data
+            # Get land data with proper type conversion
             current_yield = land_yield_data.get('current_yield', 0) if land_yield_data else 0
-            land_size = land_yield_data.get('land_size_ha', 0) if land_yield_data else 0
-            palms_per_ha = land_yield_data.get('palms_per_hectare', 0) if land_yield_data else 0
+            land_size = land_yield_data.get('land_size_ha', land_yield_data.get('land_size', 0)) if land_yield_data else 0
+            palms_per_ha = land_yield_data.get('palms_per_hectare', land_yield_data.get('palm_density', 0)) if land_yield_data else 0
+            
+            # Ensure all values are numeric
+            try:
+                current_yield = float(current_yield) if current_yield is not None else 0
+            except (ValueError, TypeError):
+                current_yield = 0
+                
+            try:
+                land_size = float(land_size) if land_size is not None else 0
+            except (ValueError, TypeError):
+                land_size = 0
+                
+            try:
+                palms_per_ha = float(palms_per_ha) if palms_per_ha is not None else 0
+            except (ValueError, TypeError):
+                palms_per_ha = 0
             
             # Check if required data is available
             if current_yield == 0 or land_size == 0:
@@ -4348,15 +4378,27 @@ class AnalysisEngine:
             headers = ['Parameter', 'Value', 'Unit', 'Notes']
             rows = []
             
-            # Add yield data
+            # Add yield data with proper type conversion
             if 'current_yield' in land_yield_data:
-                rows.append(['Current Yield', f"{land_yield_data['current_yield']:.1f}", 'tonnes/ha', 'Current production level'])
+                try:
+                    current_yield = float(land_yield_data['current_yield'])
+                    rows.append(['Current Yield', f"{current_yield:.1f}", 'tonnes/ha', 'Current production level'])
+                except (ValueError, TypeError):
+                    rows.append(['Current Yield', str(land_yield_data['current_yield']), 'tonnes/ha', 'Current production level'])
             
             if 'land_size' in land_yield_data:
-                rows.append(['Land Size', f"{land_yield_data['land_size']:.1f}", 'hectares', 'Total plantation area'])
+                try:
+                    land_size = float(land_yield_data['land_size'])
+                    rows.append(['Land Size', f"{land_size:.1f}", 'hectares', 'Total plantation area'])
+                except (ValueError, TypeError):
+                    rows.append(['Land Size', str(land_yield_data['land_size']), 'hectares', 'Total plantation area'])
             
             if 'palm_density' in land_yield_data:
-                rows.append(['Palm Density', f"{land_yield_data['palm_density']:.0f}", 'palms/ha', 'Number of palms per hectare'])
+                try:
+                    palm_density = float(land_yield_data['palm_density'])
+                    rows.append(['Palm Density', f"{palm_density:.0f}", 'palms/ha', 'Number of palms per hectare'])
+                except (ValueError, TypeError):
+                    rows.append(['Palm Density', str(land_yield_data['palm_density']), 'palms/ha', 'Number of palms per hectare'])
             
             if 'planting_year' in land_yield_data:
                 rows.append(['Planting Year', str(land_yield_data['planting_year']), 'year', 'Year of planting'])
