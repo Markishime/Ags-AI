@@ -3756,17 +3756,80 @@ class PDFReportGenerator:
                           label=f'Current Baseline: {baseline_yield:.1f} t/ha')
             
             # Plot lines for different investment approaches
-            if 'high_investment' in yield_forecast and len(yield_forecast['high_investment']) >= 6:
-                high_yields = yield_forecast['high_investment']
-                ax.plot(years, high_yields, 'r-o', linewidth=2, label='High Investment', markersize=6)
+            if 'high_investment' in yield_forecast:
+                high_data = yield_forecast['high_investment']
+                if isinstance(high_data, list) and len(high_data) >= 6:
+                    # Old array format
+                    ax.plot(years, high_data, 'r-o', linewidth=2, label='High Investment', markersize=6)
+                elif isinstance(high_data, dict):
+                    # New range format - extract numeric values for plotting
+                    high_yields = [baseline_yield]  # Start with baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in high_data:
+                            # Extract numeric value from range string like "25.5-27.0 t/ha"
+                            try:
+                                range_str = high_data[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    # Extract the first number from the range
+                                    numeric_part = range_str.split('-')[0].strip()
+                                    high_yields.append(float(numeric_part))
+                                else:
+                                    high_yields.append(float(range_str))
+                            except (ValueError, TypeError):
+                                high_yields.append(baseline_yield)
+                        else:
+                            high_yields.append(baseline_yield)
+                    ax.plot(years, high_yields, 'r-o', linewidth=2, label='High Investment', markersize=6)
             
-            if 'medium_investment' in yield_forecast and len(yield_forecast['medium_investment']) >= 6:
-                medium_yields = yield_forecast['medium_investment']
-                ax.plot(years, medium_yields, 'g-s', linewidth=2, label='Medium Investment', markersize=6)
+            if 'medium_investment' in yield_forecast:
+                medium_data = yield_forecast['medium_investment']
+                if isinstance(medium_data, list) and len(medium_data) >= 6:
+                    # Old array format
+                    ax.plot(years, medium_data, 'g-s', linewidth=2, label='Medium Investment', markersize=6)
+                elif isinstance(medium_data, dict):
+                    # New range format - extract numeric values for plotting
+                    medium_yields = [baseline_yield]  # Start with baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in medium_data:
+                            # Extract numeric value from range string like "25.5-27.0 t/ha"
+                            try:
+                                range_str = medium_data[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    # Extract the first number from the range
+                                    numeric_part = range_str.split('-')[0].strip()
+                                    medium_yields.append(float(numeric_part))
+                                else:
+                                    medium_yields.append(float(range_str))
+                            except (ValueError, TypeError):
+                                medium_yields.append(baseline_yield)
+                        else:
+                            medium_yields.append(baseline_yield)
+                    ax.plot(years, medium_yields, 'g-s', linewidth=2, label='Medium Investment', markersize=6)
             
-            if 'low_investment' in yield_forecast and len(yield_forecast['low_investment']) >= 6:
-                low_yields = yield_forecast['low_investment']
-                ax.plot(years, low_yields, 'b-^', linewidth=2, label='Low Investment', markersize=6)
+            if 'low_investment' in yield_forecast:
+                low_data = yield_forecast['low_investment']
+                if isinstance(low_data, list) and len(low_data) >= 6:
+                    # Old array format
+                    ax.plot(years, low_data, 'b-^', linewidth=2, label='Low Investment', markersize=6)
+                elif isinstance(low_data, dict):
+                    # New range format - extract numeric values for plotting
+                    low_yields = [baseline_yield]  # Start with baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in low_data:
+                            # Extract numeric value from range string like "25.5-27.0 t/ha"
+                            try:
+                                range_str = low_data[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    # Extract the first number from the range
+                                    numeric_part = range_str.split('-')[0].strip()
+                                    low_yields.append(float(numeric_part))
+                                else:
+                                    low_yields.append(float(range_str))
+                            except (ValueError, TypeError):
+                                low_yields.append(baseline_yield)
+                        else:
+                            low_yields.append(baseline_yield)
+                    ax.plot(years, low_yields, 'b-^', linewidth=2, label='Low Investment', markersize=6)
             
             # Customize the graph
             ax.set_xlabel('Years', fontsize=12, fontweight='bold')
