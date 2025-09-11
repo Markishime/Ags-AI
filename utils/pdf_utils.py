@@ -41,48 +41,70 @@ class PDFReportGenerator:
         self.margin = 72  # 1 inch margins
         self.content_width = self.page_width - (2 * self.margin)
     
-    def _create_table_with_proper_layout(self, table_data, col_widths=None, font_size=10):
-        """Create a table with proper column widths to prevent overlapping"""
-        if not table_data or len(table_data) < 2:
+    def _create_table_with_proper_layout(self, table_data, col_widths=None, font_size=9):
+        """Create a table that fits page width and wraps long text to prevent overlap."""
+        if not table_data or len(table_data) < 1:
             return None
-            
+
+        # Convert strings to Paragraphs to enable word wrapping
+        body_style = ParagraphStyle(
+            'TblBody', fontSize=font_size, leading=font_size + 2, wordWrap='CJK',
+            spaceBefore=0, spaceAfter=0
+        )
+        header_style = ParagraphStyle(
+            'TblHeader', fontSize=font_size + 1, leading=font_size + 3, wordWrap='CJK',
+            spaceBefore=0, spaceAfter=0
+        )
+
+        wrapped = []
+        for r_idx, row in enumerate(table_data):
+            wrapped_row = []
+            for cell in row:
+                if isinstance(cell, str):
+                    style = header_style if r_idx == 0 else body_style
+                    wrapped_row.append(Paragraph(cell.replace('\n', '<br/>'), style))
+                else:
+                    wrapped_row.append(cell)
+            wrapped.append(wrapped_row)
+
         # Calculate column widths if not provided
         if col_widths is None:
-            num_cols = len(table_data[0])
-            # Use proportional widths based on content
+            num_cols = len(wrapped[0])
             if num_cols <= 2:
                 col_widths = [self.content_width * 0.4, self.content_width * 0.6]
             elif num_cols == 3:
                 col_widths = [self.content_width * 0.3, self.content_width * 0.35, self.content_width * 0.35]
             elif num_cols == 4:
-                col_widths = [self.content_width * 0.25, self.content_width * 0.25, self.content_width * 0.25, self.content_width * 0.25]
+                col_widths = [self.content_width * 0.25] * 4
             elif num_cols == 5:
-                col_widths = [self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2]
+                col_widths = [self.content_width * 0.2] * 5
             else:
-                # For more than 5 columns, use equal distribution
                 col_widths = [self.content_width / num_cols] * num_cols
-        
-        # Ensure total width doesn't exceed content width
+
         total_width = sum(col_widths)
         if total_width > self.content_width:
-            scale_factor = self.content_width / total_width
-            col_widths = [width * scale_factor for width in col_widths]
-        
-        table = Table(table_data, colWidths=col_widths)
+            scale = self.content_width / total_width
+            col_widths = [w * scale for w in col_widths]
+
+        table = Table(wrapped, colWidths=col_widths, repeatRows=1)
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),           # header centered
+            ('ALIGN', (0, 1), (-1, -1), 'LEFT'),            # body left for readability
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), font_size),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 0), (-1, 0), font_size + 1),
+            ('FONTSIZE', (0, 1), (-1, -1), font_size),
+            ('WORDWRAP', (0, 0), (-1, -1), 'CJK'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4)
+            ('GRID', (0, 0), (-1, -1), 0.8, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
         ]))
         return table
     
