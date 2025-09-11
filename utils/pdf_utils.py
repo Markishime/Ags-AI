@@ -2444,11 +2444,31 @@ class PDFReportGenerator:
                 story.append(Paragraph(f"ROI Analysis: {roi_data}", self.styles['CustomBody']))
                 story.append(Spacer(1, 4))
             
-            # Cost-Benefit Analysis
-            if 'cost_benefit' in economic_data:
-                cb_data = economic_data['cost_benefit']
-                story.append(Paragraph(f"Cost-Benefit Analysis: {cb_data}", self.styles['CustomBody']))
-                story.append(Spacer(1, 4))
+            # Cost-Benefit Analysis by Investment Level (table with wrapping)
+            if 'cost_benefit' in economic_data and isinstance(economic_data['cost_benefit'], (list, dict)):
+                story.append(Paragraph("Cost-Benefit Analysis by Investment Level", self.styles['Heading3']))
+                table_data = [[
+                    'Investment Level', 'Input Cost (RM/ha)', 'Revenue (RM/ha)', 'Profit (RM/ha)', 'ROI (%)', 'Payback (months)'
+                ]]
+                rows = economic_data['cost_benefit'] if isinstance(economic_data['cost_benefit'], list) else economic_data['cost_benefit'].get('rows', [])
+                for row in rows:
+                    if isinstance(row, dict):
+                        table_data.append([
+                            str(row.get('level', row.get('investment_level', ''))),
+                            str(row.get('input_cost', row.get('cost_per_hectare', ''))),
+                            str(row.get('revenue', row.get('expected_return', ''))),
+                            str(row.get('profit', row.get('profit_per_hectare', ''))),
+                            str(row.get('roi', row.get('roi_percentage', ''))),
+                            str(row.get('payback', row.get('payback_months', ''))),
+                        ])
+                    elif isinstance(row, (list, tuple)):
+                        table_data.append([str(c) for c in row])
+
+                col_widths = [self.content_width*0.18, self.content_width*0.16, self.content_width*0.16, self.content_width*0.16, self.content_width*0.14, self.content_width*0.20]
+                table = self._create_table_with_proper_layout(table_data, col_widths, font_size=8)
+                if table:
+                    story.append(table)
+                    story.append(Spacer(1, 8))
             
             # Investment Recommendations
             if 'investment_recommendations' in economic_data:
