@@ -5674,6 +5674,13 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 if isinstance(series, list) and len(series) > 0 and isinstance(series[0], (int, float)):
                     baseline_yield = series[0]
                     break
+        
+        # Ensure baseline_yield is numeric
+        try:
+            baseline_yield = float(baseline_yield) if baseline_yield is not None else 0
+        except (ValueError, TypeError):
+            baseline_yield = 0
+            
         if baseline_yield > 0:
             st.markdown(f"**Current Yield Baseline:** {baseline_yield:.1f} tonnes/hectare")
             st.markdown("")
@@ -5698,44 +5705,125 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 )
             
             # Add lines for different investment approaches. Ensure Year 0 matches baseline.
-            if 'high_investment' in forecast and len(forecast['high_investment']) >= 6:
+            if 'high_investment' in forecast:
                 hi = forecast['high_investment']
-                if isinstance(hi, list) and len(hi) >= 1 and isinstance(hi[0], (int, float)) and baseline_yield and hi[0] != baseline_yield:
-                    hi = [baseline_yield] + hi[1:]
-                fig.add_trace(go.Scatter(
-                    x=years,
-                    y=hi,
-                    mode='lines+markers',
-                    name='High Investment',
-                    line=dict(color='#e74c3c', width=3),
-                    marker=dict(size=8)
-                ))
+                if isinstance(hi, list) and len(hi) >= 6:
+                    # Old array format
+                    if len(hi) >= 1 and isinstance(hi[0], (int, float)) and baseline_yield and hi[0] != baseline_yield:
+                        hi = [baseline_yield] + hi[1:]
+                    fig.add_trace(go.Scatter(
+                        x=years,
+                        y=hi,
+                        mode='lines+markers',
+                        name='High Investment',
+                        line=dict(color='#e74c3c', width=3),
+                        marker=dict(size=8)
+                    ))
+                elif isinstance(hi, dict):
+                    # New range format - extract numeric values for plotting
+                    hi_values = [baseline_yield]  # Start with baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in hi:
+                            try:
+                                range_str = hi[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    # Extract the first number from the range
+                                    numeric_part = range_str.split('-')[0].strip()
+                                    hi_values.append(float(numeric_part))
+                                else:
+                                    hi_values.append(float(range_str))
+                            except (ValueError, TypeError):
+                                hi_values.append(baseline_yield)
+                        else:
+                            hi_values.append(baseline_yield)
+                    fig.add_trace(go.Scatter(
+                        x=years,
+                        y=hi_values,
+                        mode='lines+markers',
+                        name='High Investment',
+                        line=dict(color='#e74c3c', width=3),
+                        marker=dict(size=8)
+                    ))
             
-            if 'medium_investment' in forecast and len(forecast['medium_investment']) >= 6:
+            if 'medium_investment' in forecast:
                 mi = forecast['medium_investment']
-                if isinstance(mi, list) and len(mi) >= 1 and isinstance(mi[0], (int, float)) and baseline_yield and mi[0] != baseline_yield:
-                    mi = [baseline_yield] + mi[1:]
-                fig.add_trace(go.Scatter(
-                    x=years,
-                    y=mi,
-                    mode='lines+markers',
-                    name='Medium Investment',
-                    line=dict(color='#f39c12', width=3),
-                    marker=dict(size=8)
-                ))
+                if isinstance(mi, list) and len(mi) >= 6:
+                    # Old array format
+                    if len(mi) >= 1 and isinstance(mi[0], (int, float)) and baseline_yield and mi[0] != baseline_yield:
+                        mi = [baseline_yield] + mi[1:]
+                    fig.add_trace(go.Scatter(
+                        x=years,
+                        y=mi,
+                        mode='lines+markers',
+                        name='Medium Investment',
+                        line=dict(color='#f39c12', width=3),
+                        marker=dict(size=8)
+                    ))
+                elif isinstance(mi, dict):
+                    # New range format - extract numeric values for plotting
+                    mi_values = [baseline_yield]  # Start with baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in mi:
+                            try:
+                                range_str = mi[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    # Extract the first number from the range
+                                    numeric_part = range_str.split('-')[0].strip()
+                                    mi_values.append(float(numeric_part))
+                                else:
+                                    mi_values.append(float(range_str))
+                            except (ValueError, TypeError):
+                                mi_values.append(baseline_yield)
+                        else:
+                            mi_values.append(baseline_yield)
+                    fig.add_trace(go.Scatter(
+                        x=years,
+                        y=mi_values,
+                        mode='lines+markers',
+                        name='Medium Investment',
+                        line=dict(color='#f39c12', width=3),
+                        marker=dict(size=8)
+                    ))
             
-            if 'low_investment' in forecast and len(forecast['low_investment']) >= 6:
+            if 'low_investment' in forecast:
                 li = forecast['low_investment']
-                if isinstance(li, list) and len(li) >= 1 and isinstance(li[0], (int, float)) and baseline_yield and li[0] != baseline_yield:
-                    li = [baseline_yield] + li[1:]
-                fig.add_trace(go.Scatter(
-                    x=years,
-                    y=li,
-                    mode='lines+markers',
-                    name='Low Investment',
-                    line=dict(color='#27ae60', width=3),
-                    marker=dict(size=8)
-                ))
+                if isinstance(li, list) and len(li) >= 6:
+                    # Old array format
+                    if len(li) >= 1 and isinstance(li[0], (int, float)) and baseline_yield and li[0] != baseline_yield:
+                        li = [baseline_yield] + li[1:]
+                    fig.add_trace(go.Scatter(
+                        x=years,
+                        y=li,
+                        mode='lines+markers',
+                        name='Low Investment',
+                        line=dict(color='#27ae60', width=3),
+                        marker=dict(size=8)
+                    ))
+                elif isinstance(li, dict):
+                    # New range format - extract numeric values for plotting
+                    li_values = [baseline_yield]  # Start with baseline
+                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                        if year in li:
+                            try:
+                                range_str = li[year]
+                                if isinstance(range_str, str) and '-' in range_str:
+                                    # Extract the first number from the range
+                                    numeric_part = range_str.split('-')[0].strip()
+                                    li_values.append(float(numeric_part))
+                                else:
+                                    li_values.append(float(range_str))
+                            except (ValueError, TypeError):
+                                li_values.append(baseline_yield)
+                        else:
+                            li_values.append(baseline_yield)
+                    fig.add_trace(go.Scatter(
+                        x=years,
+                        y=li_values,
+                        mode='lines+markers',
+                        name='Low Investment',
+                        line=dict(color='#27ae60', width=3),
+                        marker=dict(size=8)
+                    ))
             
             fig.update_layout(
                 title='5-Year Yield Projection from Current Baseline',
