@@ -178,8 +178,14 @@ class PDFReportGenerator:
                        options: Dict[str, Any]) -> bytes:
         """Generate complete PDF report with comprehensive analysis support"""
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72,
-                               topMargin=72, bottomMargin=18)
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=54,  # slightly narrower margins to fit tables
+            leftMargin=54,
+            topMargin=54,
+            bottomMargin=36,
+        )
         
         # Build story
         story = []
@@ -269,8 +275,20 @@ class PDFReportGenerator:
         
         # Appendix removed as requested
         
-        # Build PDF
-        doc.build(story)
+        # Build PDF with page frame (borders)
+        def _draw_page_frame(canvas, doc):
+            from reportlab.lib.colors import black
+            canvas.saveState()
+            canvas.setStrokeColor(black)
+            canvas.setLineWidth(0.5)
+            x0 = doc.leftMargin - 10
+            y0 = doc.bottomMargin - 10
+            w = doc.width + 20
+            h = doc.height + 20
+            canvas.rect(x0, y0, w, h)
+            canvas.restoreState()
+
+        doc.build(story, onFirstPage=_draw_page_frame, onLaterPages=_draw_page_frame)
         
         pdf_bytes = buffer.getvalue()
         buffer.close()
@@ -322,7 +340,7 @@ class PDFReportGenerator:
             ['Report Generated:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]
         ]
         
-        metadata_table = Table(metadata_data, colWidths=[2*inch, 3*inch])
+        metadata_table = Table(metadata_data, colWidths=[self.content_width*0.35, self.content_width*0.65])
         metadata_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E8F5E8')),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -2762,7 +2780,8 @@ class PDFReportGenerator:
                 table_data.append([str(i), issue[:100] + "..." if len(issue) > 100 else issue, severity])
             
             if len(table_data) > 1:
-                table = Table(table_data)
+                # Fit to page width
+                table = self._create_table_with_proper_layout(table_data)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -2808,7 +2827,7 @@ class PDFReportGenerator:
                 table_data.append([priority, rec[:80] + "..." if len(rec) > 80 else rec, impact])
             
             if len(table_data) > 1:
-                table = Table(table_data)
+                table = self._create_table_with_proper_layout(table_data)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -2845,7 +2864,7 @@ class PDFReportGenerator:
                         table_data.append([str(strategy)[:50] + "..." if len(str(strategy)) > 50 else str(strategy), "See details", "See details"])
                 
                 if len(table_data) > 1:
-                    table = Table(table_data)
+                    table = self._create_table_with_proper_layout(table_data)
                     table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -2920,7 +2939,7 @@ class PDFReportGenerator:
                 table_data.append(row)
             
             if len(table_data) > 1:
-                table = Table(table_data)
+                table = self._create_table_with_proper_layout(table_data)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -2954,7 +2973,7 @@ class PDFReportGenerator:
                 ])
             
             if len(table_data) > 1:
-                table = Table(table_data)
+                table = self._create_table_with_proper_layout(table_data)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -3399,7 +3418,7 @@ class PDFReportGenerator:
                 table_data.append(row)
         
         if len(table_data) > 1:
-            table = Table(table_data)
+            table = self._create_table_with_proper_layout(table_data)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -3503,7 +3522,7 @@ class PDFReportGenerator:
                 table_data.append(row)
             
             if len(table_data) > 1:
-                table = Table(table_data)
+                table = self._create_table_with_proper_layout(table_data)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
