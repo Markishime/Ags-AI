@@ -4873,7 +4873,7 @@ def display_nutrient_status_tables(analysis_data):
     def compute_status(avg_val, optimal_val, parameter_name: str = "") -> str:
         try:
             if avg_val is None or optimal_val is None:
-                return "Unknown"
+                return "Missing"
             # Avoid division by zero
             if isinstance(optimal_val, (int, float)) and optimal_val == 0:
                 # If optimal is zero (rare), fall back to absolute thresholding
@@ -4906,7 +4906,7 @@ def display_nutrient_status_tables(analysis_data):
                 else:
                     return "Outside Range"
         except Exception:
-            return "Unknown"
+            return "Missing"
 
     # Define canonical lists to ensure correct grouping and order
     soil_labels = [
@@ -4958,7 +4958,7 @@ def display_nutrient_status_tables(analysis_data):
                     'Parameter': label,
                     'Average': 'N/A',
                     'MPOB Optimal': 'N/A',
-                    'Status': 'Unknown',
+                    'Status': 'Missing',
                     'Unit': ''
                 })
         
@@ -4989,7 +4989,7 @@ def display_nutrient_status_tables(analysis_data):
                     'Parameter': label,
                     'Average': 'N/A',
                     'MPOB Optimal': 'N/A',
-                    'Status': 'Unknown',
+                    'Status': 'Missing',
                     'Unit': ''
                 })
         
@@ -5957,6 +5957,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 
                 if scenario_key in forecast:
                     scenario_data = forecast[scenario_key]
+                    
                     if isinstance(scenario_data, list) and len(scenario_data) >= 6:
                         # Old array format
                         if len(scenario_data) >= 1 and isinstance(scenario_data[0], (int, float)) and baseline_yield and scenario_data[0] != baseline_yield:
