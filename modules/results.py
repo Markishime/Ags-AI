@@ -5922,20 +5922,39 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
         
     if forecast:
         
-        # Show baseline yield. Ensure it uses Year 0 from any series if missing.
-        baseline_yield = forecast.get('baseline_yield', 0)
+        # Show baseline yield. Prefer explicit baseline; fall back to user's economic data
+        raw_baseline = forecast.get('baseline_yield')
+        baseline_yield = _extract_first_float(raw_baseline, 0.0)
+
+        # If still zero/empty, try to infer from user's economic forecast
+        if not baseline_yield:
+            econ_paths = [
+                ('economic_forecast', 'current_yield_tonnes_per_ha'),
+                ('economic_forecast', 'current_yield'),
+            ]
+            # nested under analysis
+            if 'analysis' in analysis_data and isinstance(analysis_data['analysis'], dict):
+                analysis_econ = analysis_data['analysis'].get('economic_forecast', {})
+                if analysis_econ:
+                    baseline_yield = _extract_first_float(
+                        analysis_econ.get('current_yield_tonnes_per_ha') or analysis_econ.get('current_yield'),
+                        0.0,
+                    )
+            if not baseline_yield and 'economic_forecast' in analysis_data:
+                econ = analysis_data.get('economic_forecast', {})
+                baseline_yield = _extract_first_float(
+                    econ.get('current_yield_tonnes_per_ha') or econ.get('current_yield'),
+                    0.0,
+                )
+
+        # As a final fallback, attempt to use the first point of any numeric series
         if not baseline_yield:
             for key in ['medium_investment', 'high_investment', 'low_investment']:
                 series = forecast.get(key)
-                if isinstance(series, list) and len(series) > 0 and isinstance(series[0], (int, float)):
-                    baseline_yield = series[0]
-                    break
-        
-        # Ensure baseline_yield is numeric
-        try:
-            baseline_yield = float(baseline_yield) if baseline_yield is not None else 0
-        except (ValueError, TypeError):
-            baseline_yield = 0
+                if isinstance(series, list) and len(series) > 0:
+                    baseline_yield = _extract_first_float(series[0], 0.0)
+                    if baseline_yield:
+                        break
             
         if baseline_yield > 0:
             st.markdown(f"**Current Yield Baseline:** {baseline_yield:.1f} tonnes/hectare")
