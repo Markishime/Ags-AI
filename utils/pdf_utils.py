@@ -1395,7 +1395,7 @@ class PDFReportGenerator:
                         story.append(Paragraph(f"<b>{table['title']}</b>", self.styles['CustomBody']))
                         # Create table
                         table_data = [table['headers']] + table['rows']
-                        pdf_table = Table(table_data)
+                        pdf_table = self._create_table_with_proper_layout(table_data, font_size=10)
                         pdf_table.setStyle(TableStyle([
                             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
                             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -3724,7 +3724,8 @@ class PDFReportGenerator:
             ]
             
             # Create wider table with better column widths to prevent overlapping
-            table = Table(table_data, colWidths=[2.0*inch, 1.8*inch, 1.8*inch, 1.2*inch, 1.4*inch])
+            table = Table(table_data, colWidths=[self.content_width*0.22, self.content_width*0.18, self.content_width*0.18, self.content_width*0.16, self.content_width*0.26])
+            table = Table(table_data, colWidths=[self.content_width*0.22, self.content_width*0.18, self.content_width*0.18, self.content_width*0.16, self.content_width*0.26])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -4053,7 +4054,7 @@ class PDFReportGenerator:
             metadata_data.append(['Report Types', ', '.join(report_types)])
         
         if metadata_data:
-            metadata_table = Table(metadata_data)
+            metadata_table = self._create_table_with_proper_layout(metadata_data)
             metadata_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -4101,7 +4102,7 @@ class PDFReportGenerator:
                     ])
             
             if len(soil_data) > 1:
-                soil_table = Table(soil_data)
+                soil_table = self._create_table_with_proper_layout(soil_data)
                 soil_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4CAF50')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -4134,7 +4135,7 @@ class PDFReportGenerator:
                     ])
             
             if len(leaf_data) > 1:
-                leaf_table = Table(leaf_data)
+                leaf_table = self._create_table_with_proper_layout(leaf_data)
                 leaf_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2196F3')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
