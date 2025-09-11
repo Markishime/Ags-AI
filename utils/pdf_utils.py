@@ -36,6 +36,55 @@ class PDFReportGenerator:
     def __init__(self):
         self.styles = self._setup_custom_styles()
         self.storage_client = self._init_firebase_storage()
+        self.page_width = A4[0]
+        self.page_height = A4[1]
+        self.margin = 72  # 1 inch margins
+        self.content_width = self.page_width - (2 * self.margin)
+    
+    def _create_table_with_proper_layout(self, table_data, col_widths=None, font_size=10):
+        """Create a table with proper column widths to prevent overlapping"""
+        if not table_data or len(table_data) < 2:
+            return None
+            
+        # Calculate column widths if not provided
+        if col_widths is None:
+            num_cols = len(table_data[0])
+            # Use proportional widths based on content
+            if num_cols <= 2:
+                col_widths = [self.content_width * 0.4, self.content_width * 0.6]
+            elif num_cols == 3:
+                col_widths = [self.content_width * 0.3, self.content_width * 0.35, self.content_width * 0.35]
+            elif num_cols == 4:
+                col_widths = [self.content_width * 0.25, self.content_width * 0.25, self.content_width * 0.25, self.content_width * 0.25]
+            elif num_cols == 5:
+                col_widths = [self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2]
+            else:
+                # For more than 5 columns, use equal distribution
+                col_widths = [self.content_width / num_cols] * num_cols
+        
+        # Ensure total width doesn't exceed content width
+        total_width = sum(col_widths)
+        if total_width > self.content_width:
+            scale_factor = self.content_width / total_width
+            col_widths = [width * scale_factor for width in col_widths]
+        
+        table = Table(table_data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), font_size),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4)
+        ]))
+        return table
     
     def _init_firebase_storage(self):
         """Initialize Firebase Storage client"""
@@ -2330,19 +2379,12 @@ class PDFReportGenerator:
                     ])
             
             if len(table_data) > 1:
-                table = Table(table_data)
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 12),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
-                story.append(table)
-                story.append(Spacer(1, 8))
+                # Use proper column widths for nutrient status table
+                col_widths = [self.content_width * 0.3, self.content_width * 0.2, self.content_width * 0.3, self.content_width * 0.2]
+                table = self._create_table_with_proper_layout(table_data, col_widths, font_size=10)
+                if table:
+                    story.append(table)
+                    story.append(Spacer(1, 8))
         
         return story
     
@@ -2844,19 +2886,12 @@ class PDFReportGenerator:
                     ])
             
             if len(table_data) > 1:
-                table = Table(table_data)
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                ]))
-                story.append(table)
-                story.append(Spacer(1, 8))
+                # Use proper column widths for investment scenarios table
+                col_widths = [self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2]
+                table = self._create_table_with_proper_layout(table_data, col_widths, font_size=9)
+                if table:
+                    story.append(table)
+                    story.append(Spacer(1, 8))
         
         return story
 
@@ -3084,18 +3119,11 @@ class PDFReportGenerator:
         metrics_data.append(['Oil Palm Price', f"RM {oil_palm_price:.0f}/tonne"])
         
         if metrics_data:
-            table = Table(metrics_data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            story.append(table)
+            # Use proper column widths for economic metrics table
+            col_widths = [self.content_width * 0.4, self.content_width * 0.6]
+            table = self._create_table_with_proper_layout(metrics_data, col_widths, font_size=10)
+            if table:
+                story.append(table)
             story.append(Spacer(1, 12))
         
         return story

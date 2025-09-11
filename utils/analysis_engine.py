@@ -3381,9 +3381,9 @@ class AnalysisEngine:
     def _create_data_echo_table(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
         """Create comprehensive data echo table as per prompt requirements"""
         try:
-            # Get sample data and metadata
-            soil_samples = soil_params.get('samples', []) if soil_params else []
-            leaf_samples = leaf_params.get('samples', []) if leaf_params else []
+            # Get parameter statistics from soil and leaf data
+            soil_stats = soil_params.get('parameter_statistics', {}) if soil_params else {}
+            leaf_stats = leaf_params.get('parameter_statistics', {}) if leaf_params else {}
             soil_metadata = soil_params.get('metadata', {}) if soil_params else {}
             leaf_metadata = leaf_params.get('metadata', {}) if leaf_params else {}
             
@@ -3403,54 +3403,50 @@ class AnalysisEngine:
             
             # Process soil parameters
             for param in soil_parameters:
-                # Check if parameter exists in any soil sample
                 found_value = None
-                source_file = "Missing"
-                page_number = "Missing"
+                unit = self._get_parameter_unit(param)
+                source_file = soil_metadata.get('source_file', 'Unknown')
+                page_number = soil_metadata.get('page_number', 'Unknown')
                 
-                for sample in soil_samples:
-                    if param in sample and sample[param] is not None:
-                        found_value = sample[param]
-                        source_file = soil_metadata.get('source_file', 'Unknown')
-                        page_number = soil_metadata.get('page_number', 'Unknown')
-                        break
+                # Try to get value from parameter statistics
+                if param in soil_stats and isinstance(soil_stats[param], dict):
+                    found_value = soil_stats[param].get('average')
+                    unit = soil_stats[param].get('unit', unit)
                 
                 value_str = f"{found_value:.2f}" if isinstance(found_value, (int, float)) else "Missing"
                 rows.append([
                     param.replace('_', ' ').title(),
                     'Soil',
                     value_str,
-                    self._get_parameter_unit(param),
+                    unit,
                     source_file,
                     page_number
                 ])
             
             # Process leaf parameters
             for param in leaf_parameters:
-                # Check if parameter exists in any leaf sample
                 found_value = None
-                source_file = "Missing"
-                page_number = "Missing"
+                unit = self._get_parameter_unit(param)
+                source_file = leaf_metadata.get('source_file', 'Unknown')
+                page_number = leaf_metadata.get('page_number', 'Unknown')
                 
-                for sample in leaf_samples:
-                    if param in sample and sample[param] is not None:
-                        found_value = sample[param]
-                        source_file = leaf_metadata.get('source_file', 'Unknown')
-                        page_number = leaf_metadata.get('page_number', 'Unknown')
-                        break
+                # Try to get value from parameter statistics
+                if param in leaf_stats and isinstance(leaf_stats[param], dict):
+                    found_value = leaf_stats[param].get('average')
+                    unit = leaf_stats[param].get('unit', unit)
                 
                 value_str = f"{found_value:.2f}" if isinstance(found_value, (int, float)) else "Missing"
                 rows.append([
                     param.replace('_', ' ').title(),
                     'Leaf',
                     value_str,
-                    self._get_parameter_unit(param),
+                    unit,
                     source_file,
                     page_number
                 ])
             
             return {
-                'title': '📊 Data Echo Table - Complete Parameter Analysis',
+                'title': '📊 Parameter Values Summary',
                 'subtitle': 'All soil and leaf parameters with values, units, source files, and page numbers',
                 'headers': headers,
                 'rows': rows,
