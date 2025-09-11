@@ -1453,8 +1453,8 @@ class PDFReportGenerator:
                 # Step 2: Issue Diagnosis - Add diagnostic tables
                 story.extend(self._create_step2_diagnostic_tables(step))
             elif step_number == 3:
-                # Step 3: Solution Recommendations - Add economic and solution tables
-                story.extend(self._create_step3_solution_tables(step))
+                # Step 3: Omit Solution Recommendations/Economic tables in PDF per requirements
+                pass
             elif step_number == 4:
                 # Step 4: Regenerative Agriculture - Add regenerative strategy tables
                 story.extend(self._create_step4_regenerative_tables(step))
@@ -1467,8 +1467,8 @@ class PDFReportGenerator:
                 # Step 6: Yield Forecast - Add forecast graph only (no tables)
                 story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
             
-            # Visualizations and Charts - Include all visualizations from enhanced LLM output
-            if 'visualizations' in step and step['visualizations']:
+            # Visualizations and Charts - omit for Step 3 per requirements
+            if step_number != 3 and 'visualizations' in step and step['visualizations']:
                 story.append(Paragraph("Visualizations:", self.styles['Heading3']))
                 for viz in step['visualizations']:
                     if isinstance(viz, dict) and 'type' in viz:
@@ -1480,8 +1480,10 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 8))
             
             # Generate contextual visualizations for all steps
-            story.extend(self._create_step_visualizations(step, step_number))
-            story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
+            # Omit visualizations for Step 3 entirely
+            if step_number != 3:
+                story.extend(self._create_step_visualizations(step, step_number))
+                story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
             
             story.append(Spacer(1, 15))
         
