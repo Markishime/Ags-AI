@@ -1368,6 +1368,13 @@ class PromptAnalyzer:
             try:
                 current_yield_raw = land_yield_data.get('current_yield', 0) if land_yield_data else 0
                 yield_unit = land_yield_data.get('yield_unit', 'tonnes/hectare') if land_yield_data else 'tonnes/hectare'
+                
+                # Ensure current_yield_raw is numeric
+                try:
+                    current_yield_raw = float(current_yield_raw) if current_yield_raw is not None else 0
+                except (ValueError, TypeError):
+                    current_yield_raw = 0
+                
                 if yield_unit == 'kg/hectare':
                     norm_current = current_yield_raw / 1000
                 elif yield_unit == 'tonnes/acre':

@@ -1168,14 +1168,16 @@ def display_soil_data_table(soil_data):
             
             if summary_data:
                 df = pd.DataFrame(summary_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
             
             # Display individual sample data
             all_samples = soil_data.get('all_samples', [])
             if all_samples:
                 st.markdown("### 📋 Individual Sample Data")
                 df_samples = pd.DataFrame(all_samples)
-                st.dataframe(df_samples, width='stretch')
+                apply_table_styling()
+                st.dataframe(df_samples, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -1217,7 +1219,8 @@ def display_soil_data_table(soil_data):
             
             if summary_data:
                 df = pd.DataFrame(summary_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -1260,7 +1263,8 @@ def display_soil_data_table(soil_data):
                     
                     if summary_data:
                         df_stats = pd.DataFrame(summary_data)
-                        st.dataframe(df_stats, width='stretch')
+                        apply_table_styling()
+                        st.dataframe(df_stats, use_container_width=True)
                 
                 # Display individual sample data
                 st.markdown("### 📋 Individual Sample Data")
@@ -1270,7 +1274,8 @@ def display_soil_data_table(soil_data):
                 
                 if df_data:
                     df = pd.DataFrame(df_data)
-                    st.dataframe(df, width='stretch')
+                    apply_table_styling()
+                    st.dataframe(df, use_container_width=True)
                 else:
                     st.info("📋 No sample data found in soil analysis.")
             else:
@@ -1279,7 +1284,8 @@ def display_soil_data_table(soil_data):
             # Handle list of parameter-value pairs
             if extracted_data:
                 df = pd.DataFrame(extracted_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
             else:
                 st.info("📋 No soil parameters extracted.")
         else:
@@ -1320,14 +1326,16 @@ def display_leaf_data_table(leaf_data):
             
             if summary_data:
                 df = pd.DataFrame(summary_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
             
             # Display individual sample data
             all_samples = leaf_data.get('all_samples', [])
             if all_samples:
                 st.markdown("### 📋 Individual Sample Data")
                 df_samples = pd.DataFrame(all_samples)
-                st.dataframe(df_samples, width='stretch')
+                apply_table_styling()
+                st.dataframe(df_samples, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -1369,7 +1377,8 @@ def display_leaf_data_table(leaf_data):
             
             if summary_data:
                 df = pd.DataFrame(summary_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -1412,7 +1421,8 @@ def display_leaf_data_table(leaf_data):
                     
                     if summary_data:
                         df_stats = pd.DataFrame(summary_data)
-                        st.dataframe(df_stats, width='stretch')
+                        apply_table_styling()
+                        st.dataframe(df_stats, use_container_width=True)
                 
                 # Display individual sample data
                 st.markdown("### 📋 Individual Sample Data")
@@ -1422,7 +1432,8 @@ def display_leaf_data_table(leaf_data):
                 
                 if df_data:
                     df = pd.DataFrame(df_data)
-                    st.dataframe(df, width='stretch')
+                    apply_table_styling()
+                    st.dataframe(df, use_container_width=True)
                 else:
                     st.info("📋 No sample data found in leaf analysis.")
             else:
@@ -1431,7 +1442,8 @@ def display_leaf_data_table(leaf_data):
             # Handle list of parameter-value pairs
             if extracted_data:
                 df = pd.DataFrame(extracted_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
             else:
                 st.info("📋 No leaf parameters extracted.")
         else:
@@ -1533,6 +1545,13 @@ def display_summary_section(results_data):
     # 16-18: Yield and economic implications
     current_yield = land_yield_data.get('current_yield', 0)
     land_size = land_yield_data.get('land_size', 0)
+    
+    # Ensure current_yield is numeric
+    try:
+        current_yield = float(current_yield) if current_yield is not None else 0
+    except (ValueError, TypeError):
+        current_yield = 0
+    
     if current_yield and land_size:
         summary_sentences.append(f"Current yield performance of {current_yield} tonnes per hectare across {land_size} hectares {'exceeds' if current_yield > 20 else 'falls below'} industry benchmarks, with nutritional corrections potentially {'maintaining' if current_yield > 20 else 'improving'} production by 15-25%.")
     else:
@@ -2160,6 +2179,18 @@ def generate_intelligent_key_findings(analysis_results, step_results):
     if yield_forecast:
         projected_yield = yield_forecast.get('projected_yield', 0)
         current_yield = yield_forecast.get('current_yield', 0)
+        
+        # Ensure both values are numeric
+        try:
+            projected_yield = float(projected_yield) if projected_yield is not None else 0
+        except (ValueError, TypeError):
+            projected_yield = 0
+            
+        try:
+            current_yield = float(current_yield) if current_yield is not None else 0
+        except (ValueError, TypeError):
+            current_yield = 0
+            
         if projected_yield > 0 and current_yield > 0:
             increase = ((projected_yield - current_yield) / current_yield) * 100
             all_key_findings.append({
@@ -2761,6 +2792,7 @@ def display_enhanced_step_result(step_result, step_number):
                 # Create a DataFrame for better display
                 import pandas as pd
                 df = pd.DataFrame(table['rows'], columns=table['headers'])
+                apply_table_styling()
                 st.dataframe(df, use_container_width=True)
                 st.markdown("")
     
@@ -2937,9 +2969,9 @@ def should_show_visualizations(step_result):
     if should_show_forecast_graph(step_result):
         return False
     
-    # Get step number and exclude step 4 and step 5 (Economic Impact & ROI Analysis)
+    # Get step number and exclude steps 3-6 (Solution Recommendations, Regenerative Agriculture, Economic Impact, Yield Forecast)
     step_number = step_result.get('step_number', 0)
-    if step_number == 4 or step_number == 5:
+    if step_number >= 3 and step_number <= 6:
         return False
     
     # Get step content
@@ -4620,7 +4652,26 @@ def display_step1_data_analysis(analysis_data):
     # 4. NUTRIENT STATUS TABLES - This is the key addition
     display_nutrient_status_tables(analysis_data)
     
-    # 5. VISUALIZATIONS
+    # 4.5. DATA ECHO TABLE - Complete Parameter Analysis
+    display_data_echo_table(analysis_data)
+    
+    # 5. DETAILED TABLES SECTION
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("""<div style="background: linear-gradient(135deg, #6c757d, #495057); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Detailed Tables</h4>
+        </div>""", unsafe_allow_html=True)
+        
+        tables = analysis_data['tables']
+        if isinstance(tables, list):
+            for table in tables:
+                if isinstance(table, dict) and 'title' in table:
+                    display_table(table)
+        elif isinstance(tables, dict):
+            for table_key, table_data in tables.items():
+                if isinstance(table_data, dict) and 'title' in table_data:
+                    display_table(table_data)
+    
+    # 6. VISUALIZATIONS
     if 'visualizations' in analysis_data and analysis_data['visualizations']:
         st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
             <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
@@ -4641,6 +4692,126 @@ def display_step1_data_analysis(analysis_data):
         except Exception as e:
             logger.error(f"Error displaying visualizations: {e}")
             st.error("Error displaying visualizations")
+
+def display_table(table_data):
+    """Display a table with proper formatting and borders"""
+    try:
+        if 'title' in table_data:
+            st.markdown(f"### {table_data['title']}")
+        
+        if 'subtitle' in table_data:
+            st.markdown(f"*{table_data['subtitle']}*")
+        
+        if 'headers' in table_data and 'rows' in table_data:
+            headers = table_data['headers']
+            rows = table_data['rows']
+            
+            # Create DataFrame with proper styling
+            import pandas as pd
+            df = pd.DataFrame(rows, columns=headers)
+            
+            # Display with borders and proper formatting
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True
+            )
+        
+        if 'note' in table_data:
+            st.markdown(f"*Note: {table_data['note']}*")
+            
+    except Exception as e:
+        logger.error(f"Error displaying table: {e}")
+        st.error("Error displaying table")
+
+def apply_table_styling():
+    """Apply consistent table styling across all tables"""
+    st.markdown("""
+    <style>
+    .dataframe {
+        border-collapse: collapse;
+        border: 2px solid #ddd;
+        width: 100%;
+        margin: 10px 0;
+    }
+    .dataframe th, .dataframe td {
+        border: 1px solid #ddd;
+        padding: 12px 8px;
+        text-align: left;
+        font-size: 14px;
+    }
+    .dataframe th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        color: #495057;
+    }
+    .dataframe tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    .dataframe tr:hover {
+        background-color: #e9ecef;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+def display_data_echo_table(analysis_data):
+    """Display Data Echo Table - Complete Parameter Analysis"""
+    st.markdown("### 📊 Data Echo Table - Complete Parameter Analysis")
+    
+    # Get raw data from analysis
+    raw_data = analysis_data.get('raw_data', {})
+    soil_data = raw_data.get('soil_parameters', {})
+    leaf_data = raw_data.get('leaf_parameters', {})
+    
+    # Create comprehensive parameter table
+    echo_data = []
+    
+    # Soil parameters
+    if soil_data and 'parameter_statistics' in soil_data:
+        stats = soil_data['parameter_statistics']
+        for param_name, param_data in stats.items():
+            if isinstance(param_data, dict):
+                echo_data.append({
+                    'Parameter': param_name,
+                    'Type': 'Soil',
+                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'N/A',
+                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'N/A',
+                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'N/A',
+                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'N/A',
+                    'Unit': param_data.get('unit', ''),
+                    'Samples': param_data.get('count', 0)
+                })
+    
+    # Leaf parameters
+    if leaf_data and 'parameter_statistics' in leaf_data:
+        stats = leaf_data['parameter_statistics']
+        for param_name, param_data in stats.items():
+            if isinstance(param_data, dict):
+                echo_data.append({
+                    'Parameter': param_name,
+                    'Type': 'Leaf',
+                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'N/A',
+                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'N/A',
+                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'N/A',
+                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'N/A',
+                    'Unit': param_data.get('unit', ''),
+                    'Samples': param_data.get('count', 0)
+                })
+    
+    if echo_data:
+        import pandas as pd
+        df = pd.DataFrame(echo_data)
+        
+        # Apply consistent styling
+        apply_table_styling()
+        
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("📋 No parameter data available for Data Echo Table.")
 
 def display_nutrient_status_tables(analysis_data):
     """Display Soil and Leaf Nutrient Status tables"""
@@ -4746,7 +4917,8 @@ def display_nutrient_status_tables(analysis_data):
         
         if soil_data:
             df_soil = pd.DataFrame(soil_data)
-            st.dataframe(df_soil, width='stretch', use_container_width=True)
+            apply_table_styling()
+            st.dataframe(df_soil, use_container_width=True)
     
     # Display Leaf Nutrient Status table
     if any(p is not None for p in leaf_params):
@@ -4776,7 +4948,8 @@ def display_nutrient_status_tables(analysis_data):
         
         if leaf_data:
             df_leaf = pd.DataFrame(leaf_data)
-            st.dataframe(df_leaf, width='stretch', use_container_width=True)
+            apply_table_styling()
+            st.dataframe(df_leaf, use_container_width=True)
 
 def display_data_analysis_content(analysis_data):
     """Display Step 1: Data Analysis content"""
@@ -5380,6 +5553,7 @@ def display_step3_solution_recommendations(analysis_data):
                 # Create a DataFrame for better display
                 import pandas as pd
                 df = pd.DataFrame(table['rows'], columns=table['headers'])
+                apply_table_styling()
                 st.dataframe(df, use_container_width=True)
                 st.markdown("")
     
@@ -5607,7 +5781,8 @@ def display_economic_impact_content(analysis_data):
             if scenarios_data:
                 import pandas as pd
                 df = pd.DataFrame(scenarios_data)
-                st.dataframe(df, width='stretch')
+                apply_table_styling()
+                st.dataframe(df, use_container_width=True)
                 
                 # Add assumptions
                 assumptions = econ_forecast.get('assumptions', [])
@@ -5705,123 +5880,71 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 )
             
             # Add lines for different investment approaches. Ensure Year 0 matches baseline.
-            if 'high_investment' in forecast:
-                hi = forecast['high_investment']
-                if isinstance(hi, list) and len(hi) >= 6:
-                    # Old array format
-                    if len(hi) >= 1 and isinstance(hi[0], (int, float)) and baseline_yield and hi[0] != baseline_yield:
-                        hi = [baseline_yield] + hi[1:]
-                    fig.add_trace(go.Scatter(
-                        x=years,
-                        y=hi,
-                        mode='lines+markers',
-                        name='High Investment',
-                        line=dict(color='#e74c3c', width=3),
-                        marker=dict(size=8)
-                    ))
-                elif isinstance(hi, dict):
-                    # New range format - extract numeric values for plotting
-                    hi_values = [baseline_yield]  # Start with baseline
-                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
-                        if year in hi:
-                            try:
-                                range_str = hi[year]
-                                if isinstance(range_str, str) and '-' in range_str:
-                                    # Extract the first number from the range
-                                    numeric_part = range_str.split('-')[0].strip()
-                                    hi_values.append(float(numeric_part))
-                                else:
-                                    hi_values.append(float(range_str))
-                            except (ValueError, TypeError):
-                                hi_values.append(baseline_yield)
-                        else:
-                            hi_values.append(baseline_yield)
-                    fig.add_trace(go.Scatter(
-                        x=years,
-                        y=hi_values,
-                        mode='lines+markers',
-                        name='High Investment',
-                        line=dict(color='#e74c3c', width=3),
-                        marker=dict(size=8)
-                    ))
+            # Always add all three investment lines, even if data is missing
+            investment_scenarios = [
+                ('high_investment', 'High Investment', '#e74c3c'),
+                ('medium_investment', 'Medium Investment', '#f39c12'),
+                ('low_investment', 'Low Investment', '#27ae60')
+            ]
             
-            if 'medium_investment' in forecast:
-                mi = forecast['medium_investment']
-                if isinstance(mi, list) and len(mi) >= 6:
-                    # Old array format
-                    if len(mi) >= 1 and isinstance(mi[0], (int, float)) and baseline_yield and mi[0] != baseline_yield:
-                        mi = [baseline_yield] + mi[1:]
+            for scenario_key, scenario_name, color in investment_scenarios:
+                if scenario_key in forecast:
+                    scenario_data = forecast[scenario_key]
+                    if isinstance(scenario_data, list) and len(scenario_data) >= 6:
+                        # Old array format
+                        if len(scenario_data) >= 1 and isinstance(scenario_data[0], (int, float)) and baseline_yield and scenario_data[0] != baseline_yield:
+                            scenario_data = [baseline_yield] + scenario_data[1:]
+                        fig.add_trace(go.Scatter(
+                            x=years,
+                            y=scenario_data,
+                            mode='lines+markers',
+                            name=scenario_name,
+                            line=dict(color=color, width=3),
+                            marker=dict(size=8)
+                        ))
+                    elif isinstance(scenario_data, dict):
+                        # New range format - extract numeric values for plotting
+                        scenario_values = [baseline_yield]  # Start with baseline
+                        for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                            if year in scenario_data:
+                                try:
+                                    range_str = scenario_data[year]
+                                    if isinstance(range_str, str) and '-' in range_str:
+                                        # Extract the first number from the range
+                                        numeric_part = range_str.split('-')[0].strip()
+                                        scenario_values.append(float(numeric_part))
+                                    else:
+                                        scenario_values.append(float(range_str))
+                                except (ValueError, TypeError):
+                                    scenario_values.append(baseline_yield)
+                            else:
+                                scenario_values.append(baseline_yield)
+                        fig.add_trace(go.Scatter(
+                            x=years,
+                            y=scenario_values,
+                            mode='lines+markers',
+                            name=scenario_name,
+                            line=dict(color=color, width=3),
+                            marker=dict(size=8)
+                        ))
+                else:
+                    # Generate fallback data if scenario is missing
+                    st.warning(f"⚠️ {scenario_name} data not found, generating fallback projection")
+                    fallback_values = [baseline_yield]
+                    for i in range(1, 6):
+                        if scenario_key == 'high_investment':
+                            fallback_values.append(baseline_yield * (1 + 0.05 * i))  # 5% increase per year
+                        elif scenario_key == 'medium_investment':
+                            fallback_values.append(baseline_yield * (1 + 0.03 * i))  # 3% increase per year
+                        else:  # low_investment
+                            fallback_values.append(baseline_yield * (1 + 0.02 * i))  # 2% increase per year
+                    
                     fig.add_trace(go.Scatter(
                         x=years,
-                        y=mi,
+                        y=fallback_values,
                         mode='lines+markers',
-                        name='Medium Investment',
-                        line=dict(color='#f39c12', width=3),
-                        marker=dict(size=8)
-                    ))
-                elif isinstance(mi, dict):
-                    # New range format - extract numeric values for plotting
-                    mi_values = [baseline_yield]  # Start with baseline
-                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
-                        if year in mi:
-                            try:
-                                range_str = mi[year]
-                                if isinstance(range_str, str) and '-' in range_str:
-                                    # Extract the first number from the range
-                                    numeric_part = range_str.split('-')[0].strip()
-                                    mi_values.append(float(numeric_part))
-                                else:
-                                    mi_values.append(float(range_str))
-                            except (ValueError, TypeError):
-                                mi_values.append(baseline_yield)
-                        else:
-                            mi_values.append(baseline_yield)
-                    fig.add_trace(go.Scatter(
-                        x=years,
-                        y=mi_values,
-                        mode='lines+markers',
-                        name='Medium Investment',
-                        line=dict(color='#f39c12', width=3),
-                        marker=dict(size=8)
-                    ))
-            
-            if 'low_investment' in forecast:
-                li = forecast['low_investment']
-                if isinstance(li, list) and len(li) >= 6:
-                    # Old array format
-                    if len(li) >= 1 and isinstance(li[0], (int, float)) and baseline_yield and li[0] != baseline_yield:
-                        li = [baseline_yield] + li[1:]
-                    fig.add_trace(go.Scatter(
-                        x=years,
-                        y=li,
-                        mode='lines+markers',
-                        name='Low Investment',
-                        line=dict(color='#27ae60', width=3),
-                        marker=dict(size=8)
-                    ))
-                elif isinstance(li, dict):
-                    # New range format - extract numeric values for plotting
-                    li_values = [baseline_yield]  # Start with baseline
-                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
-                        if year in li:
-                            try:
-                                range_str = li[year]
-                                if isinstance(range_str, str) and '-' in range_str:
-                                    # Extract the first number from the range
-                                    numeric_part = range_str.split('-')[0].strip()
-                                    li_values.append(float(numeric_part))
-                                else:
-                                    li_values.append(float(range_str))
-                            except (ValueError, TypeError):
-                                li_values.append(baseline_yield)
-                        else:
-                            li_values.append(baseline_yield)
-                    fig.add_trace(go.Scatter(
-                        x=years,
-                        y=li_values,
-                        mode='lines+markers',
-                        name='Low Investment',
-                        line=dict(color='#27ae60', width=3),
+                        name=f"{scenario_name} (Fallback)",
+                        line=dict(color=color, width=3, dash='dash'),
                         marker=dict(size=8)
                     ))
             
@@ -6013,7 +6136,8 @@ def display_economic_forecast(economic_forecast):
         
         if scenarios_data:
             df = pd.DataFrame(scenarios_data)
-            st.dataframe(df, width='stretch')
+            apply_table_styling()
+            st.dataframe(df, use_container_width=True)
 
 def display_recommendations_details(analysis_data):
     """Display detailed recommendations"""
@@ -6082,7 +6206,8 @@ def display_economic_analysis(analysis_data):
     
     if scenarios_data:
         df = pd.DataFrame(scenarios_data)
-        st.dataframe(df, width='stretch')
+        apply_table_styling()
+        st.dataframe(df, use_container_width=True)
         
         # Summary metrics
         st.markdown("### 📊 Economic Summary")
@@ -6185,7 +6310,8 @@ def display_forecast_visualization(analysis_data):
             table_data.append(row)
         
         df = pd.DataFrame(table_data)
-        st.dataframe(df, width='stretch')
+        apply_table_styling()
+        st.dataframe(df, use_container_width=True)
 
 def display_multi_axis_chart(data, title, options):
     """Display multi-axis chart visualization"""
