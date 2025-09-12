@@ -3496,18 +3496,7 @@ class PDFReportGenerator:
         
         economic_data = self._extract_economic_data(analysis_data)
         
-        # Debug: Log what we found
-        if economic_data:
-            print(f"PDF Debug - Found economic_data: {list(economic_data.keys())}")
-            if 'scenarios' in economic_data:
-                print(f"PDF Debug - Found scenarios: {list(economic_data['scenarios'].keys())}")
-                for key, value in economic_data['scenarios'].items():
-                    if isinstance(value, dict):
-                        print(f"PDF Debug - Scenario {key}: {list(value.keys())}")
-            else:
-                print("PDF Debug - No scenarios found in economic_data")
-        else:
-            print("PDF Debug - No economic_data found")
+        # Check if economic data is available
         
         if economic_data and 'scenarios' in economic_data:
             scenarios = economic_data['scenarios']

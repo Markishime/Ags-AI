@@ -195,10 +195,6 @@ def upload_section():
                                 st.warning("⚠️ No samples detected in soil report")
                         else:
                             st.error(f"❌ OCR extraction failed: {ocr_preview.get('error', 'Unknown error')}")
-                            # Show debug info if available
-                            if 'debug_info' in ocr_preview:
-                                with st.expander("🔍 Debug Information", expanded=False):
-                                    st.json(ocr_preview['debug_info'])
                     except Exception as e:
                         st.error(f"❌ OCR Preview Error: {str(e)}")
                         st.exception(e)
@@ -282,10 +278,6 @@ def upload_section():
                                 st.warning("⚠️ No samples detected in leaf report")
                         else:
                             st.error(f"❌ OCR extraction failed: {ocr_preview.get('error', 'Unknown error')}")
-                            # Show debug info if available
-                            if 'debug_info' in ocr_preview:
-                                with st.expander("🔍 Debug Information", expanded=False):
-                                    st.json(ocr_preview['debug_info'])
                     except Exception as e:
                         st.error(f"❌ OCR Preview Error: {str(e)}")
                         st.exception(e)

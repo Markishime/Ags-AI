@@ -381,29 +381,18 @@ def show_results_page():
                     padding: 15px; border-radius: 10px; margin-bottom: 20px; 
                     text-align: center; animation: pulse 2s infinite;">
                     <h4 style="color: white; margin: 0; font-size: 18px;">
-                        🔄 System Status: 
-                        <span style="color: #ffeb3b; animation: blink 1s infinite;">
-                            ACTIVELY PROCESSING
-                        </span>
+                        🔄 Analysis in Progress
                     </h4>
                     <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; 
                         font-size: 14px;">
-                        Our AI is working hard to analyze your data. Please wait...
+                        Our AI is analyzing your agricultural data. Please wait...
                     </p>
-                    <div style="margin-top: 10px;">
-                        <span style="color: #4caf50; font-size: 12px;">💚 System Heartbeat: Active</span>
-                        <span style="color: #ffeb3b; font-size: 12px; margin-left: 15px;">⚡ Processing Power: High</span>
-                    </div>
                 </div>
                 <style>
                     @keyframes pulse {
                         0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
                         70% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
                         100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
-                    }
-                    @keyframes blink {
-                        0%, 50% { opacity: 1; }
-                        51%, 100% { opacity: 0.5; }
                     }
                 </style>
                 """, unsafe_allow_html=True)
@@ -590,7 +579,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             indicator = loading_indicators[i % len(loading_indicators)]
             status_text.text(f"🔍 **Step 1/8:** Validating uploaded files... {indicator}")
             if working_indicator:
-                working_indicator.markdown(f"🔄 **System Status:** {indicator} Processing... | ⏱️ Active")
+                working_indicator.markdown(f"🔄 **Processing:** {indicator}")
             time.sleep(0.5)
         
         
@@ -618,7 +607,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~2 minutes")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         # Convert uploaded file to PIL Image for OCR processing
         from PIL import Image
@@ -645,7 +634,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~90 seconds")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         # Convert uploaded file to PIL Image for OCR processing
         leaf_image = Image.open(leaf_file)
@@ -816,7 +805,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~75 seconds")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         # Get active prompt
         active_prompt = get_active_prompt()
@@ -830,7 +819,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~60 seconds")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         analysis_engine = AnalysisEngine()
         
@@ -854,14 +843,14 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             phase = analysis_phases[i % len(analysis_phases)]
             status_text.text(f"🔬 **Step 6/8:** Running comprehensive agricultural analysis... {indicator}")
             time_estimate.text(f"⏱️ {phase} (~{45 - (i * 6)} seconds remaining)")
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed - {phase}")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps} - {phase}")
             time.sleep(0.8)
         
         status_text.text("🔬 **Step 6/8:** Running comprehensive agricultural analysis... ✅")
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~45 seconds")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         analysis_results = analysis_engine.generate_comprehensive_analysis(
             soil_data=soil_data,
@@ -887,14 +876,14 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             phase = insight_phases[i % len(insight_phases)]
             status_text.text(f"📈 **Step 7/8:** Generating insights and recommendations... {indicator}")
             time_estimate.text(f"⏱️ {phase} (~{20 - (i * 4)} seconds remaining)")
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed - {phase}")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps} - {phase}")
             time.sleep(0.7)
         
         status_text.text("📈 **Step 7/8:** Generating insights and recommendations... ✅")
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~20 seconds")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         # Step 8: Saving Results with animation
         current_step = 8
@@ -913,14 +902,14 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             phase = saving_phases[i % len(saving_phases)]
             status_text.text(f"💾 **Step 8/8:** Saving analysis results to database... {indicator}")
             time_estimate.text(f"⏱️ {phase} (~{10 - (i * 2)} seconds remaining)")
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed - {phase}")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps} - {phase}")
             time.sleep(0.5)
         
         status_text.text("💾 **Step 8/8:** Saving analysis results to database... ✅")
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~10 seconds")
         if step_indicator:
-            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         user_email = st.session_state.get('user_email')
         if not user_email:
@@ -938,16 +927,16 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             indicator = completion_indicators[i % len(completion_indicators)]
             status_text.text(f"🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. {indicator}")
             if working_indicator:
-                working_indicator.markdown(f"🎉 **System Status:** {indicator} Analysis Complete! | 🏆 SUCCESS!")
+                working_indicator.markdown(f"🎉 **Analysis Complete!** {indicator}")
             time.sleep(0.4)
         
         status_text.text("🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. ✅")
         if time_estimate:
-            time_estimate.text("⏱️ **Completed!** Total processing time: ~2-3 minutes")
+            time_estimate.text("⏱️ **Analysis Complete!**")
         if step_indicator:
-            step_indicator.text(f"✅ **All {total_steps} steps completed successfully!**")
+            step_indicator.text(f"✅ **Analysis Complete!**")
         if working_indicator:
-            working_indicator.markdown("🏆 **System Status:** Analysis Complete! | ✅ Ready for Results")
+            working_indicator.markdown("✅ **Analysis Complete!**")
         
         # Store analysis results in session state to avoid Firebase validation issues
         # This completely bypasses any Firebase serialization that might cause nested entity errors
@@ -1121,7 +1110,6 @@ def display_raw_data_section(results_data):
             display_leaf_data_table(leaf_data)
     else:
         st.info("📋 No raw data available for this analysis.")
-        st.write("**Debug Info:**")
         st.write(f"Results data keys: {list(results_data.keys())}")
         if analysis_results:
             st.write(f"Analysis results keys: {list(analysis_results.keys())}")
@@ -3849,8 +3837,6 @@ def display_bar_chart(data, title):
                 else:
                     st.info("💡 No recognized category keys found. Please check the data structure.")
                 
-                # Show detailed debugging information
-                st.markdown("### 🔍 Debug Information")
                 for key, value in data.items():
                     st.markdown(f"**{key}:** {type(value)} - {str(value)[:100]}{'...' if len(str(value)) > 100 else ''}")
                 
@@ -7187,8 +7173,8 @@ def _removed_display_print_dialog(results_data):
             st.markdown(f"📅 **Date:** {results_data.get('timestamp', 'N/A')}")
             st.markdown(f"📊 **Sections:** {sum([include_raw_data, include_summary, include_key_findings, include_step_analysis, include_references, include_charts])} selected")
             
-            # Debug information
-            if st.checkbox("🔍 Show Debug Info", help="Show data structure information for troubleshooting"):
+            # Additional information
+            if st.checkbox("🔍 Show Additional Info", help="Show additional information about the analysis"):
                 st.markdown("**Data Structure:**")
                 analysis_results = get_analysis_results_from_data(results_data)
                 st.markdown(f"• Analysis Results: {'✅' if analysis_results else '❌'}")

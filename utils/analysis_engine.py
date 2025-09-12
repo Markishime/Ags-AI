@@ -315,11 +315,19 @@ class StandardsComparator:
                     # Determine overall issue status
                     if avg_value < min_val:
                         status = "Deficient"
-                        severity = "High" if critical else "Medium"
+                        # Use Critical severity for critical parameters that are severely deficient
+                        if critical and avg_value < (min_val * 0.5):  # More than 50% below minimum
+                            severity = "Critical"
+                        else:
+                            severity = "High" if critical else "Medium"
                         impact = f"Below optimal range ({min_val}-{max_val})"
                     elif avg_value > max_val:
                         status = "Excessive"
-                        severity = "High" if critical else "Medium"
+                        # Use Critical severity for critical parameters that are severely excessive
+                        if critical and avg_value > (max_val * 2.0):  # More than 200% above maximum
+                            severity = "Critical"
+                        else:
+                            severity = "High" if critical else "Medium"
                         impact = f"Above optimal range ({min_val}-{max_val})"
                     else:
                         # Average is in range but some samples are out of range
@@ -415,11 +423,19 @@ class StandardsComparator:
                     # Determine overall issue status
                     if avg_value < min_val:
                         status = "Deficient"
-                        severity = "High" if critical else "Medium"
+                        # Use Critical severity for critical parameters that are severely deficient
+                        if critical and avg_value < (min_val * 0.5):  # More than 50% below minimum
+                            severity = "Critical"
+                        else:
+                            severity = "High" if critical else "Medium"
                         impact = f"Below optimal range ({min_val}-{max_val})"
                     elif avg_value > max_val:
                         status = "Excessive"
-                        severity = "High" if critical else "Medium"
+                        # Use Critical severity for critical parameters that are severely excessive
+                        if critical and avg_value > (max_val * 2.0):  # More than 200% above maximum
+                            severity = "Critical"
+                        else:
+                            severity = "High" if critical else "Medium"
                         impact = f"Above optimal range ({min_val}-{max_val})"
                     else:
                         # Average is in range but some samples are out of range
