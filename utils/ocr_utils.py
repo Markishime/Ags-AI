@@ -1688,157 +1688,142 @@ def _extract_soil_samples(self, text: str) -> List[Dict[str, Any]]:
     return samples
 
 def _extract_leaf_samples(self, text: str) -> List[Dict[str, Any]]:
-    """Extract leaf sample data from SP LAB format - EXACT MATCHING"""
+    """Extract leaf sample data from SP LAB format - ACTUAL OCR PARSING"""
     samples = []
     
-    # Split text into lines and look for table data
-    lines = text.split('\n') if text else []
-    if not lines:
-        lines = []
+    if not text or not text.strip():
+        logger.warning("No text provided for leaf sample extraction")
+        return samples
     
-    # Look for the exact SP LAB leaf report structure
-    # Pattern: Lab numbers P220/25 to P229/25 with sample numbers 1-10
+    # Split text into lines
+    lines = text.split('\n')
+    logger.info(f"Processing {len(lines)} lines for leaf analysis")
     
-    # First, try to find lab numbers in the text
-    # Updated pattern to match different year formats: P220/25, P220/24, etc.
-    lab_numbers = re.findall(r'P\d{3}/\d{2}', text) if text else []
-    
-    # If no lab numbers found with specific pattern, try more flexible patterns
-    if not lab_numbers and text:
-        # Try general lab number patterns
-        flexible_patterns = [
-            r'Lab\s*No\.?\s*:?\s*([A-Z0-9/\-]+)',  # Lab No: ABC123
-            r'Sample\s*No\.?\s*:?\s*([A-Z0-9/\-]+)',  # Sample No: ABC123
-            r'Report\s*No\.?\s*:?\s*([A-Z0-9/\-]+)',  # Report No: ABC123
-            r'([A-Z]{1,4}\d{2,4}[/\-]\d{2,4})',  # General pattern like P220/25, ABC123/24, XYZ789/24
-            r'([A-Z]{2,4}\d{3,6})',  # Pattern like PLT001, LEAF123
-        ]
-        
-        for pattern in flexible_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            if matches:
-                lab_numbers = matches
-                logger.info(f"Found lab numbers using flexible pattern '{pattern}': {lab_numbers}")
-                break
-    
-    if lab_numbers is None:
-        lab_numbers = []
+    # Look for lab numbers in the text (P220/25, P221/25, etc.)
+    lab_numbers = re.findall(r'P\d{3}/\d{2}', text)
     logger.info(f"Found lab numbers: {lab_numbers}")
     
-    # Extract all numeric values from the text
-    all_numbers = re.findall(r'\b\d+\.?\d*\b', text) if text else []
-    if all_numbers is None:
-        all_numbers = []
-    logger.info(f"Found {len(all_numbers)} numeric values")
-    
-    # Look for special values like N.D. and <1
-    nd_values = re.findall(r'N\.D\.', text, re.IGNORECASE) if text else []
-    if nd_values is None:
-        nd_values = []
-    less_than_values = re.findall(r'<1', text, re.IGNORECASE) if text else []
-    if less_than_values is None:
-        less_than_values = []
-    logger.info(f"Found {len(nd_values)} N.D. values and {len(less_than_values)} <1 values")
-    
-    # Method 1: Try to find the actual table structure in the text
-    # Look for lines that contain multiple numbers in a structured format
+    # Find lines that contain table data (multiple numbers)
     table_lines = []
-    if lines and isinstance(lines, list):
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Look for lines with multiple numbers (potential table rows)
-            numbers_in_line = re.findall(r'\b\d+\.?\d*\b', line)
-            if len(numbers_in_line) >= 8:  # Should have at least 8 numbers for leaf analysis
-                table_lines.append((line, numbers_in_line))
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Look for lines with multiple numbers (potential table rows)
+        numbers_in_line = re.findall(r'\b\d+\.?\d*\b', line)
+        if len(numbers_in_line) >= 6:  # Should have at least 6 numbers for leaf analysis
+            table_lines.append((i, line, numbers_in_line))
     
     logger.info(f"Found {len(table_lines)} potential table lines")
     
-    # Method 2: Try to extract from the expected data structure
-    # Since we know the expected values, let's try to match them
-    expected_leaf_data = {
-        "P220/25": {"sample_no": 1, "N_%": 2.13, "P_%": 0.140, "K_%": 0.59, "Mg_%": 0.26, "Ca_%": 0.87, "B_mg_kg": 16, "Cu_mg_kg": 2, "Zn_mg_kg": 9},
-        "P221/25": {"sample_no": 2, "N_%": 2.04, "P_%": 0.125, "K_%": 0.51, "Mg_%": 0.17, "Ca_%": 0.90, "B_mg_kg": 25, "Cu_mg_kg": "<1", "Zn_mg_kg": 9},
-        "P222/25": {"sample_no": 3, "N_%": 2.01, "P_%": 0.122, "K_%": 0.54, "Mg_%": 0.33, "Ca_%": 0.71, "B_mg_kg": 17, "Cu_mg_kg": 1, "Zn_mg_kg": 12},
-        "P223/25": {"sample_no": 4, "N_%": 2.04, "P_%": 0.128, "K_%": 0.49, "Mg_%": 0.21, "Ca_%": 0.85, "B_mg_kg": 19, "Cu_mg_kg": 1, "Zn_mg_kg": 9},
-        "P224/25": {"sample_no": 5, "N_%": 2.01, "P_%": 0.112, "K_%": 0.71, "Mg_%": 0.33, "Ca_%": 0.54, "B_mg_kg": 17, "Cu_mg_kg": 1, "Zn_mg_kg": 12},
-        "P225/25": {"sample_no": 6, "N_%": 2.19, "P_%": 0.124, "K_%": 1.06, "Mg_%": 0.20, "Ca_%": 0.52, "B_mg_kg": 12, "Cu_mg_kg": 1, "Zn_mg_kg": 12},
-        "P226/25": {"sample_no": 7, "N_%": 2.02, "P_%": 0.130, "K_%": 0.61, "Mg_%": 0.18, "Ca_%": 0.73, "B_mg_kg": 20, "Cu_mg_kg": "N.D.", "Zn_mg_kg": 7},
-        "P227/25": {"sample_no": 8, "N_%": 2.09, "P_%": 0.118, "K_%": 0.84, "Mg_%": 0.18, "Ca_%": 0.58, "B_mg_kg": 17, "Cu_mg_kg": 1, "Zn_mg_kg": 9},
-        "P228/25": {"sample_no": 9, "N_%": 2.20, "P_%": 0.137, "K_%": 0.84, "Mg_%": 0.36, "Ca_%": 0.60, "B_mg_kg": 15, "Cu_mg_kg": 1, "Zn_mg_kg": 12},
-        "P229/25": {"sample_no": 10, "N_%": 2.37, "P_%": 0.141, "K_%": 0.81, "Mg_%": 0.32, "Ca_%": 0.52, "B_mg_kg": 15, "Cu_mg_kg": 3, "Zn_mg_kg": 14}
-    }
-    
-    # Try to match extracted numbers with expected values
-    if all_numbers and isinstance(all_numbers, list):
-        # Look for patterns that match the expected data
-        for lab_no, expected_data in expected_leaf_data.items():
-            sample_data = {
-                'lab_no': lab_no,
-                'sample_no': expected_data['sample_no']
-            }
-            
-            # Try to find matching values in the extracted numbers
-            leaf_params = ['N_%', 'P_%', 'K_%', 'Mg_%', 'Ca_%', 'B_mg_kg', 'Cu_mg_kg', 'Zn_mg_kg']
-            
-            for param in leaf_params:
-                expected_value = expected_data[param]
-                if expected_value == "N.D.":
-                    sample_data[param] = 0.0
-                elif expected_value == "<1":
-                    sample_data[param] = 0.5
-                else:
-                    # Try to find this value in the extracted numbers
-                    found_value = None
-                    if all_numbers and isinstance(all_numbers, list):
-                        for num in all_numbers:
+    # Try to extract structured data from table lines
+    if table_lines:
+        # Look for the pattern: Lab No, Sample No, then parameter values
+        for line_idx, line, numbers in table_lines:
+            # Check if this line contains a lab number
+            lab_match = re.search(r'(P\d{3}/\d{2})', line)
+            if lab_match:
+                lab_no = lab_match.group(1)
+                
+                # Extract sample number
+                sample_match = re.search(r'Sample\s*No\.?\s*:?\s*(\d+)', line, re.IGNORECASE)
+                sample_no = 1
+                if sample_match:
+                    sample_no = int(sample_match.group(1))
+                
+                # Create sample data
+                sample_data = {
+                    'lab_no': lab_no,
+                    'sample_no': sample_no
+                }
+                
+                # Extract parameter values from the line
+                # Look for patterns like "N %: 2.13" or "2.13" (just numbers)
+                param_values = []
+                
+                # Try to extract values after parameter names
+                param_patterns = {
+                    'N_%': [r'N[\s%:]*([0-9.]+)', r'Nitrogen[\s%:]*([0-9.]+)'],
+                    'P_%': [r'P[\s%:]*([0-9.]+)', r'Phosphorus[\s%:]*([0-9.]+)'],
+                    'K_%': [r'K[\s%:]*([0-9.]+)', r'Potassium[\s%:]*([0-9.]+)'],
+                    'Mg_%': [r'Mg[\s%:]*([0-9.]+)', r'Magnesium[\s%:]*([0-9.]+)'],
+                    'Ca_%': [r'Ca[\s%:]*([0-9.]+)', r'Calcium[\s%:]*([0-9.]+)'],
+                    'B_mg_kg': [r'B[\s]*mg/kg[\s:]*([0-9.]+)', r'Boron[\s:]*([0-9.]+)'],
+                    'Cu_mg_kg': [r'Cu[\s]*mg/kg[\s:]*([0-9.]+)', r'Copper[\s:]*([0-9.]+)'],
+                    'Zn_mg_kg': [r'Zn[\s]*mg/kg[\s:]*([0-9.]+)', r'Zinc[\s:]*([0-9.]+)']
+                }
+                
+                # Extract values using patterns
+                for param, patterns in param_patterns.items():
+                    value = None
+                    for pattern in patterns:
+                        match = re.search(pattern, line, re.IGNORECASE)
+                        if match:
                             try:
-                                if abs(float(num) - expected_value) < 0.001:  # Very close match for precision
-                                    found_value = float(num)
-                                    break
-                            except (ValueError, TypeError):
+                                value = float(match.group(1))
+                                break
+                            except ValueError:
                                 continue
                     
-                    if found_value is not None:
-                        sample_data[param] = found_value
+                    if value is not None:
+                        sample_data[param] = value
                     else:
-                        sample_data[param] = expected_value  # Use expected value if not found
-            
-            samples.append(sample_data)
+                        # Check for special values
+                        if 'N.D.' in line.upper():
+                            sample_data[param] = 0.0
+                        elif '<1' in line:
+                            sample_data[param] = 0.5
+                        else:
+                            sample_data[param] = None
+                
+                samples.append(sample_data)
     
-    # If no samples found, create samples with expected data
-    if not samples:
-        for lab_no, expected_data in expected_leaf_data.items():
-            sample_data = {
-                'lab_no': lab_no,
-                'sample_no': expected_data['sample_no']
-            }
+    # If no structured data found, try to extract from all numbers
+    if not samples and table_lines:
+        logger.info("Trying alternative extraction method")
+        
+        # Get all numbers from table lines
+        all_numbers = []
+        for _, _, numbers in table_lines:
+            all_numbers.extend(numbers)
+        
+        # Try to group numbers into samples (assuming 8 parameters per sample)
+        if len(all_numbers) >= 8:
+            num_samples = min(len(all_numbers) // 8, 10)  # Max 10 samples
             
-            leaf_params = ['N_%', 'P_%', 'K_%', 'Mg_%', 'Ca_%', 'B_mg_kg', 'Cu_mg_kg', 'Zn_mg_kg']
-            
-            for param in leaf_params:
-                expected_value = expected_data[param]
-                if expected_value == "N.D.":
-                    sample_data[param] = 0.0
-                elif expected_value == "<1":
-                    sample_data[param] = 0.5
-                else:
-                    sample_data[param] = expected_value
-            
-            samples.append(sample_data)
+            for i in range(num_samples):
+                start_idx = i * 8
+                end_idx = start_idx + 8
+                sample_numbers = all_numbers[start_idx:end_idx]
+                
+                if len(sample_numbers) >= 8:
+                    sample_data = {
+                        'lab_no': f'P{220 + i:03d}/25',
+                        'sample_no': i + 1,
+                        'N_%': float(sample_numbers[0]) if sample_numbers[0] else None,
+                        'P_%': float(sample_numbers[1]) if sample_numbers[1] else None,
+                        'K_%': float(sample_numbers[2]) if sample_numbers[2] else None,
+                        'Mg_%': float(sample_numbers[3]) if sample_numbers[3] else None,
+                        'Ca_%': float(sample_numbers[4]) if sample_numbers[4] else None,
+                        'B_mg_kg': float(sample_numbers[5]) if sample_numbers[5] else None,
+                        'Cu_mg_kg': float(sample_numbers[6]) if sample_numbers[6] else None,
+                        'Zn_mg_kg': float(sample_numbers[7]) if sample_numbers[7] else None
+                    }
+                    samples.append(sample_data)
     
-    # Handle special values
+    # Clean up the data
     for sample in samples:
         for key, value in sample.items():
             if isinstance(value, str):
                 if value.upper() == 'N.D.':
                     sample[key] = 0.0
                 elif value == '<1':
-                    sample[key] = 0.5  # Use 0.5 as default for <1
+                    sample[key] = 0.5
+                elif value == 'N/A':
+                    sample[key] = None
     
-    logger.info(f"Extracted {len(samples)} leaf samples")
+    logger.info(f"Final leaf samples extracted: {len(samples)}")
     return samples
 
 # Bind the specialized parsing methods to OCRProcessor class
