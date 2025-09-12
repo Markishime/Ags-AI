@@ -412,9 +412,7 @@ def show_results_page():
             del st.session_state.analysis_data
             
             if results_data and results_data.get('success', False):
-                # Enhanced success message
-                st.balloons()
-                st.success("🎉 Analysis completed successfully! Your comprehensive agricultural report is ready.")
+                # Clear progress container
                 progress_container.empty()
             else:
                 st.error(f"❌ Analysis failed: {results_data.get('message', 'Unknown error')}")
@@ -457,7 +455,6 @@ def show_results_page():
                         mime="application/pdf",
                         type="primary"
                     )
-                    st.success("✅ PDF report generated successfully!")
                     
                 except Exception as e:
                     st.error(f"❌ Failed to generate PDF: {str(e)}")
@@ -930,13 +927,14 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
                 working_indicator.markdown(f"🎉 **Analysis Complete!** {indicator}")
             time.sleep(0.4)
         
-        status_text.text("🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. ✅")
+        # Clear all progress indicators
+        status_text.empty()
         if time_estimate:
-            time_estimate.text("⏱️ **Analysis Complete!**")
+            time_estimate.empty()
         if step_indicator:
-            step_indicator.text(f"✅ **Analysis Complete!**")
+            step_indicator.empty()
         if working_indicator:
-            working_indicator.markdown("✅ **Analysis Complete!**")
+            working_indicator.empty()
         
         # Store analysis results in session state to avoid Firebase validation issues
         # This completely bypasses any Firebase serialization that might cause nested entity errors
@@ -1526,7 +1524,15 @@ def display_summary_section(results_data):
     high_issues = [i for i in all_issues if i.get('severity') == 'High']
     medium_issues = [i for i in all_issues if i.get('severity') == 'Medium']
     
-    summary_sentences.append(f"Critical nutritional deficiencies identified in {len(critical_issues)} parameters pose immediate threats to palm productivity and require urgent corrective measures within the next 30-60 days.")
+    if len(critical_issues) > 0:
+        critical_params = [issue['parameter'] for issue in critical_issues]
+        if len(critical_params) == 1:
+            summary_sentences.append(f"Critical nutritional deficiency identified in {critical_params[0]} poses immediate threats to palm productivity and requires urgent corrective measures within the next 30-60 days.")
+        else:
+            params_list = ", ".join(critical_params[:-1]) + f" and {critical_params[-1]}"
+            summary_sentences.append(f"Critical nutritional deficiencies identified in {len(critical_issues)} parameters ({params_list}) pose immediate threats to palm productivity and require urgent corrective measures within the next 30-60 days.")
+    else:
+        summary_sentences.append("No critical nutritional deficiencies were identified, indicating generally adequate nutrient availability for palm productivity.")
     summary_sentences.append(f"High-severity imbalances affecting {len(high_issues)} additional parameters will significantly impact yield potential if not addressed through targeted fertilization programs within 3-6 months.")
     summary_sentences.append(f"Medium-priority nutritional concerns in {len(medium_issues)} parameters suggest the need for adjusted maintenance fertilization schedules to prevent future deficiencies.")
     
@@ -2589,21 +2595,8 @@ def display_step_by_step_results(results_data):
     if total_steps > 0:
         # Show analysis progress with visual indicator
         progress_bar = st.progress(1.0)
-        st.success(f"✅ **Analysis completed successfully for all {total_steps} steps**")
         
         # Add analysis metadata
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📊 Total Steps", total_steps)
-        with col2:
-            # Get timestamp from results if available and format it properly
-            timestamp = results_data.get('timestamp', 'Recent')
-            if hasattr(timestamp, 'strftime'):
-                # Convert datetime object to string
-                formatted_timestamp = timestamp.strftime('%Y-%m-%d %H:%M')
-            else:
-                formatted_timestamp = str(timestamp) if timestamp != 'Recent' else 'Recent'
-            st.metric("⏰ Generated", formatted_timestamp)
     else:
         st.warning("⚠️ No step-by-step analysis results found. This may indicate an issue with the analysis process.")
     
@@ -2889,9 +2882,7 @@ def display_visualization(viz_data, viz_number, step_number=None):
     data = viz_data.get('data', {})
     options = viz_data.get('options', {})
     
-    # For Step 2, no visualizations are displayed
-    if step_number == 2:
-        return
+    # Visualizations are now displayed for all steps when visual keywords are present
     
     # Display title and subtitle
     st.markdown(f"### {title}")
@@ -2911,33 +2902,18 @@ def display_visualization(viz_data, viz_number, step_number=None):
     elif viz_type == 'gauge_chart':
         display_gauge_chart(data, title, options)
     elif viz_type == 'pie_chart':
-        # Skip pie charts for Step 2
-        if step_number == 2:
-            return
         display_pie_chart(data, title)
     elif viz_type == 'line_chart':
-        # Skip line charts for Step 2
-        if step_number == 2:
-            return
         display_line_chart(data, title)
     elif viz_type == 'scatter_plot':
-        # Skip scatter plots for Step 2
-        if step_number == 2:
-            return
         display_scatter_plot(data, title)
     elif viz_type == 'actual_vs_optimal_bar':
         display_actual_vs_optimal_bar(data, title, options)
     elif viz_type == 'nutrient_ratio_diagram':
         display_nutrient_ratio_diagram(data, title, options)
     elif viz_type == 'multi_axis_chart':
-        # Skip multi-axis charts for Step 2
-        if step_number == 2:
-            return
         display_multi_axis_chart(data, title, options)
     elif viz_type == 'heatmap':
-        # Skip heatmaps for Step 2
-        if step_number == 2:
-            return
         display_heatmap(data, title, options)
     else:
         st.info(f"Visualization type '{viz_type}' not yet implemented")
@@ -2983,7 +2959,7 @@ def should_show_visualizations(step_result):
     
     has_visual_keywords = any(keyword in combined_text for keyword in visual_keywords)
     
-    # Always show for Step 1, or if visual keywords detected
+    # Always show for Step 1, or if visual keywords detected (including Step 2)
     return step_number == 1 or has_visual_keywords
 
 def generate_contextual_visualizations(step_result, analysis_data):
@@ -4773,10 +4749,10 @@ def display_data_echo_table(analysis_data):
                 echo_data.append({
                     'Parameter': param_name,
                     'Type': 'Soil',
-                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'N/A',
-                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'N/A',
-                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'N/A',
-                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'N/A',
+                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'Missing',
+                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'Missing',
+                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'Missing',
+                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'Missing',
                     'Unit': param_data.get('unit', ''),
                     'Samples': param_data.get('count', 0)
                 })
@@ -4789,10 +4765,10 @@ def display_data_echo_table(analysis_data):
                 echo_data.append({
                     'Parameter': param_name,
                     'Type': 'Leaf',
-                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'N/A',
-                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'N/A',
-                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'N/A',
-                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'N/A',
+                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'Missing',
+                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'Missing',
+                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'Missing',
+                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'Missing',
                     'Unit': param_data.get('unit', ''),
                     'Samples': param_data.get('count', 0)
                 })
@@ -4824,9 +4800,9 @@ def display_data_echo_table(analysis_data):
                         'Parameter': param_name,
                         'Type': param_type,
                         'Average': f"{avg_val:.2f}",
-                        'Min': f"{min_val:.2f}" if min_val is not None else 'N/A',
-                        'Max': f"{max_val:.2f}" if max_val is not None else 'N/A',
-                        'Std Dev': f"{std_val:.2f}" if std_val is not None else 'N/A',
+                        'Min': f"{min_val:.2f}" if min_val is not None else 'Missing',
+                        'Max': f"{max_val:.2f}" if max_val is not None else 'Missing',
+                        'Std Dev': f"{std_val:.2f}" if std_val is not None else 'Missing',
                         'Unit': unit_val,
                         'Samples': count_val
                     })
@@ -4933,8 +4909,8 @@ def display_nutrient_status_tables(analysis_data):
                 computed_status = compute_status(avg_val, opt_val, param.get('parameter', label))
                 soil_data.append({
                     'Parameter': param.get('parameter', label),
-                    'Average': f"{avg_val:.2f}" if isinstance(avg_val, (int, float)) else 'N/A',
-                    'MPOB Optimal': f"{opt_val:.2f}" if isinstance(opt_val, (int, float)) else 'N/A',
+                    'Average': f"{avg_val:.2f}" if isinstance(avg_val, (int, float)) else 'Missing',
+                    'MPOB Optimal': f"{opt_val:.2f}" if isinstance(opt_val, (int, float)) else 'Missing',
                     'Status': param.get('status') or computed_status,
                     'Unit': param.get('unit', '')
                 })
@@ -4942,8 +4918,8 @@ def display_nutrient_status_tables(analysis_data):
                 # Fill missing parameter row with N/A
                 soil_data.append({
                     'Parameter': label,
-                    'Average': 'N/A',
-                    'MPOB Optimal': 'N/A',
+                    'Average': 'Missing',
+                    'MPOB Optimal': 'Missing',
                     'Status': 'Missing',
                     'Unit': ''
                 })
@@ -4964,8 +4940,8 @@ def display_nutrient_status_tables(analysis_data):
                 computed_status = compute_status(avg_val, opt_val, param.get('parameter', label))
                 leaf_data.append({
                     'Parameter': param.get('parameter', label),
-                    'Average': f"{avg_val:.2f}" if isinstance(avg_val, (int, float)) else 'N/A',
-                    'MPOB Optimal': f"{opt_val:.2f}" if isinstance(opt_val, (int, float)) else 'N/A',
+                    'Average': f"{avg_val:.2f}" if isinstance(avg_val, (int, float)) else 'Missing',
+                    'MPOB Optimal': f"{opt_val:.2f}" if isinstance(opt_val, (int, float)) else 'Missing',
                     'Status': param.get('status') or computed_status,
                     'Unit': param.get('unit', '')
                 })
@@ -4973,8 +4949,8 @@ def display_nutrient_status_tables(analysis_data):
                 # Fill missing parameter row with N/A
                 leaf_data.append({
                     'Parameter': label,
-                    'Average': 'N/A',
-                    'MPOB Optimal': 'N/A',
+                    'Average': 'Missing',
+                    'MPOB Optimal': 'Missing',
                     'Status': 'Missing',
                     'Unit': ''
                 })
