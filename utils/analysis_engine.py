@@ -661,6 +661,10 @@ class PromptAnalyzer:
             - If the step description contains the word "table" or "tables", you MUST generate detailed, accurate tables with actual sample data
             - Tables must include all available samples with their actual values and calculated statistics
             - Do not use placeholder data - use the real values from the uploaded samples
+            - CRITICAL: Table titles MUST be descriptive and specific, NOT generic like "Table 1" or "Table 2"
+            - For soil parameter tables, use titles like "Soil Parameters Summary", "Soil Analysis Results", or "Soil Nutrient Status"
+            - For leaf parameter tables, use titles like "Leaf Nutrient Analysis", "Plant Nutrient Parameters", or "Foliar Analysis Results"
+            - For comparison tables, use titles like "MPOB Standards Comparison", "Nutrient Status vs Standards", or "Parameter Comparison Analysis"
             
             FORECAST DETECTION:
             - If the step title or description contains words like "forecast", "projection", "5-year", "yield forecast", "graph", or "chart", you MUST include yield_forecast data
@@ -692,6 +696,7 @@ class PromptAnalyzer:
             23. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
             24. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
             25. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
+            26. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
             
             DATA ANALYSIS APPROACH:
             - Process each sample individually first
@@ -723,11 +728,19 @@ class PromptAnalyzer:
                     ],
                     "tables": [
                         {{
-                            "title": "Relevant table title based on step requirements - MUST be created if step mentions 'table'",
-                            "headers": ["Parameter", "Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample 5", "Sample 6", "Sample 7", "Sample 8", "Sample 9", "Sample 10", "Mean", "Range", "Standard Deviation"],
+                            "title": "Soil Parameters Summary - MUST use descriptive title based on content (e.g., 'Soil Parameters Summary', 'Leaf Nutrient Analysis', 'MPOB Standards Comparison')",
+                            "headers": ["Parameter", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "Mean", "Std Dev", "MPOB Optimum"],
                             "rows": [
-                                ["Parameter 1", "actual_value_1", "actual_value_2", "actual_value_3", "actual_value_4", "actual_value_5", "actual_value_6", "actual_value_7", "actual_value_8", "actual_value_9", "actual_value_10", "calculated_mean", "calculated_range", "calculated_std"],
-                                ["Parameter 2", "actual_value_1", "actual_value_2", "actual_value_3", "actual_value_4", "actual_value_5", "actual_value_6", "actual_value_7", "actual_value_8", "actual_value_9", "actual_value_10", "calculated_mean", "calculated_range", "calculated_std"]
+                                ["pH", "actual_value_1", "actual_value_2", "actual_value_3", "actual_value_4", "actual_value_5", "actual_value_6", "actual_value_7", "actual_value_8", "actual_value_9", "actual_value_10", "calculated_mean", "calculated_std", "4.5 - 6.5"],
+                                ["Available P (mg/kg)", "actual_value_1", "actual_value_2", "actual_value_3", "actual_value_4", "actual_value_5", "actual_value_6", "actual_value_7", "actual_value_8", "actual_value_9", "actual_value_10", "calculated_mean", "calculated_std", "> 15"]
+                            ]
+                        }},
+                        {{
+                            "title": "Leaf Nutrient Analysis - MUST use descriptive title based on content (e.g., 'Leaf Nutrient Analysis', 'Plant Nutrient Parameters', 'Foliar Analysis Results')",
+                            "headers": ["Parameter", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "Mean", "Std Dev", "MPOB Optimum"],
+                            "rows": [
+                                ["N (%)", "actual_value_1", "actual_value_2", "actual_value_3", "actual_value_4", "actual_value_5", "actual_value_6", "actual_value_7", "actual_value_8", "actual_value_9", "actual_value_10", "calculated_mean", "calculated_std", "2.5 - 2.8"],
+                                ["P (%)", "actual_value_1", "actual_value_2", "actual_value_3", "actual_value_4", "actual_value_5", "actual_value_6", "actual_value_7", "actual_value_8", "actual_value_9", "actual_value_10", "calculated_mean", "calculated_std", "0.15 - 0.19"]
                             ]
                         }}
                     ],
