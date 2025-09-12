@@ -1186,14 +1186,36 @@ def extract_data_from_image(image: Image.Image, report_type: str = 'unknown') ->
         elif 'leaf' in report_type.lower():
             parsed_data = ocr._parse_leaf_report(cleaned_text)
         else:
-            # Fallback to original method
-            parsed_data = ocr.parse_table_data(cleaned_text, report_type)
+            # Fallback to original method - convert list to dict format
+            samples_list = ocr.parse_table_data(cleaned_text, report_type)
+            parsed_data = {
+                'report_type': report_type,
+                'lab_name': 'SP LAB Sarawak Plantation Services Sdn. Bhd.',
+                'extracted_at': datetime.now().isoformat(),
+                'samples': samples_list
+            }
         
-        if not parsed_data or 'error' in parsed_data:
-            logger.error(f"Failed to parse {report_type} report: {parsed_data.get('error', 'Unknown error')}")
+        if not parsed_data or (isinstance(parsed_data, dict) and 'error' in parsed_data):
+            error_msg = 'Unknown error'
+            if isinstance(parsed_data, dict):
+                error_msg = parsed_data.get('error', 'Unknown error')
+            logger.error(f"Failed to parse {report_type} report: {error_msg}")
             return {
                 'success': False,
-                'error': f'Failed to parse {report_type} report: {parsed_data.get("error", "Unknown error")}',
+                'error': f'Failed to parse {report_type} report: {error_msg}',
+                'debug_info': {
+                    'raw_text_preview': text[:500],
+                    'report_type': report_type,
+                    'text_length': len(text)
+                }
+            }
+        
+        # Ensure parsed_data is a dictionary with proper structure
+        if not isinstance(parsed_data, dict):
+            logger.error(f"Parsed data is not a dictionary: {type(parsed_data)}")
+            return {
+                'success': False,
+                'error': 'Failed to parse report - invalid data structure',
                 'debug_info': {
                     'raw_text_preview': text[:500],
                     'report_type': report_type,
@@ -1202,7 +1224,7 @@ def extract_data_from_image(image: Image.Image, report_type: str = 'unknown') ->
             }
         
         # Validate extracted data against expected structure
-        if isinstance(parsed_data, dict) and 'samples' in parsed_data:
+        if 'samples' in parsed_data:
             samples = parsed_data['samples']
             logger.info(f"Extracted {len(samples)} samples")
             
@@ -1215,6 +1237,9 @@ def extract_data_from_image(image: Image.Image, report_type: str = 'unknown') ->
                         sample['lab_no'] = f'S{218 + i:03d}/25'
                     else:
                         sample['lab_no'] = f'P{220 + i:03d}/25'
+        else:
+            logger.warning("No samples found in parsed data")
+            parsed_data['samples'] = []
         
         # Add debug information for troubleshooting
         debug_info = {
