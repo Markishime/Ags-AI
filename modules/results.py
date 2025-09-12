@@ -2711,6 +2711,11 @@ def display_enhanced_step_result(step_result, step_number):
         display_step1_data_analysis(analysis_data)
         return
     
+    # Special handling for STEP 2 - Visual Comparison
+    if step_number == 2:
+        display_step2_visual_comparison(analysis_data)
+        return
+    
     # Special handling for STEP 3 - Solution Recommendations
     if step_number == 3:
         display_step3_solution_recommendations(analysis_data)
@@ -4654,6 +4659,99 @@ def display_step1_data_analysis(analysis_data):
         except Exception as e:
             logger.error(f"Error displaying visualizations: {e}")
             st.error("Error displaying visualizations")
+
+def display_step2_visual_comparison(analysis_data):
+    """Display Step 2: Visual Comparison with comprehensive data visualizations"""
+    # 1. SUMMARY SECTION
+    if 'summary' in analysis_data and analysis_data['summary']:
+        st.markdown("### 📋 Summary")
+        summary_text = analysis_data['summary']
+        if isinstance(summary_text, str) and summary_text.strip():
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{summary_text.strip()}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+    
+    # 2. DETAILED ANALYSIS SECTION
+    if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
+        st.markdown("### 📋 Detailed Analysis")
+        detailed_text = analysis_data['detailed_analysis']
+        
+        if isinstance(detailed_text, dict):
+            detailed_text = str(detailed_text)
+        elif not isinstance(detailed_text, str):
+            detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
+        
+        paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
+        
+        for paragraph in paragraphs:
+            if isinstance(paragraph, str) and paragraph.strip():
+                st.markdown(
+                    f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+    
+    # 3. DATA VISUALIZATIONS SECTION - Always show for Step 2
+    st.markdown("---")
+    st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
+        <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">Comprehensive visual comparisons of plantation values vs MPOB standards</p>
+    </div>""", unsafe_allow_html=True)
+    
+    # Display existing visualizations
+    if 'visualizations' in analysis_data and analysis_data['visualizations']:
+        try:
+            visualizations = analysis_data['visualizations']
+            if isinstance(visualizations, dict):
+                for i, (viz_type, viz_data) in enumerate(visualizations.items(), 1):
+                    if viz_data and isinstance(viz_data, dict):
+                        if 'type' not in viz_data:
+                            viz_data['type'] = viz_type
+                        display_visualization(viz_data, i, 2)
+            elif isinstance(visualizations, list):
+                for i, viz in enumerate(visualizations, 1):
+                    if isinstance(viz, dict) and 'type' in viz:
+                        display_visualization(viz, i, 2)
+        except Exception as e:
+            logger.error(f"Error displaying Step 2 visualizations: {e}")
+            st.error("Error displaying visualizations")
+    
+    # Generate contextual visualizations for Step 2
+    try:
+        from utils.analysis_engine import AnalysisEngine
+        analysis_engine = AnalysisEngine()
+        
+        # Get raw data for visualization generation
+        raw_data = analysis_data.get('raw_data', {})
+        soil_params = raw_data.get('soil_parameters', {})
+        leaf_params = raw_data.get('leaf_parameters', {})
+        
+        if soil_params or leaf_params:
+            # Generate comprehensive comparison visualizations
+            step_result = {'step_number': 2, 'instructions': 'Visual Comparison', 'summary': analysis_data.get('summary', ''), 'detailed_analysis': analysis_data.get('detailed_analysis', '')}
+            contextual_viz = generate_contextual_visualizations(step_result, analysis_data)
+            
+            if contextual_viz:
+                for i, viz_data in enumerate(contextual_viz, 1):
+                    if viz_data and isinstance(viz_data, dict):
+                        display_visualization(viz_data, i, 2)
+    except Exception as e:
+        logger.error(f"Error generating contextual visualizations for Step 2: {e}")
+    
+    # 4. TABLES SECTION - Display any tables from the analysis
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("### 📋 Data Tables")
+        tables = analysis_data['tables']
+        if isinstance(tables, list):
+            for table in tables:
+                if isinstance(table, dict):
+                    display_table(table)
+        elif isinstance(tables, dict):
+            display_table(tables)
 
 def display_table(table_data):
     """Display a table with proper formatting and borders"""
