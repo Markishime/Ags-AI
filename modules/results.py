@@ -2799,7 +2799,7 @@ def display_enhanced_step_result(step_result, step_number):
     
     # 6. ANALYSIS RESULTS SECTION - Show actual LLM results (renamed from Additional Information)
     # This section shows the main analysis results from the LLM
-    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'tables', 'interpretations'])
+    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'tables', 'interpretations', 'data_quality'])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
     
     if other_fields:
