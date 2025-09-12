@@ -2825,28 +2825,8 @@ def display_enhanced_step_result(step_result, step_number):
                 st.markdown(f"**{title}:** {value}")
             st.markdown("")
     
-    # Display tables only for Step 2, visualizations for other steps
-    if step_number == 2:
-        # Display tables if available
-        if 'tables' in analysis_data and analysis_data['tables']:
-            st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📋 Data Tables</h4>
-            </div>""", unsafe_allow_html=True)
-            
-            try:
-                tables = analysis_data['tables']
-                if isinstance(tables, list):
-                    for i, table_data in enumerate(tables, 1):
-                        if isinstance(table_data, dict) and 'headers' in table_data and 'rows' in table_data:
-                            display_data_table(table_data, f"Table {i}")
-                elif isinstance(tables, dict):
-                    for table_name, table_data in tables.items():
-                        if isinstance(table_data, dict) and 'headers' in table_data and 'rows' in table_data:
-                            display_data_table(table_data, table_name)
-            except Exception as e:
-                logger.error(f"Error displaying tables: {e}")
-                st.error("Error displaying tables")
-    else:
+    # Display visualizations for all steps except Step 2 (which shows no visualizations or tables)
+    if step_number != 2:
         # Display visualizations for other steps only if step instructions contain visualization keywords
         # Skip visualizations for economic forecast steps
         if should_show_visualizations(step_result) and not should_show_forecast_graph(step_result):
