@@ -187,18 +187,47 @@ class OCRProcessor:
         """Detect if the report is soil or leaf analysis"""
         text_lower = text.lower()
         
-        # Keywords for soil analysis
-        soil_keywords = ['soil', 'ph', 'organic carbon', 'c.e.c', 'base saturation', 'available p']
+        # Enhanced keywords for soil analysis
+        soil_keywords = [
+            'soil', 'ph', 'organic carbon', 'c.e.c', 'base saturation', 'available p',
+            'exchangeable k', 'exchangeable ca', 'exchangeable mg', 'total p',
+            'nitrogen %', 'organic matter', 'cation exchange capacity', 'meq%'
+        ]
         
-        # Keywords for leaf analysis
-        leaf_keywords = ['leaf', 'dry matter', 'mg/kg dry matter', '% dry matter']
+        # Enhanced keywords for leaf analysis
+        leaf_keywords = [
+            'leaf', 'dry matter', 'mg/kg dry matter', '% dry matter',
+            'foliar', 'plant tissue', 'leaf tissue', 'n %', 'p %', 'k %',
+            'mg %', 'ca %', 'b mg/kg', 'cu mg/kg', 'zn mg/kg'
+        ]
+        
+        # Check for specific patterns that are unique to each report type
+        soil_patterns = [
+            'ph', 'organic carbon', 'available p', 'exchangeable k',
+            'exchangeable ca', 'exchangeable mg', 'c.e.c'
+        ]
+        
+        leaf_patterns = [
+            '% dry matter', 'mg/kg dry matter', 'n %', 'p %', 'k %',
+            'mg %', 'ca %', 'b mg/kg', 'cu mg/kg', 'zn mg/kg'
+        ]
         
         soil_score = sum(1 for keyword in soil_keywords if keyword in text_lower)
         leaf_score = sum(1 for keyword in leaf_keywords if keyword in text_lower)
         
-        if soil_score > leaf_score:
+        # Additional scoring based on specific patterns
+        soil_pattern_score = sum(1 for pattern in soil_patterns if pattern in text_lower)
+        leaf_pattern_score = sum(1 for pattern in leaf_patterns if pattern in text_lower)
+        
+        # Weighted scoring
+        total_soil_score = soil_score + (soil_pattern_score * 2)  # Double weight for patterns
+        total_leaf_score = leaf_score + (leaf_pattern_score * 2)  # Double weight for patterns
+        
+        logger.info(f"Report type detection - Soil: {total_soil_score}, Leaf: {total_leaf_score}")
+        
+        if total_soil_score > total_leaf_score:
             return 'soil'
-        elif leaf_score > soil_score:
+        elif total_leaf_score > total_soil_score:
             return 'leaf'
         else:
             return 'unknown'

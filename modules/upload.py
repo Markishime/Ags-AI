@@ -154,7 +154,7 @@ def upload_section():
                         # Check if we need to re-process (always re-process for dynamic behavior)
                         with st.spinner("🔄 Processing soil image with OCR..."):
                             # Quick OCR preview - always process fresh
-                            ocr_preview = extract_data_from_image(soil_image, 'soil')
+                            ocr_preview = extract_data_from_image(soil_image, 'unknown')
                         
                         if ocr_preview.get('success'):
                             if ocr_preview.get('data', {}).get('samples'):
@@ -238,7 +238,7 @@ def upload_section():
                         # Check if we need to re-process (always re-process for dynamic behavior)
                         with st.spinner("🔄 Processing leaf image with OCR..."):
                             # Quick OCR preview - always process fresh
-                            ocr_preview = extract_data_from_image(leaf_image, 'leaf')
+                            ocr_preview = extract_data_from_image(leaf_image, 'unknown')
                         
                         if ocr_preview.get('success'):
                             if ocr_preview.get('data', {}).get('samples'):
