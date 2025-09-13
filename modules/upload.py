@@ -118,7 +118,8 @@ def upload_section():
     with col1:
         with st.container():
             st.markdown("#### 🌱 Soil Analysis")
-            st.markdown("Upload soil test reports for nutrient analysis")
+            st.markdown("Upload **soil test reports** for nutrient analysis")
+            st.info("📋 **Expected:** Soil analysis reports with pH, organic carbon, available P, exchangeable cations, etc.")
             
             soil_file = st.file_uploader(
                 "Choose soil analysis image",
@@ -153,46 +154,73 @@ def upload_section():
                         
                         # Check if we need to re-process (always re-process for dynamic behavior)
                         with st.spinner("🔄 Processing soil image with OCR..."):
-                            # Quick OCR preview - always process fresh
-                            ocr_preview = extract_data_from_image(soil_image, 'unknown')
+                            # Save image to temporary file and pass path to OCR function
+                            import tempfile
+                            import time
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
+                                soil_image.save(tmp_file.name)
+                                ocr_preview = extract_data_from_image(tmp_file.name)
+                                tmp_file_path = tmp_file.name
+                            # Clean up temporary file after OCR is done with delay
+                            try:
+                                time.sleep(0.1)  # Small delay to ensure file is released
+                                os.unlink(tmp_file_path)
+                            except (PermissionError, FileNotFoundError):
+                                # File might still be in use or already deleted, ignore error
+                                pass
                         
                         if ocr_preview.get('success'):
-                            if ocr_preview.get('data', {}).get('samples'):
-                                sample_count = len(ocr_preview['data']['samples'])
-                                st.success(f"✅ **{sample_count} samples detected**")
+                            # Check if detected content type matches the upload container
+                            tables = ocr_preview.get('tables', [])
+                            if tables:
+                                detected_type = tables[0].get('type', 'unknown')
                                 
-                                # Show first sample preview with better formatting
-                                if sample_count > 0:
-                                    first_sample = ocr_preview['data']['samples'][0]
-                                    st.markdown("**📊 First Sample Preview:**")
-                                    
-                                    # Display in a nice format
-                                    col_a, col_b = st.columns(2)
-                                    with col_a:
-                                        st.write(f"**Lab No:** {first_sample.get('lab_no', 'N/A')}")
-                                        st.write(f"**Sample No:** {first_sample.get('sample_no', 'N/A')}")
-                                        st.write(f"**pH:** {first_sample.get('pH', 'N/A')}")
-                                        st.write(f"**Nitrogen %:** {first_sample.get('Nitrogen_%', 'N/A')}")
-                                        st.write(f"**Organic Carbon %:** {first_sample.get('Organic_Carbon_%', 'N/A')}")
-                                    
-                                    with col_b:
-                                        st.write(f"**Total P (mg/kg):** {first_sample.get('Total_P_mg_kg', 'N/A')}")
-                                        st.write(f"**Available P (mg/kg):** {first_sample.get('Available_P_mg_kg', 'N/A')}")
-                                        st.write(f"**Exchangeable K (meq%):** {first_sample.get('Exch_K_meq', first_sample.get('Exchangeable_K_meq%', 'N/A'))}")
-                                        st.write(f"**Exchangeable Ca (meq%):** {first_sample.get('Exch_Ca_meq', first_sample.get('Exchangeable_Ca_meq%', 'N/A'))}")
-                                        st.write(f"**Exchangeable Mg (meq%):** {first_sample.get('Exch_Mg_meq', first_sample.get('Exchangeable_Mg_meq%', 'N/A'))}")
-                                        st.write(f"**CEC (meq%):** {first_sample.get('CEC', first_sample.get('CEC_meq%', 'N/A'))}")
-                                    
-                                    st.success("✅ Soil data extraction successful!")
-                                    
-                                    # Show additional samples if available
-                                    if sample_count > 1:
-                                        with st.expander(f"📋 View All {sample_count} Samples", expanded=False):
-                                            for i, sample in enumerate(ocr_preview['data']['samples']):
-                                                st.markdown(f"**Sample {i+1}:**")
-                                                st.json(sample)
+                                if detected_type.lower() != 'soil':
+                                    st.error(f"❌ **Content Type Mismatch!**")
+                                    st.warning(f"🔍 **Detected:** {detected_type.title()} analysis report")
+                                    st.warning(f"📁 **Expected:** Soil analysis report")
+                                    st.info("💡 **Please upload a soil analysis report image in this container.**")
+                                    st.info("🍃 **For leaf analysis, please use the Leaf Analysis container on the right.**")
+                                else:
+                                    samples = tables[0].get('samples', [])
+                                    if samples:
+                                        sample_count = len(samples)
+                                        st.success(f"✅ **{sample_count} soil samples detected**")
+                                        
+                                        # Show first sample preview with better formatting
+                                        if sample_count > 0:
+                                            first_sample = samples[0]
+                                            st.markdown("**📊 First Sample Preview:**")
+                                            
+                                            # Display in a nice format
+                                            col_a, col_b = st.columns(2)
+                                            with col_a:
+                                                st.write(f"**Lab No:** {first_sample.get('Lab No.', 'N/A')}")
+                                                st.write(f"**Sample No:** {first_sample.get('Sample No.', 'N/A')}")
+                                                st.write(f"**pH:** {first_sample.get('pH', 'N/A')}")
+                                                st.write(f"**Nitrogen %:** {first_sample.get('Nitrogen %', 'N/A')}")
+                                                st.write(f"**Organic Carbon %:** {first_sample.get('Organic Carbon %', 'N/A')}")
+                                            
+                                            with col_b:
+                                                st.write(f"**Total P (mg/kg):** {first_sample.get('Total P mg/kg', 'N/A')}")
+                                                st.write(f"**Available P (mg/kg):** {first_sample.get('Available P mg/kg', 'N/A')}")
+                                                st.write(f"**Exchangeable K (meq%):** {first_sample.get('Exch. K meq%', 'N/A')}")
+                                                st.write(f"**Exchangeable Ca (meq%):** {first_sample.get('Exch. Ca meq%', 'N/A')}")
+                                                st.write(f"**Exchangeable Mg (meq%):** {first_sample.get('Exch. Mg meq%', 'N/A')}")
+                                                st.write(f"**CEC (meq%):** {first_sample.get('C.E.C meq%', 'N/A')}")
+                                            
+                                            st.success("✅ Soil data extraction successful!")
+                                            
+                                            # Show additional samples if available
+                                            if sample_count > 1:
+                                                with st.expander(f"📋 View All {sample_count} Samples", expanded=False):
+                                                    for i, sample in enumerate(samples):
+                                                        st.markdown(f"**Sample {i+1}:**")
+                                                        st.json(sample)
+                                    else:
+                                        st.warning("⚠️ No samples detected in soil report")
                             else:
-                                st.warning("⚠️ No samples detected in soil report")
+                                st.warning("⚠️ No tables detected in soil report")
                         else:
                             st.error(f"❌ OCR extraction failed: {ocr_preview.get('error', 'Unknown error')}")
                     except Exception as e:
@@ -202,7 +230,8 @@ def upload_section():
     with col2:
         with st.container():
             st.markdown("#### 🍃 Leaf Analysis")
-            st.markdown("Upload leaf test reports for nutrient deficiency analysis")
+            st.markdown("Upload **leaf test reports** for nutrient deficiency analysis")
+            st.info("📋 **Expected:** Leaf analysis reports with N%, P%, K%, Mg%, Ca%, B, Cu, Zn content, etc.")
             
             leaf_file = st.file_uploader(
                 "Choose leaf analysis image",
@@ -237,45 +266,76 @@ def upload_section():
                         
                         # Check if we need to re-process (always re-process for dynamic behavior)
                         with st.spinner("🔄 Processing leaf image with OCR..."):
-                            # Quick OCR preview - always process fresh
-                            ocr_preview = extract_data_from_image(leaf_image, 'unknown')
+                            # Save image to temporary file and pass path to OCR function
+                            import tempfile
+                            import time
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
+                                leaf_image.save(tmp_file.name)
+                                ocr_preview = extract_data_from_image(tmp_file.name)
+                                tmp_file_path = tmp_file.name
+                            # Clean up temporary file after OCR is done with delay
+                            try:
+                                time.sleep(0.1)  # Small delay to ensure file is released
+                                os.unlink(tmp_file_path)
+                            except (PermissionError, FileNotFoundError):
+                                # File might still be in use or already deleted, ignore error
+                                pass
                         
                         if ocr_preview.get('success'):
-                            if ocr_preview.get('data', {}).get('samples'):
-                                sample_count = len(ocr_preview['data']['samples'])
-                                st.success(f"✅ **{sample_count} samples detected**")
+                            # Check if detected content type matches the upload container
+                            tables = ocr_preview.get('tables', [])
+                            if tables:
+                                detected_type = tables[0].get('type', 'unknown')
                                 
-                                # Show first sample preview with better formatting
-                                if sample_count > 0:
-                                    first_sample = ocr_preview['data']['samples'][0]
-                                    st.markdown("**📊 First Sample Preview:**")
-                                    
-                                    # Display in a nice format
-                                    col_a, col_b = st.columns(2)
-                                    with col_a:
-                                        st.write(f"**Lab No:** {first_sample.get('lab_no', 'N/A')}")
-                                        st.write(f"**Sample No:** {first_sample.get('sample_no', 'N/A')}")
-                                        st.write(f"**N %:** {first_sample.get('N_%', 'N/A')}")
-                                        st.write(f"**P %:** {first_sample.get('P_%', 'N/A')}")
-                                        st.write(f"**K %:** {first_sample.get('K_%', 'N/A')}")
-                                    
-                                    with col_b:
-                                        st.write(f"**Mg %:** {first_sample.get('Mg_%', 'N/A')}")
-                                        st.write(f"**Ca %:** {first_sample.get('Ca_%', 'N/A')}")
-                                        st.write(f"**B (mg/kg):** {first_sample.get('B_mg_kg', 'N/A')}")
-                                        st.write(f"**Cu (mg/kg):** {first_sample.get('Cu_mg_kg', 'N/A')}")
-                                        st.write(f"**Zn (mg/kg):** {first_sample.get('Zn_mg_kg', 'N/A')}")
-                                    
-                                    st.success("✅ Leaf data extraction successful!")
-                                    
-                                    # Show additional samples if available
-                                    if sample_count > 1:
-                                        with st.expander(f"📋 View All {sample_count} Samples", expanded=False):
-                                            for i, sample in enumerate(ocr_preview['data']['samples']):
-                                                st.markdown(f"**Sample {i+1}:**")
-                                                st.json(sample)
+                                if detected_type.lower() != 'leaf':
+                                    st.error(f"❌ **Content Type Mismatch!**")
+                                    st.warning(f"🔍 **Detected:** {detected_type.title()} analysis report")
+                                    st.warning(f"📁 **Expected:** Leaf analysis report")
+                                    st.info("💡 **Please upload a leaf analysis report image in this container.**")
+                                    st.info("🌱 **For soil analysis, please use the Soil Analysis container on the left.**")
+                                else:
+                                    samples = tables[0].get('samples', [])
+                                    if samples:
+                                        sample_count = len(samples)
+                                        st.success(f"✅ **{sample_count} leaf samples detected**")
+                                        
+                                        # Show first sample preview with better formatting
+                                        if sample_count > 0:
+                                            first_sample = samples[0]
+                                            st.markdown("**📊 First Sample Preview:**")
+                                            
+                                            # Display in a nice format
+                                            col_a, col_b = st.columns(2)
+                                            with col_a:
+                                                st.write(f"**Lab No:** {first_sample.get('Lab No.', 'N/A')}")
+                                                st.write(f"**Sample No:** {first_sample.get('Sample No.', 'N/A')}")
+                                                # Get % Dry Matter values
+                                                percent_dm = first_sample.get('% Dry Matter', {})
+                                                st.write(f"**N %:** {percent_dm.get('N', 'N/A')}")
+                                                st.write(f"**P %:** {percent_dm.get('P', 'N/A')}")
+                                                st.write(f"**K %:** {percent_dm.get('K', 'N/A')}")
+                                            
+                                            with col_b:
+                                                st.write(f"**Mg %:** {percent_dm.get('Mg', 'N/A')}")
+                                                st.write(f"**Ca %:** {percent_dm.get('Ca', 'N/A')}")
+                                                # Get mg/kg Dry Matter values
+                                                mgkg_dm = first_sample.get('mg/kg Dry Matter', {})
+                                                st.write(f"**B (mg/kg):** {mgkg_dm.get('B', 'N/A')}")
+                                                st.write(f"**Cu (mg/kg):** {mgkg_dm.get('Cu', 'N/A')}")
+                                                st.write(f"**Zn (mg/kg):** {mgkg_dm.get('Zn', 'N/A')}")
+                                            
+                                            st.success("✅ Leaf data extraction successful!")
+                                            
+                                            # Show additional samples if available
+                                            if sample_count > 1:
+                                                with st.expander(f"📋 View All {sample_count} Samples", expanded=False):
+                                                    for i, sample in enumerate(samples):
+                                                        st.markdown(f"**Sample {i+1}:**")
+                                                        st.json(sample)
+                                    else:
+                                        st.warning("⚠️ No samples detected in leaf report")
                             else:
-                                st.warning("⚠️ No samples detected in leaf report")
+                                st.warning("⚠️ No tables detected in leaf report")
                         else:
                             st.error(f"❌ OCR extraction failed: {ocr_preview.get('error', 'Unknown error')}")
                     except Exception as e:

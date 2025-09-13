@@ -1,0 +1,167 @@
+{
+  "type": "leaf",
+  "table_number": 1,
+  "samples": [
+    {
+      "Lab No.": "P220/25",
+      "Sample No.": 1,
+      "% Dry Matter": {
+        "N": 2.13,
+        "P": 0.14,
+        "K": 0.59,
+        "Mg": 0.26,
+        "Ca": 0.87
+      },
+      "mg/kg Dry Matter": {
+        "B": 16,
+        "Cu": 2,
+        "Zn": 9
+      }
+    },
+    {
+      "Lab No.": "P221/25",
+      "Sample No.": 2,
+      "% Dry Matter": {
+        "N": 2.04,
+        "P": 0.125,
+        "K": 0.51,
+        "Mg": 0.17,
+        "Ca": 0.9
+      },
+      "mg/kg Dry Matter": {
+        "B": 25,
+        "Cu": "<1",
+        "Zn": 9
+      }
+    },
+    {
+      "Lab No.": "P222/25",
+      "Sample No.": 3,
+      "% Dry Matter": {
+        "N": 2.01,
+        "P": 0.122,
+        "K": 0.54,
+        "Mg": 0.33,
+        "Ca": 0.71
+      },
+      "mg/kg Dry Matter": {
+        "B": 17,
+        "Cu": 1,
+        "Zn": 12
+      }
+    },
+    {
+      "Lab No.": "P223/25",
+      "Sample No.": 4,
+      "% Dry Matter": {
+        "N": 2.04,
+        "P": 0.128,
+        "K": 0.49,
+        "Mg": 0.21,
+        "Ca": 0.85
+      },
+      "mg/kg Dry Matter": {
+        "B": 19,
+        "Cu": 1,
+        "Zn": 9
+      }
+    },
+    {
+      "Lab No.": "P224/25",
+      "Sample No.": 5,
+      "% Dry Matter": {
+        "N": 2.01,
+        "P": 0.112,
+        "K": 0.71,
+        "Mg": 0.33,
+        "Ca": 0.54
+      },
+      "mg/kg Dry Matter": {
+        "B": 17,
+        "Cu": 1,
+        "Zn": 12
+      }
+    },
+    {
+      "Lab No.": "P225/25",
+      "Sample No.": 6,
+      "% Dry Matter": {
+        "N": 2.19,
+        "P": 0.124,
+        "K": 1.06,
+        "Mg": 0.2,
+        "Ca": 0.52
+      },
+      "mg/kg Dry Matter": {
+        "B": 12,
+        "Cu": 1,
+        "Zn": 12
+      }
+    },
+    {
+      "Lab No.": "P226/25",
+      "Sample No.": 7,
+      "% Dry Matter": {
+        "N": 2.02,
+        "P": 0.13,
+        "K": 0.61,
+        "Mg": 0.18,
+        "Ca": 0.73
+      },
+      "mg/kg Dry Matter": {
+        "B": 20,
+        "Cu": "N.D.",
+        "Zn": 7
+      }
+    },
+    {
+      "Lab No.": "P227/25",
+      "Sample No.": 8,
+      "% Dry Matter": {
+        "N": 2.09,
+        "P": 0.118,
+        "K": 0.84,
+        "Mg": 0.18,
+        "Ca": 0.58
+      },
+      "mg/kg Dry Matter": {
+        "B": 17,
+        "Cu": 1,
+        "Zn": 9
+      }
+    },
+    {
+      "Lab No.": "P228/25",
+      "Sample No.": 9,
+      "% Dry Matter": {
+        "N": 2.2,
+        "P": 0.137,
+        "K": 0.84,
+        "Mg": 0.36,
+        "Ca": 0.6
+      },
+      "mg/kg Dry Matter": {
+        "B": 15,
+        "Cu": 1,
+        "Zn": 12
+      }
+    },
+    {
+      "Lab No.": "P229/25",
+      "Sample No.": 10,
+      "% Dry Matter": {
+        "N": 2.37,
+        "P": 0.141,
+        "K": 0.81,
+        "Mg": 0.32,
+        "Ca": 0.52
+      },
+      "mg/kg Dry Matter": {
+        "B": 15,
+        "Cu": 3,
+        "Zn": 14
+      }
+    }
+  ],
+  "sample_count": 10
+}

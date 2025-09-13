@@ -553,8 +553,8 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
     try:
         import time
         
-        # Enhanced progress tracking with detailed steps and animations
-        total_steps = 8
+        # Optimized progress tracking (reduced steps for faster processing)
+        total_steps = 5
         current_step = 1
         
         # Create animated loading indicators
@@ -570,14 +570,11 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             "Preparing results..."
         ]
         
-        # Step 1: Initial validation with animation
-        progress_bar.progress(5)
-        for i in range(3):  # Show animation for 3 cycles
-            indicator = loading_indicators[i % len(loading_indicators)]
-            status_text.text(f"🔍 **Step 1/8:** Validating uploaded files... {indicator}")
-            if working_indicator:
-                working_indicator.markdown(f"🔄 **Processing:** {indicator}")
-            time.sleep(0.5)
+        # Step 1: Initial validation (optimized - no delays)
+        progress_bar.progress(10)
+        status_text.text("🔍 **Step 1/5:** Validating uploaded files... ✅")
+        if working_indicator:
+            working_indicator.markdown("🔄 **Processing:** Validating files...")
         
         
         
@@ -589,218 +586,88 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if not soil_file or not leaf_file:
             return {'success': False, 'message': 'Missing soil or leaf analysis files'}
         
-        # Step 2: OCR Processing for Soil with animation
+        # Step 2: Parallel OCR Processing (optimized)
         current_step = 2
-        progress_bar.progress(15)
+        progress_bar.progress(30)
         
-        # Show animated processing for OCR
-        for i in range(4):  # Show animation for 4 cycles
-            indicator = loading_indicators[i % len(loading_indicators)]
-            message = processing_messages[i % len(processing_messages)]
-            status_text.text(f"🌱 **Step 2/8:** Extracting data from soil analysis report... {indicator} {message}")
-            time.sleep(0.6)
+        # OCR processing (optimized - no delays)
+        status_text.text("🌱 **Step 2/5:** Extracting data from analysis reports... 🔄")
         
-        status_text.text("🌱 **Step 2/8:** Extracting data from soil analysis report... ✅")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~2 minutes")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
-        
-        # Convert uploaded file to PIL Image for OCR processing
-        from PIL import Image
-        soil_image = Image.open(soil_file)
-        soil_data = extract_data_from_image(soil_image, 'soil')
-        
-        # Debug OCR extraction
-        logger.info(f"Soil OCR result: success={soil_data.get('success')}, samples_count={len(soil_data.get('data', {}).get('samples', []))}")
-        if not soil_data.get('success'):
-            logger.error(f"Soil OCR failed: {soil_data.get('error')}")
-        
-        # Step 3: OCR Processing for Leaf with animation
-        current_step = 3
-        progress_bar.progress(25)
-        
-        # Show animated processing for Leaf OCR
-        for i in range(4):  # Show animation for 4 cycles
-            indicator = loading_indicators[(i + 2) % len(loading_indicators)]
-            message = processing_messages[(i + 2) % len(processing_messages)]
-            status_text.text(f"🍃 **Step 3/8:** Extracting data from leaf analysis report... {indicator} {message}")
-            time.sleep(0.6)
-        
-        status_text.text("🍃 **Step 3/8:** Extracting data from leaf analysis report... ✅")
+        status_text.text("🌱 **Step 2/5:** Extracting data from analysis reports... ✅")
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~90 seconds")
         if step_indicator:
             step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         # Convert uploaded file to PIL Image for OCR processing
-        leaf_image = Image.open(leaf_file)
-        leaf_data = extract_data_from_image(leaf_image, 'leaf')
+        from PIL import Image
+        import tempfile
+        import os
+        
+        # Parallel OCR processing for both soil and leaf (optimized)
+        import concurrent.futures
+        import threading
+        
+        def process_soil_ocr():
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                soil_image = Image.open(soil_file)
+                soil_image.save(tmp_file.name)
+                result = extract_data_from_image(tmp_file.name, 'soil')
+                try:
+                    os.unlink(tmp_file.name)
+                except (PermissionError, FileNotFoundError):
+                    pass
+                return result
+        
+        def process_leaf_ocr():
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                leaf_image = Image.open(leaf_file)
+                leaf_image.save(tmp_file.name)
+                result = extract_data_from_image(tmp_file.name, 'leaf')
+                try:
+                    os.unlink(tmp_file.name)
+                except (PermissionError, FileNotFoundError):
+                    pass
+                return result
+        
+        # Process both OCR operations in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            soil_future = executor.submit(process_soil_ocr)
+            leaf_future = executor.submit(process_leaf_ocr)
+            
+            # Wait for both to complete
+            soil_data = soil_future.result()
+            leaf_data = leaf_future.result()
         
         # Debug OCR extraction
-        logger.info(f"Leaf OCR result: success={leaf_data.get('success')}, samples_count={len(leaf_data.get('data', {}).get('samples', []))}")
+        soil_samples = soil_data.get('tables', [{}])[0].get('samples', []) if soil_data.get('tables') else []
+        leaf_samples = leaf_data.get('tables', [{}])[0].get('samples', []) if leaf_data.get('tables') else []
+        
+        logger.info(f"Soil OCR result: success={soil_data.get('success')}, samples_count={len(soil_samples)}")
+        logger.info(f"Leaf OCR result: success={leaf_data.get('success')}, samples_count={len(leaf_samples)}")
+        
+        if not soil_data.get('success'):
+            logger.error(f"Soil OCR failed: {soil_data.get('error')}")
         if not leaf_data.get('success'):
             logger.error(f"Leaf OCR failed: {leaf_data.get('error')}")
         
-        # If OCR fails, create test data for demonstration
-        if not soil_data.get('success') or not soil_data.get('data', {}).get('samples'):
-            logger.warning("Creating test soil data for demonstration")
-            soil_data = {
-                'success': True,
-                'data': {
-                    'report_type': 'soil',
-                    'samples': [
-                        {
-                            'sample_no': '1', 'lab_no': 'S218/25',
-                            'pH': 4.2, 'Nitrogen_%': 0.15, 'Organic_Carbon_%': 1.8,
-                            'Total_P_mg_kg': 45, 'Available_P_mg_kg': 12,
-                            'Exchangeable_K_meq%': 0.25, 'Exchangeable_Ca_meq%': 2.1,
-                            'Exchangeable_Mg_meq%': 0.8, 'CEC_meq%': 8.5
-                        },
-                        {
-                            'sample_no': '2', 'lab_no': 'S219/25',
-                            'pH': 3.9, 'Nitrogen_%': 0.12, 'Organic_Carbon_%': 1.5,
-                            'Total_P_mg_kg': 38, 'Available_P_mg_kg': 8,
-                            'Exchangeable_K_meq%': 0.18, 'Exchangeable_Ca_meq%': 1.8,
-                            'Exchangeable_Mg_meq%': 0.6, 'CEC_meq%': 7.2
-                        },
-                        {
-                            'sample_no': '3', 'lab_no': 'S220/25',
-                            'pH': 4.5, 'Nitrogen_%': 0.18, 'Organic_Carbon_%': 2.1,
-                            'Total_P_mg_kg': 52, 'Available_P_mg_kg': 15,
-                            'Exchangeable_K_meq%': 0.32, 'Exchangeable_Ca_meq%': 2.5,
-                            'Exchangeable_Mg_meq%': 1.0, 'CEC_meq%': 9.8
-                        },
-                        {
-                            'sample_no': '4', 'lab_no': 'S221/25',
-                            'pH': 4.0, 'Nitrogen_%': 0.14, 'Organic_Carbon_%': 1.6,
-                            'Total_P_mg_kg': 41, 'Available_P_mg_kg': 10,
-                            'Exchangeable_K_meq%': 0.22, 'Exchangeable_Ca_meq%': 1.9,
-                            'Exchangeable_Mg_meq%': 0.7, 'CEC_meq%': 7.8
-                        },
-                        {
-                            'sample_no': '5', 'lab_no': 'S222/25',
-                            'pH': 4.3, 'Nitrogen_%': 0.16, 'Organic_Carbon_%': 1.9,
-                            'Total_P_mg_kg': 48, 'Available_P_mg_kg': 13,
-                            'Exchangeable_K_meq%': 0.28, 'Exchangeable_Ca_meq%': 2.3,
-                            'Exchangeable_Mg_meq%': 0.9, 'CEC_meq%': 9.1
-                        },
-                        {
-                            'sample_no': '6', 'lab_no': 'S223/25',
-                            'pH': 3.8, 'Nitrogen_%': 0.11, 'Organic_Carbon_%': 1.4,
-                            'Total_P_mg_kg': 35, 'Available_P_mg_kg': 7,
-                            'Exchangeable_K_meq%': 0.16, 'Exchangeable_Ca_meq%': 1.6,
-                            'Exchangeable_Mg_meq%': 0.5, 'CEC_meq%': 6.8
-                        },
-                        {
-                            'sample_no': '7', 'lab_no': 'S224/25',
-                            'pH': 4.4, 'Nitrogen_%': 0.17, 'Organic_Carbon_%': 2.0,
-                            'Total_P_mg_kg': 50, 'Available_P_mg_kg': 14,
-                            'Exchangeable_K_meq%': 0.30, 'Exchangeable_Ca_meq%': 2.4,
-                            'Exchangeable_Mg_meq%': 0.95, 'CEC_meq%': 9.5
-                        },
-                        {
-                            'sample_no': '8', 'lab_no': 'S225/25',
-                            'pH': 4.1, 'Nitrogen_%': 0.13, 'Organic_Carbon_%': 1.7,
-                            'Total_P_mg_kg': 43, 'Available_P_mg_kg': 11,
-                            'Exchangeable_K_meq%': 0.24, 'Exchangeable_Ca_meq%': 2.0,
-                            'Exchangeable_Mg_meq%': 0.75, 'CEC_meq%': 8.2
-                        },
-                        {
-                            'sample_no': '9', 'lab_no': 'S226/25',
-                            'pH': 4.6, 'Nitrogen_%': 0.19, 'Organic_Carbon_%': 2.2,
-                            'Total_P_mg_kg': 55, 'Available_P_mg_kg': 16,
-                            'Exchangeable_K_meq%': 0.35, 'Exchangeable_Ca_meq%': 2.7,
-                            'Exchangeable_Mg_meq%': 1.1, 'CEC_meq%': 10.2
-                        },
-                        {
-                            'sample_no': '10', 'lab_no': 'S227/25',
-                            'pH': 3.7, 'Nitrogen_%': 0.10, 'Organic_Carbon_%': 1.3,
-                            'Total_P_mg_kg': 32, 'Available_P_mg_kg': 6,
-                            'Exchangeable_K_meq%': 0.14, 'Exchangeable_Ca_meq%': 1.4,
-                            'Exchangeable_Mg_meq%': 0.45, 'CEC_meq%': 6.2
-                        }
-                    ]
-                }
-            }
+        # Validate that OCR extraction was successful
+        if not soil_data.get('success') or not soil_samples:
+            logger.error("Soil OCR extraction failed - no samples found")
+            st.error("❌ **Soil Analysis Failed**: Unable to extract data from uploaded soil report. Please check the image quality and try again.")
+            return
         
-        if not leaf_data.get('success') or not leaf_data.get('data', {}).get('samples'):
-            logger.warning("Creating test leaf data for demonstration")
-            leaf_data = {
-                'success': True,
-                'data': {
-                    'report_type': 'leaf',
-                    'samples': [
-                        {
-                            'sample_no': '1', 'lab_no': 'P220/25',
-                            'N_%': 2.1, 'P_%': 0.12, 'K_%': 0.85,
-                            'Mg_%': 0.18, 'Ca_%': 0.45, 'B_mg_kg': 8,
-                            'Cu_mg_kg': 4, 'Zn_mg_kg': 12
-                        },
-                        {
-                            'sample_no': '2', 'lab_no': 'P221/25',
-                            'N_%': 1.9, 'P_%': 0.10, 'K_%': 0.78,
-                            'Mg_%': 0.15, 'Ca_%': 0.38, 'B_mg_kg': 6,
-                            'Cu_mg_kg': 3, 'Zn_mg_kg': 9
-                        },
-                        {
-                            'sample_no': '3', 'lab_no': 'P222/25',
-                            'N_%': 2.3, 'P_%': 0.14, 'K_%': 0.92,
-                            'Mg_%': 0.21, 'Ca_%': 0.52, 'B_mg_kg': 10,
-                            'Cu_mg_kg': 5, 'Zn_mg_kg': 15
-                        },
-                        {
-                            'sample_no': '4', 'lab_no': 'P223/25',
-                            'N_%': 2.0, 'P_%': 0.11, 'K_%': 0.82,
-                            'Mg_%': 0.17, 'Ca_%': 0.42, 'B_mg_kg': 7,
-                            'Cu_mg_kg': 3.5, 'Zn_mg_kg': 11
-                        },
-                        {
-                            'sample_no': '5', 'lab_no': 'P224/25',
-                            'N_%': 2.2, 'P_%': 0.13, 'K_%': 0.88,
-                            'Mg_%': 0.19, 'Ca_%': 0.48, 'B_mg_kg': 9,
-                            'Cu_mg_kg': 4.5, 'Zn_mg_kg': 13
-                        },
-                        {
-                            'sample_no': '6', 'lab_no': 'P225/25',
-                            'N_%': 1.8, 'P_%': 0.09, 'K_%': 0.75,
-                            'Mg_%': 0.14, 'Ca_%': 0.35, 'B_mg_kg': 5,
-                            'Cu_mg_kg': 2.5, 'Zn_mg_kg': 8
-                        },
-                        {
-                            'sample_no': '7', 'lab_no': 'P226/25',
-                            'N_%': 2.4, 'P_%': 0.15, 'K_%': 0.95,
-                            'Mg_%': 0.22, 'Ca_%': 0.55, 'B_mg_kg': 11,
-                            'Cu_mg_kg': 5.5, 'Zn_mg_kg': 16
-                        },
-                        {
-                            'sample_no': '8', 'lab_no': 'P227/25',
-                            'N_%': 2.1, 'P_%': 0.12, 'K_%': 0.86,
-                            'Mg_%': 0.18, 'Ca_%': 0.46, 'B_mg_kg': 8.5,
-                            'Cu_mg_kg': 4.2, 'Zn_mg_kg': 12.5
-                        },
-                        {
-                            'sample_no': '9', 'lab_no': 'P228/25',
-                            'N_%': 2.5, 'P_%': 0.16, 'K_%': 0.98,
-                            'Mg_%': 0.23, 'Ca_%': 0.58, 'B_mg_kg': 12,
-                            'Cu_mg_kg': 6, 'Zn_mg_kg': 17
-                        },
-                        {
-                            'sample_no': '10', 'lab_no': 'P229/25',
-                            'N_%': 1.7, 'P_%': 0.08, 'K_%': 0.72,
-                            'Mg_%': 0.13, 'Ca_%': 0.32, 'B_mg_kg': 4,
-                            'Cu_mg_kg': 2, 'Zn_mg_kg': 7
-                        }
-                    ]
-                }
-            }
+        if not leaf_data.get('success') or not leaf_samples:
+            logger.error("Leaf OCR extraction failed - no samples found")
+            st.error("❌ **Leaf Analysis Failed**: Unable to extract data from uploaded leaf report. Please check the image quality and try again.")
+            return
         
-        # Step 4: Data Validation
-        current_step = 4
-        progress_bar.progress(35)
-        status_text.text("✅ **Step 4/8:** Validating extracted data quality...")
+        # Step 3: Data Validation (optimized)
+        current_step = 3
+        progress_bar.progress(50)
+        status_text.text("✅ **Step 3/5:** Validating extracted data quality...")
         if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~75 seconds")
+            time_estimate.text("⏱️ Estimated time remaining: ~60 seconds")
         if step_indicator:
             step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
@@ -809,20 +676,16 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if not active_prompt:
             return {'success': False, 'message': 'No active analysis prompt found'}
         
-        # Step 5: AI Analysis Initialization
-        current_step = 5
-        progress_bar.progress(45)
-        status_text.text("🤖 **Step 5/8:** Initializing AI analysis engine...")
+        # Step 4: AI Analysis (optimized)
+        current_step = 4
+        progress_bar.progress(70)
+        status_text.text("🤖 **Step 4/5:** Running AI analysis...")
         if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~60 seconds")
+            time_estimate.text("⏱️ Estimated time remaining: ~30 seconds")
         if step_indicator:
             step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         analysis_engine = AnalysisEngine()
-        
-        # Step 6: Comprehensive Analysis with enhanced animation
-        current_step = 6
-        progress_bar.progress(60)
         
         # Show enhanced animated processing for the main analysis
         analysis_phases = [
@@ -835,26 +698,92 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             "Finalizing comprehensive report..."
         ]
         
-        for i in range(7):  # Show animation for 7 cycles
-            indicator = loading_indicators[i % len(loading_indicators)]
-            phase = analysis_phases[i % len(analysis_phases)]
-            status_text.text(f"🔬 **Step 6/8:** Running comprehensive agricultural analysis... {indicator}")
-            time_estimate.text(f"⏱️ {phase} (~{45 - (i * 6)} seconds remaining)")
-            step_indicator.text(f"📋 Step {current_step} of {total_steps} - {phase}")
-            time.sleep(0.8)
+        # Analysis processing (optimized - no delays)
+        status_text.text("🔬 **Step 4/5:** Running comprehensive agricultural analysis... 🔄")
+        time_estimate.text("⏱️ Processing data patterns and generating insights...")
+        step_indicator.text(f"📋 Step {current_step} of {total_steps} - AI Analysis")
         
-        status_text.text("🔬 **Step 6/8:** Running comprehensive agricultural analysis... ✅")
+        status_text.text("🔬 **Step 4/5:** Running comprehensive agricultural analysis... ✅")
         if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~45 seconds")
+            time_estimate.text("⏱️ Estimated time remaining: ~15 seconds")
         if step_indicator:
             step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
-        analysis_results = analysis_engine.generate_comprehensive_analysis(
-            soil_data=soil_data,
-            leaf_data=leaf_data,
-            land_yield_data=land_yield_data,
-            prompt_text=active_prompt.get('prompt_text', '')
-        )
+        # Transform OCR data structure to match analysis engine expectations
+        # Convert parameter names from spaces to underscores for analysis engine compatibility
+        transformed_soil_samples = []
+        for sample in soil_samples:
+            transformed_sample = {
+                'sample_no': sample.get('Sample No.', 0),
+                'lab_no': sample.get('Lab No.', ''),
+                'pH': sample.get('pH', 0.0),
+                'Nitrogen_%': sample.get('Nitrogen %', 0.0),
+                'Organic_Carbon_%': sample.get('Organic Carbon %', 0.0),
+                'Total_P_mg_kg': sample.get('Total P mg/kg', 0.0),
+                'Available_P_mg_kg': sample.get('Available P mg/kg', 0.0),
+                'Exchangeable_K_meq%': sample.get('Exch. K meq%', 0.0),
+                'Exchangeable_Ca_meq%': sample.get('Exch. Ca meq%', 0.0),
+                'Exchangeable_Mg_meq%': sample.get('Exch. Mg meq%', 0.0),
+                'CEC_meq%': sample.get('C.E.C meq%', 0.0)
+            }
+            transformed_soil_samples.append(transformed_sample)
+        
+        transformed_leaf_samples = []
+        for sample in leaf_samples:
+            percent_dm = sample.get('% Dry Matter', {})
+            mgkg_dm = sample.get('mg/kg Dry Matter', {})
+            transformed_sample = {
+                'sample_no': sample.get('Sample No.', 0),
+                'lab_no': sample.get('Lab No.', ''),
+                'N_%': percent_dm.get('N', 0.0),
+                'P_%': percent_dm.get('P', 0.0),
+                'K_%': percent_dm.get('K', 0.0),
+                'Mg_%': percent_dm.get('Mg', 0.0),
+                'Ca_%': percent_dm.get('Ca', 0.0),
+                'B_mg_kg': mgkg_dm.get('B', 0.0),
+                'Cu_mg_kg': mgkg_dm.get('Cu', 0.0),
+                'Zn_mg_kg': mgkg_dm.get('Zn', 0.0)
+            }
+            transformed_leaf_samples.append(transformed_sample)
+        
+        transformed_soil_data = {
+            'success': soil_data.get('success', True),
+            'data': {
+                'samples': transformed_soil_samples,
+                'total_samples': len(transformed_soil_samples)
+            }
+        }
+        
+        transformed_leaf_data = {
+            'success': leaf_data.get('success', True),
+            'data': {
+                'samples': transformed_leaf_samples,
+                'total_samples': len(transformed_leaf_samples)
+            }
+        }
+        
+        # Debug: Log the data being passed to analysis
+        logger.info(f"🔍 Starting analysis with:")
+        logger.info(f"  - Soil samples: {len(transformed_soil_data['data']['samples'])}")
+        logger.info(f"  - Leaf samples: {len(transformed_leaf_data['data']['samples'])}")
+        logger.info(f"  - First soil sample: {transformed_soil_data['data']['samples'][0] if transformed_soil_data['data']['samples'] else 'None'}")
+        logger.info(f"  - First leaf sample: {transformed_leaf_data['data']['samples'][0] if transformed_leaf_data['data']['samples'] else 'None'}")
+        
+        try:
+            analysis_results = analysis_engine.generate_comprehensive_analysis(
+                soil_data=transformed_soil_data,
+                leaf_data=transformed_leaf_data,
+                land_yield_data=land_yield_data,
+                prompt_text=active_prompt.get('prompt_text', '')
+            )
+            logger.info(f"✅ Analysis completed successfully")
+            logger.info(f"🔍 Analysis results keys: {list(analysis_results.keys()) if analysis_results else 'None'}")
+        except Exception as e:
+            logger.error(f"❌ Analysis failed: {str(e)}")
+            import traceback
+            logger.error(f"❌ Analysis traceback: {traceback.format_exc()}")
+            st.error(f"❌ **Analysis Failed**: {str(e)}")
+            return
         
         # Step 7: Generating Insights with animation
         current_step = 7
@@ -868,15 +797,12 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             "Optimizing suggestions..."
         ]
         
-        for i in range(4):  # Show animation for 4 cycles
-            indicator = loading_indicators[(i + 5) % len(loading_indicators)]
-            phase = insight_phases[i % len(insight_phases)]
-            status_text.text(f"📈 **Step 7/8:** Generating insights and recommendations... {indicator}")
-            time_estimate.text(f"⏱️ {phase} (~{20 - (i * 4)} seconds remaining)")
-            step_indicator.text(f"📋 Step {current_step} of {total_steps} - {phase}")
-            time.sleep(0.7)
+        # Insights generation (optimized - no delays)
+        status_text.text("📈 **Step 5/5:** Generating insights and recommendations... 🔄")
+        time_estimate.text("⏱️ Creating actionable recommendations...")
+        step_indicator.text(f"📋 Step {current_step} of {total_steps} - Insights")
         
-        status_text.text("📈 **Step 7/8:** Generating insights and recommendations... ✅")
+        status_text.text("📈 **Step 5/5:** Generating insights and recommendations... ✅")
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~20 seconds")
         if step_indicator:
@@ -894,13 +820,10 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             "Finalizing analysis..."
         ]
         
-        for i in range(4):  # Show animation for 4 cycles
-            indicator = loading_indicators[(i + 3) % len(loading_indicators)]
-            phase = saving_phases[i % len(saving_phases)]
-            status_text.text(f"💾 **Step 8/8:** Saving analysis results to database... {indicator}")
-            time_estimate.text(f"⏱️ {phase} (~{10 - (i * 2)} seconds remaining)")
-            step_indicator.text(f"📋 Step {current_step} of {total_steps} - {phase}")
-            time.sleep(0.5)
+        # Saving results (optimized - no delays)
+        status_text.text("💾 **Step 8/8:** Saving analysis results to database... 🔄")
+        time_estimate.text("⏱️ Finalizing analysis...")
+        step_indicator.text(f"📋 Step {current_step} of {total_steps} - Saving")
         
         status_text.text("💾 **Step 8/8:** Saving analysis results to database... ✅")
         if time_estimate:
@@ -918,14 +841,10 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         # Final completion step with celebration animation
         progress_bar.progress(100)
         
-        # Show completion animation
-        completion_indicators = ["🎉", "✨", "🌟", "🚀", "💫", "🎯", "🏆", "✅"]
-        for i in range(5):  # Show celebration animation
-            indicator = completion_indicators[i % len(completion_indicators)]
-            status_text.text(f"🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. {indicator}")
-            if working_indicator:
-                working_indicator.markdown(f"🎉 **Analysis Complete!** {indicator}")
-            time.sleep(0.4)
+        # Completion (optimized - no delays)
+        status_text.text("🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. ✅")
+        if working_indicator:
+            working_indicator.markdown("🎉 **Analysis Complete!** ✅")
         
         # Clear all progress indicators
         status_text.empty()
@@ -936,6 +855,22 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if working_indicator:
             working_indicator.empty()
         
+        # Add original OCR data to analysis results for raw data display
+        analysis_results['raw_ocr_data'] = {
+            'soil_data': {
+                'success': soil_data.get('success', True),
+                'samples': soil_samples,
+                'total_samples': len(soil_samples),
+                'tables': soil_data.get('tables', [])
+            },
+            'leaf_data': {
+                'success': leaf_data.get('success', True),
+                'samples': leaf_samples,
+                'total_samples': len(leaf_samples),
+                'tables': leaf_data.get('tables', [])
+            }
+        }
+        
         # Store analysis results in session state to avoid Firebase validation issues
         # This completely bypasses any Firebase serialization that might cause nested entity errors
         if 'stored_analysis_results' not in st.session_state:
@@ -944,7 +879,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         result_id = f"local_{int(time.time())}"
         st.session_state.stored_analysis_results[result_id] = analysis_results
         
-        # Return simple data structure without complex nested analysis data
+        # Return data structure with analysis results included
         display_data = {
             'success': True,
             'id': result_id,
@@ -955,8 +890,8 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             'land_yield_data': land_yield_data,
             'soil_data': soil_data,
             'leaf_data': leaf_data,
-            'created_at': datetime.now()
-            # analysis_results stored separately in session state
+            'created_at': datetime.now(),
+            'analysis_results': analysis_results  # Include analysis results for raw data display
         }
         
         return display_data
@@ -1045,31 +980,39 @@ def display_raw_data_section(results_data):
     # Add CSS class for print visibility
     st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
     
-    # Get raw data from multiple possible locations
-    # 1. Direct from results_data (for new analysis)
-    soil_data = results_data.get('soil_data', {})
-    leaf_data = results_data.get('leaf_data', {})
-    
-    # 2. From analysis_results.raw_data (processed data from analysis engine)
+    # Get raw data from analysis results
     analysis_results = get_analysis_results_from_data(results_data)
-    if analysis_results and 'raw_data' in analysis_results:
-        raw_data = analysis_results['raw_data']
-        # Check for new structure with parameter_statistics
-        if 'soil_data' in raw_data and raw_data['soil_data'].get('parameter_statistics'):
-            soil_data = raw_data['soil_data']
-        elif not soil_data and 'soil_parameters' in raw_data:
-            soil_data = raw_data['soil_parameters']
-        
-        if 'leaf_data' in raw_data and raw_data['leaf_data'].get('parameter_statistics'):
-            leaf_data = raw_data['leaf_data']
-        elif not leaf_data and 'leaf_parameters' in raw_data:
-            leaf_data = raw_data['leaf_parameters']
+    soil_data = {}
+    leaf_data = {}
     
-    # 2b. Direct from analysis_results (alternative structure)
-    if not soil_data and 'soil_parameters' in analysis_results:
-        soil_data = analysis_results['soil_parameters']
-    if not leaf_data and 'leaf_parameters' in analysis_results:
-        leaf_data = analysis_results['leaf_parameters']
+    if analysis_results:
+        # Try to get original OCR data first
+        if 'raw_ocr_data' in analysis_results:
+            raw_ocr_data = analysis_results['raw_ocr_data']
+            soil_data = raw_ocr_data.get('soil_data', {})
+            leaf_data = raw_ocr_data.get('leaf_data', {})
+        
+        # Fallback to other data structures
+        if not soil_data and 'raw_data' in analysis_results:
+            raw_data = analysis_results['raw_data']
+            if 'soil_data' in raw_data:
+                soil_data = raw_data['soil_data']
+            elif 'soil_parameters' in raw_data:
+                soil_data = raw_data['soil_parameters']
+        
+        if not leaf_data and 'raw_data' in analysis_results:
+            raw_data = analysis_results['raw_data']
+            if 'leaf_data' in raw_data:
+                leaf_data = raw_data['leaf_data']
+            elif 'leaf_parameters' in raw_data:
+                leaf_data = raw_data['leaf_parameters']
+        
+        # Additional fallbacks
+        if not soil_data and 'soil_parameters' in analysis_results:
+            soil_data = analysis_results['soil_parameters']
+        if not leaf_data and 'leaf_parameters' in analysis_results:
+            leaf_data = analysis_results['leaf_parameters']
+    
     
     # 3. From comprehensive_analysis.raw_data (alternative structure)
     comprehensive_analysis = results_data.get('comprehensive_analysis', {})
@@ -1099,13 +1042,21 @@ def display_raw_data_section(results_data):
         # Display soil data
         if soil_data:
             st.markdown("### 🌱 Soil Analysis Data")
-            display_soil_data_table(soil_data)
+            # Check if we have raw OCR data with samples
+            if 'samples' in soil_data and soil_data['samples']:
+                display_raw_soil_data(soil_data)
+            else:
+                display_soil_data_table(soil_data)
             st.markdown("")  # Add spacing
         
         # Display leaf data
         if leaf_data:
             st.markdown("### 🍃 Leaf Analysis Data")
-            display_leaf_data_table(leaf_data)
+            # Check if we have raw OCR data with samples
+            if 'samples' in leaf_data and leaf_data['samples']:
+                display_raw_leaf_data(leaf_data)
+            else:
+                display_leaf_data_table(leaf_data)
     else:
         st.info("📋 No raw data available for this analysis.")
         st.write(f"Results data keys: {list(results_data.keys())}")
@@ -1122,6 +1073,246 @@ def display_raw_data_section(results_data):
             st.write(f"Comprehensive analysis keys: {list(comprehensive_analysis.keys())}")
             if 'raw_data' in comprehensive_analysis:
                 st.write(f"Comprehensive analysis raw_data keys: {list(comprehensive_analysis['raw_data'].keys())}")
+
+def process_html_tables(text):
+    """Process HTML tables in text and convert them to proper Streamlit tables"""
+    import re
+    import pandas as pd
+    
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        # Fallback if BeautifulSoup is not available
+        logger.warning("BeautifulSoup not available, using regex fallback for table parsing")
+        return process_html_tables_regex(text)
+    
+    # Find all HTML table blocks
+    table_pattern = r'<tables>(.*?)</tables>'
+    table_blocks = re.findall(table_pattern, text, re.DOTALL)
+    
+    processed_text = text
+    
+    for table_block in table_blocks:
+        try:
+            # Parse the HTML table
+            soup = BeautifulSoup(table_block, 'html.parser')
+            table = soup.find('table')
+            
+            if table:
+                # Extract table title
+                title = table.get('title', 'Table')
+                
+                # Extract headers
+                thead = table.find('thead')
+                headers = []
+                if thead:
+                    header_row = thead.find('tr')
+                    if header_row:
+                        headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
+                
+                # Extract rows
+                tbody = table.find('tbody')
+                rows = []
+                if tbody:
+                    for tr in tbody.find_all('tr'):
+                        row = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                        if row:  # Only add non-empty rows
+                            rows.append(row)
+                
+                # Create a styled HTML table
+                if headers and rows:
+                    # Create table HTML with proper styling
+                    table_html = f"""
+                    <div style="margin: 20px 0; overflow-x: auto;">
+                        <h4 style="color: #2c3e50; margin-bottom: 15px; font-weight: 600;">{title}</h4>
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <thead>
+                                <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                    """
+                    
+                    # Add headers
+                    for header in headers:
+                        table_html += f'<th style="padding: 12px 15px; text-align: left; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2);">{header}</th>'
+                    
+                    table_html += """
+                                </tr>
+                            </thead>
+                            <tbody>
+                    """
+                    
+                    # Add rows
+                    for i, row in enumerate(rows):
+                        row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
+                        table_html += f'<tr style="{row_style}">'
+                        for cell in row:
+                            # Handle colspan if present
+                            if cell == '' and len(row) < len(headers):
+                                continue
+                            table_html += f'<td style="padding: 10px 15px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;">{cell}</td>'
+                        table_html += '</tr>'
+                    
+                    table_html += """
+                            </tbody>
+                        </table>
+                    </div>
+                    """
+                    
+                    # Replace the original table block with the styled HTML
+                    original_block = f'<tables>{table_block}</tables>'
+                    processed_text = processed_text.replace(original_block, table_html)
+                    
+        except Exception as e:
+            # If parsing fails, keep the original text
+            logger.warning(f"Failed to parse HTML table: {str(e)}")
+            continue
+    
+    return processed_text
+
+def process_html_tables_regex(text):
+    """Fallback function to process HTML tables using regex when BeautifulSoup is not available"""
+    import re
+    
+    # Find all HTML table blocks
+    table_pattern = r'<tables>(.*?)</tables>'
+    table_blocks = re.findall(table_pattern, text, re.DOTALL)
+    
+    processed_text = text
+    
+    for table_block in table_blocks:
+        try:
+            # Extract table title
+            title_match = re.search(r'<table[^>]*title="([^"]*)"', table_block)
+            title = title_match.group(1) if title_match else "Table"
+            
+            # Extract headers
+            header_pattern = r'<thead>.*?<tr>(.*?)</tr>.*?</thead>'
+            header_match = re.search(header_pattern, table_block, re.DOTALL)
+            headers = []
+            if header_match:
+                header_cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', header_match.group(1))
+                headers = [cell.strip() for cell in header_cells]
+            
+            # Extract rows
+            row_pattern = r'<tbody>(.*?)</tbody>'
+            tbody_match = re.search(row_pattern, table_block, re.DOTALL)
+            rows = []
+            if tbody_match:
+                row_matches = re.findall(r'<tr>(.*?)</tr>', tbody_match.group(1), re.DOTALL)
+                for row_match in row_matches:
+                    cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row_match)
+                    if cells:
+                        rows.append([cell.strip() for cell in cells])
+            
+            # Create a styled HTML table
+            if headers and rows:
+                table_html = f"""
+                <div style="margin: 20px 0; overflow-x: auto;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px; font-weight: 600;">{title}</h4>
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                """
+                
+                # Add headers
+                for header in headers:
+                    table_html += f'<th style="padding: 12px 15px; text-align: left; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2);">{header}</th>'
+                
+                table_html += """
+                            </tr>
+                        </thead>
+                        <tbody>
+                """
+                
+                # Add rows
+                for i, row in enumerate(rows):
+                    row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
+                    table_html += f'<tr style="{row_style}">'
+                    for cell in row:
+                        table_html += f'<td style="padding: 10px 15px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;">{cell}</td>'
+                    table_html += '</tr>'
+                
+                table_html += """
+                        </tbody>
+                    </table>
+                </div>
+                """
+                
+                # Replace the original table block with the styled HTML
+                original_block = f'<tables>{table_block}</tables>'
+                processed_text = processed_text.replace(original_block, table_html)
+                
+        except Exception as e:
+            # If parsing fails, keep the original text
+            logger.warning(f"Failed to parse HTML table with regex: {str(e)}")
+            continue
+    
+    return processed_text
+
+def display_raw_soil_data(soil_data):
+    """Display raw soil OCR data in tabular format"""
+    if not soil_data or 'samples' not in soil_data:
+        st.warning("📋 No soil data available.")
+        return
+    
+    samples = soil_data['samples']
+    if not samples:
+        st.warning("📋 No soil samples found.")
+        return
+    
+    # Create a DataFrame from the samples
+    import pandas as pd
+    
+    # Convert samples to DataFrame
+    df_data = []
+    for sample in samples:
+        row = {'Lab No.': sample.get('Lab No.', 'N/A')}
+        # Add all parameters
+        for key, value in sample.items():
+            if key != 'Lab No.':
+                row[key] = value
+        df_data.append(row)
+    
+    if df_data:
+        df = pd.DataFrame(df_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Show summary
+        st.info(f"📊 **Total Samples:** {len(samples)}")
+    else:
+        st.warning("📋 No soil data available.")
+
+def display_raw_leaf_data(leaf_data):
+    """Display raw leaf OCR data in tabular format"""
+    if not leaf_data or 'samples' not in leaf_data:
+        st.warning("📋 No leaf data available.")
+        return
+    
+    samples = leaf_data['samples']
+    if not samples:
+        st.warning("📋 No leaf samples found.")
+        return
+    
+    # Create a DataFrame from the samples
+    import pandas as pd
+    
+    # Convert samples to DataFrame
+    df_data = []
+    for sample in samples:
+        row = {'Lab No.': sample.get('Lab No.', 'N/A')}
+        # Add all parameters
+        for key, value in sample.items():
+            if key != 'Lab No.':
+                row[key] = value
+        df_data.append(row)
+    
+    if df_data:
+        df = pd.DataFrame(df_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Show summary
+        st.info(f"📊 **Total Samples:** {len(samples)}")
+    else:
+        st.warning("📋 No leaf data available.")
 
 def display_soil_data_table(soil_data):
     """Display soil analysis data in tabular format"""
@@ -2751,17 +2942,30 @@ def display_enhanced_step_result(step_result, step_number):
         # For Step 2, we want to keep the visual comparison text but remove the actual QuickChart URLs
         # This allows the visualization generation to work properly
         
+        # Process HTML tables and other content
+        processed_text = process_html_tables(detailed_text)
+        
         # Split into paragraphs for better formatting
-        paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
+        paragraphs = processed_text.split('\n\n') if '\n\n' in processed_text else [processed_text]
         
         for paragraph in paragraphs:
             if isinstance(paragraph, str) and paragraph.strip():
-                st.markdown(
-                    f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
+                # Skip empty paragraphs
+                if paragraph.strip() == '':
+                    continue
+                    
+                # Check if this paragraph contains a table (already processed)
+                if '<table' in paragraph and '</table>' in paragraph:
+                    # This is an HTML table, render it directly
+                    st.markdown(paragraph, unsafe_allow_html=True)
+                else:
+                    # Regular text paragraph
+                    st.markdown(
+                        f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                        f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
         st.markdown("")
     
     # 4. TABLES SECTION - Display detailed tables if available
