@@ -413,13 +413,72 @@ class GoogleVisionTableExtractor:
             if not pd:
                 return {'tables': [], 'error': 'pandas not installed for Excel/CSV parsing'}
             ext = os.path.splitext(file_path)[1].lower()
+
+            def _load_csv(path: str):
+                # Try a few separators and settings
+                for sep in [',', ';', '\t', '|']:
+                    try:
+                        df_try = pd.read_csv(path, sep=sep, engine='python', on_bad_lines='skip')
+                        if not df_try.empty and len(df_try.columns) > 0:
+                            return df_try
+                    except Exception:
+                        continue
+                # Last resort: no header
+                try:
+                    return pd.read_csv(path, header=None, engine='python', on_bad_lines='skip')
+                except Exception:
+                    return pd.DataFrame()
+
+            def _normalize_dataframe(df_in):
+                df_local = df_in.copy()
+                # If columns are numeric (headerless), promote first non-empty row to header
+                if all(isinstance(c, int) for c in df_local.columns) and not df_local.empty:
+                    header_row_idx = 0
+                    # Find first row with at least half non-null entries
+                    for i in range(min(5, len(df_local))):
+                        non_null_ratio = 1.0 - float(df_local.iloc[i].isna().sum()) / max(len(df_local.columns), 1)
+                        if non_null_ratio >= 0.5:
+                            header_row_idx = i
+                            break
+                    new_columns = [str(v) for v in list(df_local.iloc[header_row_idx].values)]
+                    df_local = df_local.iloc[header_row_idx + 1:].reset_index(drop=True)
+                    df_local.columns = new_columns
+                # Drop fully empty columns and rows
+                df_local = df_local.dropna(axis=0, how='all').dropna(axis=1, how='all')
+                return df_local
+
             if ext == '.csv':
-                df = pd.read_csv(file_path)
+                df = _load_csv(file_path)
             else:
-                df = pd.read_excel(file_path)
+                # Excel: try default sheet first
+                df = pd.DataFrame()
+                read_errors: List[str] = []
+                for read_attempt in range(1, 4):
+                    try:
+                        if read_attempt == 1:
+                            df = pd.read_excel(file_path)  # default sheet
+                        elif read_attempt == 2:
+                            # Read all sheets and concat
+                            all_sheets = pd.read_excel(file_path, sheet_name=None)
+                            frames = [sdf for name, sdf in all_sheets.items() if not sdf.empty]
+                            if frames:
+                                df = pd.concat(frames, ignore_index=True)
+                        else:
+                            # Headerless
+                            df = pd.read_excel(file_path, header=None)
+                        if not df.empty and len(df.columns) > 0:
+                            break
+                    except Exception as re_err:
+                        read_errors.append(str(re_err))
+                        continue
+
+            df = _normalize_dataframe(df)
+            if df.empty or len(df.columns) == 0:
+                return {'tables': [], 'error': 'Excel/CSV appears empty or has no detectable columns'}
+
             # Decide soil vs leaf based on headers
-            headers = ' '.join([self._normalize_header(c) for c in df.columns])
-            if any(k in headers for k in ['ph', 'organic', 'exch', 'c e c']):
+            headers = ' '.join([self._normalize_header(str(c)) for c in df.columns])
+            if any(k in headers for k in ['ph', 'organic', 'exch', 'c e c', 'nitrogen']):
                 tables = self._parse_soil_dataframe(df)
             else:
                 tables = self._parse_leaf_dataframe(df)
@@ -427,7 +486,7 @@ class GoogleVisionTableExtractor:
                 return {'tables': tables, 'success': True}
             return {'tables': [], 'error': 'Unable to parse table structure from Excel/CSV'}
         except Exception as e:
-            return {'tables': [], 'error': str(e)}
+            return {'tables': [], 'error': f'Excel/CSV parsing failed: {str(e)}'}
     
     def _extract_document_text_lines(self, full_text_annotation) -> List[Dict[str, Any]]:
         """Extract text lines from document text annotation for better accuracy"""
