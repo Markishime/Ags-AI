@@ -418,31 +418,48 @@ class GoogleVisionTableExtractor:
                 # Try a few separators and settings
                 for sep in [',', ';', '\t', '|']:
                     try:
-                        df_try = pd.read_csv(path, sep=sep, engine='python', on_bad_lines='skip')
+                        df_try = pd.read_csv(path, sep=sep, engine='python', on_bad_lines='skip', header=None, encoding_errors='ignore')
                         if not df_try.empty and len(df_try.columns) > 0:
                             return df_try
                     except Exception:
                         continue
-                # Last resort: no header
-                try:
-                    return pd.read_csv(path, header=None, engine='python', on_bad_lines='skip')
-                except Exception:
-                    return pd.DataFrame()
+                return pd.DataFrame()
 
             def _normalize_dataframe(df_in):
                 df_local = df_in.copy()
-                # If columns are numeric (headerless), promote first non-empty row to header
-                if all(isinstance(c, int) for c in df_local.columns) and not df_local.empty:
-                    header_row_idx = 0
-                    # Find first row with at least half non-null entries
-                    for i in range(min(5, len(df_local))):
-                        non_null_ratio = 1.0 - float(df_local.iloc[i].isna().sum()) / max(len(df_local.columns), 1)
-                        if non_null_ratio >= 0.5:
-                            header_row_idx = i
-                            break
+                # Promote detected header row to columns
+                def _find_header_row(df_any):
+                    soil_keys = ['ph', 'nitrogen', 'organic', 'total p', 'available', 'exch', 'c e c']
+                    leaf_keys = ['n %', 'p %', 'k %', 'mg %', 'ca %', 'b', 'cu', 'zn']
+                    best_idx = 0
+                    best_score = -1
+                    rows_to_check = min(15, len(df_any))
+                    for i in range(rows_to_check):
+                        cells = [str(x) for x in list(df_any.iloc[i].values)]
+                        blob = ' '.join(self._normalize_header(x) for x in cells)
+                        score = sum(k in blob for k in soil_keys) + sum(k in blob for k in leaf_keys)
+                        if score > best_score:
+                            best_score = score
+                            best_idx = i
+                    return best_idx
+
+                if not df_local.empty:
+                    header_row_idx = _find_header_row(df_local)
                     new_columns = [str(v) for v in list(df_local.iloc[header_row_idx].values)]
                     df_local = df_local.iloc[header_row_idx + 1:].reset_index(drop=True)
-                    df_local.columns = new_columns
+                    # Ensure unique, non-empty headers
+                    fixed_cols = []
+                    seen = {}
+                    for col in new_columns:
+                        name = str(col).strip() or 'col'
+                        name_norm = name
+                        if name_norm in seen:
+                            seen[name_norm] += 1
+                            name_norm = f"{name_norm}_{seen[name_norm]}"
+                        else:
+                            seen[name_norm] = 1
+                        fixed_cols.append(name_norm)
+                    df_local.columns = fixed_cols
                 # Drop fully empty columns and rows
                 df_local = df_local.dropna(axis=0, how='all').dropna(axis=1, how='all')
                 return df_local
@@ -456,10 +473,10 @@ class GoogleVisionTableExtractor:
                 for read_attempt in range(1, 4):
                     try:
                         if read_attempt == 1:
-                            df = pd.read_excel(file_path)  # default sheet
+                            df = pd.read_excel(file_path, header=None)  # raw grid
                         elif read_attempt == 2:
                             # Read all sheets and concat
-                            all_sheets = pd.read_excel(file_path, sheet_name=None)
+                            all_sheets = pd.read_excel(file_path, sheet_name=None, header=None)
                             frames = [sdf for name, sdf in all_sheets.items() if not sdf.empty]
                             if frames:
                                 df = pd.concat(frames, ignore_index=True)
