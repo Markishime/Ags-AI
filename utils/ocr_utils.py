@@ -1,9 +1,22 @@
+# flake8: noqa
 import os
 import logging
 import json
 import re
 from typing import Dict, List, Any
 import streamlit as st
+from io import BytesIO
+
+# Optional data/PDF helpers
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+
+try:
+    import fitz  # PyMuPDF
+except Exception:
+    fitz = None
 
 # Google Vision OCR imports
 try:
@@ -225,6 +238,196 @@ class GoogleVisionTableExtractor:
         except Exception as e:
             self.logger.error(f"❌ Error parsing Google Vision OCR result: {str(e)}")
             return []
+
+    # ------------------------
+    # Excel/CSV direct parsers
+    # ------------------------
+    def _normalize_header(self, header: str) -> str:
+        text = header or ''
+        text = text.strip().lower()
+        text = re.sub(r'[^a-z0-9%]+', ' ', text)
+        return re.sub(r'\s+', ' ', text)
+
+    def _parse_soil_dataframe(self, df) -> List[Dict[str, Any]]:
+        try:
+            if df is None or df.empty:
+                return []
+            headers = {self._normalize_header(col): col for col in df.columns}
+            # Likely column mappings
+            col_map = {
+                'sample n': None,
+                'sample no': None,
+                'ph': None,
+                'nitrogen': None,
+                'nitrogen %': None,
+                'organic c': None,
+                'organic carbon': None,
+                'total p': None,
+                'total p mg kg': None,
+                'available': None,
+                'available p': None,
+                'available p mg kg': None,
+                'exch k': None,
+                'exch k meq': None,
+                'exch ca': None,
+                'exch ca meq': None,
+                'exch mg': None,
+                'exch mg meq': None,
+                'c e c': None,
+                'c e c meq': None,
+            }
+            # Resolve best matches
+            def pick(*keys):
+                for k in keys:
+                    for h in headers:
+                        if h.startswith(k):
+                            return headers[h]
+                return None
+            mapped = {
+                'lab': pick('sample n', 'sample no'),
+                'ph': pick('ph'),
+                'n': pick('nitrogen %', 'nitrogen'),
+                'oc': pick('organic carbon', 'organic c'),
+                'total_p': pick('total p mg kg', 'total p'),
+                'available_p': pick('available p mg kg', 'available p', 'available'),
+                'exch_k': pick('exch k meq', 'exch k'),
+                'exch_ca': pick('exch ca meq', 'exch ca'),
+                'exch_mg': pick('exch mg meq', 'exch mg'),
+                'cec': pick('c e c meq', 'c e c'),
+            }
+            samples: List[Dict[str, Any]] = []
+            for idx, row in df.iterrows():
+                sample = {
+                    'Lab No.': str(row.get(mapped['lab'])) if mapped['lab'] else f"S{idx+1}",
+                    'Sample No.': idx + 1,
+                    'pH': float(row.get(mapped['ph'])) if mapped['ph'] in row else float(row.get(mapped['ph'], 0) or 0),
+                    'Nitrogen %': float(row.get(mapped['n'], 0) or 0),
+                    'Organic Carbon %': float(row.get(mapped['oc'], 0) or 0),
+                    'Total P mg/kg': float(row.get(mapped['total_p'], 0) or 0),
+                    'Available P mg/kg': float(row.get(mapped['available_p'], 0) or 0),
+                    'Exch. K meq%': float(row.get(mapped['exch_k'], 0) or 0),
+                    'Exch. Ca meq%': float(row.get(mapped['exch_ca'], 0) or 0),
+                    'Exch. Mg meq%': float(row.get(mapped['exch_mg'], 0) or 0),
+                    'C.E.C meq%': float(row.get(mapped['cec'], 0) or 0),
+                }
+                samples.append(sample)
+            if not samples:
+                return []
+            return [{
+                'type': 'soil',
+                'table_number': 1,
+                'samples': samples,
+                'sample_count': len(samples)
+            }]
+        except Exception as e:
+            self.logger.error(f"Error parsing soil dataframe: {e}")
+            return []
+
+    def _parse_leaf_dataframe(self, df) -> List[Dict[str, Any]]:
+        try:
+            if df is None or df.empty:
+                return []
+            headers = {self._normalize_header(col): col for col in df.columns}
+            def pick(prefix):
+                for h in headers:
+                    if h.startswith(prefix):
+                        return headers[h]
+                return None
+            mapped = {
+                'lab': pick('sample n') or pick('sample no'),
+                'n': pick('n %'),
+                'p': pick('p %'),
+                'k': pick('k %'),
+                'mg': pick('mg %'),
+                'ca': pick('ca %'),
+                'b': pick('b mg kg') or pick('b'),
+                'cu': pick('cu mg kg') or pick('cu'),
+                'zn': pick('zn mg kg') or pick('zn'),
+            }
+            samples: List[Dict[str, Any]] = []
+            for idx, row in df.iterrows():
+                percent = {
+                    'N': float(row.get(mapped['n'], 0) or 0),
+                    'P': float(row.get(mapped['p'], 0) or 0),
+                    'K': float(row.get(mapped['k'], 0) or 0),
+                    'Mg': float(row.get(mapped['mg'], 0) or 0),
+                    'Ca': float(row.get(mapped['ca'], 0) or 0),
+                }
+                mgkg = {
+                    'B': float(row.get(mapped['b'], 0) or 0),
+                    'Cu': float(row.get(mapped['cu'], 0) or 0),
+                    'Zn': float(row.get(mapped['zn'], 0) or 0),
+                }
+                sample = {
+                    'Lab No.': str(row.get(mapped['lab'])) if mapped['lab'] else f"P{idx+1}",
+                    'Sample No.': idx + 1,
+                    '% Dry Matter': percent,
+                    'mg/kg Dry Matter': mgkg,
+                }
+                samples.append(sample)
+            if not samples:
+                return []
+            return [{
+                'type': 'leaf',
+                'table_number': 1,
+                'samples': samples,
+                'sample_count': len(samples)
+            }]
+        except Exception as e:
+            self.logger.error(f"Error parsing leaf dataframe: {e}")
+            return []
+
+    def extract_tables_from_pdf(self, pdf_path: str) -> Dict[str, Any]:
+        try:
+            if not os.path.exists(pdf_path):
+                return {'tables': [], 'error': f'PDF not found: {pdf_path}'}
+            if not fitz:
+                return {'tables': [], 'error': 'PyMuPDF (fitz) not installed for PDF rendering'}
+            doc = fitz.open(pdf_path)
+            all_tables: List[Dict[str, Any]] = []
+            for page_index in range(len(doc)):
+                page = doc.load_page(page_index)
+                pix = page.get_pixmap(dpi=200)
+                img_bytes = pix.tobytes('png')
+                tmp = BytesIO(img_bytes)
+                # Persist to temp file for existing pipeline
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as f:
+                    f.write(img_bytes)
+                    tmp_path = f.name
+                result = self.extract_tables_from_image(tmp_path)
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+                if result.get('success'):
+                    all_tables.extend(result.get('tables', []))
+            if not all_tables:
+                return {'tables': [], 'error': 'No tables found in PDF'}
+            return {'tables': all_tables, 'success': True}
+        except Exception as e:
+            return {'tables': [], 'error': str(e)}
+
+    def extract_tables_from_excel(self, file_path: str) -> Dict[str, Any]:
+        try:
+            if not pd:
+                return {'tables': [], 'error': 'pandas not installed for Excel/CSV parsing'}
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == '.csv':
+                df = pd.read_csv(file_path)
+            else:
+                df = pd.read_excel(file_path)
+            # Decide soil vs leaf based on headers
+            headers = ' '.join([self._normalize_header(c) for c in df.columns])
+            if any(k in headers for k in ['ph', 'organic', 'exch', 'c e c']):
+                tables = self._parse_soil_dataframe(df)
+            else:
+                tables = self._parse_leaf_dataframe(df)
+            if tables:
+                return {'tables': tables, 'success': True}
+            return {'tables': [], 'error': 'Unable to parse table structure from Excel/CSV'}
+        except Exception as e:
+            return {'tables': [], 'error': str(e)}
     
     def _extract_document_text_lines(self, full_text_annotation) -> List[Dict[str, Any]]:
         """Extract text lines from document text annotation for better accuracy"""
@@ -978,12 +1181,17 @@ class GoogleVisionTableExtractor:
 # Main function for external use
 def extract_data_from_image(image_path: str, output_dir: str = 'output') -> Dict[str, Any]:
     """
-    Extract data from image using Google Vision OCR with maximum accuracy
+    Extract data from images, PDFs, and Excel/CSV. Images and PDF pages use Google Vision OCR; Excel/CSV parse directly.
     """
     try:
         extractor = GoogleVisionTableExtractor()
-        result = extractor.extract_tables_from_image(image_path)
-        
+        ext = os.path.splitext(image_path)[1].lower()
+        if ext in ['.pdf']:
+            result = extractor.extract_tables_from_pdf(image_path)
+        elif ext in ['.csv', '.xlsx', '.xls']:
+            result = extractor.extract_tables_from_excel(image_path)
+        else:
+            result = extractor.extract_tables_from_image(image_path)
         if result.get('success'):
             return {
                 'success': True,
@@ -997,7 +1205,6 @@ def extract_data_from_image(image_path: str, output_dir: str = 'output') -> Dict
                 'error': result.get('error', 'Unknown error'),
                 'tables': []
             }
-            
     except Exception as e:
         logger.error(f"❌ Error in extract_data_from_image: {str(e)}")
         return {

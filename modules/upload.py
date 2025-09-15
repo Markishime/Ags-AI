@@ -122,21 +122,24 @@ def upload_section():
             st.info("📋 **Expected:** Soil analysis reports with pH, organic carbon, available P, exchangeable cations, etc.")
             
             soil_file = st.file_uploader(
-                "Choose soil analysis image",
-                type=['png', 'jpg', 'jpeg'],
-                help="Upload clear images of SP LAB soil analysis reports",
+                "Choose soil analysis file",
+                type=['png', 'jpg', 'jpeg', 'pdf', 'csv', 'xlsx', 'xls'],
+                help="Upload SP LAB soil analysis reports (image, PDF, or Excel/CSV)",
                 key="soil_uploader"
             )
             
             if soil_file is not None:
                 st.session_state.soil_file = soil_file
                 # Display uploaded image
-                st.markdown("##### 🖼️ Uploaded Soil Report")
-                soil_image = Image.open(soil_file)
-                st.image(soil_image, caption="Soil Analysis Report", use_container_width=True)
-                
-                # Image info
-                st.info(f"**File:** {soil_file.name}\n**Size:** {soil_file.size} bytes\n**Format:** {soil_image.format}")
+                st.markdown("##### 📄 Uploaded Soil Report")
+                file_ext = os.path.splitext(soil_file.name)[1].lower()
+                is_image = file_ext in ['.png', '.jpg', '.jpeg']
+                if is_image:
+                    soil_image = Image.open(soil_file)
+                    st.image(soil_image, caption="Soil Analysis Report", use_container_width=True)
+                    st.info(f"**File:** {soil_file.name}\n**Size:** {soil_file.size} bytes\n**Format:** {soil_image.format}")
+                else:
+                    st.info(f"**File:** {soil_file.name}\n**Size:** {soil_file.size} bytes\n**Type:** {file_ext}")
                 
                 # Enhanced OCR preview - Dynamic processing
                 with st.expander("🔍 OCR Data Preview", expanded=True):
@@ -157,10 +160,16 @@ def upload_section():
                             # Save image to temporary file and pass path to OCR function
                             import tempfile
                             import time
-                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-                                soil_image.save(tmp_file.name)
-                                ocr_preview = extract_data_from_image(tmp_file.name)
-                                tmp_file_path = tmp_file.name
+                            if is_image:
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext or '.png') as tmp_file:
+                                    soil_image.save(tmp_file.name)
+                                    ocr_preview = extract_data_from_image(tmp_file.name)
+                                    tmp_file_path = tmp_file.name
+                            else:
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext or '.pdf') as tmp_file:
+                                    tmp_file.write(soil_file.getvalue())
+                                    ocr_preview = extract_data_from_image(tmp_file.name)
+                                    tmp_file_path = tmp_file.name
                             # Clean up temporary file after OCR is done with delay
                             try:
                                 time.sleep(0.1)  # Small delay to ensure file is released
@@ -234,21 +243,24 @@ def upload_section():
             st.info("📋 **Expected:** Leaf analysis reports with N%, P%, K%, Mg%, Ca%, B, Cu, Zn content, etc.")
             
             leaf_file = st.file_uploader(
-                "Choose leaf analysis image",
-                type=['png', 'jpg', 'jpeg'],
-                help="Upload clear images of SP LAB leaf analysis reports",
+                "Choose leaf analysis file",
+                type=['png', 'jpg', 'jpeg', 'pdf', 'csv', 'xlsx', 'xls'],
+                help="Upload SP LAB leaf analysis reports (image, PDF, or Excel/CSV)",
                 key="leaf_uploader"
             )
             
             if leaf_file is not None:
                 st.session_state.leaf_file = leaf_file
                 # Display uploaded image
-                st.markdown("##### 🖼️ Uploaded Leaf Report")
-                leaf_image = Image.open(leaf_file)
-                st.image(leaf_image, caption="Leaf Analysis Report", use_container_width=True)
-                
-                # Image info
-                st.info(f"**File:** {leaf_file.name}\n**Size:** {leaf_file.size} bytes\n**Format:** {leaf_image.format}")
+                st.markdown("##### 📄 Uploaded Leaf Report")
+                leaf_ext = os.path.splitext(leaf_file.name)[1].lower()
+                leaf_is_image = leaf_ext in ['.png', '.jpg', '.jpeg']
+                if leaf_is_image:
+                    leaf_image = Image.open(leaf_file)
+                    st.image(leaf_image, caption="Leaf Analysis Report", use_container_width=True)
+                    st.info(f"**File:** {leaf_file.name}\n**Size:** {leaf_file.size} bytes\n**Format:** {leaf_image.format}")
+                else:
+                    st.info(f"**File:** {leaf_file.name}\n**Size:** {leaf_file.size} bytes\n**Type:** {leaf_ext}")
                 
                 # Enhanced OCR preview - Dynamic processing
                 with st.expander("🔍 OCR Data Preview", expanded=True):
@@ -269,10 +281,16 @@ def upload_section():
                             # Save image to temporary file and pass path to OCR function
                             import tempfile
                             import time
-                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-                                leaf_image.save(tmp_file.name)
-                                ocr_preview = extract_data_from_image(tmp_file.name)
-                                tmp_file_path = tmp_file.name
+                            if leaf_is_image:
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=leaf_ext or '.png') as tmp_file:
+                                    leaf_image.save(tmp_file.name)
+                                    ocr_preview = extract_data_from_image(tmp_file.name)
+                                    tmp_file_path = tmp_file.name
+                            else:
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=leaf_ext or '.pdf') as tmp_file:
+                                    tmp_file.write(leaf_file.getvalue())
+                                    ocr_preview = extract_data_from_image(tmp_file.name)
+                                    tmp_file_path = tmp_file.name
                             # Clean up temporary file after OCR is done with delay
                             try:
                                 time.sleep(0.1)  # Small delay to ensure file is released

@@ -609,26 +609,48 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         import threading
         
         def process_soil_ocr():
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                soil_image = Image.open(soil_file)
-                soil_image.save(tmp_file.name)
-                result = extract_data_from_image(tmp_file.name, 'soil')
-                try:
-                    os.unlink(tmp_file.name)
-                except (PermissionError, FileNotFoundError):
-                    pass
-                return result
+            file_ext = os.path.splitext(soil_file.name)[1].lower()
+            if file_ext in ['.png', '.jpg', '.jpeg']:
+                with tempfile.NamedTemporaryFile(suffix=file_ext, delete=False) as tmp_file:
+                    soil_image = Image.open(soil_file)
+                    soil_image.save(tmp_file.name)
+                    result = extract_data_from_image(tmp_file.name, 'soil')
+                    try:
+                        os.unlink(tmp_file.name)
+                    except (PermissionError, FileNotFoundError):
+                        pass
+                    return result
+            else:
+                with tempfile.NamedTemporaryFile(suffix=file_ext or '.pdf', delete=False) as tmp_file:
+                    tmp_file.write(soil_file.getvalue())
+                    result = extract_data_from_image(tmp_file.name, 'soil')
+                    try:
+                        os.unlink(tmp_file.name)
+                    except (PermissionError, FileNotFoundError):
+                        pass
+                    return result
         
         def process_leaf_ocr():
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                leaf_image = Image.open(leaf_file)
-                leaf_image.save(tmp_file.name)
-                result = extract_data_from_image(tmp_file.name, 'leaf')
-                try:
-                    os.unlink(tmp_file.name)
-                except (PermissionError, FileNotFoundError):
-                    pass
-                return result
+            file_ext = os.path.splitext(leaf_file.name)[1].lower()
+            if file_ext in ['.png', '.jpg', '.jpeg']:
+                with tempfile.NamedTemporaryFile(suffix=file_ext, delete=False) as tmp_file:
+                    leaf_image = Image.open(leaf_file)
+                    leaf_image.save(tmp_file.name)
+                    result = extract_data_from_image(tmp_file.name, 'leaf')
+                    try:
+                        os.unlink(tmp_file.name)
+                    except (PermissionError, FileNotFoundError):
+                        pass
+                    return result
+            else:
+                with tempfile.NamedTemporaryFile(suffix=file_ext or '.pdf', delete=False) as tmp_file:
+                    tmp_file.write(leaf_file.getvalue())
+                    result = extract_data_from_image(tmp_file.name, 'leaf')
+                    try:
+                        os.unlink(tmp_file.name)
+                    except (PermissionError, FileNotFoundError):
+                        pass
+                    return result
         
         # Process both OCR operations in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
