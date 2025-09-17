@@ -2,7 +2,7 @@ import json
 import re
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from .firebase_config import get_firestore_client, COLLECTIONS
+from firebase_config import get_firestore_client, COLLECTIONS
 import streamlit as st
 
 # Default AI Configuration Schema

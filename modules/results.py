@@ -21,6 +21,7 @@ from google.cloud.firestore import Query, FieldFilter
 from utils.pdf_utils import PDFReportGenerator
 from utils.analysis_engine import AnalysisEngine
 from utils.ocr_utils import extract_data_from_image
+from utils.parsing_utils import _parse_raw_text_to_structured_json
 from modules.admin import get_active_prompt
 from utils.feedback_system import (
     display_feedback_section as display_feedback_section_util)
@@ -368,53 +369,13 @@ def show_results_page():
     try:
         # Check if there's new analysis data to process
         if 'analysis_data' in st.session_state and st.session_state.analysis_data:
-            # Enhanced loading interface for non-technical users
-            st.markdown("### 🔬 Analyzing Your Agricultural Reports")
-            st.info("📊 Our AI system is processing your soil and leaf analysis data. This may take a few moments...")
-            
-            # Create enhanced progress display with system status
-            progress_container = st.container()
-            with progress_container:
-                # Add system status indicator with heartbeat
-                st.markdown("""
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 15px; border-radius: 10px; margin-bottom: 20px; 
-                    text-align: center; animation: pulse 2s infinite;">
-                    <h4 style="color: white; margin: 0; font-size: 18px;">
-                        🔄 Analysis in Progress
-                    </h4>
-                    <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; 
-                        font-size: 14px;">
-                        Our AI is analyzing your agricultural data. Please wait...
-                    </p>
-                </div>
-                <style>
-                    @keyframes pulse {
-                        0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
-                        70% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
-                        100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
-                    }
-                </style>
-                """, unsafe_allow_html=True)
-                
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                time_estimate = st.empty()
-                step_indicator = st.empty()
-                
-                # Add a "system is working" indicator
-                working_indicator = st.empty()
-            
-            # Process the new analysis with enhanced progress tracking
-            results_data = process_new_analysis(st.session_state.analysis_data, progress_bar, status_text, time_estimate, step_indicator, working_indicator)
+            # Process the new analysis silently
+            results_data = process_new_analysis(st.session_state.analysis_data)
             
             # Clear the analysis_data from session state after processing
             del st.session_state.analysis_data
             
-            if results_data and results_data.get('success', False):
-                # Clear progress container
-                progress_container.empty()
-            else:
+            if not results_data or not results_data.get('success', False):
                 st.error(f"❌ Analysis failed: {results_data.get('message', 'Unknown error')}")
                 st.info("💡 **Tip:** Make sure your uploaded files are clear images of soil and leaf analysis reports.")
                 return
@@ -429,7 +390,12 @@ def show_results_page():
         # Display results in organized sections
         st.markdown('<div class="print-show">', unsafe_allow_html=True)
         display_results_header(results_data)
-        display_raw_data_section(results_data)  # Add raw data display
+
+        # Add raw data and average data tables before Executive Summary
+        display_raw_data_tables(results_data)
+        display_average_data_tables(results_data)
+
+        # Executive Summary
         display_summary_section(results_data)
         display_key_findings_section(results_data)  # Key Findings below Executive Summary
         display_step_by_step_results(results_data)
@@ -548,35 +514,10 @@ def load_latest_results():
         st.error(f"Error loading results from database: {str(e)}")
         return None
 
-def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate=None, step_indicator=None, working_indicator=None):
+def process_new_analysis(analysis_data):
     """Process new analysis data from uploaded files"""
     try:
         import time
-        
-        # Optimized progress tracking (reduced steps for faster processing)
-        total_steps = 5
-        current_step = 1
-        
-        # Create animated loading indicators
-        loading_indicators = ["⏳", "🔄", "⚡", "🌟", "💫", "✨", "🎯", "🚀"]
-        processing_messages = [
-            "Processing your data...",
-            "Analyzing patterns...",
-            "Generating insights...",
-            "Computing results...",
-            "Optimizing analysis...",
-            "Finalizing report...",
-            "Almost done...",
-            "Preparing results..."
-        ]
-        
-        # Step 1: Initial validation (optimized - no delays)
-        progress_bar.progress(10)
-        status_text.text("🔍 **Step 1/5:** Validating uploaded files... ✅")
-        if working_indicator:
-            working_indicator.markdown("🔄 **Processing:** Validating files...")
-        
-        
         
         # Extract data from uploaded files
         soil_file = analysis_data.get('soil_file')
@@ -586,18 +527,75 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         if not soil_file or not leaf_file:
             return {'success': False, 'message': 'Missing soil or leaf analysis files'}
         
-        # Step 2: Parallel OCR Processing (optimized)
-        current_step = 2
-        progress_bar.progress(30)
-        
-        # OCR processing (optimized - no delays)
-        status_text.text("🌱 **Step 2/5:** Extracting data from analysis reports... 🔄")
-        
-        status_text.text("🌱 **Step 2/5:** Extracting data from analysis reports... ✅")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~90 seconds")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
+        # Check if structured data is available from upload page (preferred)
+        structured_soil_data = st.session_state.get('structured_soil_data', {})
+        structured_leaf_data = st.session_state.get('structured_leaf_data', {})
+
+        # Use structured data if available, otherwise fall back to OCR processing
+        if structured_soil_data and structured_leaf_data:
+            logger.info("Using structured data from upload page")
+            # Skip OCR processing and use structured data directly
+            soil_data = {'success': True, 'data': {'samples': []}}
+            leaf_data = {'success': True, 'data': {'samples': []}}
+
+            # Convert structured data to sample format
+            if 'Farm_Soil_Test_Data' in structured_soil_data:
+                for sample_id, params in structured_soil_data['Farm_Soil_Test_Data'].items():
+                    sample = {'sample_no': sample_id.replace('S', ''), 'lab_no': ''}
+                    sample.update(params)
+                    soil_data['data']['samples'].append(sample)
+            elif 'SP_Lab_Test_Report' in structured_soil_data:
+                # Handle SP Lab soil data
+                for sample_id, params in structured_soil_data['SP_Lab_Test_Report'].items():
+                    sample = {'sample_no': sample_id.replace('S', '').replace('/', ''), 'lab_no': sample_id}
+                    sample.update(params)
+                    soil_data['data']['samples'].append(sample)
+
+            if 'Farm_Leaf_Test_Data' in structured_leaf_data:
+                for sample_id, params in structured_leaf_data['Farm_Leaf_Test_Data'].items():
+                    sample = {'sample_no': sample_id.replace('L', ''), 'lab_no': ''}
+                    sample.update(params)
+                    leaf_data['data']['samples'].append(sample)
+            elif 'SP_Lab_Test_Report' in structured_leaf_data:
+                # Handle SP Lab leaf data
+                for sample_id, params in structured_leaf_data['SP_Lab_Test_Report'].items():
+                    sample = {'sample_no': sample_id.replace('P', '').replace('/', ''), 'lab_no': sample_id}
+                    sample.update(params)
+                    leaf_data['data']['samples'].append(sample)
+
+            # Set raw text to empty since we're using structured data
+            raw_soil_text = ""
+            raw_leaf_text = ""
+
+            # Skip OCR processing entirely and jump to data processing
+            logger.info("Skipping OCR processing - using structured data from upload page")
+
+            # Set variables that the rest of the function expects
+            soil_samples = soil_data['data']['samples']
+            leaf_samples = leaf_data['data']['samples']
+
+            # Since we're using structured data, set raw text to empty
+            raw_soil_text = ""
+            raw_leaf_text = ""
+
+            # Log the sample counts
+            logger.info(f"Final soil samples count: {len(soil_samples)}")
+            logger.info(f"Final leaf samples count: {len(leaf_samples)}")
+
+            # Show progress update (commented out as requested)
+            # if working_indicator:
+            #     working_indicator.markdown("🔄 **Processing:** Data extraction completed...")
+
+            # Since we're using structured data, skip OCR validation messages
+            # and jump directly to the analysis section
+
+        else:
+            # Fall back to OCR processing if structured data not available
+            logger.info("Structured data not available, falling back to OCR processing")
+
+            # OCR processing
+            # if time_estimate:
+            #     time_estimate.text("⏱️ Estimated time remaining: ~90 seconds")
         
         # Convert uploaded file to PIL Image for OCR processing
         from PIL import Image
@@ -614,7 +612,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
                 with tempfile.NamedTemporaryFile(suffix=file_ext, delete=False) as tmp_file:
                     soil_image = Image.open(soil_file)
                     soil_image.save(tmp_file.name)
-                    result = extract_data_from_image(tmp_file.name, 'soil')
+                    result = extract_data_from_image(tmp_file.name)
                     try:
                         os.unlink(tmp_file.name)
                     except (PermissionError, FileNotFoundError):
@@ -623,7 +621,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             else:
                 with tempfile.NamedTemporaryFile(suffix=file_ext or '.pdf', delete=False) as tmp_file:
                     tmp_file.write(soil_file.getvalue())
-                    result = extract_data_from_image(tmp_file.name, 'soil')
+                    result = extract_data_from_image(tmp_file.name)
                     try:
                         os.unlink(tmp_file.name)
                     except (PermissionError, FileNotFoundError):
@@ -636,7 +634,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
                 with tempfile.NamedTemporaryFile(suffix=file_ext, delete=False) as tmp_file:
                     leaf_image = Image.open(leaf_file)
                     leaf_image.save(tmp_file.name)
-                    result = extract_data_from_image(tmp_file.name, 'leaf')
+                    result = extract_data_from_image(tmp_file.name)
                     try:
                         os.unlink(tmp_file.name)
                     except (PermissionError, FileNotFoundError):
@@ -645,7 +643,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             else:
                 with tempfile.NamedTemporaryFile(suffix=file_ext or '.pdf', delete=False) as tmp_file:
                     tmp_file.write(leaf_file.getvalue())
-                    result = extract_data_from_image(tmp_file.name, 'leaf')
+                    result = extract_data_from_image(tmp_file.name)
                     try:
                         os.unlink(tmp_file.name)
                     except (PermissionError, FileNotFoundError):
@@ -661,111 +659,271 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             soil_data = soil_future.result()
             leaf_data = leaf_future.result()
         
-        # Debug OCR extraction
-        soil_samples = soil_data.get('tables', [{}])[0].get('samples', []) if soil_data.get('tables') else []
-        leaf_samples = leaf_data.get('tables', [{}])[0].get('samples', []) if leaf_data.get('tables') else []
-        
-        logger.info(f"Soil OCR result: success={soil_data.get('success')}, samples_count={len(soil_samples)}")
-        logger.info(f"Leaf OCR result: success={leaf_data.get('success')}, samples_count={len(leaf_samples)}")
-        
+        # Debug OCR extraction with enhanced error handling
+        logger.info(f"🔍 Raw soil OCR data: {soil_data}")
+        logger.info(f"🔍 Raw leaf OCR data: {leaf_data}")
+
+        # Extract samples with comprehensive fallback to raw text parsing
+        soil_samples = []
+        leaf_samples = []
+        raw_soil_text = ""
+        raw_leaf_text = ""
+
+        # Try to get samples from tables first
+        if soil_data.get('tables') and len(soil_data['tables']) > 0:
+            soil_samples = soil_data['tables'][0].get('samples', [])
+            logger.info(f"Soil table samples: {len(soil_samples)}")
+        else:
+            logger.info("No soil tables found, trying raw text parsing")
+
+        if leaf_data.get('tables') and len(leaf_data['tables']) > 0:
+            leaf_samples = leaf_data['tables'][0].get('samples', [])
+            logger.info(f"Leaf table samples: {len(leaf_samples)}")
+        else:
+            logger.info("No leaf tables found, trying raw text parsing")
+
+        # Extract raw text from multiple sources for fallback
+        if soil_data.get('raw_data', {}).get('text'):
+            raw_soil_text = soil_data['raw_data']['text']
+        elif soil_data.get('text'):
+            raw_soil_text = soil_data['text']
+        elif st.session_state.get('raw_soil_text'):
+            raw_soil_text = st.session_state.raw_soil_text
+
+        if leaf_data.get('raw_data', {}).get('text'):
+            raw_leaf_text = leaf_data['raw_data']['text']
+        elif leaf_data.get('text'):
+            raw_leaf_text = leaf_data['text']
+        elif st.session_state.get('raw_leaf_text'):
+            raw_leaf_text = st.session_state.raw_leaf_text
+
+        # If no samples from tables, try to parse raw text with multiple strategies
+        if not soil_samples and raw_soil_text:
+            logger.info("Attempting comprehensive raw text parsing for soil data")
+            soil_samples = parse_raw_text_comprehensive(raw_soil_text, 'soil')
+            logger.info(f"Parsed {len(soil_samples)} soil samples from raw text")
+
+        if not leaf_samples and raw_leaf_text:
+            logger.info("Attempting comprehensive raw text parsing for leaf data")
+            leaf_samples = parse_raw_text_comprehensive(raw_leaf_text, 'leaf')
+            logger.info(f"Parsed {len(leaf_samples)} leaf samples from raw text")
+
+        # Additional fallback: if we have raw text but no samples, try direct parsing
+        if not soil_samples and raw_soil_text:
+            logger.info("Fallback: Attempting direct raw text parsing for soil")
+            parsed_soil = _parse_raw_text_to_structured_json(raw_soil_text)
+            if parsed_soil.get('samples'):
+                soil_samples = parsed_soil['samples']
+                logger.info(f"Direct parsing: {len(soil_samples)} soil samples")
+
+        if not leaf_samples and raw_leaf_text:
+            logger.info("Fallback: Attempting direct raw text parsing for leaf")
+            parsed_leaf = _parse_raw_text_to_structured_json(raw_leaf_text)
+            if parsed_leaf.get('samples'):
+                leaf_samples = parsed_leaf['samples']
+                logger.info(f"Direct parsing: {len(leaf_samples)} leaf samples")
+
+        logger.info(f"Final soil samples count: {len(soil_samples)}")
+        logger.info(f"Final leaf samples count: {len(leaf_samples)}")
+
+        # Show progress update
+        # if working_indicator:
+        #     working_indicator.markdown("🔄 **Processing:** Data extraction completed...")
+
+        # Enhanced validation with fallback to raw text
         if not soil_data.get('success'):
-            logger.error(f"Soil OCR failed: {soil_data.get('error')}")
+            logger.warning(f"Soil OCR had issues: {soil_data.get('error', 'Unknown error')}")
+            if not soil_samples and raw_soil_text:
+                st.info("ℹ️ **Soil OCR Notice**: Using raw text analysis as OCR had issues.")
+            elif not soil_samples:
+                st.warning("⚠️ **Soil OCR Warning**: No data extracted from soil report.")
+
         if not leaf_data.get('success'):
-            logger.error(f"Leaf OCR failed: {leaf_data.get('error')}")
-        
-        # Validate that OCR extraction was successful
-        if not soil_data.get('success') or not soil_samples:
-            logger.error("Soil OCR extraction failed - no samples found")
-            st.error("❌ **Soil Analysis Failed**: Unable to extract data from uploaded soil report. Please check the image quality and try again.")
-            return
-        
-        if not leaf_data.get('success') or not leaf_samples:
-            logger.error("Leaf OCR extraction failed - no samples found")
-            st.error("❌ **Leaf Analysis Failed**: Unable to extract data from uploaded leaf report. Please check the image quality and try again.")
-            return
-        
-        # Step 3: Data Validation (optimized)
-        current_step = 3
-        progress_bar.progress(50)
-        status_text.text("✅ **Step 3/5:** Validating extracted data quality...")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~60 seconds")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
+            logger.warning(f"Leaf OCR had issues: {leaf_data.get('error', 'Unknown error')}")
+            if not leaf_samples and raw_leaf_text:
+                st.info("ℹ️ **Leaf OCR Notice**: Using raw text analysis as OCR had issues.")
+            elif not leaf_samples:
+                st.warning("⚠️ **Leaf OCR Warning**: No data extracted from leaf report.")
+
+        # More lenient validation - allow analysis to continue if we have raw text
+        if not soil_samples and not leaf_samples and not raw_soil_text and not raw_leaf_text:
+            logger.error("Both soil and leaf OCR extraction failed - no samples or raw text found")
+            st.error("❌ **Analysis Failed**: Unable to extract data from uploaded reports.")
+            st.info("💡 **Tips for better OCR results:**")
+            st.info("• Ensure images are clear and well-lit")
+            st.info("• Use high-resolution images (at least 300 DPI)")
+            st.info("• Make sure text is readable and not distorted")
+            st.info("• Try uploading PDF files instead of images")
+            st.info("• Check that the reports contain readable tabular data")
+            return {'success': False, 'message': 'No data could be extracted from uploaded files'}
+
+        # Continue with analysis even if some data is missing
+        if not soil_samples and raw_soil_text:
+            logger.info("Proceeding with raw soil text analysis")
+            # Proceeding with soil raw text analysis
+        elif not soil_samples:
+            logger.warning("No soil data available - analysis will continue with leaf data only")
+            st.info("ℹ️ **Note**: Soil analysis data not available, proceeding with leaf analysis only.")
+
+        if not leaf_samples and raw_leaf_text:
+            logger.info("Proceeding with raw leaf text analysis")
+            # Proceeding with leaf raw text analysis
+        elif not leaf_samples:
+            logger.warning("No leaf data available - analysis will continue with soil data only")
+            st.info("ℹ️ **Note**: Leaf analysis data not available, proceeding with soil analysis only.")
+
+        # Special case: if we have raw text but no samples, create basic samples for analysis
+        if not soil_samples and raw_soil_text:
+            soil_samples = create_basic_samples_from_raw_text(raw_soil_text, 'soil')
+            if soil_samples:
+                logger.info(f"Created {len(soil_samples)} basic soil samples from raw text")
+
+        if not leaf_samples and raw_leaf_text:
+            leaf_samples = create_basic_samples_from_raw_text(raw_leaf_text, 'leaf')
+            if leaf_samples:
+                logger.info(f"Created {len(leaf_samples)} basic leaf samples from raw text")
+
+        # Data Validation
         
         # Get active prompt
         active_prompt = get_active_prompt()
         if not active_prompt:
             return {'success': False, 'message': 'No active analysis prompt found'}
         
-        # Step 4: AI Analysis (optimized)
-        current_step = 4
-        progress_bar.progress(70)
-        status_text.text("🤖 **Step 4/5:** Running AI analysis...")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~30 seconds")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
-        
+        # AI Analysis
         analysis_engine = AnalysisEngine()
         
-        # Show enhanced animated processing for the main analysis
-        analysis_phases = [
-            "Initializing AI models...",
-            "Processing soil data patterns...",
-            "Analyzing leaf nutrient levels...",
-            "Computing yield projections...",
-            "Generating recommendations...",
-            "Creating visualizations...",
-            "Finalizing comprehensive report..."
-        ]
-        
-        # Analysis processing (optimized - no delays)
-        status_text.text("🔬 **Step 4/5:** Running comprehensive agricultural analysis... 🔄")
-        time_estimate.text("⏱️ Processing data patterns and generating insights...")
-        step_indicator.text(f"📋 Step {current_step} of {total_steps} - AI Analysis")
-        
-        status_text.text("🔬 **Step 4/5:** Running comprehensive agricultural analysis... ✅")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~15 seconds")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
+        # Analysis processing
         
         # Transform OCR data structure to match analysis engine expectations
         # Convert parameter names from spaces to underscores for analysis engine compatibility
         transformed_soil_samples = []
         for sample in soil_samples:
+            # Dynamic transformation - extract all available parameters
             transformed_sample = {
-                'sample_no': sample.get('Sample No.', 0),
-                'lab_no': sample.get('Lab No.', ''),
-                'pH': sample.get('pH', 0.0),
-                'Nitrogen_%': sample.get('Nitrogen %', 0.0),
-                'Organic_Carbon_%': sample.get('Organic Carbon %', 0.0),
-                'Total_P_mg_kg': sample.get('Total P mg/kg', 0.0),
-                'Available_P_mg_kg': sample.get('Available P mg/kg', 0.0),
-                'Exchangeable_K_meq%': sample.get('Exch. K meq%', 0.0),
-                'Exchangeable_Ca_meq%': sample.get('Exch. Ca meq%', 0.0),
-                'Exchangeable_Mg_meq%': sample.get('Exch. Mg meq%', 0.0),
-                'CEC_meq%': sample.get('C.E.C meq%', 0.0)
+                'sample_no': sample.get('Sample No.', sample.get('Sample ID', sample.get('sample_id', 0))),
+                'lab_no': sample.get('Lab No.', sample.get('lab_no', ''))
             }
+
+            # Extract all numeric parameters dynamically
+            for key, value in sample.items():
+                if key not in ['Sample No.', 'Sample ID', 'sample_id', 'Lab No.', 'lab_no'] and value is not None:
+                    # Try to convert to float, keep original if it fails
+                    if isinstance(value, str):
+                        try:
+                            transformed_sample[key] = float(value) if value.strip() else 0.0
+                        except (ValueError, TypeError):
+                            transformed_sample[key] = value
+                    elif isinstance(value, (int, float)):
+                        transformed_sample[key] = float(value)
+                    else:
+                        transformed_sample[key] = value
+
+            # Ensure we have the standard soil parameters mapped correctly
+            soil_param_mappings = {
+                'pH': ['pH', 'ph', 'PH'],
+                'Nitrogen_%': ['Nitrogen %', 'N (%)', 'nitrogen', 'N'],
+                'Organic_Carbon_%': ['Organic Carbon %', 'Org. C (%)', 'organic_carbon', 'Organic Matter'],
+                'Total_P_mg_kg': ['Total P mg/kg', 'Total P (mg/kg)', 'total_p', 'P'],
+                'Available_P_mg_kg': ['Available P mg/kg', 'Avail P (mg/kg)', 'available_p'],
+                'Exchangeable_K_meq%': ['Exch. K meq%', 'Exchangeable K (meq%)', 'exchangeable_k', 'K'],
+                'Exchangeable_Ca_meq%': ['Exch. Ca meq%', 'Exchangeable Ca (meq%)', 'exchangeable_ca', 'Ca'],
+                'Exchangeable_Mg_meq%': ['Exch. Mg meq%', 'Exchangeable Mg (meq%)', 'exchangeable_mg', 'Mg'],
+                'CEC_meq%': ['C.E.C meq%', 'CEC (meq%)', 'cec', 'CEC']
+            }
+
+            # Apply mappings for standard parameters
+            for standard_param, possible_names in soil_param_mappings.items():
+                if standard_param not in transformed_sample or transformed_sample[standard_param] == 0.0:
+                    for param_name in possible_names:
+                        if param_name in sample and sample[param_name] is not None:
+                            try:
+                                transformed_sample[standard_param] = float(sample[param_name]) if isinstance(sample[param_name], str) else sample[param_name]
+                                break
+                            except (ValueError, TypeError):
+                                continue
+
+            # Ensure all standard parameters exist with default values if not found
+            for standard_param in soil_param_mappings.keys():
+                if standard_param not in transformed_sample:
+                    transformed_sample[standard_param] = 0.0
+
             transformed_soil_samples.append(transformed_sample)
         
         transformed_leaf_samples = []
         for sample in leaf_samples:
-            percent_dm = sample.get('% Dry Matter', {})
-            mgkg_dm = sample.get('mg/kg Dry Matter', {})
+            # Dynamic transformation - extract all available parameters
             transformed_sample = {
-                'sample_no': sample.get('Sample No.', 0),
-                'lab_no': sample.get('Lab No.', ''),
-                'N_%': percent_dm.get('N', 0.0),
-                'P_%': percent_dm.get('P', 0.0),
-                'K_%': percent_dm.get('K', 0.0),
-                'Mg_%': percent_dm.get('Mg', 0.0),
-                'Ca_%': percent_dm.get('Ca', 0.0),
-                'B_mg_kg': mgkg_dm.get('B', 0.0),
-                'Cu_mg_kg': mgkg_dm.get('Cu', 0.0),
-                'Zn_mg_kg': mgkg_dm.get('Zn', 0.0)
+                'sample_no': sample.get('Sample No.', sample.get('Sample ID', sample.get('sample_id', 0))),
+                'lab_no': sample.get('Lab No.', sample.get('lab_no', ''))
             }
+
+            # Handle structured data format (% Dry Matter and mg/kg Dry Matter)
+            percent_dm = sample.get('% Dry Matter', sample.get('percent_dm', {}))
+            mgkg_dm = sample.get('mg/kg Dry Matter', sample.get('mgkg_dm', {}))
+
+            # Extract all parameters dynamically from different sources
+            for key, value in sample.items():
+                if key not in ['Sample No.', 'Sample ID', 'sample_id', 'Lab No.', 'lab_no', '% Dry Matter', 'mg/kg Dry Matter', 'percent_dm', 'mgkg_dm'] and value is not None:
+                    # Try to convert to float, keep original if it fails
+                    if isinstance(value, str):
+                        try:
+                            transformed_sample[key] = float(value) if value.strip() else 0.0
+                        except (ValueError, TypeError):
+                            transformed_sample[key] = value
+                    elif isinstance(value, (int, float)):
+                        transformed_sample[key] = float(value)
+                    else:
+                        transformed_sample[key] = value
+
+            # Extract from structured format (% Dry Matter)
+            for nutrient in ['N', 'P', 'K', 'Mg', 'Ca']:
+                if nutrient in percent_dm and percent_dm[nutrient] is not None:
+                    param_key = f'{nutrient}_%'
+                    try:
+                        transformed_sample[param_key] = float(percent_dm[nutrient]) if isinstance(percent_dm[nutrient], str) else percent_dm[nutrient]
+                    except (ValueError, TypeError):
+                        transformed_sample[param_key] = percent_dm[nutrient]
+
+            # Extract from structured format (mg/kg Dry Matter)
+            for nutrient in ['B', 'Cu', 'Zn', 'Fe', 'Mn']:
+                if nutrient in mgkg_dm and mgkg_dm[nutrient] is not None:
+                    param_key = f'{nutrient}_mg_kg'
+                    try:
+                        transformed_sample[param_key] = float(mgkg_dm[nutrient]) if isinstance(mgkg_dm[nutrient], str) else mgkg_dm[nutrient]
+                    except (ValueError, TypeError):
+                        transformed_sample[param_key] = mgkg_dm[nutrient]
+
+            # Ensure we have the standard leaf parameters mapped correctly
+            leaf_param_mappings = {
+                'N_%': ['N (%)', 'nitrogen', 'N', 'N_%'],
+                'P_%': ['P (%)', 'phosphorus', 'P', 'P_%'],
+                'K_%': ['K (%)', 'potassium', 'K', 'K_%'],
+                'Mg_%': ['Mg (%)', 'magnesium', 'Mg', 'Mg_%'],
+                'Ca_%': ['Ca (%)', 'calcium', 'Ca', 'Ca_%'],
+                'B_mg_kg': ['B (mg/kg)', 'boron', 'B', 'B_mg_kg'],
+                'Cu_mg_kg': ['Cu (mg/kg)', 'copper', 'Cu', 'Cu_mg_kg'],
+                'Zn_mg_kg': ['Zn (mg/kg)', 'zinc', 'Zn', 'Zn_mg_kg'],
+                'Fe_mg_kg': ['Fe (mg/kg)', 'iron', 'Fe', 'Fe_mg_kg'],
+                'Mn_mg_kg': ['Mn (mg/kg)', 'manganese', 'Mn', 'Mn_mg_kg']
+            }
+
+            # Apply mappings for standard parameters
+            for standard_param, possible_names in leaf_param_mappings.items():
+                if standard_param not in transformed_sample or transformed_sample[standard_param] == 0.0:
+                    for param_name in possible_names:
+                        if param_name in sample and sample[param_name] is not None:
+                            try:
+                                transformed_sample[standard_param] = float(sample[param_name]) if isinstance(sample[param_name], str) else sample[param_name]
+                                break
+                            except (ValueError, TypeError):
+                                continue
+
+            # Ensure all standard parameters exist with default values if not found
+            for standard_param in leaf_param_mappings.keys():
+                if standard_param not in transformed_sample:
+                    transformed_sample[standard_param] = 0.0
+
             transformed_leaf_samples.append(transformed_sample)
         
         transformed_soil_data = {
@@ -791,13 +949,48 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         logger.info(f"  - First soil sample: {transformed_soil_data['data']['samples'][0] if transformed_soil_data['data']['samples'] else 'None'}")
         logger.info(f"  - First leaf sample: {transformed_leaf_data['data']['samples'][0] if transformed_leaf_data['data']['samples'] else 'None'}")
         
+        # Show analysis progress indicators
+        st.markdown("### 🔄 Analysis in Progress...")
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        step_indicator = st.empty()
+
+        # Initialize progress tracking
+        progress_bar.progress(0.1)
+        status_text.markdown("🚀 **Starting comprehensive analysis...**")
+
+        def update_progress(step_name, progress_value):
+            """Update progress indicators during analysis"""
+            progress_bar.progress(progress_value)
+            status_text.markdown(f"🔄 **{step_name}...**")
+            step_indicator.markdown(f"📊 **Current Step:** {step_name}")
+
         try:
+            # Set initial progress
+            update_progress("Initializing analysis engine", 0.2)
+
+            # Log structured data usage
+            st.info("📊 **Using Structured OCR Data:** Analysis will use the processed JSON data from both soil and leaf reports for accurate results.")
+            st.info("🤖 **LLM Analysis:** The AI will analyze all parameter values from the structured data and provide step-by-step recommendations based on MPOB standards.")
+
             analysis_results = analysis_engine.generate_comprehensive_analysis(
                 soil_data=transformed_soil_data,
                 leaf_data=transformed_leaf_data,
                 land_yield_data=land_yield_data,
-                prompt_text=active_prompt.get('prompt_text', '')
+                prompt_text=active_prompt.get('prompt_text', ''),
+                progress_callback=update_progress
             )
+
+            # Update progress to completion
+            update_progress("Analysis completed successfully!", 1.0)
+
+            # Clear progress indicators after a short delay
+            import time
+            time.sleep(1)
+            progress_bar.empty()
+            status_text.empty()
+            step_indicator.empty()
+
             logger.info(f"✅ Analysis completed successfully")
             logger.info(f"🔍 Analysis results keys: {list(analysis_results.keys()) if analysis_results else 'None'}")
         except Exception as e:
@@ -807,51 +1000,11 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             st.error(f"❌ **Analysis Failed**: {str(e)}")
             return
         
-        # Step 7: Generating Insights with animation
-        current_step = 7
-        progress_bar.progress(75)
-        
-        # Show animated processing for insights generation
-        insight_phases = [
-            "Analyzing data patterns...",
-            "Generating actionable insights...",
-            "Creating personalized recommendations...",
-            "Optimizing suggestions..."
-        ]
-        
-        # Insights generation (optimized - no delays)
-        status_text.text("📈 **Step 5/5:** Generating insights and recommendations... 🔄")
-        time_estimate.text("⏱️ Creating actionable recommendations...")
-        step_indicator.text(f"📋 Step {current_step} of {total_steps} - Insights")
-        
-        status_text.text("📈 **Step 5/5:** Generating insights and recommendations... ✅")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~20 seconds")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
-        
-        # Step 8: Saving Results with animation
-        current_step = 8
-        progress_bar.progress(85)
-        
-        # Show animated processing for saving results
-        saving_phases = [
-            "Preparing final report...",
-            "Saving to database...",
-            "Generating unique ID...",
-            "Finalizing analysis..."
-        ]
-        
-        # Saving results (optimized - no delays)
-        status_text.text("💾 **Step 8/8:** Saving analysis results to database... 🔄")
-        time_estimate.text("⏱️ Finalizing analysis...")
-        step_indicator.text(f"📋 Step {current_step} of {total_steps} - Saving")
-        
-        status_text.text("💾 **Step 8/8:** Saving analysis results to database... ✅")
-        if time_estimate:
-            time_estimate.text("⏱️ Estimated time remaining: ~10 seconds")
-        if step_indicator:
-            step_indicator.text(f"📋 Step {current_step} of {total_steps}")
+        # Generating Insights
+        # Insights generation
+
+        # Saving Results
+        # Saving results
         
         user_email = st.session_state.get('user_email')
         if not user_email:
@@ -860,22 +1013,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         # Skip Firestore data preparation to avoid nested entity errors
         # Results will be displayed directly in the results page
         
-        # Final completion step with celebration animation
-        progress_bar.progress(100)
-        
-        # Completion (optimized - no delays)
-        status_text.text("🎉 **Analysis Complete!** Your comprehensive agricultural report is ready. ✅")
-        if working_indicator:
-            working_indicator.markdown("🎉 **Analysis Complete!** ✅")
-        
-        # Clear all progress indicators
-        status_text.empty()
-        if time_estimate:
-            time_estimate.empty()
-        if step_indicator:
-            step_indicator.empty()
-        if working_indicator:
-            working_indicator.empty()
+        # Analysis completed
         
         # Add original OCR data to analysis results for raw data display
         analysis_results['raw_ocr_data'] = {
@@ -883,13 +1021,17 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
                 'success': soil_data.get('success', True),
                 'samples': soil_samples,
                 'total_samples': len(soil_samples),
-                'tables': soil_data.get('tables', [])
+                'tables': soil_data.get('tables', []),
+                'raw_data': {'text': raw_soil_text} if raw_soil_text else {},
+                'text': raw_soil_text
             },
             'leaf_data': {
                 'success': leaf_data.get('success', True),
                 'samples': leaf_samples,
                 'total_samples': len(leaf_samples),
-                'tables': leaf_data.get('tables', [])
+                'tables': leaf_data.get('tables', []),
+                'raw_data': {'text': raw_leaf_text} if raw_leaf_text else {},
+                'text': raw_leaf_text
             }
         }
         
@@ -994,107 +1136,301 @@ def display_results_header(results_data):
             status = results_data.get('status', 'Unknown')
             st.metric("✅ Status", status.title())
 
-def display_raw_data_section(results_data):
-    """Display extracted raw soil and leaf data in tabular format"""
-    st.markdown("---")
-    st.markdown("## 📊 Raw Extracted Data")
-    
-    # Add CSS class for print visibility
-    st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
-    
-    # Get raw data from analysis results
-    analysis_results = get_analysis_results_from_data(results_data)
-    soil_data = {}
-    leaf_data = {}
-    
-    if analysis_results:
-        # Try to get original OCR data first
-        if 'raw_ocr_data' in analysis_results:
-            raw_ocr_data = analysis_results['raw_ocr_data']
-            soil_data = raw_ocr_data.get('soil_data', {})
-            leaf_data = raw_ocr_data.get('leaf_data', {})
-        
-        # Fallback to other data structures
-        if not soil_data and 'raw_data' in analysis_results:
-            raw_data = analysis_results['raw_data']
-            if 'soil_data' in raw_data:
-                soil_data = raw_data['soil_data']
-            elif 'soil_parameters' in raw_data:
-                soil_data = raw_data['soil_parameters']
-        
-        if not leaf_data and 'raw_data' in analysis_results:
-            raw_data = analysis_results['raw_data']
-            if 'leaf_data' in raw_data:
-                leaf_data = raw_data['leaf_data']
-            elif 'leaf_parameters' in raw_data:
-                leaf_data = raw_data['leaf_parameters']
-        
-        # Additional fallbacks
-        if not soil_data and 'soil_parameters' in analysis_results:
-            soil_data = analysis_results['soil_parameters']
-        if not leaf_data and 'leaf_parameters' in analysis_results:
-            leaf_data = analysis_results['leaf_parameters']
-    
-    
-    # 3. From comprehensive_analysis.raw_data (alternative structure)
-    comprehensive_analysis = results_data.get('comprehensive_analysis', {})
-    if comprehensive_analysis and 'raw_data' in comprehensive_analysis:
-        raw_data = comprehensive_analysis['raw_data']
-        if not soil_data and 'soil_parameters' in raw_data:
-            soil_data = raw_data['soil_parameters']
-        if not leaf_data and 'leaf_parameters' in raw_data:
-            leaf_data = raw_data['leaf_parameters']
-    
-    # 4. Direct from results_data.raw_data (fallback)
-    if not soil_data and not leaf_data:
-        raw_data = results_data.get('raw_data', {})
-        soil_data = raw_data.get('soil_parameters', {})
-        leaf_data = raw_data.get('leaf_parameters', {})
-    
-    # Debug: Log the data structure to understand what we're getting
-    logger.info(f"Soil data keys: {list(soil_data.keys()) if soil_data else 'None'}")
-    logger.info(f"Leaf data keys: {list(leaf_data.keys()) if leaf_data else 'None'}")
-    if soil_data and 'parameter_statistics' in soil_data:
-        logger.info(f"Soil parameter statistics found: {len(soil_data['parameter_statistics'])} parameters")
-    if leaf_data and 'parameter_statistics' in leaf_data:
-        logger.info(f"Leaf parameter statistics found: {len(leaf_data['parameter_statistics'])} parameters")
-    
-    # Display soil and leaf data directly without tabs
-    if soil_data or leaf_data:
-        # Display soil data
-        if soil_data:
-            st.markdown("### 🌱 Soil Analysis Data")
-            # Check if we have raw OCR data with samples
-            if 'samples' in soil_data and soil_data['samples']:
-                display_raw_soil_data(soil_data)
-            else:
-                display_soil_data_table(soil_data)
-            st.markdown("")  # Add spacing
-        
-        # Display leaf data
-        if leaf_data:
-            st.markdown("### 🍃 Leaf Analysis Data")
-            # Check if we have raw OCR data with samples
-            if 'samples' in leaf_data and leaf_data['samples']:
-                display_raw_leaf_data(leaf_data)
-            else:
-                display_leaf_data_table(leaf_data)
+def parse_raw_text_comprehensive(raw_text: str, data_type: str) -> list:
+    """
+    Comprehensive raw text parsing with multiple fallback strategies.
+    This function tries various approaches to extract structured data from raw OCR text.
+    """
+    import re
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Starting comprehensive parsing for {data_type} data")
+    logger.info(f"Raw text length: {len(raw_text)}")
+
+    if not raw_text or len(raw_text.strip()) < 10:
+        logger.warning("Raw text too short for parsing")
+        return []
+
+    samples = []
+
+    try:
+        # Strategy 1: Try the existing parsing function first
+        parsed_data = _parse_raw_text_to_structured_json(raw_text)
+        if parsed_data.get('samples') and len(parsed_data['samples']) > 0:
+            logger.info(f"Strategy 1 successful: {len(parsed_data['samples'])} samples")
+            return parsed_data['samples']
+
+        # Strategy 2: Manual table parsing for common formats
+        samples = parse_table_format(raw_text, data_type)
+        if samples:
+            logger.info(f"Strategy 2 successful: {len(samples)} samples")
+            return samples
+
+        # Strategy 3: Line-by-line parsing for simple formats
+        samples = parse_line_by_line(raw_text, data_type)
+        if samples:
+            logger.info(f"Strategy 3 successful: {len(samples)} samples")
+            return samples
+
+        # Strategy 4: Keyword-based extraction
+        samples = parse_keyword_based(raw_text, data_type)
+        if samples:
+            logger.info(f"Strategy 4 successful: {len(samples)} samples")
+            return samples
+
+    except Exception as e:
+        logger.error(f"Error in comprehensive parsing: {str(e)}")
+
+    logger.warning(f"No samples found with any parsing strategy for {data_type}")
+    return samples
+
+
+def parse_table_format(raw_text: str, data_type: str) -> list:
+    """Parse table-like formatted text"""
+    import re
+
+    lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+    if len(lines) < 2:
+        return []
+
+    # Look for header line and data lines
+    header_line = None
+    data_lines = []
+
+    # Find the most likely header line (contains common parameter names)
+    for i, line in enumerate(lines):
+        line_lower = line.lower()
+        if data_type == 'soil' and any(keyword in line_lower for keyword in ['ph', 'cec', 'nitrogen', 'phosphorus', 'potassium']):
+            header_line = line
+            data_lines = lines[i+1:]
+            break
+        elif data_type == 'leaf' and any(keyword in line_lower for keyword in ['nitrogen', 'phosphorus', 'potassium', 'magnesium', 'calcium']):
+            header_line = line
+            data_lines = lines[i+1:]
+            break
+
+    if not header_line:
+        return []
+
+    # Parse header to identify columns
+    header_parts = re.split(r'\s+', header_line)
+    logger.info(f"Detected header parts: {header_parts}")
+
+    samples = []
+    for line in data_lines[:20]:  # Limit to first 20 lines to avoid processing noise
+        line = line.strip()
+        if not line or len(line) < 10:  # Skip short lines
+            continue
+
+        # Split line into parts
+        parts = re.split(r'\s+', line)
+        if len(parts) >= len(header_parts) - 1:  # At least as many parts as headers minus sample ID
+            sample = {}
+            # Try to map parts to headers
+            for i, part in enumerate(parts):
+                if i < len(header_parts):
+                    header = header_parts[i].strip()
+                    # Clean up the value
+                    value = part.strip()
+                    if value and value != '-':
+                        try:
+                            # Try to convert to number if possible
+                            if '.' in value or value.isdigit():
+                                sample[header] = float(value)
+                            else:
+                                sample[header] = value
+                        except ValueError:
+                            sample[header] = value
+            if sample:
+                samples.append(sample)
+
+    return samples
+
+
+def parse_line_by_line(raw_text: str, data_type: str) -> list:
+    """Parse text line by line looking for parameter-value pairs"""
+    import re
+
+    lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+    samples = []
+
+    current_sample = {}
+    sample_id = None
+
+    for line in lines:
+        line_lower = line.lower()
+
+        # Look for sample ID patterns
+        sample_match = re.search(r'(S\d{3,4}|L\d{3,4}|Sample\s+\d+)', line, re.IGNORECASE)
+        if sample_match:
+            # Save previous sample if it exists
+            if current_sample and sample_id:
+                current_sample['sample_id'] = sample_id
+                samples.append(current_sample)
+
+            # Start new sample
+            sample_id = sample_match.group(1)
+            current_sample = {}
+
+        # Look for parameter-value pairs
+        # Common patterns: "Parameter: value", "Parameter = value", "Parameter value"
+        param_patterns = [
+            r'([A-Za-z][A-Za-z\s]+?):\s*([0-9.-]+)',  # "Parameter: value"
+            r'([A-Za-z][A-Za-z\s]+?)=\s*([0-9.-]+)',  # "Parameter = value"
+            r'([A-Za-z][A-Za-z\s]+?)\s+([0-9.-]+)',  # "Parameter value"
+        ]
+
+        for pattern in param_patterns:
+            matches = re.findall(pattern, line, re.IGNORECASE)
+            for match in matches:
+                param, value = match
+                param = param.strip().lower()
+
+                # Map common parameter names
+                param_mapping = {
+                    'ph': 'pH',
+                    'nitrogen': 'nitrogen',
+                    'phosphorus': 'phosphorus',
+                    'potassium': 'potassium',
+                    'magnesium': 'magnesium',
+                    'calcium': 'calcium',
+                    'cec': 'cec',
+                    'organic carbon': 'organic_carbon',
+                    'total p': 'total_p',
+                    'available p': 'available_p',
+                    'exchangeable k': 'exchangeable_k',
+                    'exchangeable ca': 'exchangeable_ca',
+                    'exchangeable mg': 'exchangeable_mg'
+                }
+
+                mapped_param = param_mapping.get(param, param)
+                try:
+                    current_sample[mapped_param] = float(value)
+                except ValueError:
+                    current_sample[mapped_param] = value
+
+    # Don't forget the last sample
+    if current_sample and sample_id:
+        current_sample['sample_id'] = sample_id
+        samples.append(current_sample)
+
+    return samples
+
+
+def parse_keyword_based(raw_text: str, data_type: str) -> list:
+    """Extract data using keyword patterns"""
+    import re
+
+    text_lower = raw_text.lower()
+    samples = []
+
+    # Define patterns for different data types
+    if data_type == 'soil':
+        patterns = {
+            'pH': r'ph[:\s=]*([0-9.]+)',
+            'nitrogen': r'nitrogen[:\s=]*([0-9.]+)',
+            'organic_carbon': r'(?:organic carbon|org\.?\s*c)[:\s=]*([0-9.]+)',
+            'total_p': r'(?:total p|total phosphorus)[:\s=]*([0-9.]+)',
+            'available_p': r'(?:available p|avail p)[:\s=]*([0-9.]+)',
+            'exchangeable_k': r'(?:exchangeable k|exch\.?\s*k)[:\s=]*([0-9.]+)',
+            'exchangeable_ca': r'(?:exchangeable ca|exch\.?\s*ca)[:\s=]*([0-9.]+)',
+            'exchangeable_mg': r'(?:exchangeable mg|exch\.?\s*mg)[:\s=]*([0-9.]+)',
+            'cec': r'cec[:\s=]*([0-9.]+)'
+        }
+    else:  # leaf
+        patterns = {
+            'nitrogen': r'nitrogen[:\s=]*([0-9.]+)',
+            'phosphorus': r'phosphorus[:\s=]*([0-9.]+)',
+            'potassium': r'potassium[:\s=]*([0-9.]+)',
+            'magnesium': r'magnesium[:\s=]*([0-9.]+)',
+            'calcium': r'calcium[:\s=]*([0-9.]+)',
+            'boron': r'boron[:\s=]*([0-9.]+)',
+            'copper': r'copper[:\s=]*([0-9.]+)',
+            'zinc': r'zinc[:\s=]*([0-9.]+)',
+            'iron': r'iron[:\s=]*([0-9.]+)',
+            'manganese': r'manganese[:\s=]*([0-9.]+)'
+        }
+
+    # Extract values using patterns
+    extracted_data = {}
+    for param, pattern in patterns.items():
+        match = re.search(pattern, text_lower, re.IGNORECASE)
+        if match:
+            try:
+                extracted_data[param] = float(match.group(1))
+            except (ValueError, IndexError):
+                pass
+
+    if extracted_data:
+        # Look for sample ID
+        sample_match = re.search(r'(S\d{3,4}|L\d{3,4}|Sample\s+\d+)', raw_text, re.IGNORECASE)
+        sample_id = sample_match.group(1) if sample_match else "Sample_1"
+
+        sample = {'sample_id': sample_id}
+        sample.update(extracted_data)
+        samples.append(sample)
+
+    return samples
+
+
+def create_basic_samples_from_raw_text(raw_text: str, data_type: str) -> list:
+    """
+    Create basic sample structures from raw text when other parsing methods fail.
+    This ensures analysis can proceed even with minimal data extraction.
+    """
+    import re
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Creating basic samples from raw text for {data_type}")
+
+    if not raw_text or len(raw_text.strip()) < 20:
+        return []
+
+    # Look for any numeric values in the text
+    numbers = re.findall(r'(\d+\.?\d*)', raw_text)
+
+    if not numbers:
+        logger.warning("No numeric values found in raw text")
+        return []
+
+    # Create a basic sample with found numbers
+    sample = {'sample_id': f'{data_type.title()}_Sample_1'}
+
+    # For soil data, assign numbers to common parameters
+    if data_type == 'soil':
+        soil_params = ['pH', 'nitrogen', 'organic_carbon', 'total_p', 'available_p',
+                      'exchangeable_k', 'exchangeable_ca', 'exchangeable_mg', 'cec']
+
+        for i, param in enumerate(soil_params):
+            if i < len(numbers):
+                try:
+                    sample[param] = float(numbers[i])
+                except ValueError:
+                    sample[param] = 0.0
+
+    # For leaf data, assign numbers to common parameters
+    elif data_type == 'leaf':
+        leaf_params = ['nitrogen', 'phosphorus', 'potassium', 'magnesium', 'calcium',
+                      'boron', 'copper', 'zinc', 'iron', 'manganese']
+
+        for i, param in enumerate(leaf_params):
+            if i < len(numbers):
+                try:
+                    sample[param] = float(numbers[i])
+                except ValueError:
+                    sample[param] = 0.0
+
+    if len(sample) > 1:  # More than just sample_id
+        logger.info(f"Created basic sample with {len(sample)-1} parameters")
+        return [sample]
     else:
-        st.info("📋 No raw data available for this analysis.")
-        st.write(f"Results data keys: {list(results_data.keys())}")
-        if analysis_results:
-            st.write(f"Analysis results keys: {list(analysis_results.keys())}")
-            if 'raw_data' in analysis_results:
-                st.write(f"Analysis results raw_data keys: {list(analysis_results['raw_data'].keys())}")
-            # Check for direct soil/leaf parameters
-            if 'soil_parameters' in analysis_results:
-                st.write(f"Soil parameters found directly in analysis_results: {type(analysis_results['soil_parameters'])}")
-            if 'leaf_parameters' in analysis_results:
-                st.write(f"Leaf parameters found directly in analysis_results: {type(analysis_results['leaf_parameters'])}")
-        if comprehensive_analysis:
-            st.write(f"Comprehensive analysis keys: {list(comprehensive_analysis.keys())}")
-            if 'raw_data' in comprehensive_analysis:
-                st.write(f"Comprehensive analysis raw_data keys: {list(comprehensive_analysis['raw_data'].keys())}")
+        logger.warning("Could not create meaningful sample from raw text")
+        return []
+
+
+# Raw Extracted Data section removed as requested
 
 def process_html_tables(text):
     """Process HTML tables in text and convert them to proper Streamlit tables"""
@@ -1336,323 +1672,468 @@ def display_raw_leaf_data(leaf_data):
     else:
         st.warning("📋 No leaf data available.")
 
-def display_soil_data_table(soil_data):
-    """Display soil analysis data in tabular format"""
-    if not soil_data:
-        st.info("🌱 No soil data extracted from uploaded files.")
+def calculate_parameter_averages(data_samples, data_type):
+    """Calculate averages for each parameter across all samples"""
+    if not data_samples or not isinstance(data_samples, list):
+        return {}
+
+    # Collect all parameter values
+    parameter_values = {}
+    total_samples = len(data_samples)
+
+    for sample in data_samples:
+        if isinstance(sample, dict):
+            for param, value in sample.items():
+                # Skip non-numeric parameters and sample identifiers
+                if param.lower() in ['sample_id', 'lab_no', 'sample_no', 'id'] or not isinstance(value, (int, float)):
+                    continue
+
+                if param not in parameter_values:
+                    parameter_values[param] = []
+                parameter_values[param].append(value)
+
+    # Calculate averages
+    averages = {}
+    for param, values in parameter_values.items():
+        if values:
+            try:
+                averages[param] = sum(values) / len(values)
+            except (TypeError, ZeroDivisionError):
+                continue
+
+    return averages
+
+def display_soil_data_table_with_averages(soil_samples, soil_averages):
+    """Display soil data table with parameter averages and MPOB standards"""
+    if not soil_samples:
         return
-    
-    # Handle new data structure from analysis engine
-    if 'parameter_statistics' in soil_data:
-        # New structure from analysis engine
-        st.markdown("**Data Source:** Soil Analysis Report")
-        st.markdown(f"**Total Samples:** {soil_data.get('total_samples', 0)}")
-        st.markdown(f"**Parameters Analyzed:** {soil_data.get('extracted_parameters', 0)}")
-        
-        # Display parameter statistics
-        param_stats = soil_data.get('parameter_statistics', {})
-        if param_stats:
-            st.markdown("### 📊 Parameter Statistics")
-            
-            # Create summary table
-            summary_data = []
-            for param, stats in param_stats.items():
-                summary_data.append({
-                    'Parameter': param.replace('_', ' ').title(),
-                    'Average': f"{stats.get('average', 0):.2f}",
-                    'Min': f"{stats.get('min', 0):.2f}",
-                    'Max': f"{stats.get('max', 0):.2f}",
-                    'Samples': stats.get('count', 0)
-                })
-            
-            if summary_data:
-                df = pd.DataFrame(summary_data)
-                apply_table_styling()
-                st.dataframe(df, use_container_width=True)
-            
-            # Display individual sample data
-            all_samples = soil_data.get('all_samples', [])
-            if all_samples:
-                st.markdown("### 📋 Individual Sample Data")
-                df_samples = pd.DataFrame(all_samples)
-                apply_table_styling()
-                st.dataframe(df_samples, use_container_width=True)
-        else:
-            st.info("📋 No parameter statistics available.")
-    
-    # Handle alternative data structure - check if it's a dict with parameter data
-    elif isinstance(soil_data, dict) and any(key for key in soil_data.keys() if 'parameter' in key.lower() or 'ph' in key.lower() or 'nitrogen' in key.lower()):
-        # Try to create parameter statistics from raw parameter data
-        st.markdown("**Data Source:** Soil Analysis Report")
-        
-        # Extract parameter data and create statistics
-        param_data = {}
-        sample_count = 0
-        
-        for key, value in soil_data.items():
-            if isinstance(value, (int, float)) and not key.startswith('_'):
-                param_data[key] = {
-                    'average': value,
-                    'min': value,
-                    'max': value,
-                    'count': 1
-                }
-                sample_count = max(sample_count, 1)
-        
-        if param_data:
-            st.markdown(f"**Total Samples:** {sample_count}")
-            st.markdown(f"**Parameters Analyzed:** {len(param_data)}")
-            
-            st.markdown("### 📊 Parameter Statistics")
-            
-            # Create summary table
-            summary_data = []
-            for param, stats in param_data.items():
-                summary_data.append({
-                    'Parameter': param.replace('_', ' ').title(),
-                    'Average': f"{stats.get('average', 0):.2f}",
-                    'Min': f"{stats.get('min', 0):.2f}",
-                    'Max': f"{stats.get('max', 0):.2f}",
-                    'Samples': stats.get('count', 0)
-                })
-            
-            if summary_data:
-                df = pd.DataFrame(summary_data)
-                apply_table_styling()
-                st.dataframe(df, use_container_width=True)
-        else:
-            st.info("📋 No parameter statistics available.")
-    
-    # Handle old data structure
-    elif 'data' in soil_data:
-        # Check if extraction was successful
-        if not soil_data.get('success', False):
-            st.error(f"❌ Soil data extraction failed: {soil_data.get('message', 'Unknown error')}")
-            return
-        
-        # Get extracted data
-        extracted_data = soil_data.get('data', {})
-        report_type = soil_data.get('report_type', 'unknown')
-        
-        st.markdown(f"**Report Type:** {report_type.title()}")
-        st.markdown(f"**Extraction Status:** ✅ Success")
-        st.markdown(f"**Message:** {soil_data.get('message', 'Data extracted successfully')}")
-        
-        if isinstance(extracted_data, dict) and 'samples' in extracted_data:
-            # Handle structured data with samples
-            samples = extracted_data['samples']
-            if samples:
-                st.markdown(f"**Number of Samples:** {len(samples)}")
-                
-                # Calculate parameter statistics from samples
-                param_stats = calculate_parameter_statistics(samples)
-                if param_stats:
-                    st.markdown("### 📊 Parameter Statistics")
-                    
-                    # Create summary table
-                    summary_data = []
-                    for param, stats in param_stats.items():
-                        summary_data.append({
-                            'Parameter': param.replace('_', ' ').title(),
-                            'Average': f"{stats.get('average', 0):.2f}",
-                            'Min': f"{stats.get('min', 0):.2f}",
-                            'Max': f"{stats.get('max', 0):.2f}",
-                            'Samples': stats.get('count', 0)
-                        })
-                    
-                    if summary_data:
-                        df_stats = pd.DataFrame(summary_data)
-                        apply_table_styling()
-                        st.dataframe(df_stats, use_container_width=True)
-                
-                # Display individual sample data
-                st.markdown("### 📋 Individual Sample Data")
-                df_data = []
-                for sample in samples:
-                    df_data.append(sample)
-                
-                if df_data:
-                    df = pd.DataFrame(df_data)
-                    apply_table_styling()
-                    st.dataframe(df, use_container_width=True)
+
+    st.markdown("#### 🌱 Soil Analysis Data")
+    st.markdown(f"**Total Samples:** {len(soil_samples)}")
+
+    # Create DataFrame for soil samples
+    soil_df = pd.DataFrame(soil_samples)
+
+    # Keep only numeric columns for the table
+    numeric_cols = []
+    for col in soil_df.columns:
+        if col not in ['sample_no', 'lab_no'] and soil_df[col].dtype in ['int64', 'float64']:
+            numeric_cols.append(col)
+
+    if numeric_cols:
+        # Create table with samples and averages
+        table_data = []
+        for i, sample in enumerate(soil_samples):
+            row = {'Sample': f"S{i+1:03d}"}
+            for col in numeric_cols:
+                value = sample.get(col, 0)
+                row[col] = f"{value:.3f}" if isinstance(value, (int, float)) else str(value)
+            table_data.append(row)
+
+        # Add averages row
+        if soil_averages:
+            avg_row = {'Sample': '**Average**'}
+            for col in numeric_cols:
+                if col in soil_averages:
+                    avg_row[col] = f"**{soil_averages[col]:.3f}**"
                 else:
-                    st.info("📋 No sample data found in soil analysis.")
-            else:
-                st.info("📋 No samples found in soil data.")
-        elif isinstance(extracted_data, list):
-            # Handle list of parameter-value pairs
-            if extracted_data:
-                df = pd.DataFrame(extracted_data)
-                apply_table_styling()
-                st.dataframe(df, use_container_width=True)
-            else:
-                st.info("📋 No soil parameters extracted.")
-        else:
-            # Technical data hidden from user interface
-            st.info("📋 Data processed successfully.")
-    else:
-        st.info("📋 No soil data available.")
+                    avg_row[col] = "**N/A**"
+            table_data.append(avg_row)
+
+        # Display the table
+        df_table = pd.DataFrame(table_data)
+        st.dataframe(df_table, use_container_width=True)
+
+        # Display parameter averages with MPOB standards
+        if soil_averages:
+            st.markdown("**📊 Parameter Averages & MPOB Standards:**")
+
+            # Soil parameter mappings with accurate MPOB standards for Malaysian oil palm
+            soil_standards = {
+                'pH': {'optimal': '5.0-6.0', 'low': '<4.5', 'high': '>6.5'},
+                'Nitrogen_%': {'optimal': '0.15-0.25', 'low': '<0.12', 'high': '>0.30'},
+                'Organic_Carbon_%': {'optimal': '2.0-3.5', 'low': '<1.5', 'high': '>4.0'},
+                'Total_P_mg_kg': {'optimal': '25-45', 'low': '<15', 'high': '>60'},
+                'Available_P_mg_kg': {'optimal': '10-20', 'low': '<8', 'high': '>25'},
+                'Exchangeable_K_meq%': {'optimal': '0.20-0.40', 'low': '<0.15', 'high': '>0.50'},
+                'Exchangeable_Ca_meq%': {'optimal': '2.5-4.5', 'low': '<2.0', 'high': '>5.0'},
+                'Exchangeable_Mg_meq%': {'optimal': '0.6-1.2', 'low': '<0.4', 'high': '>1.5'},
+                'CEC_meq%': {'optimal': '12-25', 'low': '<10', 'high': '>30'}
+            }
+
+            cols = st.columns(2)
+            with cols[0]:
+                st.markdown("**Basic Parameters:**")
+                for param in ['pH', 'Organic_Carbon_%', 'CEC_meq%']:
+                    if param in soil_averages:
+                        avg_val = soil_averages[param]
+                        status = "✅ Optimal"
+                        if param in soil_standards:
+                            try:
+                                optimal_min = float(soil_standards[param]['optimal'].split('-')[0])
+                                optimal_max = float(soil_standards[param]['optimal'].split('-')[1])
+                                if avg_val < optimal_min:
+                                    status = "⚠️ Low"
+                                elif avg_val > optimal_max:
+                                    status = "⚠️ High"
+                            except:
+                                # Fallback to low/high thresholds
+                                try:
+                                    low_threshold = float(soil_standards[param]['low'].replace('<', ''))
+                                    high_threshold = float(soil_standards[param]['high'].replace('>', ''))
+                                    if avg_val < low_threshold:
+                                        status = "⚠️ Low"
+                                    elif avg_val > high_threshold:
+                                        status = "⚠️ High"
+                                except:
+                                    pass
+                        st.markdown(f"• **{param.replace('_', ' ')}:** {avg_val:.3f} {status}")
+
+            with cols[1]:
+                st.markdown("**Nutrient Parameters:**")
+                for param in ['Nitrogen_%', 'Total_P_mg_kg', 'Available_P_mg_kg', 'Exchangeable_K_meq%', 'Exchangeable_Ca_meq%', 'Exchangeable_Mg_meq%']:
+                    if param in soil_averages:
+                        avg_val = soil_averages[param]
+                        status = "✅ Optimal"
+                        if param in soil_standards:
+                            try:
+                                optimal_min = float(soil_standards[param]['optimal'].split('-')[0])
+                                optimal_max = float(soil_standards[param]['optimal'].split('-')[1])
+                                if avg_val < optimal_min:
+                                    status = "⚠️ Low"
+                                elif avg_val > optimal_max:
+                                    status = "⚠️ High"
+                            except:
+                                pass
+                        st.markdown(f"• **{param.replace('_', ' ')}:** {avg_val:.3f} {status}")
+
+def display_leaf_data_table_with_averages(leaf_samples, leaf_averages):
+    """Display leaf data table with parameter averages and MPOB standards"""
+    if not leaf_samples:
+        return
+
+    st.markdown("#### 🍃 Leaf Analysis Data")
+    st.markdown(f"**Total Samples:** {len(leaf_samples)}")
+
+    # Create DataFrame for leaf samples
+    leaf_df = pd.DataFrame(leaf_samples)
+
+    # Keep only numeric columns for the table
+    numeric_cols = []
+    for col in leaf_df.columns:
+        if col not in ['sample_no', 'lab_no'] and leaf_df[col].dtype in ['int64', 'float64']:
+            numeric_cols.append(col)
+
+    if numeric_cols:
+        # Create table with samples and averages
+        table_data = []
+        for i, sample in enumerate(leaf_samples):
+            row = {'Sample': f"L{i+1:03d}"}
+            for col in numeric_cols:
+                value = sample.get(col, 0)
+                row[col] = f"{value:.3f}" if isinstance(value, (int, float)) else str(value)
+            table_data.append(row)
+
+        # Add averages row
+        if leaf_averages:
+            avg_row = {'Sample': '**Average**'}
+            for col in numeric_cols:
+                if col in leaf_averages:
+                    avg_row[col] = f"**{leaf_averages[col]:.3f}**"
+                else:
+                    avg_row[col] = "**N/A**"
+            table_data.append(avg_row)
+
+        # Display the table
+        df_table = pd.DataFrame(table_data)
+        st.dataframe(df_table, use_container_width=True)
+
+        # Display parameter averages with MPOB standards
+        if leaf_averages:
+            st.markdown("**📊 Parameter Averages & MPOB Standards:**")
+
+            # Leaf parameter mappings with accurate MPOB standards for Malaysian oil palm (mature fronds)
+            leaf_standards = {
+                'N_%': {'optimal': '2.4-2.8', 'low': '<2.2', 'high': '>3.0'},
+                'P_%': {'optimal': '0.14-0.20', 'low': '<0.12', 'high': '>0.25'},
+                'K_%': {'optimal': '0.9-1.3', 'low': '<0.8', 'high': '>1.5'},
+                'Mg_%': {'optimal': '0.25-0.45', 'low': '<0.20', 'high': '>0.50'},
+                'Ca_%': {'optimal': '0.5-0.9', 'low': '<0.4', 'high': '>1.0'},
+                'B_mg_kg': {'optimal': '18-28', 'low': '<15', 'high': '>35'},
+                'Cu_mg_kg': {'optimal': '8-18', 'low': '<6', 'high': '>25'},
+                'Zn_mg_kg': {'optimal': '18-35', 'low': '<15', 'high': '>45'}
+            }
+
+            cols = st.columns(2)
+            with cols[0]:
+                st.markdown("**Macronutrients:**")
+                for param in ['N_%', 'P_%', 'K_%', 'Mg_%', 'Ca_%']:
+                    if param in leaf_averages:
+                        avg_val = leaf_averages[param]
+                        status = "✅ Optimal"
+                        if param in leaf_standards:
+                            try:
+                                optimal_min = float(leaf_standards[param]['optimal'].split('-')[0])
+                                optimal_max = float(leaf_standards[param]['optimal'].split('-')[1])
+                                if avg_val < optimal_min:
+                                    status = "⚠️ Low"
+                                elif avg_val > optimal_max:
+                                    status = "⚠️ High"
+                            except:
+                                pass
+                        st.markdown(f"• **{param.replace('_', ' ').replace('%', '(%)')}:** {avg_val:.3f} {status}")
+
+            with cols[1]:
+                st.markdown("**Micronutrients:**")
+                for param in ['B_mg_kg', 'Cu_mg_kg', 'Zn_mg_kg']:
+                    if param in leaf_averages:
+                        avg_val = leaf_averages[param]
+                        status = "✅ Optimal"
+                        if param in leaf_standards:
+                            try:
+                                optimal_min = float(leaf_standards[param]['optimal'].split('-')[0])
+                                optimal_max = float(leaf_standards[param]['optimal'].split('-')[1])
+                                if avg_val < optimal_min:
+                                    status = "⚠️ Low"
+                                elif avg_val > optimal_max:
+                                    status = "⚠️ High"
+                            except:
+                                pass
+                        st.markdown(f"• **{param.replace('_', ' ').replace('mg_kg', '(mg/kg)')}:** {avg_val:.3f} {status}")
 
 
-def display_leaf_data_table(leaf_data):
-    """Display leaf analysis data in tabular format"""
-    if not leaf_data:
-        st.info("🍃 No leaf data extracted from uploaded files.")
-        return
-    
-    # Handle new data structure from analysis engine
-    if 'parameter_statistics' in leaf_data:
-        # New structure from analysis engine
-        st.markdown("**Data Source:** Leaf Analysis Report")
-        st.markdown(f"**Total Samples:** {leaf_data.get('total_samples', 0)}")
-        st.markdown(f"**Parameters Analyzed:** {leaf_data.get('extracted_parameters', 0)}")
-        
-        # Display parameter statistics
-        param_stats = leaf_data.get('parameter_statistics', {})
-        if param_stats:
-            st.markdown("### 📊 Parameter Statistics")
-            
-            # Create summary table
-            summary_data = []
-            for param, stats in param_stats.items():
-                summary_data.append({
-                    'Parameter': param.replace('_', ' ').title(),
-                    'Average': f"{stats.get('average', 0):.2f}",
-                    'Min': f"{stats.get('min', 0):.2f}",
-                    'Max': f"{stats.get('max', 0):.2f}",
-                    'Samples': stats.get('count', 0)
-                })
-            
-            if summary_data:
-                df = pd.DataFrame(summary_data)
-                apply_table_styling()
-                st.dataframe(df, use_container_width=True)
-            
-            # Display individual sample data
-            all_samples = leaf_data.get('all_samples', [])
-            if all_samples:
-                st.markdown("### 📋 Individual Sample Data")
-                df_samples = pd.DataFrame(all_samples)
-                apply_table_styling()
-                st.dataframe(df_samples, use_container_width=True)
-        else:
-            st.info("📋 No parameter statistics available.")
-    
-    # Handle alternative data structure - check if it's a dict with parameter data
-    elif isinstance(leaf_data, dict) and any(key for key in leaf_data.keys() if 'parameter' in key.lower() or 'ph' in key.lower() or 'nitrogen' in key.lower()):
-        # Try to create parameter statistics from raw parameter data
-        st.markdown("**Data Source:** Leaf Analysis Report")
-        
-        # Extract parameter data and create statistics
-        param_data = {}
-        sample_count = 0
-        
-        for key, value in leaf_data.items():
-            if isinstance(value, (int, float)) and not key.startswith('_'):
-                param_data[key] = {
-                    'average': value,
-                    'min': value,
-                    'max': value,
-                    'count': 1
-                }
-                sample_count = max(sample_count, 1)
-        
-        if param_data:
-            st.markdown(f"**Total Samples:** {sample_count}")
-            st.markdown(f"**Parameters Analyzed:** {len(param_data)}")
-            
-            st.markdown("### 📊 Parameter Statistics")
-            
-            # Create summary table
-            summary_data = []
-            for param, stats in param_data.items():
-                summary_data.append({
-                    'Parameter': param.replace('_', ' ').title(),
-                    'Average': f"{stats.get('average', 0):.2f}",
-                    'Min': f"{stats.get('min', 0):.2f}",
-                    'Max': f"{stats.get('max', 0):.2f}",
-                    'Samples': stats.get('count', 0)
-                })
-            
-            if summary_data:
-                df = pd.DataFrame(summary_data)
-                apply_table_styling()
-                st.dataframe(df, use_container_width=True)
-        else:
-            st.info("📋 No parameter statistics available.")
-    
-    # Handle old data structure
-    elif 'data' in leaf_data:
-        # Check if extraction was successful
-        if not leaf_data.get('success', False):
-            st.error(f"❌ Leaf data extraction failed: {leaf_data.get('message', 'Unknown error')}")
-            return
-        
-        # Get extracted data
-        extracted_data = leaf_data.get('data', {})
-        report_type = leaf_data.get('report_type', 'unknown')
-        
-        st.markdown(f"**Report Type:** {report_type.title()}")
-        st.markdown(f"**Extraction Status:** ✅ Success")
-        st.markdown(f"**Message:** {leaf_data.get('message', 'Data extracted successfully')}")
-        
-        if isinstance(extracted_data, dict) and 'samples' in extracted_data:
-            # Handle structured data with samples
-            samples = extracted_data['samples']
-            if samples:
-                st.markdown(f"**Number of Samples:** {len(samples)}")
-                
-                # Calculate parameter statistics from samples
-                param_stats = calculate_parameter_statistics(samples)
-                if param_stats:
-                    st.markdown("### 📊 Parameter Statistics")
-                    
-                    # Create summary table
-                    summary_data = []
-                    for param, stats in param_stats.items():
-                        summary_data.append({
-                            'Parameter': param.replace('_', ' ').title(),
-                            'Average': f"{stats.get('average', 0):.2f}",
-                            'Min': f"{stats.get('min', 0):.2f}",
-                            'Max': f"{stats.get('max', 0):.2f}",
-                            'Samples': stats.get('count', 0)
-                        })
-                    
-                    if summary_data:
-                        df_stats = pd.DataFrame(summary_data)
-                        apply_table_styling()
-                        st.dataframe(df_stats, use_container_width=True)
-                
-                # Display individual sample data
-                st.markdown("### 📋 Individual Sample Data")
-                df_data = []
-                for sample in samples:
-                    df_data.append(sample)
-                
-                if df_data:
-                    df = pd.DataFrame(df_data)
-                    apply_table_styling()
-                    st.dataframe(df, use_container_width=True)
-                else:
-                    st.info("📋 No sample data found in leaf analysis.")
-            else:
-                st.info("📋 No samples found in leaf data.")
-        elif isinstance(extracted_data, list):
-            # Handle list of parameter-value pairs
-            if extracted_data:
-                df = pd.DataFrame(extracted_data)
-                apply_table_styling()
-                st.dataframe(df, use_container_width=True)
-            else:
-                st.info("📋 No leaf parameters extracted.")
-        else:
-            # Technical data hidden from user interface
-            st.info("🍃 Data processed successfully.")
-    else:
-        st.info("🍃 No leaf data available.")
-    
-    # Close the raw data section div
-    st.markdown('</div>', unsafe_allow_html=True)
+def format_raw_text_as_table(raw_text, data_type):
+    """Format raw OCR text into a clean HTML table structure"""
+    if not raw_text:
+        return None
+
+    try:
+        # Clean and normalize the text
+        lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+
+        if not lines:
+            return None
+
+        # Detect data type and set appropriate headers
+        if data_type.lower() == 'soil':
+            title = "🌱 Farm Soil Test Data"
+            headers = ["Sample ID", "pH", "N (%)", "Org. C (%)", "Total P (mg/kg)",
+                      "Avail P (mg/kg)", "Exch. K (meq%)", "Exch. Ca (meq%)",
+                      "Exch. Mg (meq%)", "CEC (meq%)"]
+        else:  # leaf data
+            title = "🍃 Farm Leaf Test Data"
+            headers = ["Sample ID", "N (%)", "P (%)", "K (%)", "Mg (%)", "Ca (%)",
+                      "B (mg/kg)", "Cu (mg/kg)", "Zn (mg/kg)", "Fe (mg/kg)", "Mn (mg/kg)"]
+
+        # Parse data rows - look for lines that might contain sample data
+        data_rows = []
+        for line in lines:
+            # Skip lines that are likely headers or metadata
+            if any(keyword.lower() in line.lower() for keyword in [
+                'sample', 'parameter', 'analysis', 'report', 'date', 'lab',
+                'test', 'method', 'unit', 'range', 'standard', 'mpob'
+            ]):
+                continue
+
+            # Try to split by common delimiters
+            parts = []
+            if '\t' in line:
+                parts = line.split('\t')
+            elif ',' in line:
+                parts = line.split(',')
+            elif '|' in line:
+                parts = line.split('|')
+            elif len(line.split()) >= 2:
+                # Try to extract numeric values
+                words = line.split()
+                parts = []
+                current_part = ""
+                for word in words:
+                    if word.replace('.', '').replace('-', '').isdigit() or '.' in word:
+                        if current_part:
+                            parts.append(current_part.strip())
+                        parts.append(word.strip())
+                        current_part = ""
+                    else:
+                        if current_part:
+                            current_part += " "
+                        current_part += word
+
+                if current_part:
+                    parts.append(current_part.strip())
+
+            # Clean and validate parts
+            parts = [p.strip() for p in parts if p.strip()]
+
+            # Only add rows that have reasonable data (at least 2 parts, first might be sample ID)
+            if len(parts) >= 2 and len(parts) <= len(headers):
+                # Pad with empty strings if needed
+                while len(parts) < len(headers):
+                    parts.append("")
+                data_rows.append(parts[:len(headers)])  # Don't exceed header count
+
+        # Limit to first 20 rows to avoid overwhelming display
+        data_rows = data_rows[:20]
+
+        if not data_rows:
+            return None
+
+        # Create HTML table
+        table_html = f"""
+        <div style="margin: 20px 0; overflow-x: auto;">
+            <h4 style="color: #2c3e50; margin-bottom: 15px; font-weight: 600;">{title}</h4>
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+        """
+
+        # Add headers
+        for header in headers:
+            table_html += f'<th style="padding: 12px 8px; text-align: center; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2); font-size: 12px;">{header}</th>'
+
+        table_html += """
+                    </tr>
+                </thead>
+                <tbody>
+        """
+
+        # Add data rows
+        for i, row in enumerate(data_rows):
+            row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
+            table_html += f'<tr style="{row_style}">'
+            for cell in row:
+                table_html += f'<td style="padding: 8px 6px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef; text-align: center; font-size: 11px;">{cell}</td>'
+            table_html += '</tr>'
+
+        table_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+
+        return table_html
+
+    except Exception as e:
+        st.warning(f"Could not format {data_type} data as table: {str(e)}")
+        return None
+
+
+def display_raw_ocr_text(results_data):
+    """Display the raw OCR text that was extracted from uploaded files with parameter averages"""
+    st.markdown("---")
+    st.markdown("## 📄 Raw OCR Text Extracted")
+
+    analysis_results = get_analysis_results_from_data(results_data)
+    raw_ocr_data = analysis_results.get('raw_ocr_data', {})
+
+    soil_raw_text = ""
+    leaf_raw_text = ""
+    soil_samples = []
+    leaf_samples = []
+
+    # Try to get raw text and samples from different sources
+    if raw_ocr_data:
+        if 'soil_data' in raw_ocr_data:
+            soil_data = raw_ocr_data['soil_data']
+            if soil_data.get('raw_data', {}).get('text'):
+                soil_raw_text = soil_data['raw_data']['text']
+            if soil_data.get('samples'):
+                soil_samples = soil_data['samples']
+        if 'leaf_data' in raw_ocr_data:
+            leaf_data = raw_ocr_data['leaf_data']
+            if leaf_data.get('raw_data', {}).get('text'):
+                leaf_raw_text = leaf_data['raw_data']['text']
+            if leaf_data.get('samples'):
+                leaf_samples = leaf_data['samples']
+
+    # Fallback to direct results data
+    if not soil_raw_text and results_data.get('soil_data', {}).get('raw_data', {}).get('text'):
+        soil_raw_text = results_data['soil_data']['raw_data']['text']
+    if not leaf_raw_text and results_data.get('leaf_data', {}).get('raw_data', {}).get('text'):
+        leaf_raw_text = results_data['leaf_data']['raw_data']['text']
+
+    # Additional fallback to raw_data.text (direct text field)
+    if not soil_raw_text and results_data.get('soil_data', {}).get('text'):
+        soil_raw_text = results_data['soil_data']['text']
+    if not leaf_raw_text and results_data.get('leaf_data', {}).get('text'):
+        leaf_raw_text = results_data['leaf_data']['text']
+
+    # Get samples from results_data if not found in raw_ocr_data
+    if not soil_samples and results_data.get('soil_data', {}).get('samples'):
+        soil_samples = results_data['soil_data']['samples']
+    if not leaf_samples and results_data.get('leaf_data', {}).get('samples'):
+        leaf_samples = results_data['leaf_data']['samples']
+
+    # Display Raw Data Tables and Parameter Averages from Structured Data
+    if soil_samples or leaf_samples:
+        st.markdown("### 📊 Raw Data Analysis")
+
+        # Create and display soil data table with averages
+        if soil_samples:
+            soil_averages = calculate_parameter_averages(soil_samples, 'soil')
+            display_soil_data_table_with_averages(soil_samples, soil_averages)
+
+        # Create and display leaf data table with averages
+        if leaf_samples:
+            leaf_averages = calculate_parameter_averages(leaf_samples, 'leaf')
+            display_leaf_data_table_with_averages(leaf_samples, leaf_averages)
+
+    # Display formatted tables first
+    if soil_raw_text:
+        soil_table = format_raw_text_as_table(soil_raw_text, 'soil')
+        if soil_table:
+            st.markdown("### 📊 Soil Data Table")
+            st.markdown(soil_table, unsafe_allow_html=True)
+
+    if leaf_raw_text:
+        leaf_table = format_raw_text_as_table(leaf_raw_text, 'leaf')
+        if leaf_table:
+            st.markdown("### 📊 Leaf Data Table")
+            st.markdown(leaf_table, unsafe_allow_html=True)
+
+    # Display the original raw OCR text
+    if soil_raw_text:
+        with st.expander("🌱 Raw Soil OCR Text", expanded=False):
+            st.text_area("Extracted Text", soil_raw_text, height=300, disabled=True)
+            st.info("💡 This is the exact raw text extracted from your soil analysis report by OCR.")
+            st.markdown("**Text Statistics:**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Length", f"{len(soil_raw_text)} chars")
+            with col2:
+                st.metric("Lines", len(soil_raw_text.split('\n')))
+            with col3:
+                st.metric("Words", len(soil_raw_text.split()))
+
+    if leaf_raw_text:
+        with st.expander("🍃 Raw Leaf OCR Text", expanded=False):
+            st.text_area("Extracted Text", leaf_raw_text, height=300, disabled=True)
+            st.info("💡 This is the exact raw text extracted from your leaf analysis report by OCR.")
+            st.markdown("**Text Statistics:**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Length", f"{len(leaf_raw_text)} chars")
+            with col2:
+                st.metric("Lines", len(leaf_raw_text.split('\n')))
+            with col3:
+                st.metric("Words", len(leaf_raw_text.split()))
+
+    # If no raw text found, show debug information
+    if not soil_raw_text and not leaf_raw_text:
+        st.warning("⚠️ No raw OCR text found in the analysis results.")
+        st.info("This might indicate that the OCR processing failed or the data structure is different.")
+        with st.expander("🔍 Debug: Available Data Structures", expanded=False):
+            st.write("**Results data keys:**", list(results_data.keys()))
+            if analysis_results:
+                st.write("**Analysis results keys:**", list(analysis_results.keys()))
+                if 'raw_ocr_data' in analysis_results:
+                    st.write("**Raw OCR data keys:**", list(analysis_results['raw_ocr_data'].keys()))
+        st.info("📋 No raw OCR text available. The analysis may have used structured table data instead.")
+
+# Soil data table function removed as requested
+
+
+# Table functions removed as requested
 
 def display_summary_section(results_data):
     """Display a comprehensive 20-sentence Executive Summary with agronomic focus"""
@@ -2804,7 +3285,9 @@ def display_step_by_step_results(results_data):
     # Display header with enhanced step information
     st.markdown(f"## 🔬 Step-by-Step Analysis ({total_steps} Steps)")
 
-    
+    # Show data source information
+    st.info("📊 **Data Source:** This analysis is based on the Structured OCR Data (JSON Format) from both soil and leaf reports, ensuring accurate parameter values and MPOB standards compliance.")
+
     if total_steps > 0:
         # Show analysis progress with visual indicator
         progress_bar = st.progress(1.0)
@@ -3044,7 +3527,14 @@ def display_enhanced_step_result(step_result, step_number):
                 for idx, item in enumerate(value, 1):
                     if isinstance(item, (dict, list)):
                         st.markdown(f"- Item {idx}:")
-                        st.json(item)
+                        # Convert dict/list to clean structured text
+                        if isinstance(item, dict):
+                            for k, v in item.items():
+                                if v is not None and v != "":
+                                    st.markdown(f"  • **{k.replace('_', ' ').title()}:** {v}")
+                        elif isinstance(item, list):
+                            for i, sub_item in enumerate(item, 1):
+                                st.markdown(f"  • Item {i}: {sub_item}")
                     else:
                         st.markdown(f"- {item}")
             elif isinstance(value, str) and value.strip():
@@ -4075,14 +4565,25 @@ def display_bar_chart(data, title):
             else:
                 st.warning(f"⚠️ Bar chart data is not a dictionary. Received: {type(data)}")
             
-            # Show the actual data structure for debugging
-            st.json(data)
+            # Show the actual data structure in clean format
+            if isinstance(data, dict):
+                st.markdown("**Chart Data:**")
+                for k, v in data.items():
+                    st.markdown(f"• **{k}:** {v}")
+            else:
+                st.markdown(f"**Chart Data:** {str(data)}")
     except ImportError:
         st.info("Plotly not available for chart display")
     except Exception as e:
         logger.error(f"Error displaying bar chart: {e}")
         st.error(f"Error displaying bar chart: {str(e)}")
-        st.json(data)  # Show data for debugging
+        # Show data in clean format instead of JSON
+        if isinstance(data, dict):
+            st.markdown("**Debug Data:**")
+            for k, v in data.items():
+                st.markdown(f"• **{k}:** {v}")
+        else:
+            st.markdown(f"**Debug Data:** {str(data)}")
 
 def display_pie_chart(data, title):
     """Display enhanced pie chart visualization with better styling"""
@@ -5854,10 +6355,24 @@ def display_step3_solution_recommendations(analysis_data):
                             st.markdown("")
                         else:
                             st.markdown(f"- Item {idx}:")
-                            st.json(item)
+                            # Convert to clean structured text
+                            if isinstance(item, dict):
+                                for k, v in item.items():
+                                    if v is not None and v != "":
+                                        st.markdown(f"  • **{k.replace('_', ' ').title()}:** {v}")
+                            else:
+                                st.markdown(f"  • {item}")
                     elif isinstance(item, list):
                         st.markdown(f"- Item {idx}:")
-                        st.json(item)
+                        # Convert list to clean structured text
+                        for i, sub_item in enumerate(item, 1):
+                            if isinstance(sub_item, dict):
+                                st.markdown(f"  • Item {i}:")
+                                for k, v in sub_item.items():
+                                    if v is not None and v != "":
+                                        st.markdown(f"    - **{k.replace('_', ' ').title()}:** {v}")
+                            else:
+                                st.markdown(f"  • Item {i}: {sub_item}")
                     else:
                         st.markdown(f"- {item}")
             elif isinstance(value, str) and value.strip():
@@ -7837,6 +8352,228 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
     </div>
     """
 
+
+def display_raw_data_tables(results_data):
+    """Display raw soil and leaf data tables with clean formatting"""
+    st.markdown("---")
+    st.markdown("## 📊 Raw Laboratory Data")
+
+    # Get analysis data
+    analysis_results = get_analysis_results_from_data(results_data)
+    raw_data = analysis_results.get('raw_data', {})
+    soil_params = raw_data.get('soil_parameters', {})
+    leaf_params = raw_data.get('leaf_parameters', {})
+
+    # Display soil data table
+    if soil_params and soil_params.get('samples'):
+        st.markdown("### 🌱 Soil Analysis Data")
+        soil_samples = soil_params.get('samples', [])
+
+        if soil_samples:
+            # Prepare data for table
+            soil_data = []
+            for sample in soil_samples:
+                sample_data = {
+                    'Sample ID': sample.get('sample_no', sample.get('sample_id', 'Unknown')),
+                    'pH': sample.get('pH', 'N/A'),
+                    'N (%)': sample.get('Nitrogen_%', sample.get('N_%', 'N/A')),
+                    'Org. C (%)': sample.get('Organic_Carbon_%', sample.get('Organic_C_%', 'N/A')),
+                    'Total P (mg/kg)': sample.get('Total_P_mg_kg', 'N/A'),
+                    'Avail P (mg/kg)': sample.get('Available_P_mg_kg', 'N/A'),
+                    'Exch. K (meq%)': sample.get('Exchangeable_K_meq%', 'N/A'),
+                    'Exch. Ca (meq%)': sample.get('Exchangeable_Ca_meq%', 'N/A'),
+                    'Exch. Mg (meq%)': sample.get('Exchangeable_Mg_meq%', 'N/A'),
+                    'CEC (meq%)': sample.get('CEC_meq%', 'N/A')
+                }
+                soil_data.append(sample_data)
+
+            # Create and display DataFrame
+            import pandas as pd
+            soil_df = pd.DataFrame(soil_data)
+            st.dataframe(soil_df, use_container_width=True, hide_index=True)
+
+            st.markdown(f"**Total Soil Samples:** {len(soil_samples)}")
+            st.markdown("")
+
+    # Display leaf data table
+    if leaf_params and leaf_params.get('samples'):
+        st.markdown("### 🍃 Leaf Tissue Analysis Data")
+        leaf_samples = leaf_params.get('samples', [])
+
+        if leaf_samples:
+            # Prepare data for table
+            leaf_data = []
+            for sample in leaf_samples:
+                sample_data = {
+                    'Sample ID': sample.get('sample_no', sample.get('sample_id', 'Unknown')),
+                    'N (%)': sample.get('N_%', 'N/A'),
+                    'P (%)': sample.get('P_%', 'N/A'),
+                    'K (%)': sample.get('K_%', 'N/A'),
+                    'Mg (%)': sample.get('Mg_%', 'N/A'),
+                    'Ca (%)': sample.get('Ca_%', 'N/A'),
+                    'B (mg/kg)': sample.get('B_mg_kg', 'N/A'),
+                    'Cu (mg/kg)': sample.get('Cu_mg_kg', 'N/A'),
+                    'Zn (mg/kg)': sample.get('Zn_mg_kg', 'N/A')
+                }
+                leaf_data.append(sample_data)
+
+            # Create and display DataFrame
+            import pandas as pd
+            leaf_df = pd.DataFrame(leaf_data)
+            st.dataframe(leaf_df, use_container_width=True, hide_index=True)
+
+            st.markdown(f"**Total Leaf Samples:** {len(leaf_samples)}")
+            st.markdown("")
+
+
+def display_average_data_tables(results_data):
+    """Display average parameter values for soil and leaf data with MPOB standards comparison"""
+    st.markdown("---")
+    st.markdown("## 📈 Parameter Averages & Standards Compliance")
+
+    # Get analysis data
+    analysis_results = get_analysis_results_from_data(results_data)
+    raw_data = analysis_results.get('raw_data', {})
+    soil_params = raw_data.get('soil_parameters', {})
+    leaf_params = raw_data.get('leaf_parameters', {})
+
+    # MPOB Standards
+    soil_standards = {
+        'pH': {'optimal': '5.0-6.0', 'low': '<4.5', 'high': '>6.5'},
+        'Nitrogen_%': {'optimal': '0.15-0.25', 'low': '<0.12', 'high': '>0.30'},
+        'Organic_Carbon_%': {'optimal': '2.0-3.5', 'low': '<1.5', 'high': '>4.0'},
+        'Total_P_mg_kg': {'optimal': '25-45', 'low': '<15', 'high': '>60'},
+        'Available_P_mg_kg': {'optimal': '10-20', 'low': '<8', 'high': '>25'},
+        'Exchangeable_K_meq%': {'optimal': '0.20-0.40', 'low': '<0.15', 'high': '>0.50'},
+        'Exchangeable_Ca_meq%': {'optimal': '2.5-4.5', 'low': '<2.0', 'high': '>5.0'},
+        'Exchangeable_Mg_meq%': {'optimal': '0.6-1.2', 'low': '<0.4', 'high': '>1.5'},
+        'CEC_meq%': {'optimal': '12-25', 'low': '<10', 'high': '>30'}
+    }
+
+    leaf_standards = {
+        'N_%': {'optimal': '2.4-2.8', 'low': '<2.2', 'high': '>3.0'},
+        'P_%': {'optimal': '0.14-0.20', 'low': '<0.12', 'high': '>0.25'},
+        'K_%': {'optimal': '0.9-1.3', 'low': '<0.8', 'high': '>1.5'},
+        'Mg_%': {'optimal': '0.25-0.45', 'low': '<0.20', 'high': '>0.50'},
+        'Ca_%': {'optimal': '0.5-0.9', 'low': '<0.4', 'high': '>1.0'},
+        'B_mg_kg': {'optimal': '18-28', 'low': '<15', 'high': '>35'},
+        'Cu_mg_kg': {'optimal': '8-18', 'low': '<6', 'high': '>25'},
+        'Zn_mg_kg': {'optimal': '18-35', 'low': '<15', 'high': '>45'}
+    }
+
+    # Display soil averages
+    if soil_params and soil_params.get('samples'):
+        st.markdown("### 🌱 Soil Parameters - Average Values & Standards")
+        soil_samples = soil_params.get('samples', [])
+
+        if soil_samples:
+            # Calculate averages
+            soil_averages = {}
+            for param in soil_standards.keys():
+                values = []
+                for sample in soil_samples:
+                    val = sample.get(param)
+                    if val is not None and val != 'N/A':
+                        try:
+                            values.append(float(val))
+                        except (ValueError, TypeError):
+                            pass
+
+                if values:
+                    soil_averages[param] = sum(values) / len(values)
+                else:
+                    soil_averages[param] = 'N/A'
+
+            # Create averages table with standards
+            soil_avg_data = []
+            for param, avg_val in soil_averages.items():
+                standards = soil_standards.get(param, {})
+                status = "❓ Unknown"
+
+                if avg_val != 'N/A':
+                    try:
+                        avg_float = float(avg_val)
+                        if 'optimal' in standards:
+                            optimal_range = standards['optimal']
+                            if '-' in optimal_range:
+                                min_val, max_val = map(float, optimal_range.split('-'))
+                                if avg_float >= min_val and avg_float <= max_val:
+                                    status = "✅ Optimal"
+                                elif avg_float < min_val:
+                                    status = "⚠️ Low"
+                                else:
+                                    status = "⚠️ High"
+                    except (ValueError, TypeError):
+                        pass
+
+                soil_avg_data.append({
+                    'Parameter': param.replace('_', ' ').replace('%', '(%)').replace('mg_kg', '(mg/kg)').replace('meq', '(meq)'),
+                    'Average Value': f"{avg_val:.3f}" if avg_val != 'N/A' else 'N/A',
+                    'MPOB Optimal Range': standards.get('optimal', 'N/A'),
+                    'Status': status
+                })
+
+            # Display table
+            import pandas as pd
+            soil_avg_df = pd.DataFrame(soil_avg_data)
+            st.dataframe(soil_avg_df, use_container_width=True, hide_index=True)
+
+    # Display leaf averages
+    if leaf_params and leaf_params.get('samples'):
+        st.markdown("### 🍃 Leaf Parameters - Average Values & Standards")
+        leaf_samples = leaf_params.get('samples', [])
+
+        if leaf_samples:
+            # Calculate averages
+            leaf_averages = {}
+            for param in leaf_standards.keys():
+                values = []
+                for sample in leaf_samples:
+                    val = sample.get(param)
+                    if val is not None and val != 'N/A':
+                        try:
+                            values.append(float(val))
+                        except (ValueError, TypeError):
+                            pass
+
+                if values:
+                    leaf_averages[param] = sum(values) / len(values)
+                else:
+                    leaf_averages[param] = 'N/A'
+
+            # Create averages table with standards
+            leaf_avg_data = []
+            for param, avg_val in leaf_averages.items():
+                standards = leaf_standards.get(param, {})
+                status = "❓ Unknown"
+
+                if avg_val != 'N/A':
+                    try:
+                        avg_float = float(avg_val)
+                        if 'optimal' in standards:
+                            optimal_range = standards['optimal']
+                            if '-' in optimal_range:
+                                min_val, max_val = map(float, optimal_range.split('-'))
+                                if avg_float >= min_val and avg_float <= max_val:
+                                    status = "✅ Optimal"
+                                elif avg_float < min_val:
+                                    status = "⚠️ Low"
+                                else:
+                                    status = "⚠️ High"
+                    except (ValueError, TypeError):
+                        pass
+
+                leaf_avg_data.append({
+                    'Parameter': param.replace('_', ' ').replace('%', '(%)').replace('mg_kg', '(mg/kg)'),
+                    'Average Value': f"{avg_val:.3f}" if avg_val != 'N/A' else 'N/A',
+                    'MPOB Optimal Range': standards.get('optimal', 'N/A'),
+                    'Status': status
+                })
+
+            # Display table
+            import pandas as pd
+            leaf_avg_df = pd.DataFrame(leaf_avg_data)
+            st.dataframe(leaf_avg_df, use_container_width=True, hide_index=True)
 
 
 

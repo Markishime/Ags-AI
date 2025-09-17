@@ -3565,24 +3565,17 @@ class PDFReportGenerator:
         economic_data = None
         economic_step = None
         
-        # Debug: Log available keys
-        logger.info(f"PDF Economic Debug - analysis_data keys: {list(analysis_data.keys())}")
-        
         # 1. Check direct economic_forecast in analysis_data (primary location)
         if 'economic_forecast' in analysis_data and analysis_data['economic_forecast']:
             economic_data = analysis_data['economic_forecast']
-            logger.info(f"PDF Economic Debug - Found economic_forecast in analysis_data: {type(economic_data)}")
         
         # 2. Check Step 5 (Economic Impact Forecast)
         if not economic_data:
             step_results = analysis_data.get('step_by_step_analysis', [])
-            logger.info(f"PDF Economic Debug - step_by_step_analysis length: {len(step_results)}")
             for step in step_results:
-                logger.info(f"PDF Economic Debug - Step {step.get('step_number')} keys: {list(step.keys())}")
                 if step.get('step_number') == 5 and 'economic_analysis' in step:
                     economic_data = step['economic_analysis']
                     economic_step = step
-                    logger.info(f"PDF Economic Debug - Found economic_analysis in Step 5: {type(economic_data)}")
                     break
         
         # 3. Check any step that has economic_analysis
@@ -3592,25 +3585,16 @@ class PDFReportGenerator:
                 if 'economic_analysis' in step and step['economic_analysis']:
                     economic_data = step['economic_analysis']
                     economic_step = step
-                    logger.info(f"PDF Economic Debug - Found economic_analysis in Step {step.get('step_number')}: {type(economic_data)}")
                     break
         
         # 4. Check if economic data is in analysis_results
         if not economic_data and 'analysis_results' in analysis_data:
             analysis_results = analysis_data['analysis_results']
-            logger.info(f"PDF Economic Debug - analysis_results keys: {list(analysis_results.keys())}")
             if 'economic_forecast' in analysis_results:
                 economic_data = analysis_results['economic_forecast']
-                logger.info(f"PDF Economic Debug - Found economic_forecast in analysis_results: {type(economic_data)}")
-        
-        logger.info(f"PDF Economic Debug - Final economic_data: {economic_data is not None}")
         
         if economic_data:
             econ = economic_data
-            
-            # Debug: Log the economic data structure
-            logger.info(f"PDF Economic Debug - economic_data keys: {list(econ.keys())}")
-            logger.info(f"PDF Economic Debug - scenarios: {econ.get('scenarios', {})}")
             
             # Extract data based on the actual structure from analysis engine
             current_yield = econ.get('current_yield_tonnes_per_ha', 0)
@@ -3618,10 +3602,10 @@ class PDFReportGenerator:
             oil_palm_price = econ.get('oil_palm_price_rm_per_tonne', 600)
             scenarios = econ.get('scenarios', {})
             
-            # Debug: Log scenario details
+            # Process scenario data
             for scenario_name, scenario_data in scenarios.items():
                 if isinstance(scenario_data, dict):
-                    logger.info(f"PDF Economic Debug - {scenario_name} scenario: {scenario_data}")
+                    pass  # Process scenario data as needed
             
             # Display basic information
             if current_yield > 0:
@@ -4207,7 +4191,7 @@ class PDFReportGenerator:
         ))
         story.append(Spacer(1, 15))
         
-        # Remove technical details section to avoid debug output
+        # Technical details section omitted for clarity
         
         # Disclaimer
         story.append(Paragraph("Disclaimer", self.styles['CustomSubheading']))

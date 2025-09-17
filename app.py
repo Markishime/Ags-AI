@@ -49,11 +49,23 @@ try:
 except Exception:
     from upload import show_upload_page
 
-    from modules.results import show_results_page
+try:
+    from modules.results import show_results_page as results_page_func
+except Exception:
+    print("Warning: Could not import results module")
+    results_page_func = None
 
-    from modules.history import show_history_page
+try:
+    from modules.history import show_history_page as history_page_func
+except Exception:
+    print("Warning: Could not import history module")
+    history_page_func = None
 
-    from modules.admin import show_admin_panel
+try:
+    from modules.admin import show_admin_panel as admin_panel_func
+except Exception:
+    print("Warning: Could not import admin module")
+    admin_panel_func = None
 
 # Page configuration
 st.set_page_config(
@@ -193,8 +205,6 @@ def initialize_app():
     
     # Initialize admin codes
     default_admin_code = initialize_admin_codes()
-    if default_admin_code:
-        print("Default admin code initialized successfully")
     
     # Initialize session state
     if 'authenticated' not in st.session_state:
@@ -707,21 +717,19 @@ def show_upload_page():
 
 def show_results_page():
     """Display results page"""
-    try:
-        from modules.results import show_results_page as results_page
-        results_page()
-    except ImportError:
-        st.error("Results module not available")
-        st.info("Please contact support if this issue persists.")
+    if results_page_func is not None:
+        results_page_func()
+    else:
+        st.error("❌ Results module not available")
+        st.info("💡 **Tip:** Please contact support if this issue persists.")
 
 def show_history_page():
     """Display history page"""
-    try:
-        from modules.history import show_history_page as history_page
-        history_page()
-    except ImportError:
-        st.error("History module not available")
-        st.info("Please contact support if this issue persists.")
+    if history_page_func is not None:
+        history_page_func()
+    else:
+        st.error("❌ History module not available")
+        st.info("💡 **Tip:** Please contact support if this issue persists.")
 
 def show_dashboard():
     """Display dashboard page"""
@@ -734,12 +742,11 @@ def show_dashboard():
 
 def show_admin_panel():
     """Display admin panel"""
-    try:
-        from modules.admin import show_admin_panel as admin_page
-        admin_page()
-    except ImportError:
-        st.error("Admin module not available")
-        st.info("Please contact support if this issue persists.")
+    if admin_panel_func is not None:
+        admin_panel_func()
+    else:
+        st.error("❌ Admin module not available")
+        st.info("💡 **Tip:** Please contact support if this issue persists.")
 
 def main():
     """Main application function"""
@@ -779,7 +786,11 @@ def main():
     elif current_page == 'results':
         # Require authentication for results functionality
         if st.session_state.authenticated:
-            show_results_page()
+            if results_page_func is not None:
+                results_page_func()
+            else:
+                st.error("❌ Results module not available")
+                st.info("💡 **Tip:** Please contact support if this issue persists.")
         else:
             st.warning("🔒 Please log in to view analysis results.")
             st.session_state.current_page = 'login'
@@ -787,7 +798,11 @@ def main():
     elif current_page == 'history':
         # Require authentication for history functionality
         if st.session_state.authenticated:
-            show_history_page()
+            if history_page_func is not None:
+                history_page_func()
+            else:
+                st.error("❌ History module not available")
+                st.info("💡 **Tip:** Please contact support if this issue persists.")
         else:
             st.warning("🔒 Please log in to view analysis history.")
             st.session_state.current_page = 'login'
@@ -795,7 +810,11 @@ def main():
     elif current_page == 'dashboard' and st.session_state.authenticated:
         show_dashboard()
     elif current_page == 'admin' and st.session_state.authenticated and is_admin(st.session_state.user_id):
-        show_admin_panel()
+        if admin_panel_func is not None:
+            admin_panel_func()
+        else:
+            st.error("❌ Admin module not available")
+            st.info("💡 **Tip:** Please contact support if this issue persists.")
     elif current_page == 'settings' and st.session_state.authenticated:
         show_settings_page()
     else:

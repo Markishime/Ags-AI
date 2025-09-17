@@ -1,1290 +1,1705 @@
-# flake8: noqa
 import os
-import logging
 import json
+import tempfile
+import logging
+from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
 import re
-from typing import Dict, List, Any
-import streamlit as st
-from io import BytesIO
+import pandas as pd
+import numpy as np
 
-# Optional data/PDF helpers
+# Google Document AI imports
 try:
-    import pandas as pd
-except Exception:
-    pd = None
+    from google.cloud import documentai
+    from google.oauth2 import service_account
+    DOCUMENT_AI_AVAILABLE = True
+except ImportError:
+    DOCUMENT_AI_AVAILABLE = False
+    logging.warning("Google Document AI not available. Install with: pip install google-cloud-documentai")
 
+# Tesseract fallback imports
+try:
+    import pytesseract
+    from PIL import Image
+    import cv2
+    import numpy as np
+    TESSERACT_AVAILABLE = True
+except ImportError:
+    TESSERACT_AVAILABLE = False
+    logging.warning("Tesseract OCR not available. Install with: pip install pytesseract opencv-python")
+
+# PDF processing imports
 try:
     import fitz  # PyMuPDF
-except Exception:
-    fitz = None
-
-# Google Vision OCR imports
-try:
-    from google.cloud import vision
-    GOOGLE_VISION_AVAILABLE = True
+    PDF_AVAILABLE = True
 except ImportError:
-    GOOGLE_VISION_AVAILABLE = False
-    print("❌ Google Vision not available. Please install with: "
-          "pip install google-cloud-vision")
+    PDF_AVAILABLE = False
+    logging.warning("PDF processing not available. Install with: pip install PyMuPDF")
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-class GoogleVisionTableExtractor:
-    """
-    Advanced table extraction using Google Vision OCR
-    Specialized for soil and leaf analysis reports with maximum accuracy
-    """
+class DocumentAIProcessor:
+    """Google Document AI processor for OCR extraction"""
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        self._vision_client = None
-        
-        # Soil analysis parameters (9 parameters with units)
-        self.soil_parameters = [
-            'pH', 'Nitrogen %', 'Organic Carbon %', 'Total P mg/kg',
-            'Available P mg/kg', 'Exch. K meq%', 'Exch. Ca meq%',
-            'Exch. Mg meq%', 'C.E.C meq%'
-        ]
-        
-        # Leaf analysis parameters organized by units
-        self.leaf_parameters_percent = ['N', 'P', 'K', 'Mg', 'Ca']  # % Dry Matter
-        self.leaf_parameters_mgkg = ['B', 'Cu', 'Zn']  # mg/kg Dry Matter
-        self.leaf_parameters = (self.leaf_parameters_percent +
-                                self.leaf_parameters_mgkg)  # All 8 parameters
-        
-        # Lab number patterns
-        self.soil_lab_pattern = r'S\d{2,3}(?:/\d{1,2})?'
-        self.leaf_lab_pattern = r'P\d{2,3}(?:/\d{1,2})?'
-        
-    def _get_vision_client(self):
-        """Get Google Vision client instance (lazy loading)"""
-        if self._vision_client is None and GOOGLE_VISION_AVAILABLE:
-            try:
-                # Get API key from Streamlit secrets
-                api_key = None
+        self.client = None
+        self.processor_id = None
+        self.project_id = None
+        self.location = None
+        self._initialize_client()
+    
+    def _initialize_client(self):
+        """Initialize Document AI client with credentials"""
+        try:
+            # Try to get credentials from environment or secrets
+            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+            if not credentials_path:
+                # Try to get from streamlit secrets
                 try:
-                    if hasattr(st, 'secrets') and 'google_vision' in st.secrets:
-                        api_key = st.secrets.google_vision.get('api_key')
-                    elif hasattr(st, 'secrets') and 'google_ai' in st.secrets:
-                        api_key = st.secrets.google_ai.get('api_key')
+                    import streamlit as st
+                    logger.info("Streamlit imported successfully")
+
+                    # Check if secrets are available
+                    if hasattr(st, 'secrets') and st.secrets is not None:
+                        logger.info(f"st.secrets keys: {list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else 'No keys method'}")
+
+                        if 'google_documentai' in st.secrets:
+                            logger.info("Found google_documentai in st.secrets")
+                            docai_config = st.secrets['google_documentai']
+
+                            # Check if credentials are provided directly in secrets
+                            if 'type' in docai_config and 'private_key' in docai_config:
+                                # Use credentials from st.secrets
+                                logger.info("Using credentials from st.secrets")
+                                credentials_info = {
+                                    'type': docai_config['type'],
+                                    'project_id': docai_config['project_id'],
+                                    'private_key': docai_config['private_key'],
+                                    'client_email': docai_config['client_email'],
+                                    'token_uri': docai_config.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                                    'auth_uri': docai_config.get('auth_uri', 'https://accounts.google.com/o/oauth2/auth'),
+                                }
+
+                            # Add optional fields
+                            if 'private_key_id' in docai_config:
+                                credentials_info['private_key_id'] = docai_config['private_key_id']
+                            if 'client_id' in docai_config:
+                                credentials_info['client_id'] = docai_config['client_id']
+
+                            credentials = service_account.Credentials.from_service_account_info(credentials_info)
+                            self.client = documentai.DocumentProcessorServiceClient(credentials=credentials)
+                            self.project_id = docai_config['project_id']
+                            self.processor_id = docai_config['processor_id']
+                            self.location = docai_config.get('location', 'us')
+                            logger.info("Document AI initialized from st.secrets credentials")
+                            return
                 except Exception as e:
-                    self.logger.warning(f"Could not access Streamlit secrets: {e}")
-                
-                if not api_key:
-                    self.logger.error("❌ Google Vision API key not found in Streamlit secrets")
-                    return None
-                
-                # Use Firebase service account credentials for Google Vision
-                from google.oauth2 import service_account
-                
-                # Get Firebase credentials from Streamlit secrets
-                firebase_creds = {
-                    "type": st.secrets.firebase.firebase_type,
-                    "project_id": st.secrets.firebase.project_id,
-                    "private_key_id": st.secrets.firebase.firebase_private_key_id,
-                    "private_key": st.secrets.firebase.firebase_private_key,
-                    "client_email": st.secrets.firebase.firebase_client_email,
-                    "client_id": st.secrets.firebase.firebase_client_id,
-                    "auth_uri": st.secrets.firebase.firebase_auth_uri,
-                    "token_uri": st.secrets.firebase.firebase_token_uri,
-                    "auth_provider_x509_cert_url": st.secrets.firebase.firebase_auth_provider_x509_cert_url,
-                    "client_x509_cert_url": st.secrets.firebase.firebase_client_x509_cert_url,
-                    "universe_domain": st.secrets.firebase.firebase_universe_domain
-                }
-                
-                # Create credentials from Firebase service account
-                credentials = service_account.Credentials.from_service_account_info(firebase_creds)
-                
-                # Initialize Vision client with Firebase credentials
-                self._vision_client = vision.ImageAnnotatorClient(credentials=credentials)
-                self.logger.info("✅ Google Vision client initialized successfully")
-            except Exception as e:
-                self.logger.error(f"❌ Failed to initialize Google Vision client: {str(e)}")
-                return None
-        return self._vision_client
-    
-    def extract_tables_from_image(self, image_path: str) -> Dict[str, Any]:
-        """
-        Extract tables from image using Google Vision OCR with maximum accuracy
-        """
-        try:
-            self.logger.info(f"🔍 Extracting tables from image: {image_path}")
-            
-            # Check if image exists
-            if not os.path.exists(image_path):
-                return {'tables': [], 'error': f'Image file not found: {image_path}'}
-            
-            # Get Vision client
-            client = self._get_vision_client()
-            if client is None:
-                return {'tables': [], 'error': 'Google Vision client not available'}
-            
-            # Read image file
-            with open(image_path, 'rb') as image_file:
-                content = image_file.read()
-            
-            # Create image object
-            image = vision.Image(content=content)
-            
-            # Configure text detection with maximum accuracy settings
-            image_context = vision.ImageContext(
-                language_hints=['en'],  # English language hint for better accuracy
-                text_detection_params=vision.TextDetectionParams(
-                    enable_text_detection_confidence_score=True
-                )
-            )
-            
-            # Perform both text detection and document text detection for maximum accuracy
-            # Document text detection is better for structured documents like tables
-            response = client.document_text_detection(
-                image=image,
-                image_context=image_context
-            )
-            
-            # If document text detection fails, fallback to regular text detection
-            if not response.text_annotations:
-                self.logger.info("🔄 Document text detection failed, trying regular text detection...")
-                response = client.text_detection(
-                    image=image,
-                    image_context=image_context
-                )
-            
-            if response.error.message:
-                return {'tables': [], 'error': f'Google Vision API error: {response.error.message}'}
-            
-            # Extract text annotations
-            texts = response.text_annotations
-            
-            if not texts:
-                return {'tables': [], 'error': 'No text detected in image'}
-            
-            # Parse Google Vision OCR results with enhanced accuracy
-            tables = self._parse_google_vision_result_enhanced(response, image_path)
-            
-            self.logger.info(f"✅ Extracted {len(tables)} tables from image")
-            return {'tables': tables, 'success': True}
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting tables: {str(e)}")
-            return {'tables': [], 'error': str(e)}
-    
-    def _parse_google_vision_result_enhanced(self, response, image_path: str) -> List[Dict[str, Any]]:
-        """
-        Parse Google Vision OCR result with enhanced accuracy for both document and regular text detection
-        """
-        tables = []
-        
-        try:
-            text_annotations = response.text_annotations
-            self.logger.info(f"🔍 Google Vision OCR result type: {type(text_annotations)}")
-            self.logger.info(f"🔍 Found {len(text_annotations)} text annotations")
-            
-            # Extract text lines from Google Vision annotations
-            text_lines = []
-            
-            # Check if we have document text detection results (more accurate for tables)
-            if hasattr(response, 'full_text_annotation') and response.full_text_annotation:
-                self.logger.info("📄 Using document text detection results for better accuracy")
-                text_lines = self._extract_document_text_lines(response.full_text_annotation)
-            else:
-                # Fallback to regular text annotations
-                self.logger.info("📄 Using regular text detection results")
-                text_lines = self._extract_regular_text_lines(text_annotations)
-            
-            self.logger.info(f"📝 Extracted {len(text_lines)} text elements from Google Vision")
-            
-            # Identify table type and extract data
-            table_type = self._identify_table_type(text_lines)
-            self.logger.info(f"🔍 Identified table type: {table_type}")
-            
-            if table_type == 'soil':
-                tables = self._extract_soil_tables(text_lines)
-            elif table_type == 'leaf':
-                tables = self._extract_leaf_tables(text_lines)
-            else:
-                self.logger.warning("⚠️ Unknown table type detected, trying both extractions")
-                # Try both soil and leaf extraction
-                soil_tables = self._extract_soil_tables(text_lines)
-                leaf_tables = self._extract_leaf_tables(text_lines)
-                
-                if soil_tables and leaf_tables:
-                    # Both have data, choose based on filename
-                    if 'soil' in image_path.lower():
-                        tables = soil_tables
-                    elif 'leaf' in image_path.lower():
-                        tables = leaf_tables
-                    else:
-                        # Default to soil if both available
-                        tables = soil_tables
-                elif soil_tables:
-                    tables = soil_tables
-                elif leaf_tables:
-                    tables = leaf_tables
-                else:
-                    # Last resort: try with reference data
-                    self.logger.warning("⚠️ No data extracted from OCR, using reference data as fallback")
-                    if 'soil' in image_path.lower():
-                        tables = self._extract_soil_tables([])
-                    elif 'leaf' in image_path.lower():
-                        tables = self._extract_leaf_tables([])
-                    else:
-                        tables = []
-            
-            return tables
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error parsing Google Vision OCR result: {str(e)}")
-            return []
+                    logger.warning(f"Could not load from Streamlit secrets: {e}")
+                    # Try to load from the JSON file path specified in st.secrets
+                    try:
+                        # Check if there's a GOOGLE_APPLICATION_CREDENTIALS path in st.secrets
+                        if hasattr(st, 'secrets') and st.secrets is not None and 'google_documentai' in st.secrets:
+                            creds_path = st.secrets['google_documentai'].get('GOOGLE_APPLICATION_CREDENTIALS')
+                            if creds_path and os.path.exists(creds_path):
+                                logger.info(f"Trying to load from st.secrets credentials path: {creds_path}")
+                                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = creds_path
+                                creds = service_account.Credentials.from_service_account_file(creds_path)
+                                self.client = documentai.DocumentProcessorServiceClient(credentials=creds)
 
-    # ------------------------
-    # Excel/CSV direct parsers
-    # ------------------------
-    def _normalize_header(self, header: str) -> str:
-        text = header or ''
-        text = text.strip().lower()
-        text = re.sub(r'[^a-z0-9%]+', ' ', text)
-        return re.sub(r'\s+', ' ', text)
+                                # Load project and processor info from the file
+                                with open(creds_path, 'r') as f:
+                                    creds_data = json.load(f)
+                                    self.project_id = creds_data.get('project_id')
 
-    def _parse_soil_dataframe(self, df) -> List[Dict[str, Any]]:
-        try:
-            if df is None or df.empty:
-                return []
-            headers = {self._normalize_header(col): col for col in df.columns}
-            # Likely column mappings
-            col_map = {
-                'sample n': None,
-                'sample no': None,
-                'ph': None,
-                'nitrogen': None,
-                'nitrogen %': None,
-                'organic c': None,
-                'organic carbon': None,
-                'total p': None,
-                'total p mg kg': None,
-                'available': None,
-                'available p': None,
-                'available p mg kg': None,
-                'exch k': None,
-                'exch k meq': None,
-                'exch ca': None,
-                'exch ca meq': None,
-                'exch mg': None,
-                'exch mg meq': None,
-                'c e c': None,
-                'c e c meq': None,
-            }
-            # Resolve best matches
-            def pick(*keys):
-                for k in keys:
-                    for h in headers:
-                        if h.startswith(k):
-                            return headers[h]
-                return None
-            mapped = {
-                'lab': pick('sample n', 'sample no'),
-                'ph': pick('ph'),
-                'n': pick('nitrogen %', 'nitrogen'),
-                'oc': pick('organic carbon', 'organic c'),
-                'total_p': pick('total p mg kg', 'total p'),
-                'available_p': pick('available p mg kg', 'available p', 'available'),
-                'exch_k': pick('exch k meq', 'exch k'),
-                'exch_ca': pick('exch ca meq', 'exch ca'),
-                'exch_mg': pick('exch mg meq', 'exch mg'),
-                'cec': pick('c e c meq', 'c e c'),
-            }
-            samples: List[Dict[str, Any]] = []
-            for idx, row in df.iterrows():
-                sample = {
-                    'Lab No.': str(row.get(mapped['lab'])) if mapped['lab'] else f"S{idx+1}",
-                    'Sample No.': idx + 1,
-                    'pH': float(row.get(mapped['ph'])) if mapped['ph'] in row else float(row.get(mapped['ph'], 0) or 0),
-                    'Nitrogen %': float(row.get(mapped['n'], 0) or 0),
-                    'Organic Carbon %': float(row.get(mapped['oc'], 0) or 0),
-                    'Total P mg/kg': float(row.get(mapped['total_p'], 0) or 0),
-                    'Available P mg/kg': float(row.get(mapped['available_p'], 0) or 0),
-                    'Exch. K meq%': float(row.get(mapped['exch_k'], 0) or 0),
-                    'Exch. Ca meq%': float(row.get(mapped['exch_ca'], 0) or 0),
-                    'Exch. Mg meq%': float(row.get(mapped['exch_mg'], 0) or 0),
-                    'C.E.C meq%': float(row.get(mapped['cec'], 0) or 0),
-                }
-                samples.append(sample)
-            if not samples:
-                return []
-            return [{
-                'type': 'soil',
-                'table_number': 1,
-                'samples': samples,
-                'sample_count': len(samples)
-            }]
-        except Exception as e:
-            self.logger.error(f"Error parsing soil dataframe: {e}")
-            return []
+                                # Get processor info from st.secrets
+                                docai_config = st.secrets['google_documentai']
+                                self.processor_id = docai_config.get('processor_id')
+                                self.location = docai_config.get('location', 'us')
+                                logger.info("Document AI initialized from st.secrets credentials file path")
+                                return
+                    except Exception as file_error:
+                        logger.warning(f"Could not load from st.secrets credentials file: {file_error}")
 
-    def _parse_leaf_dataframe(self, df) -> List[Dict[str, Any]]:
-        try:
-            if df is None or df.empty:
-                return []
-            headers = {self._normalize_header(col): col for col in df.columns}
-            def pick(prefix):
-                for h in headers:
-                    if h.startswith(prefix):
-                        return headers[h]
-                return None
-            mapped = {
-                'lab': pick('sample n') or pick('sample no'),
-                'n': pick('n %'),
-                'p': pick('p %'),
-                'k': pick('k %'),
-                'mg': pick('mg %'),
-                'ca': pick('ca %'),
-                'b': pick('b mg kg') or pick('b'),
-                'cu': pick('cu mg kg') or pick('cu'),
-                'zn': pick('zn mg kg') or pick('zn'),
-            }
-            samples: List[Dict[str, Any]] = []
-            for idx, row in df.iterrows():
-                percent = {
-                    'N': float(row.get(mapped['n'], 0) or 0),
-                    'P': float(row.get(mapped['p'], 0) or 0),
-                    'K': float(row.get(mapped['k'], 0) or 0),
-                    'Mg': float(row.get(mapped['mg'], 0) or 0),
-                    'Ca': float(row.get(mapped['ca'], 0) or 0),
-                }
-                mgkg = {
-                    'B': float(row.get(mapped['b'], 0) or 0),
-                    'Cu': float(row.get(mapped['cu'], 0) or 0),
-                    'Zn': float(row.get(mapped['zn'], 0) or 0),
-                }
-                sample = {
-                    'Lab No.': str(row.get(mapped['lab'])) if mapped['lab'] else f"P{idx+1}",
-                    'Sample No.': idx + 1,
-                    '% Dry Matter': percent,
-                    'mg/kg Dry Matter': mgkg,
-                }
-                samples.append(sample)
-            if not samples:
-                return []
-            return [{
-                'type': 'leaf',
-                'table_number': 1,
-                'samples': samples,
-                'sample_count': len(samples)
-            }]
-        except Exception as e:
-            self.logger.error(f"Error parsing leaf dataframe: {e}")
-            return []
+                    logger.error(f"st.secrets keys: {list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else 'No keys'}")
+            
+            if credentials_path and os.path.exists(credentials_path):
+                # Set credentials path for Google auth
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+                creds = service_account.Credentials.from_service_account_file(credentials_path)
+                self.client = documentai.DocumentProcessorServiceClient(credentials=creds)
 
-    def extract_tables_from_pdf(self, pdf_path: str) -> Dict[str, Any]:
-        try:
-            if not os.path.exists(pdf_path):
-                return {'tables': [], 'error': f'PDF not found: {pdf_path}'}
-            if not fitz:
-                return {'tables': [], 'error': 'PyMuPDF (fitz) not installed for PDF rendering'}
-            doc = fitz.open(pdf_path)
-            all_tables: List[Dict[str, Any]] = []
-            for page_index in range(len(doc)):
-                page = doc.load_page(page_index)
-                pix = page.get_pixmap(dpi=200)
-                img_bytes = pix.tobytes('png')
-                tmp = BytesIO(img_bytes)
-                # Persist to temp file for existing pipeline
-                import tempfile
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as f:
-                    f.write(img_bytes)
-                    tmp_path = f.name
-                result = self.extract_tables_from_image(tmp_path)
+                # Load project details from credentials file
+                with open(credentials_path, 'r') as f:
+                    creds_data = json.load(f)
+                    self.project_id = creds_data.get('project_id')
+
+                # Try to get processor configuration from st.secrets or environment
                 try:
-                    os.unlink(tmp_path)
+                    import streamlit as st
+                    if hasattr(st, 'secrets') and 'google_documentai' in st.secrets:
+                        docai_config = st.secrets['google_documentai']
+                        self.processor_id = docai_config.get('processor_id')
+                        self.location = docai_config.get('location', 'us')
+                        logger.info("Document AI initialized from credentials file + st.secrets config")
+                        return
                 except Exception:
                     pass
-                if result.get('success'):
-                    all_tables.extend(result.get('tables', []))
-            if not all_tables:
-                return {'tables': [], 'error': 'No tables found in PDF'}
-            return {'tables': all_tables, 'success': True}
-        except Exception as e:
-            return {'tables': [], 'error': str(e)}
 
-    def extract_tables_from_excel(self, file_path: str) -> Dict[str, Any]:
-        try:
-            if not pd:
-                return {'tables': [], 'error': 'pandas not installed for Excel/CSV parsing'}
-            ext = os.path.splitext(file_path)[1].lower()
-
-            def _load_csv(path: str):
-                # Try a few separators and settings
-                for sep in [',', ';', '\t', '|']:
-                    try:
-                        df_try = pd.read_csv(path, sep=sep, engine='python', on_bad_lines='skip', header=None, encoding_errors='ignore')
-                        if not df_try.empty and len(df_try.columns) > 0:
-                            return df_try
-                    except Exception:
-                        continue
-                return pd.DataFrame()
-
-            def _normalize_dataframe(df_in):
-                df_local = df_in.copy()
-                # Promote detected header row to columns
-                def _find_header_row(df_any):
-                    soil_keys = ['ph', 'nitrogen', 'organic', 'total p', 'available', 'exch', 'c e c']
-                    leaf_keys = ['n %', 'p %', 'k %', 'mg %', 'ca %', 'b', 'cu', 'zn']
-                    best_idx = 0
-                    best_score = -1
-                    rows_to_check = min(15, len(df_any))
-                    for i in range(rows_to_check):
-                        cells = [str(x) for x in list(df_any.iloc[i].values)]
-                        blob = ' '.join(self._normalize_header(x) for x in cells)
-                        score = sum(k in blob for k in soil_keys) + sum(k in blob for k in leaf_keys)
-                        if score > best_score:
-                            best_score = score
-                            best_idx = i
-                    return best_idx
-
-                if not df_local.empty:
-                    header_row_idx = _find_header_row(df_local)
-                    new_columns = [str(v) for v in list(df_local.iloc[header_row_idx].values)]
-                    df_local = df_local.iloc[header_row_idx + 1:].reset_index(drop=True)
-                    # Ensure unique, non-empty headers
-                    fixed_cols = []
-                    seen = {}
-                    for col in new_columns:
-                        name = str(col).strip() or 'col'
-                        name_norm = name
-                        if name_norm in seen:
-                            seen[name_norm] += 1
-                            name_norm = f"{name_norm}_{seen[name_norm]}"
-                        else:
-                            seen[name_norm] = 1
-                        fixed_cols.append(name_norm)
-                    df_local.columns = fixed_cols
-                # Drop fully empty columns and rows
-                df_local = df_local.dropna(axis=0, how='all').dropna(axis=1, how='all')
-                return df_local
-
-            if ext == '.csv':
-                df = _load_csv(file_path)
+                # Fallback to environment variables
+                self.processor_id = os.getenv('GOOGLE_CLOUD_PROCESSOR_ID', 'ada42b6854568248')
+                self.location = os.getenv('GOOGLE_CLOUD_LOCATION', 'us')
+                logger.info("Document AI initialized from credentials file + environment config")
             else:
-                # Excel: try default sheet first
-                df = pd.DataFrame()
-                read_errors: List[str] = []
-                for read_attempt in range(1, 4):
-                    try:
-                        if read_attempt == 1:
-                            df = pd.read_excel(file_path, header=None)  # raw grid
-                        elif read_attempt == 2:
-                            # Read all sheets and concat
-                            all_sheets = pd.read_excel(file_path, sheet_name=None, header=None)
-                            frames = [sdf for name, sdf in all_sheets.items() if not sdf.empty]
-                            if frames:
-                                df = pd.concat(frames, ignore_index=True)
-                        else:
-                            # Headerless
-                            df = pd.read_excel(file_path, header=None)
-                        if not df.empty and len(df.columns) > 0:
-                            break
-                    except Exception as re_err:
-                        read_errors.append(str(re_err))
-                        continue
+                # Try default environment variables as final fallback
+                try:
+                    self.client = documentai.DocumentProcessorServiceClient()
+                    self.project_id = os.getenv('GOOGLE_CLOUD_PROJECT_ID', 'agriai-cbd8b')
+                    self.processor_id = os.getenv('GOOGLE_CLOUD_PROCESSOR_ID', 'ada42b6854568248')
+                    self.location = os.getenv('GOOGLE_CLOUD_LOCATION', 'us')
+                    logger.info("Document AI initialized with default environment variables")
+                except Exception as default_error:
+                    logger.warning(f"Could not initialize with default credentials: {default_error}")
+                    logger.warning("No Document AI credentials found")
 
-            df = _normalize_dataframe(df)
-            if df.empty or len(df.columns) == 0:
-                return {'tables': [], 'error': 'Excel/CSV appears empty or has no detectable columns'}
+        except Exception as e:
+            logger.error(f"Failed to initialize Document AI client: {e}")
+            self.client = None
+    
+    def process_document(self, file_path: str) -> Optional[Dict]:
+        """Process document with Google Document AI"""
+        if not self.client or not self.processor_id or not self.project_id:
+            logger.error("Document AI not properly configured")
+            return None
+        
+        try:
+            # Read file content
+            with open(file_path, 'rb') as file:
+                file_content = file.read()
+            
+            # Determine MIME type
+            file_ext = os.path.splitext(file_path)[1].lower()
+            mime_type_map = {
+                '.pdf': 'application/pdf',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg'
+            }
+            mime_type = mime_type_map.get(file_ext, 'application/octet-stream')
 
-            # Decide soil vs leaf based on headers
-            headers = ' '.join([self._normalize_header(str(c)) for c in df.columns])
-            if any(k in headers for k in ['ph', 'organic', 'exch', 'c e c', 'nitrogen']):
-                tables = self._parse_soil_dataframe(df)
+            # Create the document
+            raw_document = documentai.RawDocument(
+                content=file_content,
+                mime_type=mime_type
+            )
+            
+            # Configure the process request
+            name = f"projects/{self.project_id}/locations/{self.location}/processors/{self.processor_id}"
+            request = documentai.ProcessRequest(
+                name=name,
+                raw_document=raw_document
+            )
+            
+            # Process the document
+            result = self.client.process_document(request=request)
+            document = result.document
+            
+            # Extract text and tables
+            extracted_data = {
+                'text': document.text,
+                'tables': [],
+                'success': True,
+                'method': 'document_ai'
+            }
+            
+            # Process tables from all pages with enhanced detection
+            if hasattr(document, 'pages') and document.pages:
+                total_tables_found = 0
+
+                for page_num, page in enumerate(document.pages):
+                    logger.info(f"Processing page {page_num + 1} of {len(document.pages)}")
+
+                    if hasattr(page, 'tables') and page.tables:
+                        logger.info(f"Found {len(page.tables)} tables on page {page_num + 1}")
+
+                        for table_num, table in enumerate(page.tables):
+                            logger.info(f"Extracting table {table_num + 1} from page {page_num + 1}")
+                            table_data = self._extract_table_data(table, document.text)
+                            if table_data:
+                                extracted_data['tables'].append(table_data)
+                                total_tables_found += 1
+                                logger.info(f"Successfully extracted table {table_num + 1} with type: {table_data.get('type', 'unknown')}, samples: {table_data.get('total_samples', 0)}")
+                        logger.debug(f"No tables found on page {page_num + 1}")
+
+                        # Try to extract text blocks that might be tabular data
+                        if hasattr(page, 'blocks'):
+                            logger.debug(f"Page has {len(page.blocks)} blocks, checking for tabular text")
+                            text_blocks = self._extract_text_blocks_from_page(page, document.text)
+                            if text_blocks:
+                                logger.info(f"Found {len(text_blocks)} text blocks on page {page_num + 1}, attempting table extraction")
+                                for block_num, block_data in enumerate(text_blocks):
+                                    if block_data and block_data.get('type') in ['soil', 'leaf']:
+                                        extracted_data['tables'].append(block_data)
+                                        total_tables_found += 1
+                                        logger.info(f"Successfully extracted text-based table {block_num + 1} with type: {block_data.get('type')}")
+
+                logger.info(f"Total tables extracted: {total_tables_found}")
+
+                # If no tables found but we have document text, try to parse it as tabular data
+                if total_tables_found == 0 and document.text:
+                    logger.info("No tables found, attempting to parse document text for tabular data")
+                    text_tables = self._parse_text_for_tables(document.text)
+                    if text_tables:
+                        extracted_data['tables'].extend(text_tables)
+                        logger.info(f"Successfully extracted {len(text_tables)} tables from text parsing")
+
             else:
-                tables = self._parse_leaf_dataframe(df)
-            if tables:
-                return {'tables': tables, 'success': True}
-            return {'tables': [], 'error': 'Unable to parse table structure from Excel/CSV'}
+                logger.warning("Document has no pages attribute or no pages")
+            
+            return extracted_data
+            
         except Exception as e:
-            return {'tables': [], 'error': f'Excel/CSV parsing failed: {str(e)}'}
+            logger.error(f"Document AI processing failed: {e}")
+            return None
     
-    def _extract_document_text_lines(self, full_text_annotation) -> List[Dict[str, Any]]:
-        """Extract text lines from document text annotation for better accuracy"""
-        text_lines = []
-        
+    def _extract_table_data(self, table, document_text: str) -> Optional[Dict]:
+        """Extract structured data from Document AI table"""
         try:
-            if hasattr(full_text_annotation, 'pages'):
-                for page in full_text_annotation.pages:
-                    if hasattr(page, 'blocks'):
-                        for block in page.blocks:
-                            if hasattr(block, 'paragraphs'):
-                                for paragraph in block.paragraphs:
-                                    if hasattr(paragraph, 'words'):
-                                        # Group words by line (similar y-position)
-                                        line_words = []
-                                        current_y = None
-                                        y_tolerance = 10  # Pixels tolerance for same line
-                                        
-                                        for word in paragraph.words:
-                                            if hasattr(word, 'symbols'):
-                                                word_text = ''.join([symbol.text for symbol in word.symbols])
-                                                if word_text.strip():
-                                                    # Get bounding box
-                                                    vertices = []
-                                                    if hasattr(word, 'bounding_box') and word.bounding_box:
-                                                        vertices = [(vertex.x, vertex.y) for vertex in word.bounding_box.vertices]
-                                                    
-                                                    if vertices:
-                                                        y_position = sum(vertex[1] for vertex in vertices) / len(vertices)
-                                                        
-                                                        # Check if this word is on the same line
-                                                        if current_y is None or abs(y_position - current_y) <= y_tolerance:
-                                                            line_words.append({
-                                                                'text': word_text,
-                                                                'x_position': sum(vertex[0] for vertex in vertices) / len(vertices),
-                                                                'y_position': y_position
-                                                            })
-                                                            current_y = y_position
-                                                        else:
-                                                            # New line, process previous line
-                                                            if line_words:
-                                                                line_text = ' '.join([w['text'] for w in sorted(line_words, key=lambda x: x['x_position'])])
-                                                                text_lines.append({
-                                                                    'text': line_text,
-                                                                    'confidence': 1.0,
-                                                                    'bbox': [],
-                                                                    'y_position': current_y
-                                                                })
-                                                            # Start new line
-                                                            line_words = [{
-                                                                'text': word_text,
-                                                                'x_position': sum(vertex[0] for vertex in vertices) / len(vertices),
-                                                                'y_position': y_position
-                                                            }]
-                                                            current_y = y_position
-                                        
-                                        # Process last line
-                                        if line_words:
-                                            line_text = ' '.join([w['text'] for w in sorted(line_words, key=lambda x: x['x_position'])])
-                                            text_lines.append({
-                                                'text': line_text,
-                                                'confidence': 1.0,
-                                                'bbox': [],
-                                                'y_position': current_y
-                                            })
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting document text lines: {str(e)}")
-        
-        # Sort by y-position
-        text_lines.sort(key=lambda x: x['y_position'])
-        return text_lines
-    
-    def _extract_regular_text_lines(self, text_annotations) -> List[Dict[str, Any]]:
-        """Extract text lines from regular text annotations"""
-        text_lines = []
-        
-        try:
-            # First annotation contains all text, others are individual words
-            if text_annotations:
-                # Get the full text from first annotation
-                full_text = text_annotations[0].description
-                self.logger.info(f"📝 Full text detected: {full_text[:200]}...")
-                
-                # Process individual word annotations for better positioning
-                for i, annotation in enumerate(text_annotations[1:], 1):  # Skip first (full text)
-                    if hasattr(annotation, 'description') and hasattr(annotation, 'bounding_poly'):
-                        vertices = annotation.bounding_poly.vertices
-                        if len(vertices) >= 2:
-                            # Calculate center y position for sorting
-                            y_position = sum(vertex.y for vertex in vertices) / len(vertices)
-                            
-                            text_lines.append({
-                                'text': annotation.description,
-                                'confidence': getattr(annotation, 'confidence', 1.0),
-                                'bbox': [(vertex.x, vertex.y) for vertex in vertices],
-                                'y_position': y_position
-                            })
-                            
-                            if i <= 10:  # Show first 10 words
-                                self.logger.info(f"   Word {i}: {annotation.description}")
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting regular text lines: {str(e)}")
-        
-        # Sort by y-position
-        text_lines.sort(key=lambda x: x['y_position'])
-        return text_lines
+            rows = []
+            headers = []
 
-    def _parse_google_vision_result(self, text_annotations, image_path: str) -> List[Dict[str, Any]]:
-        """
-        Parse Google Vision OCR result to extract structured table data
-        """
-        tables = []
-        
-        try:
-            self.logger.info(f"🔍 Google Vision OCR result type: {type(text_annotations)}")
-            self.logger.info(f"🔍 Found {len(text_annotations)} text annotations")
-            
-            # Extract text lines from Google Vision annotations
-            text_lines = []
-            
-            # First annotation contains all text, others are individual words
-            if text_annotations:
-                # Get the full text from first annotation
-                full_text = text_annotations[0].description
-                self.logger.info(f"📝 Full text detected: {full_text[:200]}...")
-                
-                # Process individual word annotations for better positioning
-                for i, annotation in enumerate(text_annotations[1:], 1):  # Skip first (full text)
-                    if hasattr(annotation, 'description') and hasattr(annotation, 'bounding_poly'):
-                        vertices = annotation.bounding_poly.vertices
-                        if len(vertices) >= 2:
-                            # Calculate center y position for sorting
-                            y_position = sum(vertex.y for vertex in vertices) / len(vertices)
-                            
-                            text_lines.append({
-                                'text': annotation.description,
-                                'confidence': getattr(annotation, 'confidence', 1.0),
-                                'bbox': [(vertex.x, vertex.y) for vertex in vertices],
-                                'y_position': y_position
-                            })
-                            
-                            if i <= 10:  # Show first 10 words
-                                self.logger.info(f"   Word {i}: {annotation.description}")
-            
-            # Sort lines by y-position (top to bottom)
-            text_lines.sort(key=lambda x: x['y_position'])
-            
-            self.logger.info(f"📝 Extracted {len(text_lines)} text elements from Google Vision")
-            
-            # Identify table type and extract data
-            table_type = self._identify_table_type(text_lines)
-            self.logger.info(f"🔍 Identified table type: {table_type}")
+            # Extract table structure
+            for row in table.body_rows:
+                row_data = []
+                for cell in row.cells:
+                    cell_text = self._get_text_from_layout(cell.layout, document_text).strip()
+                    row_data.append(cell_text)
+                rows.append(row_data)
+
+            # Extract headers if available
+            if table.header_rows:
+                for cell in table.header_rows[0].cells:
+                    header_text = self._get_text_from_layout(cell.layout, document_text).strip()
+                    headers.append(header_text)
+
+            if not rows:
+                logger.debug("No rows found in table")
+                return None
+
+            logger.debug(f"Extracted table with {len(headers)} headers and {len(rows)} rows")
+
+            # Determine table type and structure data accordingly
+            table_type = self._determine_table_type(headers, rows)
             
             if table_type == 'soil':
-                tables = self._extract_soil_tables(text_lines)
+                return self._structure_soil_data(headers, rows)
             elif table_type == 'leaf':
-                tables = self._extract_leaf_tables(text_lines)
+                return self._structure_leaf_data(headers, rows)
             else:
-                self.logger.warning("⚠️ Unknown table type detected, trying both extractions")
-                # Try both soil and leaf extraction
-                soil_tables = self._extract_soil_tables(text_lines)
-                leaf_tables = self._extract_leaf_tables(text_lines)
-                
-                if soil_tables and leaf_tables:
-                    # Both have data, choose based on filename
-                    if 'soil' in image_path.lower():
-                        tables = soil_tables
-                    elif 'leaf' in image_path.lower():
-                        tables = leaf_tables
-                    else:
-                        # Default to soil if both available
-                        tables = soil_tables
-                elif soil_tables:
-                    tables = soil_tables
-                elif leaf_tables:
-                    tables = leaf_tables
-                else:
-                    # Last resort: try with reference data
-                    self.logger.warning("⚠️ No data extracted from OCR, using reference data as fallback")
-                    if 'soil' in image_path.lower():
-                        tables = self._extract_soil_tables([])
-                    elif 'leaf' in image_path.lower():
-                        tables = self._extract_leaf_tables([])
-                    else:
-                        tables = []
+                logger.debug(f"Unknown table type detected with headers: {headers[:3]}...")
+                return {
+                    'type': 'unknown',
+                    'headers': headers,
+                    'rows': rows,
+                    'samples': []
+                }
+                    
+        except Exception as e:
+            logger.error(f"Table extraction failed: {e}")
+            return None
+
+    def _extract_text_blocks_from_page(self, page, document_text: str) -> List[Optional[Dict]]:
+        """Extract text blocks that might contain tabular data"""
+        try:
+            text_blocks = []
+
+            if not hasattr(page, 'blocks'):
+                return text_blocks
+
+            for block in page.blocks:
+                if hasattr(block, 'layout') and hasattr(block, 'text_anchor'):
+                    block_text = self._get_text_from_layout(block.layout, document_text)
+
+                    # Check if this block might contain tabular data
+                    if self._is_text_block_tabular(block_text):
+                        logger.debug(f"Found potentially tabular text block with {len(block_text)} characters")
+
+                        # Try to parse this block as tabular data
+                        table_data = self._parse_tabular_text_block(block_text)
+                        if table_data:
+                            text_blocks.append(table_data)
+
+            return text_blocks
+
+        except Exception as e:
+            logger.error(f"Text block extraction failed: {e}")
+            return []
+
+    def _is_text_block_tabular(self, text: str) -> bool:
+        """Check if a text block contains tabular data"""
+        if not text or len(text.strip()) < 50:
+            return False
+
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+
+        # Look for patterns that suggest tabular data
+        soil_indicators = ['ph', 'nitrogen', 'organic', 'phosphorus', 'potassium', 'calcium', 'magnesium', 'cec']
+        tabular_indicators = ['sample', 's001', 's002', 'mg/kg', 'meq%', '%']
+
+        soil_score = sum(1 for indicator in soil_indicators if indicator.lower() in text.lower())
+        tabular_score = sum(1 for indicator in tabular_indicators if indicator.lower() in text.lower())
+
+        # Check for numeric patterns that suggest data columns
+        import re
+        numeric_patterns = len(re.findall(r'\d+\.?\d*', text))
+
+        return (soil_score >= 2 or tabular_score >= 3) and numeric_patterns >= 5
+
+    def _parse_tabular_text_block(self, text: str) -> Optional[Dict]:
+        """Parse a text block that contains tabular data"""
+        try:
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+
+            if len(lines) < 2:  # Need at least 2 lines for meaningful parsing
+                return None
+
+            logger.debug(f"Parsing text block with {len(lines)} lines")
+
+            # Try different parsing strategies in order of preference
+            parsed_tables = []
+
+            # Strategy 1: Look for CSV-like patterns
+            if ',' in text or '\t' in text:
+                delimiter = ',' if ',' in text else '\t'
+                logger.debug(f"Attempting delimiter parsing with '{delimiter}'")
+                parsed_tables.extend(self._parse_delimited_text(text, delimiter))
+
+            # Strategy 2: Look for space-aligned columns (more flexible)
+            if not parsed_tables and len(lines) >= 3:
+                logger.debug("Attempting space-aligned parsing")
+                parsed_tables.extend(self._parse_space_aligned_text(lines))
+
+            # Strategy 3: Look for structured patterns with sample IDs (most flexible)
+            if not parsed_tables:
+                logger.debug("Attempting structured sample text parsing")
+                parsed_tables.extend(self._parse_structured_sample_text(lines))
+
+            # Strategy 4: Try to parse as a simple table with any numeric data
+            if not parsed_tables and len(lines) >= 2:
+                logger.debug("Attempting generic table parsing")
+                parsed_tables.extend(self._parse_generic_table(lines))
+
+            # Return the best parsed table
+            valid_tables = [table for table in parsed_tables if table and table.get('samples')]
+            if valid_tables:
+                # Return the table with the most samples
+                best_table = max(valid_tables, key=lambda t: len(t.get('samples', [])))
+                logger.debug(f"Selected best table with {len(best_table.get('samples', []))} samples of type {best_table.get('type', 'unknown')}")
+                return best_table
+
+            return None
             
+        except Exception as e:
+            logger.error(f"Text block parsing failed: {e}")
+            return None
+
+    def _parse_generic_table(self, lines: List[str]) -> List[Optional[Dict]]:
+        """Parse a generic table with any numeric data"""
+        try:
+            tables = []
+
+            # Look for lines that might contain data
+            data_lines = []
+            for line in lines:
+                # Check if line contains numbers (likely data)
+                if re.search(r'\d', line):
+                    # Split by multiple spaces or tabs
+                    parts = re.split(r'\s{2,}|\t', line.strip())
+                    if len(parts) >= 2:  # At least 2 columns
+                        data_lines.append(parts)
+
+            if len(data_lines) >= 2:  # At least 2 data rows
+                # Assume first row is headers, rest are data
+                headers = data_lines[0]
+                rows = data_lines[1:]
+
+                # Clean headers
+                headers = [h.strip() for h in headers if h.strip()]
+
+                if len(headers) >= 2 and len(rows) >= 1:
+                    table_type = self._determine_table_type(headers, rows)
+                    logger.debug(f"Generic table parsing detected type: {table_type}")
+
+                    if table_type in ['soil', 'leaf']:
+                        if table_type == 'soil':
+                            table_data = self._structure_soil_data(headers, rows)
+                        else:
+                            table_data = self._structure_leaf_data(headers, rows)
+
+                        if table_data:
+                            tables.append(table_data)
+
+            return tables
+
+        except Exception as e:
+            logger.error(f"Generic table parsing failed: {e}")
+            return []
+
+    def _parse_delimited_text(self, text: str, delimiter: str) -> List[Optional[Dict]]:
+        """Parse delimited text (CSV/TSV)"""
+        try:
+            tables = []
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+
+            for line in lines:
+                if delimiter in line:
+                    # This looks like a data row
+                    parts = [part.strip() for part in line.split(delimiter) if part.strip()]
+                    if len(parts) >= 3:  # At least sample ID + 2 parameters
+                        # Try to reconstruct table from this line
+                        headers = ['Sample ID'] + [f'Parameter_{i}' for i in range(len(parts)-1)]
+                        rows = [parts]
+
+                        table_type = self._determine_table_type(headers, rows)
+                        if table_type in ['soil', 'leaf']:
+                            if table_type == 'soil':
+                                table_data = self._structure_soil_data(headers, rows)
+                            else:
+                                table_data = self._structure_leaf_data(headers, rows)
+
+                            if table_data:
+                                tables.append(table_data)
+
             return tables
             
         except Exception as e:
-            self.logger.error(f"❌ Error parsing Google Vision OCR result: {str(e)}")
+            logger.error(f"Delimited text parsing failed: {e}")
             return []
     
+    def _parse_space_aligned_text(self, lines: List[str]) -> List[Optional[Dict]]:
+        """Parse space-aligned tabular text"""
+        try:
+            tables = []
+
+            # Look for lines that might be data rows
+            data_lines = []
+            for line in lines:
+                # Check if line contains numbers and might be data
+                import re
+                if re.search(r'\d', line) and len(line.split()) >= 3:
+                    data_lines.append(line)
+
+            if len(data_lines) >= 2:  # At least 2 data lines
+                # Try to parse as aligned columns
+                # This is a simplified approach - in practice you'd need more sophisticated column detection
+                headers = ['Sample ID'] + [f'Parameter_{i}' for i in range(len(data_lines[0].split())-1)]
+                rows = [line.split() for line in data_lines]
+
+                table_type = self._determine_table_type(headers, rows)
+                if table_type in ['soil', 'leaf']:
+                    if table_type == 'soil':
+                        table_data = self._structure_soil_data(headers, rows)
+                    else:
+                        table_data = self._structure_leaf_data(headers, rows)
+
+                    if table_data:
+                        tables.append(table_data)
+
+            return tables
+
+        except Exception as e:
+            logger.error(f"Space-aligned text parsing failed: {e}")
+            return []
+
+    def _parse_structured_sample_text(self, lines: List[str]) -> List[Optional[Dict]]:
+        """Parse text that contains sample IDs and parameter values"""
+        try:
+            import re
+            tables = []
+
+            # More flexible sample ID patterns
+            sample_patterns = [
+                re.compile(r'S\d+/?\d*'),  # S1, S1/1, etc.
+                re.compile(r'Sample\s*\d+'),  # Sample 1, Sample 2, etc.
+                re.compile(r'Lab\s*No\.?\s*\d+'),  # Lab No 1, Lab No. 123, etc.
+                re.compile(r'Farm\s*\d+'),  # Farm 1, Farm 2, etc.
+                re.compile(r'Plot\s*\d+'),  # Plot 1, Plot 2, etc.
+                re.compile(r'\b\d{1,3}\b'),  # Simple numbers 1-999
+            ]
+
+            sample_lines = []
+
+            for line in lines:
+                # Check if line contains any sample pattern
+                for pattern in sample_patterns:
+                    if pattern.search(line):
+                        sample_lines.append(line)
+                        break
+
+            if len(sample_lines) >= 2:
+                # Try to extract structured data
+                headers = ['Sample ID', 'pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)', 'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)']
+                rows = []
+
+                for line in sample_lines:
+                    # Extract sample ID and values using first matching pattern
+                    sample_id = None
+                    for pattern in sample_patterns:
+                        match = pattern.search(line)
+                        if match:
+                            sample_id = match.group()
+                            break
+
+                    if sample_id:
+                        # Extract numeric values from the line
+                        values = re.findall(r'\d+\.?\d*', line)
+                        if len(values) >= 3:  # At least sample ID + a few parameters
+                            # Remove the sample ID number from values if it's there
+                            sample_num_match = re.search(r'\d+', sample_id)
+                            if sample_num_match:
+                                sample_num = sample_num_match.group()
+                                # Filter out the sample number from values if present
+                                filtered_values = [v for v in values if v != sample_num]
+                                if len(filtered_values) >= 3:
+                                    rows.append([sample_id] + filtered_values[:9])
+                                else:
+                                    # If filtering removed too many, use original values
+                                    rows.append([sample_id] + values[:9])
+
+                if rows:
+                    table_type = self._determine_table_type(headers, rows)
+                    logger.info(f"Parsed structured text - detected type: {table_type}, rows: {len(rows)}")
+
+                    if table_type in ['soil', 'leaf']:
+                        if table_type == 'soil':
+                            table_data = self._structure_soil_data(headers, rows)
+                        else:
+                            table_data = self._structure_leaf_data(headers, rows)
+
+                        if table_data and table_data.get('samples'):
+                            logger.info(f"Successfully structured {len(table_data['samples'])} samples from text parsing")
+                            tables.append(table_data)
+                        else:
+                            logger.debug("No valid samples extracted from structured text parsing")
+                    else:
+                        logger.debug(f"Text parsing detected unsupported table type: {table_type}")
+
+            return tables
+            
+        except Exception as e:
+            logger.error(f"Structured sample text parsing failed: {e}")
+            return []
     
-    def _identify_table_type(self, text_lines: List[Dict]) -> str:
-        """
-        Identify whether the table is soil or leaf analysis based on content
-        """
-        all_text = ' '.join([line['text'] for line in text_lines])
-        
-        # Debug: Print all extracted text
-        self.logger.info(f"🔍 All extracted text: {all_text[:500]}...")
-        
-        # Check for soil analysis indicators
-        soil_indicators = ['pH', 'Nitrogen %', 'Organic Carbon %', 'Total P mg/kg', 'Available P mg/kg', 'C.E.C meq%']
-        soil_count = sum(1 for indicator in soil_indicators if indicator in all_text)
-        
-        # Check for leaf analysis indicators
-        leaf_indicators = ['N', 'P', 'K', 'Mg', 'Ca', 'B', 'Cu', 'Zn']
-        leaf_count = sum(1 for indicator in leaf_indicators if indicator in all_text)
-        
-        # Check for lab number patterns
-        soil_labs = len(re.findall(self.soil_lab_pattern, all_text))
-        leaf_labs = len(re.findall(self.leaf_lab_pattern, all_text))
-        
-        self.logger.info(f"🔍 Soil indicators found: {soil_count}, Leaf indicators found: {leaf_count}")
-        self.logger.info(f"🔍 Soil labs found: {soil_labs}, Leaf labs found: {leaf_labs}")
-        
-        if soil_count > leaf_count or soil_labs > leaf_labs:
+    def _parse_text_for_tables(self, document_text: str) -> List[Optional[Dict]]:
+        """Parse entire document text for tabular data"""
+        try:
+            tables = []
+
+            # Split text into sections using multiple delimiters
+            sections = re.split(r'\n\s*\n|\n\n|\n\s{2,}', document_text)
+
+            logger.info(f"Split document into {len(sections)} sections for table parsing")
+
+            for i, section in enumerate(sections):
+                section = section.strip()
+                if len(section) > 50:  # Process sections with meaningful content
+                    logger.debug(f"Processing section {i+1}/{len(sections)} (length: {len(section)})")
+                    table_data = self._parse_tabular_text_block(section)
+                    if table_data:
+                        logger.info(f"Found table in section {i+1}: {table_data.get('type', 'unknown')} with {len(table_data.get('samples', []))} samples")
+                        tables.append(table_data)
+
+            # If no tables found, try parsing the entire document as one block
+            if not tables and len(document_text.strip()) > 200:
+                logger.info("No tables found in sections, trying to parse entire document")
+                table_data = self._parse_tabular_text_block(document_text)
+                if table_data:
+                    tables.append(table_data)
+
+            logger.info(f"Total tables extracted from text parsing: {len(tables)}")
+            return tables
+
+        except Exception as e:
+            logger.error(f"Document text parsing failed: {e}")
+            return []
+
+    def _build_markdown_table(self, title: str, headers: List[str], rows: List[List[Any]]) -> str:
+        """Build a GitHub-flavored markdown table string from headers and rows."""
+        if not headers or not rows:
+            return ""
+
+        header_line = "| " + " | ".join(headers) + " |"
+        separator_line = "|" + "|".join(["-" * (len(h) + 2) for h in headers]) + "|"
+        row_lines = []
+        for row in rows:
+            safe_row = [str(cell) if cell is not None else "" for cell in row]
+            row_lines.append("| " + " | ".join(safe_row) + " |")
+
+        table_md = f"### {title}\n" + header_line + "\n" + separator_line + "\n" + "\n".join(row_lines)
+        return table_md
+
+    def _tables_to_structured_sections(self, tables: List[Dict]) -> Dict[str, Any]:
+        """Convert extracted tables to structured sections and markdown for preview."""
+        sections: Dict[str, Any] = {
+            'markdown': "",
+            'tables': [],
+            'dataframes': {}
+        }
+
+        soil_count = 0
+        leaf_count = 0
+        markdown_parts: List[str] = []
+
+        for table in tables or []:
+            table_type = table.get('type', 'unknown')
+            headers = table.get('headers') or []
+            samples = table.get('samples') or []
+
+            # Reconstruct rows from structured samples
+            rows: List[List[Any]] = []
+            if table_type == 'soil':
+                # Build default soil headers if missing
+                if not headers:
+                    headers = [
+                        'Sample ID', 'pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)',
+                        'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)'
+                    ]
+
+                # Normalize rows
+                for sample in samples:
+                    if isinstance(sample, dict) and 'sample_id' in sample and 'data' in sample:
+                        data = sample['data']
+                        row = [sample['sample_id']]
+                        # Follow header order for remaining columns
+                        for col in headers[1:]:
+                            row.append(data.get(col))
+                        rows.append(row)
+
+                soil_count += 1
+                md = self._build_markdown_table('Farm 3 Soil Test Data', headers or ['Sample ID'], rows)
+                if md:
+                    markdown_parts.append(md)
+                # Also build a DataFrame for downstream use
+                try:
+                    df = pd.DataFrame(rows, columns=headers)
+                    sections['dataframes']['soil'] = df
+                except Exception:
+                    pass
+                sections['tables'].append({'title': 'Farm 3 Soil Test Data', 'headers': headers, 'rows': rows})
+
+            elif table_type == 'leaf':
+                # Flatten leaf structure to the requested format
+                # Determine headers from observed data
+                preferred_headers = [
+                    'Sample ID', 'N (%)', 'P (%)', 'K (%)', 'Mg (%)', 'Ca (%)', 'B (mg/kg)', 'Cu (mg/kg)', 'Zn (mg/kg)'
+                ]
+
+                # Build dynamic headers from samples if needed
+                headers = preferred_headers
+                rows = []
+                for sample in samples:
+                    if isinstance(sample, dict):
+                        sample_id = sample.get('sample_id') or sample.get('id') or sample.get('sample id')
+                        n = sample.get('% Dry Matter', {}).get('N') or sample.get('N (%)')
+                        p = sample.get('% Dry Matter', {}).get('P') or sample.get('P (%)')
+                        k = sample.get('% Dry Matter', {}).get('K') or sample.get('K (%)')
+                        mg = sample.get('% Dry Matter', {}).get('MG') or sample.get('% Dry Matter', {}).get('Mg') or sample.get('Mg (%)')
+                        ca = sample.get('% Dry Matter', {}).get('CA') or sample.get('% Dry Matter', {}).get('Ca') or sample.get('Ca (%)')
+                        b = sample.get('mg/kg Dry Matter', {}).get('B') or sample.get('B (mg/kg)')
+                        cu = sample.get('mg/kg Dry Matter', {}).get('CU') or sample.get('Cu (mg/kg)')
+                        zn = sample.get('mg/kg Dry Matter', {}).get('ZN') or sample.get('Zn (mg/kg)')
+                        row = [sample_id, n, p, k, mg, ca, b, cu, zn]
+                        rows.append(row)
+
+                leaf_count += 1
+                md = self._build_markdown_table('Farm 3 Leaf Test Data', headers, rows)
+                if md:
+                    markdown_parts.append(md)
+                try:
+                    df = pd.DataFrame(rows, columns=headers)
+                    sections['dataframes']['leaf'] = df
+                except Exception:
+                    pass
+                sections['tables'].append({'title': 'Farm 3 Leaf Test Data', 'headers': headers, 'rows': rows})
+
+            else:
+                # Unknown tables: attempt generic conversion
+                gen_headers = ['Sample ID']
+                # Infer columns from first sample
+                first = next((s for s in samples if isinstance(s, dict)), None)
+                if first:
+                    keys = []
+                    if 'data' in first and isinstance(first['data'], dict):
+                        keys = list(first['data'].keys())
+                    else:
+                        keys = [k for k in first.keys() if k != 'sample_id']
+                    gen_headers = ['Sample ID'] + keys
+
+                gen_rows: List[List[Any]] = []
+                for sample in samples:
+                    if isinstance(sample, dict) and 'sample_id' in sample:
+                        row = [sample['sample_id']]
+                        if 'data' in sample and isinstance(sample['data'], dict):
+                            for col in gen_headers[1:]:
+                                row.append(sample['data'].get(col))
+                        else:
+                            for col in gen_headers[1:]:
+                                row.append(sample.get(col))
+                        gen_rows.append(row)
+
+                md = self._build_markdown_table('Detected Table', gen_headers, gen_rows)
+                if md:
+                    markdown_parts.append(md)
+                try:
+                    df = pd.DataFrame(gen_rows, columns=gen_headers)
+                    sections['dataframes']['generic'] = df
+                except Exception:
+                    pass
+                sections['tables'].append({'title': 'Detected Table', 'headers': gen_headers, 'rows': gen_rows})
+
+        sections['markdown'] = "\n\n".join([part for part in markdown_parts if part])
+        return sections
+
+    def _get_text_from_layout(self, layout, document_text: str) -> str:
+        """Extract text from layout segments"""
+        try:
+            response = ""
+            for segment in layout.text_anchor.text_segments:
+                start_index = int(segment.start_index) if segment.start_index else 0
+                end_index = int(segment.end_index) if segment.end_index else len(document_text)
+                response += document_text[start_index:end_index]
+            return response
+        except Exception:
+            return ""
+    
+    def _determine_table_type(self, headers: List[str], rows: List[List[str]]) -> str:
+        """Determine if table contains soil or leaf analysis data"""
+        header_text = ' '.join(headers).lower()
+        row_text = ' '.join([' '.join(row) for row in rows[:3]]).lower()  # Check first few rows
+
+        # Expanded soil indicators with more variations
+        soil_indicators = [
+            'ph', 'pH', 'ph value', 'soil ph',
+            'organic carbon', 'org.c', 'org c', 'org. c', 'org c (%)', 'organic c',
+            'cec', 'c.e.c', 'cec (meq%)', 'c.e.c (meq%)', 'cec meq%', 'cation exchange capacity',
+            'exchangeable', 'exch.', 'exch k', 'exch ca', 'exch mg', 'exchangeable k', 'exchangeable ca', 'exchangeable mg',
+            'avail p', 'available p', 'available phosphorus', 'p available', 'phosphorus available',
+            'total p', 'total phosphorus', 'phosphorus total',
+            'nitrogen', 'n (%)', 'n%', 'nitrogen (%)',
+            'potassium', 'calcium', 'magnesium', 'phosphorus'
+        ]
+
+        # Expanded leaf indicators with more variations
+        leaf_indicators = [
+            '% dry matter', 'mg/kg dry matter', 'dry matter',
+            'n (%)', 'p (%)', 'k (%)', 'mg (%)', 'ca (%)', 'n%', 'p%', 'k%', 'mg%', 'ca%',
+            'nitrogen %', 'phosphorus %', 'potassium %', 'magnesium %', 'calcium %',
+            'b (mg/kg)', 'cu (mg/kg)', 'zn (mg/kg)', 'boron', 'copper', 'zinc',
+            'leaf analysis', 'foliar analysis', 'plant tissue', 'nutrient content'
+        ]
+
+        # Check for sample ID patterns that are more common in soil/leaf reports
+        sample_patterns = ['s1', 's2', 's3', 'sample', 'lab no', 'farm', 'plot']
+        has_sample_pattern = any(pattern in header_text or pattern in row_text for pattern in sample_patterns)
+
+        soil_score = sum(1 for indicator in soil_indicators if indicator in header_text or indicator in row_text)
+        leaf_score = sum(1 for indicator in leaf_indicators if indicator in header_text or indicator in row_text)
+
+        # Add bonus points for having sample patterns
+        if has_sample_pattern:
+            soil_score += 1
+            leaf_score += 1
+
+        # Add bonus for having numeric data patterns
+        numeric_pattern = re.compile(r'\d+\.?\d*')
+        numeric_count = len(numeric_pattern.findall(row_text))
+        if numeric_count > 10:  # Likely contains measurement data
+            soil_score += 1
+            leaf_score += 1
+
+        logger.debug(f"Table detection scores - Soil: {soil_score}, Leaf: {leaf_score}, Sample patterns: {has_sample_pattern}, Numeric values: {numeric_count}")
+
+        if soil_score > leaf_score:
             return 'soil'
-        elif leaf_count > soil_count or leaf_labs > soil_count:
+        elif leaf_score > soil_score:
             return 'leaf'
+        elif soil_score > 0 or leaf_score > 0:
+            # If we have some indicators but equal scores, default to soil (more common)
+            return 'soil'
         else:
             return 'unknown'
     
-    def _extract_soil_tables(self, text_lines: List[Dict]) -> List[Dict[str, Any]]:
-        """
-        Extract soil analysis tables from text lines
-        """
+    def _structure_soil_data(self, headers: List[str], rows: List[List[str]]) -> Dict:
+        """Structure soil analysis data"""
         try:
-            if not text_lines:
-                self.logger.warning("⚠️ No text lines provided for soil extraction")
-                return []
-            
-            # Extract lab numbers from text lines
-            lab_numbers = []
-            for line in text_lines:
-                matches = re.findall(self.soil_lab_pattern, line['text'])
-                lab_numbers.extend(matches)
-            
-            # Remove duplicates and sort
-            lab_numbers = sorted(list(set(lab_numbers)))
-            
-            # Get reference data to ensure we have all samples
-            reference_data = self._load_reference_soil_data()
-            reference_lab_numbers = [sample.get('Lab No.', '').split('/')[0] for sample in reference_data]
-            reference_lab_numbers = sorted(list(set(reference_lab_numbers)))
-            
-            self.logger.info(f"📝 Found {len(lab_numbers)} lab numbers in OCR: {lab_numbers}")
-            self.logger.info(f"📝 Reference data has {len(reference_lab_numbers)} lab numbers: {reference_lab_numbers}")
-            
-            # Always use reference data as the source of truth for complete sample set
-            # This ensures we get all samples even if OCR misses some
-            if reference_lab_numbers:
-                lab_numbers = reference_lab_numbers
-                self.logger.info(f"📝 Using reference data for complete sample set: {lab_numbers}")
-                self.logger.info(f"📝 OCR detected {len([ln for ln in lab_numbers if ln in [s['Lab No.'] for s in []]])} out of {len(lab_numbers)} samples")
-            elif lab_numbers:
-                self.logger.info(f"📝 Using OCR detected lab numbers: {lab_numbers}")
-            else:
-                self.logger.warning("⚠️ No soil lab numbers found in text or reference data")
-                return []
-            
-            # Extract all numeric values from text
-            all_numeric_values = self._extract_all_numeric_values(text_lines)
-            self.logger.info(f"📝 Found {len(all_numeric_values)} numeric values: {all_numeric_values[:20]}...")
-            
-            # Create samples by extracting actual data
             samples = []
-            for i, lab_no in enumerate(lab_numbers):
-                sample = {
-                    'Lab No.': lab_no,
-                    'Sample No.': i + 1
-                }
-                
-                # Extract parameter values for this sample
-                sample_values = self._extract_soil_parameter_values(text_lines, lab_no, all_numeric_values)
-                
-                # Assign values to parameters
-                sample['pH'] = sample_values.get('pH', 0.0)
-                sample['Nitrogen %'] = sample_values.get('Nitrogen %', 0.0)
-                sample['Organic Carbon %'] = sample_values.get('Organic Carbon %', 0.0)
-                sample['Total P mg/kg'] = sample_values.get('Total P mg/kg', 0.0)
-                sample['Available P mg/kg'] = sample_values.get('Available P mg/kg', 0.0)
-                sample['Exch. K meq%'] = sample_values.get('Exch. K meq%', 0.0)
-                sample['Exch. Ca meq%'] = sample_values.get('Exch. Ca meq%', 0.0)
-                sample['Exch. Mg meq%'] = sample_values.get('Exch. Mg meq%', 0.0)
-                sample['C.E.C meq%'] = sample_values.get('C.E.C meq%', 0.0)
-                
-                samples.append(sample)
-                self.logger.info(f"📝 Sample {i+1} ({lab_no}): pH={sample['pH']}, N={sample['Nitrogen %']}, P={sample['Total P mg/kg']}")
             
-            return [{
-                'type': 'soil',
-                'table_number': 1,
-                'samples': samples,
-                'sample_count': len(samples)
-            }]
+            # Map common soil parameters (more specific patterns first to avoid false matches)
+            soil_param_mapping = {
+                'sample id': ['sample id', 'sample no', 'sample_id', 'id', 'sample', 'lab no', 'lab_no', 'lab number', 'farm', 'plot'],
+                'lab_no': ['lab no', 'lab_no', 'lab no.', 'lab number'],
+                'ph': ['ph', 'pH', 'ph value', 'soil ph', 'ph level'],
+                'cec': ['cec (meq%)', 'cec', 'c.e.c', 'c.e.c (meq%)', 'cec meq%', 'c.e.c meq%', 'cation exchange capacity', 'cec meq/100g'],
+                # Put nitrogen BEFORE organic_carbon to avoid false matches
+                'nitrogen': ['n (%)', 'nitrogen', 'n%', 'n', 'nitrogen (%)', 'n content (%)', 'total n', 'total nitrogen'],
+                'organic_carbon': ['org.c (%)', 'organic carbon', 'org c', 'org. c', 'org c (%)', 'organic c', 'org. carbon (%)', 'organic matter', 'o.m (%)', 'o.m'],
+                'exchangeable_k': ['exch. k (meq%)', 'exch k', 'exchangeable k', 'k (meq%)', 'exch. k', 'k meq', 'potassium (meq%)', 'k meq%', 'exch k meq%'],
+                'exchangeable_ca': ['exch. ca (meq%)', 'exch ca', 'exchangeable ca', 'ca (meq%)', 'exch. ca', 'ca meq', 'calcium (meq%)', 'ca meq%', 'exch ca meq%'],
+                'exchangeable_mg': ['exch. mg (meq%)', 'exch mg', 'exchangeable mg', 'mg (meq%)', 'exch. mg', 'mg meq', 'magnesium (meq%)', 'mg meq%', 'exch mg meq%'],
+                'total_p': ['total p (mg/kg)', 'total p', 'total phosphorus', 'phosphorus total (mg/kg)', 'p total (mg/kg)', 'p total', 'phosphorus total'],
+                'available_p': ['avail p (mg/kg)', 'available p', 'avail p', 'available phosphorus', 'p available (mg/kg)', 'avail. p (mg/kg)', 'p avail', 'phosphorus available']
+            }
             
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting soil tables: {str(e)}")
-            return []
-    
-    def _extract_leaf_tables(self, text_lines: List[Dict]) -> List[Dict[str, Any]]:
-        """
-        Extract leaf analysis tables from text lines
-        """
-        try:
-            if not text_lines:
-                self.logger.warning("⚠️ No text lines provided for leaf extraction")
-                return []
-            
-            # Extract lab numbers from text lines
-            lab_numbers = []
-            for line in text_lines:
-                matches = re.findall(self.leaf_lab_pattern, line['text'])
-                lab_numbers.extend(matches)
-            
-            # Remove duplicates and sort
-            lab_numbers = sorted(list(set(lab_numbers)))
-            
-            # Get reference data to ensure we have all samples
-            reference_data = self._load_reference_leaf_data()
-            reference_lab_numbers = [sample.get('Lab No.', '').split('/')[0] for sample in reference_data]
-            reference_lab_numbers = sorted(list(set(reference_lab_numbers)))
-            
-            self.logger.info(f"📝 Found {len(lab_numbers)} lab numbers in OCR: {lab_numbers}")
-            self.logger.info(f"📝 Reference data has {len(reference_lab_numbers)} lab numbers: {reference_lab_numbers}")
-            
-            # Always use reference data as the source of truth for complete sample set
-            # This ensures we get all samples even if OCR misses some
-            if reference_lab_numbers:
-                lab_numbers = reference_lab_numbers
-                self.logger.info(f"📝 Using reference data for complete sample set: {lab_numbers}")
-                self.logger.info(f"📝 OCR detected {len([ln for ln in lab_numbers if ln in [s['Lab No.'] for s in []]])} out of {len(lab_numbers)} samples")
-            elif lab_numbers:
-                self.logger.info(f"📝 Using OCR detected lab numbers: {lab_numbers}")
-            else:
-                self.logger.warning("⚠️ No leaf lab numbers found in text or reference data")
-                return []
-            
-            # Extract all numeric values from text
-            all_numeric_values = self._extract_all_numeric_values(text_lines)
-            self.logger.info(f"📝 Found {len(all_numeric_values)} numeric values: {all_numeric_values[:20]}...")
-            
-            # Create samples by extracting actual data
-            samples = []
-            for i, lab_no in enumerate(lab_numbers):
-                sample = {
-                    'Lab No.': lab_no,
-                    'Sample No.': i + 1
-                }
-                
-                # Extract parameter values for this sample
-                sample_values = self._extract_leaf_parameter_values(text_lines, lab_no, all_numeric_values)
-                
-                # Assign values to parameters
-                sample['% Dry Matter'] = {
-                    'N': sample_values.get('N', 0.0),
-                    'P': sample_values.get('P', 0.0),
-                    'K': sample_values.get('K', 0.0),
-                    'Mg': sample_values.get('Mg', 0.0),
-                    'Ca': sample_values.get('Ca', 0.0)
-                }
-                sample['mg/kg Dry Matter'] = {
-                    'B': sample_values.get('B', 0.0),
-                    'Cu': sample_values.get('Cu', 0.0),
-                    'Zn': sample_values.get('Zn', 0.0)
-                }
-                
-                samples.append(sample)
-                percent_dm = sample['% Dry Matter']
-                mgkg_dm = sample['mg/kg Dry Matter']
-                self.logger.info(f"📝 Sample {i+1} ({lab_no}): N={percent_dm['N']}, P={percent_dm['P']}, B={mgkg_dm['B']}")
-            
-            return [{
-                'type': 'leaf',
-                'table_number': 1,
-                'samples': samples,
-                'sample_count': len(samples)
-            }]
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting leaf tables: {str(e)}")
-            return []
-    
-    def _extract_generic_tables(self, text_lines: List[Dict]) -> List[Dict[str, Any]]:
-        """
-        Extract generic tables when type is unknown
-        """
-        return []
-    
-    def _load_reference_soil_data(self) -> List[Dict]:
-        """Load reference soil data from JSON file"""
-        try:
-            with open('utils/soil_data.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            self.logger.error(f"❌ Error loading reference soil data: {str(e)}")
-            return []
-    
-    def _load_reference_leaf_data(self) -> List[Dict]:
-        """Load reference leaf data from JSON file"""
-        try:
-            with open('utils/leaf_data.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            self.logger.error(f"❌ Error loading reference leaf data: {str(e)}")
-            return []
-    
-    
-    def _extract_all_numeric_values(self, text_lines: List[Dict]) -> List[float]:
-        """Extract all numeric values from text lines"""
-        numeric_values = []
-        
-        for line in text_lines:
-            text = line['text']
-            # Find all numeric values in the text
-            numbers = re.findall(r'\d+\.?\d*', text)
-            for num_str in numbers:
-                try:
-                    value = float(num_str)
-                    if 0.001 <= value <= 10000:  # Reasonable range for lab values
-                        numeric_values.append(value)
-                except ValueError:
-                    continue
-        
-        return numeric_values
-    
-    def _extract_actual_soil_values_from_ocr(self, text_lines: List[Dict], lab_no: str) -> Dict[str, float]:
-        """Extract actual soil parameter values from OCR text using table structure analysis"""
-        sample_values = {}
-        
-        try:
-            # Find all lines that contain the lab number
-            lab_lines = []
-            for i, line in enumerate(text_lines):
-                if lab_no in line['text']:
-                    lab_lines.append((i, line))
-            
-            if not lab_lines:
-                return sample_values
-            
-            # Find parameter rows (lines containing parameter names)
-            param_rows = []
-            for i, line in enumerate(text_lines):
-                text = line['text'].lower()
-                if any(param in text for param in ['ph', 'nitrogen', 'organic carbon', 'total p', 'available p', 'exch']):
-                    param_rows.append((i, line))
-            
-            self.logger.info(f"📝 Found {len(lab_lines)} lab lines and {len(param_rows)} parameter rows for {lab_no}")
-            
-            # Look for the table structure - find lines with multiple decimal values
-            # These are likely the data rows
-            data_rows = []
-            for i, line in enumerate(text_lines):
-                text = line['text']
-                # Look for lines with multiple decimal numbers (like 5.0, 0.10, 0.89, etc.)
-                decimal_numbers = re.findall(r'\d+\.\d+', text)
-                if len(decimal_numbers) >= 3:  # Should have multiple parameter values
-                    data_rows.append((i, line, decimal_numbers))
-            
-            self.logger.info(f"📝 Found {len(data_rows)} data rows with decimal numbers")
-            
-            # Try to match the lab number with the correct data row
-            # Look for the data row that corresponds to this lab number
-            lab_column_index = -1
-            for i, (line_idx, line, numbers) in enumerate(data_rows):
-                text = line['text']
-                # Check if this line contains the lab number or is in the same column
-                if lab_no in text or any(sample in text for sample in ['S218', 'S219', 'S220', 'S221', 'S222', 'S223', 'S224', 'S225', 'S226', 'S227']):
-                    lab_column_index = i
-                    break
-            
-            if lab_column_index >= 0:
-                # Found the data row, extract values
-                _, _, numbers = data_rows[lab_column_index]
-                self.logger.info(f"📝 Found data row for {lab_no} with {len(numbers)} values: {numbers}")
-                
-                # Convert to float and filter reasonable values
-                values = []
-                for num_str in numbers:
-                    try:
-                        value = float(num_str)
-                        # Filter out unreasonable values (lab numbers, etc.)
-                        if 0.01 <= value <= 1000:  # Reasonable range for lab parameters
-                            values.append(value)
-                    except ValueError:
-                        continue
-            
-                if len(values) >= 5:
-                    param_names = ['pH', 'Nitrogen %', 'Organic Carbon %', 'Total P mg/kg', 
-                                 'Available P mg/kg', 'Exch. K meq%', 'Exch. Ca meq%', 
-                                 'Exch. Mg meq%', 'C.E.C meq%']
-                    
-                    for i, param in enumerate(param_names):
-                        if i < len(values):
-                            sample_values[param] = values[i]
-                        else:
-                            sample_values[param] = 0.0
-                    
-                    self.logger.info(f"📝 Extracted values for {lab_no}: {sample_values}")
-            
-            return sample_values
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting actual soil values from OCR: {str(e)}")
-            return sample_values
-    
-    def _extract_soil_parameter_values(self, text_lines: List[Dict], lab_no: str, all_values: List[float]) -> Dict[str, float]:
-        """Extract soil parameter values for a specific lab number using improved table parsing"""
-        sample_values = {}
-        
-        try:
-            # Try to extract actual values from OCR first
-            sample_values = self._extract_actual_soil_values_from_ocr(text_lines, lab_no)
-            
-            # If OCR extraction found values, use them
-            if any(value != 0.0 for value in sample_values.values()):
-                self.logger.info(f"📝 Using OCR extracted values for {lab_no}: {sample_values}")
-                return sample_values
-            
-            # Fallback to reference data if OCR extraction failed
-            sample_values = self._get_reference_soil_values(lab_no)
-            if any(value != 0.0 for value in sample_values.values()):
-                self.logger.info(f"📝 Using reference data fallback for {lab_no}: {sample_values}")
-                return sample_values
-            
-            # Find the lab number in the text and get its position (fallback)
-            lab_line_index = -1
-            for i, line in enumerate(text_lines):
-                if lab_no in line['text']:
-                    lab_line_index = i
-                    break
-            
-            if lab_line_index == -1:
-                self.logger.warning(f"⚠️ No lines found for lab number {lab_no}")
-                return sample_values
-            
-            # Try to extract actual values from OCR if possible
-            # Look for the table data section
-            table_data_found = False
-            for i, line in enumerate(text_lines):
-                text = line['text']
-                # Look for the parameter values section
-                if 'pH' in text and any(char.isdigit() for char in text):
-                    # Found the parameter section, extract values
-                    numbers = re.findall(r'\d+\.?\d*', text)
-                    if len(numbers) >= 5:  # Should have multiple parameter values
-                        # Try to map these values to the correct sample
-                        # This is complex due to table structure, so we'll use reference data
-                        table_data_found = True
-                        break
-            
-            if not table_data_found:
-                self.logger.info(f"📝 Using reference data for {lab_no} (table parsing complex)")
-            
-            return sample_values
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting soil parameter values: {str(e)}")
-            return sample_values
-    
-    def _get_reference_soil_values(self, lab_no: str) -> Dict[str, float]:
-        """Get reference soil values for a lab number"""
-        try:
-            reference_data = self._load_reference_soil_data()
-            for sample in reference_data:
-                if sample.get('Lab No.', '').startswith(lab_no):
-                    return {
-                        'pH': sample.get('pH', 0.0),
-                        'Nitrogen %': sample.get('Nitrogen %', 0.0),
-                        'Organic Carbon %': sample.get('Organic Carbon %', 0.0),
-                        'Total P mg/kg': sample.get('Total P mg/kg', 0.0),
-                        'Available P mg/kg': sample.get('Available P mg/kg', 0.0),
-                        'Exch. K meq%': sample.get('Exch. K meq%', 0.0),
-                        'Exch. Ca meq%': sample.get('Exch. Ca meq%', 0.0),
-                        'Exch. Mg meq%': sample.get('Exch. Mg meq%', 0.0),
-                        'C.E.C meq%': sample.get('C.E.C meq%', 0.0)
-                    }
-        except Exception as e:
-            self.logger.error(f"❌ Error getting reference soil values: {str(e)}")
-        
-        # Return default values
-        return {param: 0.0 for param in self.soil_parameters}
-    
-    def _extract_actual_leaf_values_from_ocr(self, text_lines: List[Dict], lab_no: str) -> Dict[str, float]:
-        """Extract actual leaf parameter values from OCR text using table structure analysis"""
-        sample_values = {}
-        
-        try:
-            # Find all lines that contain the lab number
-            lab_lines = []
-            for i, line in enumerate(text_lines):
-                if lab_no in line['text']:
-                    lab_lines.append((i, line))
-            
-            if not lab_lines:
-                return sample_values
-            
-            # Find parameter rows (lines containing parameter names)
-            param_rows = []
-            for i, line in enumerate(text_lines):
-                text = line['text'].lower()
-                if any(param in text for param in ['n', 'p', 'k', 'mg', 'ca', 'b', 'cu', 'zn']):
-                    param_rows.append((i, line))
-            
-            self.logger.info(f"📝 Found {len(lab_lines)} lab lines and {len(param_rows)} parameter rows for {lab_no}")
-            
-            # Look for the table structure - find lines with multiple decimal values
-            # These are likely the data rows
-            data_rows = []
-            for i, line in enumerate(text_lines):
-                text = line['text']
-                # Look for lines with multiple decimal numbers (like 2.13, 16.0, 0.140, etc.)
-                decimal_numbers = re.findall(r'\d+\.\d+', text)
-                if len(decimal_numbers) >= 3:  # Should have multiple parameter values
-                    data_rows.append((i, line, decimal_numbers))
-            
-            self.logger.info(f"📝 Found {len(data_rows)} data rows with decimal numbers")
-            
-            # Try to match the lab number with the correct data row
-            # Look for the data row that corresponds to this lab number
-            lab_column_index = -1
-            for i, (line_idx, line, numbers) in enumerate(data_rows):
-                text = line['text']
-                # Check if this line contains the lab number or is in the same column
-                if lab_no in text or any(sample in text for sample in ['P220', 'P221', 'P222', 'P223', 'P224', 'P225', 'P226', 'P227', 'P228', 'P229']):
-                    lab_column_index = i
-                    break
-            
-            if lab_column_index >= 0:
-                # Found the data row, extract values
-                _, _, numbers = data_rows[lab_column_index]
-                self.logger.info(f"📝 Found data row for {lab_no} with {len(numbers)} values: {numbers}")
-                
-                # Convert to float and filter reasonable values
-                values = []
-                for num_str in numbers:
-                    try:
-                        value = float(num_str)
-                        # Filter out unreasonable values (lab numbers, etc.)
-                        if 0.001 <= value <= 1000:  # Reasonable range for leaf parameters
-                            values.append(value)
-                    except ValueError:
-                        continue
-            
-                if len(values) >= 5:
-                    param_names = ['N', 'P', 'K', 'Mg', 'Ca', 'B', 'Cu', 'Zn']
-                    
-                    for i, param in enumerate(param_names):
-                        if i < len(values):
-                            sample_values[param] = values[i]
-                        else:
-                            sample_values[param] = 0.0
-                    
-                    self.logger.info(f"📝 Extracted values for {lab_no}: {sample_values}")
-            
-            return sample_values
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting actual leaf values from OCR: {str(e)}")
-            return sample_values
-    
-    def _extract_leaf_parameter_values(self, text_lines: List[Dict], lab_no: str, all_values: List[float]) -> Dict[str, float]:
-        """Extract leaf parameter values for a specific lab number using improved table parsing"""
-        sample_values = {}
-        
-        try:
-            # Try to extract actual values from OCR first
-            sample_values = self._extract_actual_leaf_values_from_ocr(text_lines, lab_no)
-            
-            # If OCR extraction found values, use them
-            if any(value != 0.0 for value in sample_values.values()):
-                self.logger.info(f"📝 Using OCR extracted values for {lab_no}: {sample_values}")
-                return sample_values
-            
-            # Fallback to reference data if OCR extraction failed
-            sample_values = self._get_reference_leaf_values(lab_no)
-            if any(value != 0.0 for value in sample_values.values()):
-                self.logger.info(f"📝 Using reference data fallback for {lab_no}: {sample_values}")
-                return sample_values
-            
-            # Find the lab number in the text and get its position (fallback)
-            lab_line_index = -1
-            for i, line in enumerate(text_lines):
-                if lab_no in line['text']:
-                    lab_line_index = i
-                    break
-            
-            if lab_line_index == -1:
-                self.logger.warning(f"⚠️ No lines found for lab number {lab_no}")
-                return sample_values
-            
-            # Try to extract actual values from OCR if possible
-            # Look for the table data section
-            table_data_found = False
-            for i, line in enumerate(text_lines):
-                text = line['text']
-                # Look for the parameter values section
-                if ('N' in text or 'P' in text or 'K' in text) and any(char.isdigit() for char in text):
-                    # Found the parameter section, extract values
-                    numbers = re.findall(r'\d+\.?\d*', text)
-                    if len(numbers) >= 5:  # Should have multiple parameter values
-                        # Try to map these values to the correct sample
-                        # This is complex due to table structure, so we'll use reference data
-                        table_data_found = True
-                        break
-            
-            if not table_data_found:
-                self.logger.info(f"📝 Using reference data for {lab_no} (table parsing complex)")
-            
-            return sample_values
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error extracting leaf parameter values: {str(e)}")
-            return sample_values
-    
-    def _get_reference_leaf_values(self, lab_no: str) -> Dict[str, float]:
-        """Get reference leaf values for a lab number"""
-        try:
-            reference_data = self._load_reference_leaf_data()
-            self.logger.info(f"📝 Looking for lab number {lab_no} in {len(reference_data)} reference samples")
-            
-            for sample in reference_data:
-                sample_lab_no = sample.get('Lab No.', '')
-                self.logger.info(f"📝 Checking reference sample: {sample_lab_no}")
-                
-                if sample_lab_no.startswith(lab_no):
-                    # The reference data has parameters directly in the sample object
-                    values = {
-                        'N': sample.get('N', 0.0),
-                        'P': sample.get('P', 0.0),
-                        'K': sample.get('K', 0.0),
-                        'Mg': sample.get('Mg', 0.0),
-                        'Ca': sample.get('Ca', 0.0),
-                        'B': sample.get('B', 0.0),
-                        'Cu': sample.get('Cu', 0.0),
-                        'Zn': sample.get('Zn', 0.0)
-                    }
-                    
-                    self.logger.info(f"📝 Found reference values for {lab_no}: {values}")
-                    return values
-                    
-        except Exception as e:
-            self.logger.error(f"❌ Error getting reference leaf values: {str(e)}")
-        
-        # Return default values
-        self.logger.warning(f"⚠️ No reference data found for {lab_no}")
-        return {param: 0.0 for param in self.leaf_parameters}
+            # Create header mapping with flexible matching
+            header_map = {}
+            for i, header in enumerate(headers):
+                header_lower = header.lower().strip()
 
-# Main function for external use
-def extract_data_from_image(image_path: str, output_dir: str = 'output') -> Dict[str, Any]:
-    """
-    Extract data from images, PDFs, and Excel/CSV. Images and PDF pages use Google Vision OCR; Excel/CSV parse directly.
-    """
-    try:
-        extractor = GoogleVisionTableExtractor()
-        ext = os.path.splitext(image_path)[1].lower()
-        if ext in ['.pdf']:
-            result = extractor.extract_tables_from_pdf(image_path)
-        elif ext in ['.csv', '.xlsx', '.xls']:
-            result = extractor.extract_tables_from_excel(image_path)
-        else:
-            result = extractor.extract_tables_from_image(image_path)
-        if result.get('success'):
+                for param, variations in soil_param_mapping.items():
+                    # More flexible matching: check if any variation is contained in the header
+                    # or if the header is contained in any variation
+                    for var in variations:
+                        var_lower = var.lower()
+                        if var_lower in header_lower or header_lower in var_lower:
+                            header_map[i] = param
+                            break
+
+                    if i in header_map:
+                        break
+            
+            # Process each row as a sample
+            for row in rows:
+                if len(row) >= len(headers):
+                    sample = {}
+
+                    # First column should be sample ID
+                    sample_id = None
+                    if row and row[0].strip():
+                        sample_id = row[0].strip()
+
+                    if sample_id:
+                        # Map parameters to proper names - support multiple formats
+                        param_name_mapping = {
+                            'ph': 'pH',
+                            'nitrogen': 'N (%)',  # Default to compact format, can be overridden
+                            'organic_carbon': 'Org. C (%)',  # Default to compact format
+                            'total_p': 'Total P (mg/kg)',
+                            'available_p': 'Avail P (mg/kg)',
+                            'exchangeable_k': 'Exch. K (meq%)',
+                            'exchangeable_ca': 'Exch. Ca (meq%)',
+                            'exchangeable_mg': 'Exch. Mg (meq%)',
+                            'cec': 'CEC (meq%)'  # Default to compact format
+                        }
+
+                        # Detect format preference based on headers
+                        format_preference = self._detect_format_preference(headers)
+
+                        # Adjust mapping based on detected format
+                        if format_preference == 'expanded':
+                            param_name_mapping.update({
+                                'nitrogen': 'Nitrogen (%)',
+                                'organic_carbon': 'Organic Carbon (%)',
+                                'available_p': 'Available P (mg/kg)',
+                                'total_p': 'Total P (mg/kg)',
+                                'cec': 'C.E.C (meq%)'
+                            })
+                        elif format_preference == 'compact':
+                            # Keep default compact format
+                            pass
+
+                        for i, value in enumerate(row[1:], 1):  # Skip first column (sample ID)
+                            if i in header_map and value.strip():
+                                param_key = header_map[i]
+
+                                if param_key in param_name_mapping:
+                                    # Clean and convert values
+                                    clean_value = self._clean_numeric_value(value)
+                                    # Ensure numeric values are properly typed
+                                    if isinstance(clean_value, str) and clean_value.replace('.', '').replace('-', '').isdigit():
+                                        clean_value = float(clean_value) if '.' in clean_value else int(clean_value)
+                                    final_param_name = param_name_mapping[param_key]
+                                    sample[final_param_name] = clean_value
+
+                        if len(sample) > 0:  # Only add if sample has data beyond just sample ID
+                            samples.append({
+                                'sample_id': sample_id,
+                                'data': sample
+                            })
+            
             return {
+                'type': 'soil',
+                'headers': headers,
+                'samples': samples,
+                'total_samples': len(samples)
+            }
+            
+        except Exception as e:
+            logger.error(f"Soil data structuring failed: {e}")
+            return {'type': 'soil', 'samples': [], 'error': str(e)}
+
+    def _detect_format_preference(self, headers: List[str]) -> str:
+        """Detect whether to use compact or expanded parameter naming"""
+        header_text = ' '.join(headers).lower()
+
+        # Look for indicators of expanded format
+        expanded_indicators = [
+            'nitrogen (%)', 'organic carbon (%)', 'available p', 'c.e.c'
+        ]
+
+        # Look for indicators of compact format
+        compact_indicators = [
+            'n (%)', 'org. c (%)', 'avail p', 'cec'
+        ]
+
+        expanded_score = sum(1 for indicator in expanded_indicators if indicator in header_text)
+        compact_score = sum(1 for indicator in compact_indicators if indicator in header_text)
+
+        # If expanded indicators are found, prefer expanded format
+        if expanded_score > compact_score:
+            return 'expanded'
+        else:
+            return 'compact'
+    
+    def _structure_leaf_data(self, headers: List[str], rows: List[List[str]]) -> Dict:
+        """Structure leaf analysis data"""
+        try:
+            samples = []
+            
+            # Map leaf parameters with more variations
+            leaf_param_mapping = {
+                'sample_id': ['sample id', 'sample no', 'sample_id', 'lab no', 'lab no.', 'sample', 'id', 'farm', 'plot'],
+                'n_percent': ['n (%)', 'n%', 'nitrogen %', 'nitrogen', 'n content (%)', 'total n (%)'],
+                'p_percent': ['p (%)', 'p%', 'phosphorus %', 'phosphorus', 'p content (%)', 'total p (%)'],
+                'k_percent': ['k (%)', 'k%', 'potassium %', 'potassium', 'k content (%)', 'total k (%)'],
+                'mg_percent': ['mg (%)', 'mg%', 'magnesium %', 'magnesium', 'mg content (%)', 'total mg (%)'],
+                'ca_percent': ['ca (%)', 'ca%', 'calcium %', 'calcium', 'ca content (%)', 'total ca (%)'],
+                'b_mgkg': ['b (mg/kg)', 'b mg/kg', 'boron', 'b mg/kg dry matter', 'boron (mg/kg)'],
+                'cu_mgkg': ['cu (mg/kg)', 'cu mg/kg', 'copper', 'cu mg/kg dry matter', 'copper (mg/kg)'],
+                'zn_mgkg': ['zn (mg/kg)', 'zn mg/kg', 'zinc', 'zn mg/kg dry matter', 'zinc (mg/kg)'],
+                'fe_mgkg': ['fe (mg/kg)', 'fe mg/kg', 'iron', 'fe mg/kg dry matter', 'iron (mg/kg)'],
+                'mn_mgkg': ['mn (mg/kg)', 'mn mg/kg', 'manganese', 'mn mg/kg dry matter', 'manganese (mg/kg)']
+            }
+            
+            # Create header mapping
+            header_map = {}
+            for i, header in enumerate(headers):
+                header_lower = header.lower().strip()
+                for param, variations in leaf_param_mapping.items():
+                    if any(var in header_lower for var in variations):
+                        header_map[i] = param
+                        break
+            
+            # Process each row as a sample
+            for row in rows:
+                if len(row) <= len(headers):
+                    sample = {
+                        '% Dry Matter': {},
+                        'mg/kg Dry Matter': {}
+                    }
+                    basic_info = {}
+                    
+                    for i, value in enumerate(row):
+                        if i in header_map and value.strip():
+                            param = header_map[i]
+                            clean_value = self._clean_numeric_value(value)
+                            
+                            # Categorize parameters
+                            if param in ['n_percent', 'p_percent', 'k_percent', 'mg_percent', 'ca_percent']:
+                                nutrient_key = param.split('_')[0].upper()
+                                sample['% Dry Matter'][nutrient_key] = clean_value
+                            elif param in ['b_mgkg', 'cu_mgkg', 'zn_mgkg']:
+                                nutrient_key = param.split('_')[0].upper()
+                                sample['mg/kg Dry Matter'][nutrient_key] = clean_value
+                            else:
+                                basic_info[param] = clean_value
+                    
+                    # Add basic info
+                    sample.update(basic_info)
+                    
+                    if basic_info or sample['% Dry Matter'] or sample['mg/kg Dry Matter']:
+                        samples.append(sample)
+            
+            return {
+                'type': 'leaf',
+                'headers': headers,
+                'samples': samples,
+                'total_samples': len(samples)
+            }
+            
+        except Exception as e:
+            logger.error(f"Leaf data structuring failed: {e}")
+            return {'type': 'leaf', 'samples': [], 'error': str(e)}
+    
+    def _clean_numeric_value(self, value: str) -> Any:
+        """Clean and convert numeric values"""
+        if not value or not isinstance(value, str):
+            return value
+
+        # Remove common non-numeric characters but preserve decimal points
+        cleaned = re.sub(r'[^\d.\-<>]', '', value.strip())
+
+        # Handle special cases
+        if 'n.d.' in value.lower() or 'nd' in value.lower():
+            return 'N.D.'
+        if '<' in value:
+            return f"<{cleaned.replace('<', '')}"
+        if '>' in value:
+            return f">{cleaned.replace('>', '')}"
+        
+        # Try to convert to number
+        try:
+            if '.' in cleaned:
+                return float(cleaned)
+            else:
+                return int(cleaned)
+        except ValueError:
+            return value  # Return original if conversion fails
+
+
+class TesseractProcessor:
+    """Fallback OCR processor using Tesseract"""
+    
+    def __init__(self):
+        self.available = TESSERACT_AVAILABLE
+    
+    def process_document(self, file_path: str) -> Optional[Dict]:
+        """Process document with Tesseract OCR"""
+        if not self.available:
+            return None
+        
+        try:
+            # Handle different file types
+            if file_path.lower().endswith('.pdf'):
+                images = self._pdf_to_images(file_path)
+                if not images:
+                    return None
+                # Process first page for now
+                image = images[0]
+            else:
+                image = Image.open(file_path)
+            
+            # Preprocess image for better OCR
+            processed_image = self._preprocess_image(image)
+            
+            # Extract text using Tesseract
+            text = pytesseract.image_to_string(processed_image, config='--psm 6')
+            
+            # Try to extract tabular data
+            table_data = self._extract_table_from_text(text)
+            
+            return {
+                'text': text,
+                'tables': [table_data] if table_data else [],
                 'success': True,
-                'tables': result['tables'],
-                'total_tables': len(result['tables']),
-                'total_samples': sum(len(table.get('samples', [])) for table in result['tables'])
+                'method': 'tesseract_fallback'
             }
-        else:
+            
+        except Exception as e:
+            logger.error(f"Tesseract processing failed: {e}")
+            return None
+    
+    def _pdf_to_images(self, pdf_path: str) -> List[Image.Image]:
+        """Convert PDF to images"""
+        if not PDF_AVAILABLE:
+            return []
+        
+        try:
+            doc = fitz.open(pdf_path)
+            images = []
+            for page_num in range(len(doc)):
+                page = doc.load_page(page_num)
+                mat = fitz.Matrix(2.0, 2.0)  # Increase resolution
+                pix = page.get_pixmap(matrix=mat)
+                img_data = pix.tobytes("ppm")
+                image = Image.open(io.BytesIO(img_data))
+                images.append(image)
+            doc.close()
+            return images
+        except Exception as e:
+            logger.error(f"PDF to image conversion failed: {e}")
+            return []
+    
+    def _preprocess_image(self, image: Image.Image) -> Image.Image:
+        """Preprocess image for better OCR results"""
+        try:
+            # Convert PIL to OpenCV format
+            opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            
+            # Convert to grayscale
+            gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
+            
+            # Apply threshold to get binary image
+            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
+            # Remove noise
+            kernel = np.ones((1, 1), np.uint8)
+            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+            binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+            
+            # Convert back to PIL
+            return Image.fromarray(binary)
+
+        except Exception as e:
+            logger.error(f"Image preprocessing failed: {e}")
+            return image
+    
+    def _extract_table_from_text(self, text: str) -> Optional[Dict]:
+        """Extract tabular data from OCR text using pattern matching"""
+        try:
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            
+            # Look for table patterns
+            potential_rows = []
+            headers = []
+            
+            for line in lines:
+                # Split by multiple spaces or tabs to identify columns
+                columns = re.split(r'\s{2,}|\t', line)
+                if len(columns) > 3:  # Likely a table row
+                    potential_rows.append(columns)
+            
+            if not potential_rows:
+                return None
+
+            # First row is likely headers
+            headers = potential_rows[0]
+            rows = potential_rows[1:] if len(potential_rows) > 1 else []
+            
+            # Determine table type
+            table_type = self._determine_table_type_from_text(text)
+            
             return {
-                'success': False,
-                'error': result.get('error', 'Unknown error'),
-                'tables': []
+                'type': table_type,
+                'headers': headers,
+                'rows': rows,
+                'samples': self._structure_data_from_text(table_type, headers, rows)
             }
-    except Exception as e:
-        logger.error(f"❌ Error in extract_data_from_image: {str(e)}")
-        return {
-            'success': False,
-            'error': str(e),
-            'tables': []
+            
+        except Exception as e:
+            logger.error(f"Text table extraction failed: {e}")
+            return None
+
+    def _determine_table_type_from_text(self, text: str) -> str:
+        """Determine table type from text content"""
+        text_lower = text.lower()
+        
+        soil_indicators = ['ph', 'organic carbon', 'cec', 'exchangeable', 'available p']
+        leaf_indicators = ['% dry matter', 'mg/kg dry', 'n (%)', 'p (%)', 'k (%)']
+        
+        soil_score = sum(1 for indicator in soil_indicators if indicator in text_lower)
+        leaf_score = sum(1 for indicator in leaf_indicators if indicator in text_lower)
+        
+        return 'soil' if soil_score > leaf_score else 'leaf' if leaf_score > 0 else 'unknown'
+    
+    def _structure_data_from_text(self, table_type: str, headers: List[str], rows: List[List[str]]) -> List[Dict]:
+        """Structure data based on table type"""
+        samples = []
+        
+        for row in rows:
+            if len(row) > 1:
+                sample = {}
+                for i, value in enumerate(row):
+                    if i < len(headers):
+                        key = headers[i].strip()
+                        sample[key] = value.strip()
+                samples.append(sample)
+        
+        return samples
+
+
+def _detect_report_type(sample_ids: List[str]) -> str:
+    """Detect the report type based on sample ID patterns"""
+    if not sample_ids:
+        return "Farm_3_Soil_Test_Data"  # Default
+
+    # Check patterns
+    sample_patterns = {
+        "Farm_3_Soil_Test_Data": [sid for sid in sample_ids if sid.startswith('S') and len(sid) == 4 and sid[1:].isdigit()],
+        "SP_Lab_Test_Report": [sid for sid in sample_ids if '/' in sid and 'S' in sid]
+    }
+
+    # Count matches for each pattern
+    farm_count = len(sample_patterns["Farm_3_Soil_Test_Data"])
+    sp_count = len(sample_patterns["SP_Lab_Test_Report"])
+
+    # Return the pattern with more matches
+    if sp_count > farm_count:
+        return "SP_Lab_Test_Report"
+    else:
+        return "Farm_3_Soil_Test_Data"
+
+
+def _process_csv_file(csv_path: str) -> Optional[Dict]:
+    """Process CSV file directly for table extraction"""
+    try:
+        import csv
+
+        logger.info(f"Processing CSV file: {os.path.basename(csv_path)}")
+
+        # Read CSV/text file
+        with open(csv_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+
+        # Try to detect delimiter
+        delimiter = ','
+        if '\t' in content:
+            delimiter = '\t'
+        elif '|' in content:
+            delimiter = '|'
+        elif ';' in content:
+            delimiter = ';'
+
+        # Split into rows and then into columns
+        rows = []
+        for line in content.split('\n'):
+            line = line.strip()
+            if line:  # Skip empty lines
+                # Split by detected delimiter
+                parts = [part.strip() for part in line.split(delimiter) if part.strip()]
+                if parts:  # Only add non-empty rows
+                    rows.append(parts)
+
+        if not rows or len(rows) < 2:
+            logger.warning("CSV file has insufficient data")
+            return None
+
+        # First row is headers
+        headers = [cell.strip() for cell in rows[0]]
+        data_rows = rows[1:]
+
+        logger.info(f"CSV parsed: {len(headers)} headers, {len(data_rows)} data rows")
+
+        # Process the data
+        table_data = _extract_table_data_from_csv(headers, data_rows)
+
+        result = {
+            'success': True,
+            'tables': [table_data] if table_data else [],
+            'text': f"CSV file with {len(data_rows)} rows",
+            'raw_data': {
+                'headers': headers,
+                'rows': data_rows,
+                'extraction_details': {}
+            }
         }
+
+        # Format the output in the requested structure
+        if table_data and table_data.get('type') == 'soil':
+            logger.debug(f"Processing soil table with {table_data.get('total_samples', 0)} samples")
+
+            soil_samples = {}
+            for sample in table_data.get('samples', []):
+                if isinstance(sample, dict) and 'sample_id' in sample and 'data' in sample:
+                    sample_id = sample['sample_id']
+                    sample_data = sample['data']
+                    soil_samples[sample_id] = sample_data
+                    logger.debug(f"Added sample {sample_id} with parameters: {list(sample_data.keys())}")
+
+            if soil_samples:
+                # Detect the report type based on sample naming pattern
+                report_type = _detect_report_type(list(soil_samples.keys()))
+
+                result['raw_data']['extraction_details'][report_type] = soil_samples
+                logger.debug(f"Created {report_type} with {len(soil_samples)} samples")
+
+                result['raw_data']['extraction_details']['soil_summary'] = {
+                    'total_samples': len(soil_samples),
+                    'sample_ids': list(soil_samples.keys()),
+                    'parameters': list(set([param for sample_data in soil_samples.values() for param in sample_data.keys()])),
+                    'report_type': report_type
+                }
+
+        return result
+
+    except Exception as e:
+        logger.error(f"CSV processing failed: {e}")
+        return None
+
+
+def _extract_table_data_from_csv(headers: List[str], rows: List[List[str]]) -> Optional[Dict]:
+    """Extract structured data from CSV table"""
+    try:
+        logger.debug(f"Processing CSV table with headers: {headers}")
+
+        # Determine table type using class method
+        processor = DocumentAIProcessor()
+        table_type = processor._determine_table_type(headers, rows)
+
+        if table_type == 'soil':
+            return processor._structure_soil_data(headers, rows)
+        elif table_type == 'leaf':
+            return processor._structure_leaf_data(headers, rows)
+        else:
+            # Create a generic structure
+            samples = []
+            for row in rows:
+                if len(row) >= len(headers):
+                    sample = {}
+                    for i, value in enumerate(row):
+                        if i < len(headers):
+                            sample[headers[i]] = value.strip()
+                    if sample:
+                        samples.append(sample)
+
+                return {
+                'type': 'generic',
+                'headers': headers,
+                'samples': samples,
+                'total_samples': len(samples)
+            }
+
+    except Exception as e:
+        logger.error(f"CSV table extraction failed: {e}")
+        return None
+
+
+def extract_data_from_image(image_path: str) -> Dict[str, Any]:
+    """
+    Main function to extract data from images using Google Document AI with Tesseract fallback
+    
+    Args:
+        image_path (str): Path to the image file
+        
+    Returns:
+        Dict containing extraction results with structured data
+    """
+    
+    result = {
+                'success': False,
+        'error': None,
+        'method': None,
+        'tables': [],
+        'raw_data': None,
+        'extraction_details': {}
+    }
+    
+    try:
+        # Validate file exists
+        if not os.path.exists(image_path):
+            result['error'] = f"File not found: {image_path}"
+            return result
+        
+        # Check if it's a CSV or text file and handle differently
+        file_ext = os.path.splitext(image_path)[1].lower()
+        if file_ext in ['.csv', '.txt', '.tsv']:
+            csv_result = _process_csv_file(image_path)
+            if csv_result and csv_result.get('success'):
+                result['success'] = True
+                result['method'] = f'{file_ext[1:]}_parser'
+                result['tables'] = csv_result.get('tables', [])
+                result['raw_data'] = csv_result.get('raw_data', {})
+                # Add structured markdown sections for preview
+                try:
+                    sections = self._tables_to_structured_sections(result['tables'])
+                    if sections and sections.get('markdown'):
+                        if 'extraction_details' not in result['raw_data']:
+                            result['raw_data']['extraction_details'] = {}
+                        result['raw_data']['structured_markdown'] = sections['markdown']
+                        result['raw_data']['structured_tables'] = sections['tables']
+                except Exception:
+                    pass
+                return result
+
+        # Try Google Document AI first
+        if DOCUMENT_AI_AVAILABLE:
+            doc_ai = DocumentAIProcessor()
+            doc_result = doc_ai.process_document(image_path)
+            
+            if doc_result and doc_result.get('success'):
+                result['success'] = True
+                result['method'] = 'document_ai'
+                result['tables'] = doc_result.get('tables', [])
+                raw_text = doc_result.get('text', '')
+                logger.info(f"Document AI extracted raw text: {len(raw_text)} characters")
+                if raw_text:
+                    logger.debug(f"Raw text preview: {raw_text[:200]}...")
+                    logger.info(f"Raw text contains sample IDs: {any('S00' in raw_text or 'L00' in raw_text for pattern in ['S00', 'L00'])}")
+                    logger.info(f"Raw text contains soil keywords: {any(keyword in raw_text.lower() for keyword in ['cec', 'ph', 'organic'])}")
+
+                result['raw_data'] = {
+                    'text': raw_text,
+                    'extraction_details': {}
+                }
+                
+                # Structure the extracted data for each table
+                for table in result['tables']:
+                    table_type = table.get('type', 'unknown')
+                    if table_type == 'soil':
+                        soil_samples = {}
+                        for sample in table.get('samples', []):
+                            if isinstance(sample, dict) and 'sample_id' in sample and 'data' in sample:
+                                sample_id = sample['sample_id']
+                                soil_samples[sample_id] = sample['data']
+
+                        if soil_samples:
+                            # Detect the report type based on sample naming pattern
+                            report_type = _detect_report_type(list(soil_samples.keys()))
+
+                            result['raw_data']['extraction_details'][report_type] = soil_samples
+
+                        result['raw_data']['extraction_details']['soil_summary'] = {
+                            'total_samples': len(soil_samples),
+                            'sample_ids': list(soil_samples.keys()),
+                            'parameters': list(set([param for sample_data in soil_samples.values() for param in sample_data.keys()])),
+                            'report_type': report_type if 'report_type' in locals() else 'Farm_3_Soil_Test_Data'
+                        }
+                    elif table_type == 'leaf':
+                        result['raw_data']['extraction_details']['leaf_data'] = {
+                            'samples': table.get('samples', []),
+                            'total_samples': table.get('total_samples', 0),
+                            'parameters': list(set([key for sample in table.get('samples', []) for key in sample.keys() if key not in ['% Dry Matter', 'mg/kg Dry Matter']]))
+                        }
+                
+                # Add structured markdown sections for preview
+                try:
+                    sections = doc_ai._tables_to_structured_sections(result['tables']) if hasattr(doc_ai, '_tables_to_structured_sections') else self._tables_to_structured_sections(result['tables'])
+                    if sections and sections.get('markdown'):
+                        result['raw_data']['structured_markdown'] = sections['markdown']
+                        result['raw_data']['structured_tables'] = sections['tables']
+                except Exception as _:
+                    pass
+
+                # If no tables found, try to parse the raw text for structured data
+                if not result['tables'] and result['raw_data'] and result['raw_data'].get('text'):
+                    raw_text = result['raw_data']['text']
+                    logger.info("No tables found, attempting to parse raw text for structured data")
+                    logger.info(f"Raw text to parse: {len(raw_text)} characters")
+                    logger.debug(f"Raw text content: {raw_text[:500]}...")
+
+                    try:
+                        text_parser = TextTableParser()
+                        parsed_tables = text_parser._parse_text_for_tables(raw_text)
+
+                        if parsed_tables:
+                            logger.info(f"Found {len(parsed_tables)} tables from raw text parsing")
+                            result['tables'] = parsed_tables
+                        else:
+                            logger.warning("Raw text parsing returned no tables")
+
+                            # Update extraction details with parsed data
+                            for table in parsed_tables:
+                                table_type = table.get('type', 'unknown')
+                                if table_type == 'soil':
+                                    soil_samples = {}
+                                    for sample in table.get('samples', []):
+                                        if isinstance(sample, dict) and 'Sample ID' in sample:
+                                            sample_id = sample['Sample ID']
+                                            sample_data = {k: v for k, v in sample.items() if k != 'Sample ID'}
+                                            soil_samples[sample_id] = sample_data
+
+                                    if soil_samples:
+                                        report_type = _detect_report_type(list(soil_samples.keys()))
+                                        if 'extraction_details' not in result['raw_data']:
+                                            result['raw_data']['extraction_details'] = {}
+                                        result['raw_data']['extraction_details'][report_type] = soil_samples
+                                        result['raw_data']['extraction_details']['soil_summary'] = {
+                                            'total_samples': len(soil_samples),
+                                            'sample_ids': list(soil_samples.keys()),
+                                            'parameters': list(set([param for sample_data in soil_samples.values() for param in sample_data.keys()])),
+                                            'report_type': report_type
+                                        }
+                                elif table_type == 'leaf':
+                                    if 'extraction_details' not in result['raw_data']:
+                                        result['raw_data']['extraction_details'] = {}
+                                    result['raw_data']['extraction_details']['leaf_data'] = {
+                                        'samples': table.get('samples', []),
+                                        'total_samples': len(table.get('samples', [])),
+                                        'parameters': list(set([key for sample in table.get('samples', []) for key in sample.keys() if key != 'Sample ID']))
+                                    }
+                    except Exception as e:
+                        logger.warning(f"Failed to parse raw text for structured data: {e}")
+
+                logger.info(f"Document AI extraction successful: {len(result['tables'])} tables found")
+                if result['tables']:
+                    for i, table in enumerate(result['tables']):
+                        logger.info(f"Table {i+1}: Type={table.get('type', 'unknown')}, Samples={len(table.get('samples', []))}")
+                return result
+        
+        # Fallback to Tesseract if Document AI fails or is not available
+        if TESSERACT_AVAILABLE:
+            tesseract = TesseractProcessor()
+            tess_result = tesseract.process_document(image_path)
+            
+            if tess_result and tess_result.get('success'):
+                result['success'] = True
+                result['method'] = 'tesseract_fallback'
+                result['tables'] = tess_result.get('tables', [])
+                raw_text = tess_result.get('text', '')
+                logger.info(f"Tesseract extracted raw text: {len(raw_text)} characters")
+                if raw_text:
+                    logger.debug(f"Raw text preview: {raw_text[:200]}...")
+                    logger.info(f"Raw text contains sample IDs: {any('S00' in raw_text or 'L00' in raw_text for pattern in ['S00', 'L00'])}")
+                    logger.info(f"Raw text contains soil keywords: {any(keyword in raw_text.lower() for keyword in ['cec', 'ph', 'organic'])}")
+
+                result['raw_data'] = {
+                    'text': raw_text,
+                    'extraction_details': {}
+                }
+
+                # If no tables found, try to parse the raw text for structured data
+                if not result['tables'] and result['raw_data'] and result['raw_data'].get('text'):
+                    logger.info("No tables found, attempting to parse raw text for structured data")
+                    try:
+                        text_parser = TextTableParser()
+                        parsed_tables = text_parser._parse_text_for_tables(raw_text)
+
+                        if parsed_tables:
+                            logger.info(f"Found {len(parsed_tables)} tables from raw text parsing")
+                            result['tables'] = parsed_tables
+
+                            # Update extraction details with parsed data
+                            for table in parsed_tables:
+                                table_type = table.get('type', 'unknown')
+                                if table_type == 'soil':
+                                    soil_samples = {}
+                                    for sample in table.get('samples', []):
+                                        if isinstance(sample, dict) and 'Sample ID' in sample:
+                                            sample_id = sample['Sample ID']
+                                            sample_data = {k: v for k, v in sample.items() if k != 'Sample ID'}
+                                            soil_samples[sample_id] = sample_data
+
+                                    if soil_samples:
+                                        report_type = _detect_report_type(list(soil_samples.keys()))
+                                        if 'extraction_details' not in result['raw_data']:
+                                            result['raw_data']['extraction_details'] = {}
+                                        result['raw_data']['extraction_details'][report_type] = soil_samples
+                                        result['raw_data']['extraction_details']['soil_summary'] = {
+                                            'total_samples': len(soil_samples),
+                                            'sample_ids': list(soil_samples.keys()),
+                                            'parameters': list(set([param for sample_data in soil_samples.values() for param in sample_data.keys()])),
+                                            'report_type': report_type
+                                        }
+                                elif table_type == 'leaf':
+                                    if 'extraction_details' not in result['raw_data']:
+                                        result['raw_data']['extraction_details'] = {}
+                                    result['raw_data']['extraction_details']['leaf_data'] = {
+                                        'samples': table.get('samples', []),
+                                        'total_samples': len(table.get('samples', [])),
+                                        'parameters': list(set([key for sample in table.get('samples', []) for key in sample.keys() if key != 'Sample ID']))
+                                    }
+                    except Exception as e:
+                        logger.warning(f"Failed to parse raw text for structured data: {e}")
+
+                # Structure the extracted data
+                for table in result['tables']:
+                    table_type = table.get('type', 'unknown')
+                    if table_type == 'soil':
+                        soil_samples = {}
+                        for sample in table.get('samples', []):
+                            if isinstance(sample, dict) and 'sample_id' in sample and 'data' in sample:
+                                sample_id = sample['sample_id']
+                                soil_samples[sample_id] = sample['data']
+
+                        if soil_samples:
+                            # Detect the report type based on sample naming pattern
+                            report_type = _detect_report_type(list(soil_samples.keys()))
+
+                            result['raw_data']['extraction_details'][report_type] = soil_samples
+
+                        result['raw_data']['extraction_details']['soil_summary'] = {
+                            'total_samples': len(soil_samples),
+                            'sample_ids': list(soil_samples.keys()),
+                            'parameters': list(set([param for sample_data in soil_samples.values() for param in sample_data.keys()])),
+                            'report_type': report_type if 'report_type' in locals() else 'Farm_3_Soil_Test_Data'
+                        }
+                    elif table_type == 'leaf':
+                        result['raw_data']['extraction_details']['leaf_data'] = {
+                            'samples': table.get('samples', []),
+                            'total_samples': len(table.get('samples', [])),
+                            'parameters': list(set([key for sample in table.get('samples', []) for key in sample.keys()]))
+                        }
+                
+                # Add structured markdown sections for preview
+                try:
+                    sections = self._tables_to_structured_sections(result['tables'])
+                    if sections and sections.get('markdown'):
+                        result['raw_data']['structured_markdown'] = sections['markdown']
+                        result['raw_data']['structured_tables'] = sections['tables']
+                except Exception as _:
+                    pass
+
+                logger.info(f"Tesseract extraction successful: {len(result['tables'])} tables found")
+                return result
+        
+        # If both methods fail
+        result['error'] = "No OCR methods available or all methods failed"
+        if not DOCUMENT_AI_AVAILABLE and not TESSERACT_AVAILABLE:
+            result['error'] = "No OCR libraries installed. Please install google-cloud-documentai or pytesseract"
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"OCR extraction failed: {e}")
+        result['error'] = f"Extraction error: {str(e)}"
+        return result
+
+
+# Utility functions for data validation and cleaning
+def validate_soil_data(soil_samples: List[Dict]) -> Dict[str, Any]:
+    """Validate extracted soil data"""
+    validation_result = {
+        'is_valid': True,
+        'issues': [],
+        'recommendations': []
+    }
+    
+    required_params = ['ph', 'organic_carbon', 'available_p']
+    
+    for i, sample in enumerate(soil_samples):
+        sample_issues = []
+        
+        # Check for required parameters
+        missing_params = [param for param in required_params if param not in sample]
+        if missing_params:
+            sample_issues.append(f"Missing parameters: {', '.join(missing_params)}")
+        
+        # Validate pH range
+        if 'ph' in sample:
+            try:
+                ph_value = float(sample['ph'])
+                if ph_value < 3 or ph_value > 10:
+                    sample_issues.append(f"pH value {ph_value} seems out of normal range (3-10)")
+            except ValueError:
+                sample_issues.append("pH value is not numeric")
+        
+        if sample_issues:
+            validation_result['issues'].append(f"Sample {i+1}: {'; '.join(sample_issues)}")
+            validation_result['is_valid'] = False
+    
+    return validation_result
+
+
+def validate_leaf_data(leaf_samples: List[Dict]) -> Dict[str, Any]:
+    """Validate extracted leaf data"""
+    validation_result = {
+        'is_valid': True,
+        'issues': [],
+        'recommendations': []
+    }
+    
+    required_nutrients = ['N', 'P', 'K']
+    
+    for i, sample in enumerate(leaf_samples):
+        sample_issues = []
+        
+        # Check for required nutrients in % Dry Matter
+        dry_matter = sample.get('% Dry Matter', {})
+        missing_nutrients = [nutrient for nutrient in required_nutrients if nutrient not in dry_matter]
+        if missing_nutrients:
+            sample_issues.append(f"Missing nutrients: {', '.join(missing_nutrients)}")
+        
+        if sample_issues:
+            validation_result['issues'].append(f"Sample {i+1}: {'; '.join(sample_issues)}")
+            validation_result['is_valid'] = False
+    
+    return validation_result
+
+
+if __name__ == "__main__":
+    # Test the extraction function
+    import sys
+    if len(sys.argv) > 1:
+        test_file = sys.argv[1]
+        result = extract_data_from_image(test_file)
+        print(json.dumps(result, indent=2, default=str))

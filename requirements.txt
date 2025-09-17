@@ -9,9 +9,13 @@ firebase-admin>=6.2.0
 pyrebase4>=4.7.1
 
 # OCR and Image Processing
-google-cloud-vision>=3.4.0
+google-cloud-documentai>=2.20.0
 Pillow>=10.0.0
 opencv-python-headless>=4.8.0
+scikit-image>=0.21.0
+imageio>=2.31.0
+spellchecker>=0.4
+pytesseract>=0.3.10
 
 # Data Processing
 pandas>=2.0.0

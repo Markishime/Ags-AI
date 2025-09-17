@@ -1,0 +1,136 @@
+{
+  "Farm_3_Soil_Test_Data": {
+    "S001": {
+      "pH": 4.74,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.55,
+      "Total P (mg/kg)": 30,
+      "Avail P (mg/kg)": 2,
+      "Exch. K (meq%)": 0.06,
+      "Exch. Ca (meq%)": 0.35,
+      "Exch. Mg (meq%)": 0.17,
+      "CEC (meq%)": 2.0
+    },
+    "S002": {
+      "pH": 5.01,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.54,
+      "Total P (mg/kg)": 34,
+      "Avail P (mg/kg)": 2,
+      "Exch. K (meq%)": 0.08,
+      "Exch. Ca (meq%)": 0.21,
+      "Exch. Mg (meq%)": 0.16,
+      "CEC (meq%)": 3.33
+    },
+    "S003": {
+      "pH": 4.66,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.59,
+      "Total P (mg/kg)": 37,
+      "Avail P (mg/kg)": 1,
+      "Exch. K (meq%)": 0.06,
+      "Exch. Ca (meq%)": 0.17,
+      "Exch. Mg (meq%)": 0.14,
+      "CEC (meq%)": 1.81
+    },
+    "S004": {
+      "pH": 4.59,
+      "N (%)": 0.07,
+      "Org. C (%)": 0.47,
+      "Total P (mg/kg)": 34,
+      "Avail P (mg/kg)": 2,
+      "Exch. K (meq%)": 0.06,
+      "Exch. Ca (meq%)": 0.2,
+      "Exch. Mg (meq%)": 0.15,
+      "CEC (meq%)": 2.85
+    },
+    "S005": {
+      "pH": 4.87,
+      "N (%)": 0.09,
+      "Org. C (%)": 0.58,
+      "Total P (mg/kg)": 26,
+      "Avail P (mg/kg)": 1,
+      "Exch. K (meq%)": 0.07,
+      "Exch. Ca (meq%)": 0.21,
+      "Exch. Mg (meq%)": 0.14,
+      "CEC (meq%)": 1.41
+    },
+    "S006": {
+      "pH": 5.1,
+      "N (%)": 0.07,
+      "Org. C (%)": 0.6,
+      "Total P (mg/kg)": 30,
+      "Avail P (mg/kg)": 1,
+      "Exch. K (meq%)": 0.05,
+      "Exch. Ca (meq%)": 0.27,
+      "Exch. Mg (meq%)": 0.16,
+      "CEC (meq%)": 4.46
+    },
+    "S007": {
+      "pH": 4.72,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.59,
+      "Total P (mg/kg)": 40,
+      "Avail P (mg/kg)": 2,
+      "Exch. K (meq%)": 0.08,
+      "Exch. Ca (meq%)": 0.22,
+      "Exch. Mg (meq%)": 0.15,
+      "CEC (meq%)": 2.28
+    },
+    "S008": {
+      "pH": 4.58,
+      "N (%)": 0.09,
+      "Org. C (%)": 0.62,
+      "Total P (mg/kg)": 39,
+      "Avail P (mg/kg)": 1,
+      "Exch. K (meq%)": 0.07,
+      "Exch. Ca (meq%)": 0.18,
+      "Exch. Mg (meq%)": 0.12,
+      "CEC (meq%)": 2.46
+    },
+    "S009": {
+      "pH": 4.58,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.51,
+      "Total P (mg/kg)": 38,
+      "Avail P (mg/kg)": 2,
+      "Exch. K (meq%)": 0.07,
+      "Exch. Ca (meq%)": 0.31,
+      "Exch. Mg (meq%)": 0.12,
+      "CEC (meq%)": 3.9
+    },
+    "S010": {
+      "pH": 4.94,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.45,
+      "Total P (mg/kg)": 21,
+      "Avail P (mg/kg)": 1,
+      "Exch. K (meq%)": 0.08,
+      "Exch. Ca (meq%)": 0.17,
+      "Exch. Mg (meq%)": 0.13,
+      "CEC (meq%)": 3.72
+    },
+    "S011": {
+      "pH": 4.72,
+      "N (%)": 0.08,
+      "Org. C (%)": 0.47,
+      "Total P (mg/kg)": 29,
+      "Avail P (mg/kg)": 1,
+      "Exch. K (meq%)": 0.08,
+      "Exch. Ca (meq%)": 0.21,
+      "Exch. Mg (meq%)": 0.12,
+      "CEC (meq%)": 2.69
+    },
+    "S012": {
+      "pH": 5.26,
+      "N (%)": 0.07,
+      "Org. C (%)": 0.58,
+      "Total P (mg/kg)": 27,
+      "Avail P (mg/kg)": 2,
+      "Exch. K (meq%)": 0.06,
+      "Exch. Ca (meq%)": 0.25,
+      "Exch. Mg (meq%)": 0.1,
+      "CEC (meq%)": 3.0
+    }
+  }
+}
