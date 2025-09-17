@@ -183,28 +183,28 @@ COLLECTIONS = {
     'prompt_templates': 'prompt_templates'
 }
 
-# Default MPOB standards
+# Default MPOB standards - Accurate values for Malaysian Oil Palm cultivation (matching actual data format)
 DEFAULT_MPOB_STANDARDS = {
     'leaf_standards': {
-        'N': {'min': 2.4, 'max': 2.8, 'unit': '%', 'optimal': 2.6},
-        'P': {'min': 0.15, 'max': 0.18, 'unit': '%', 'optimal': 0.165},
-        'K': {'min': 0.9, 'max': 1.2, 'unit': '%', 'optimal': 1.05},
-        'Mg': {'min': 0.25, 'max': 0.35, 'unit': '%', 'optimal': 0.3},
-        'Ca': {'min': 0.5, 'max': 0.7, 'unit': '%', 'optimal': 0.6},
-        'B': {'min': 15, 'max': 25, 'unit': 'mg/kg', 'optimal': 20},
-        'Cu': {'min': 4, 'max': 8, 'unit': 'mg/kg', 'optimal': 6},
-        'Zn': {'min': 15, 'max': 25, 'unit': 'mg/kg', 'optimal': 20}
+        'N (%)': {'min': 2.4, 'max': 2.8, 'unit': '%', 'optimal': 2.6},
+        'P (%)': {'min': 0.14, 'max': 0.20, 'unit': '%', 'optimal': 0.17},
+        'K (%)': {'min': 0.9, 'max': 1.3, 'unit': '%', 'optimal': 1.1},
+        'Mg (%)': {'min': 0.25, 'max': 0.45, 'unit': '%', 'optimal': 0.35},
+        'Ca (%)': {'min': 0.5, 'max': 0.9, 'unit': '%', 'optimal': 0.7},
+        'B (mg/kg)': {'min': 18, 'max': 28, 'unit': 'mg/kg', 'optimal': 23},
+        'Cu (mg/kg)': {'min': 8, 'max': 18, 'unit': 'mg/kg', 'optimal': 13},
+        'Zn (mg/kg)': {'min': 18, 'max': 35, 'unit': 'mg/kg', 'optimal': 26}
     },
     'soil_standards': {
-        'pH': {'min': 4.5, 'max': 5.5, 'unit': '', 'optimal': 5.0},
-        'Nitrogen': {'min': 0.08, 'max': 0.15, 'unit': '%', 'optimal': 0.12},
-        'Organic_Carbon': {'min': 0.6, 'max': 1.2, 'unit': '%', 'optimal': 0.9},
-        'Total_P': {'min': 50, 'max': 100, 'unit': 'mg/kg', 'optimal': 75},
-        'Available_P': {'min': 3, 'max': 8, 'unit': 'mg/kg', 'optimal': 5},
-        'Exch_K': {'min': 0.08, 'max': 0.15, 'unit': 'meq%', 'optimal': 0.12},
-        'Exch_Ca': {'min': 0.2, 'max': 0.5, 'unit': 'meq%', 'optimal': 0.35},
-        'Exch_Mg': {'min': 0.15, 'max': 0.25, 'unit': 'meq%', 'optimal': 0.2},
-        'CEC': {'min': 5.0, 'max': 15.0, 'unit': '', 'optimal': 10.0}
+        'pH': {'min': 4.5, 'max': 6.0, 'unit': '', 'optimal': 5.0},
+        'N (%)': {'min': 0.15, 'max': 0.25, 'unit': '%', 'optimal': 0.20},
+        'Org. C (%)': {'min': 1.5, 'max': 2.5, 'unit': '%', 'optimal': 2.0},
+        'Total P (mg/kg)': {'min': 15, 'max': 25, 'unit': 'mg/kg', 'optimal': 20},
+        'Avail P (mg/kg)': {'min': 10, 'max': 20, 'unit': 'mg/kg', 'optimal': 15},
+        'Exch. K (meq%)': {'min': 0.20, 'max': 0.40, 'unit': 'meq%', 'optimal': 0.30},
+        'Exch. Ca (meq%)': {'min': 2.0, 'max': 4.0, 'unit': 'meq%', 'optimal': 3.0},
+        'Exch. Mg (meq%)': {'min': 0.6, 'max': 1.2, 'unit': 'meq%', 'optimal': 0.9},
+        'CEC (meq%)': {'min': 15, 'max': 25, 'unit': 'meq%', 'optimal': 20}
     }
 }
 

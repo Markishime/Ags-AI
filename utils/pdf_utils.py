@@ -4577,4 +4577,3 @@ def _calculate_leaf_nutrient_ratios(leaf_stats: Dict[str, Any]) -> Dict[str, flo
         logger.error(f"Error calculating leaf nutrient ratios: {e}")
     
     return ratios
-
