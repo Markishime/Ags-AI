@@ -1004,7 +1004,7 @@ class DocumentAIProcessor:
             
             # Process each row as a sample
             for row in rows:
-                if len(row) <= len(headers):
+                if len(row) >= len(headers):
                     sample = {
                         '% Dry Matter': {},
                         'mg/kg Dry Matter': {}
@@ -1385,7 +1385,15 @@ def _process_excel_file(excel_path: str) -> Optional[Dict]:
         logger.info(f"Excel parsed: {len(headers)} headers, {len(data_rows)} data rows")
 
         # Process the data
+        logger.info(f"Processing Excel data with headers: {headers[:5]}...")  # Show first 5 headers
+        logger.info(f"Sample data row: {data_rows[0] if data_rows else 'No data rows'}")
+        
         table_data = _extract_table_data_from_excel(headers, data_rows)
+        
+        if table_data:
+            logger.info(f"Successfully extracted table data: type={table_data.get('type')}, samples={len(table_data.get('samples', []))}")
+        else:
+            logger.warning("No table data extracted from Excel file")
 
         result = {
             'success': True,
@@ -1455,29 +1463,36 @@ def _process_excel_file(excel_path: str) -> Optional[Dict]:
 def _extract_table_data_from_excel(headers: List[str], rows: List[List[str]]) -> Optional[Dict]:
     """Extract structured data from Excel table"""
     try:
-        logger.debug(f"Processing Excel table with headers: {headers}")
+        logger.info(f"Processing Excel table with {len(headers)} headers and {len(rows)} rows")
+        logger.debug(f"Headers: {headers}")
 
         # Determine table type using class method
         processor = DocumentAIProcessor()
         table_type = processor._determine_table_type(headers, rows)
+        logger.info(f"Detected table type: {table_type}")
 
         if table_type == 'soil':
-            return processor._structure_soil_data(headers, rows)
+            result = processor._structure_soil_data(headers, rows)
+            logger.info(f"Soil data structured: {len(result.get('samples', []))} samples")
+            return result
         elif table_type == 'leaf':
-            return processor._structure_leaf_data(headers, rows)
+            result = processor._structure_leaf_data(headers, rows)
+            logger.info(f"Leaf data structured: {len(result.get('samples', []))} samples")
+            return result
         else:
             # Create a generic structure
             samples = []
-            for row in rows:
+            for row_idx, row in enumerate(rows):
                 if len(row) >= len(headers):
                     sample = {}
                     for i, value in enumerate(row):
-                        if i < len(headers):
-                            sample[headers[i]] = value.strip()
-                    if sample:
+                        if i < len(headers) and headers[i].strip():
+                            sample[headers[i].strip()] = str(value).strip() if value else ''
+                    if sample and any(v for v in sample.values() if v):  # Only add non-empty samples
                         samples.append(sample)
-
-                return {
+                        
+            logger.info(f"Generic structure created with {len(samples)} samples")
+            return {
                 'type': 'generic',
                 'headers': headers,
                 'samples': samples,
@@ -1485,7 +1500,9 @@ def _extract_table_data_from_excel(headers: List[str], rows: List[List[str]]) ->
             }
 
     except Exception as e:
-        logger.error(f"CSV table extraction failed: {e}")
+        logger.error(f"Excel table extraction failed: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 
@@ -1803,24 +1820,46 @@ def validate_soil_data(soil_samples: List[Dict]) -> Dict[str, Any]:
         'recommendations': []
     }
     
-    required_params = ['ph', 'organic_carbon', 'available_p']
+    # Map parameter names to their possible variations
+    required_param_mapping = {
+        'ph': ['pH', 'ph', 'Ph', 'PH'],
+        'organic_carbon': ['Org. C (%)', 'Organic Carbon (%)', 'organic_carbon', 'org_c', 'Org.C (%)', 'Org C (%)'],
+        'available_p': ['Avail P (mg/kg)', 'Available P (mg/kg)', 'available_p', 'avail_p', 'Avail. P (mg/kg)']
+    }
     
     for i, sample in enumerate(soil_samples):
         sample_issues = []
         
+        # Get sample data - handle both flat and nested structures
+        sample_data = sample.get('data', sample) if 'data' in sample else sample
+        
         # Check for required parameters
-        missing_params = [param for param in required_params if param not in sample]
+        missing_params = []
+        for param_key, param_variations in required_param_mapping.items():
+            found = False
+            for variation in param_variations:
+                if variation in sample_data:
+                    found = True
+                    break
+            if not found:
+                missing_params.append(param_key)
+        
         if missing_params:
             sample_issues.append(f"Missing parameters: {', '.join(missing_params)}")
         
         # Validate pH range
-        if 'ph' in sample:
-            try:
-                ph_value = float(sample['ph'])
-                if ph_value < 3 or ph_value > 10:
-                    sample_issues.append(f"pH value {ph_value} seems out of normal range (3-10)")
-            except ValueError:
-                sample_issues.append("pH value is not numeric")
+        ph_value = None
+        for ph_variation in required_param_mapping['ph']:
+            if ph_variation in sample_data:
+                try:
+                    ph_value = float(sample_data[ph_variation])
+                    break
+                except (ValueError, TypeError):
+                    continue
+        
+        if ph_value is not None:
+            if ph_value < 3 or ph_value > 10:
+                sample_issues.append(f"pH value {ph_value} seems out of normal range (3-10)")
         
         if sample_issues:
             validation_result['issues'].append(f"Sample {i+1}: {'; '.join(sample_issues)}")
@@ -1837,14 +1876,41 @@ def validate_leaf_data(leaf_samples: List[Dict]) -> Dict[str, Any]:
         'recommendations': []
     }
     
-    required_nutrients = ['N', 'P', 'K']
+    # Map nutrient names to their possible variations
+    required_nutrient_mapping = {
+        'N': ['N (%)', 'Nitrogen (%)', 'N', 'nitrogen', 'N%'],
+        'P': ['P (%)', 'Phosphorus (%)', 'P', 'phosphorus', 'P%'],
+        'K': ['K (%)', 'Potassium (%)', 'K', 'potassium', 'K%']
+    }
     
     for i, sample in enumerate(leaf_samples):
         sample_issues = []
         
-        # Check for required nutrients in % Dry Matter
-        dry_matter = sample.get('% Dry Matter', {})
-        missing_nutrients = [nutrient for nutrient in required_nutrients if nutrient not in dry_matter]
+        # Get sample data - handle both flat and nested structures
+        sample_data = sample.get('data', sample) if 'data' in sample else sample
+        
+        # Check for required nutrients
+        missing_nutrients = []
+        for nutrient_key, nutrient_variations in required_nutrient_mapping.items():
+            found = False
+            
+            # Check in main data
+            for variation in nutrient_variations:
+                if variation in sample_data:
+                    found = True
+                    break
+            
+            # Also check in % Dry Matter section if it exists
+            if not found and '% Dry Matter' in sample_data:
+                dry_matter = sample_data['% Dry Matter']
+                for variation in nutrient_variations:
+                    if variation in dry_matter:
+                        found = True
+                        break
+            
+            if not found:
+                missing_nutrients.append(nutrient_key)
+        
         if missing_nutrients:
             sample_issues.append(f"Missing nutrients: {', '.join(missing_nutrients)}")
         

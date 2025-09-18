@@ -292,6 +292,13 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                         # Check if samples are empty objects
                         samples_are_empty = samples and all(isinstance(s, dict) and not s for s in samples)
 
+                        # Store raw text in session state for fallback analysis
+                        raw_text = ocr_result.get('raw_data', {}).get('text', '')
+                        if container_type == 'soil':
+                            st.session_state.raw_soil_text = raw_text
+                        else:
+                            st.session_state.raw_leaf_text = raw_text
+
                         if samples and not samples_are_empty:
                             # Validate data
                             if detected_type == 'soil':
@@ -300,14 +307,6 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                                 validation = validate_leaf_data(samples)
                             else:
                                 validation = {'is_valid': True, 'issues': []}
-
-                        # Store raw text in session state for fallback analysis
-                        raw_text = ocr_result.get('raw_data', {}).get('text', '')
-                        if raw_text:
-                            if container_type == 'soil':
-                                st.session_state.raw_soil_text = raw_text
-                            else:
-                                st.session_state.raw_leaf_text = raw_text
 
                             # Show validation issues if any
                             if not validation.get('is_valid', True):
@@ -324,7 +323,6 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                             st.warning("No valid samples found in structured data, falling back to raw text parsing...")
 
                             # Fallback to raw text parsing
-                            raw_text = ocr_result.get('raw_data', {}).get('text', '')
                             if not raw_text and ocr_result.get('text'):
                                 raw_text = ocr_result['text']
 
