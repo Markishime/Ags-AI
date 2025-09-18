@@ -538,6 +538,11 @@ def process_new_analysis(analysis_data, progress_bar=None, status_text=None, tim
     try:
         import time
         
+        # Validate analysis_data is not None
+        if analysis_data is None:
+            logger.error("analysis_data is None")
+            return {'success': False, 'message': 'No analysis data provided'}
+        
         # Enhanced progress tracking with detailed steps
         total_steps = 8
         current_step = 1
@@ -686,8 +691,10 @@ def process_new_analysis(analysis_data, progress_bar=None, status_text=None, tim
                             pass
                         return result
                 else:
+                    # For non-image files (PDF, Excel, etc.), save the file and let extract_data_from_image handle it
                     with tempfile.NamedTemporaryFile(suffix=file_ext or '.pdf', delete=False) as tmp_file:
                         tmp_file.write(soil_file.getvalue())
+                        tmp_file.flush()  # Ensure data is written
                         result = extract_data_from_image(tmp_file.name)
                         try:
                             os.unlink(tmp_file.name)
@@ -710,8 +717,10 @@ def process_new_analysis(analysis_data, progress_bar=None, status_text=None, tim
                             pass
                         return result
                 else:
+                    # For non-image files (PDF, Excel, etc.), save the file and let extract_data_from_image handle it
                     with tempfile.NamedTemporaryFile(suffix=file_ext or '.pdf', delete=False) as tmp_file:
                         tmp_file.write(leaf_file.getvalue())
+                        tmp_file.flush()  # Ensure data is written
                         result = extract_data_from_image(tmp_file.name)
                         try:
                             os.unlink(tmp_file.name)
@@ -730,35 +739,41 @@ def process_new_analysis(analysis_data, progress_bar=None, status_text=None, tim
             leaf_ocr_result = leaf_future.result()
 
             # Process OCR results and merge with existing structured data
-            if need_soil_ocr and soil_ocr_result:
-                logger.info("Processing soil OCR results")
-                # Extract samples from OCR result
-                if soil_ocr_result.get('tables') and len(soil_ocr_result['tables']) > 0:
-                    ocr_soil_samples = soil_ocr_result['tables'][0].get('samples', [])
-                    if ocr_soil_samples:
-                        soil_samples.extend(ocr_soil_samples)
-                        logger.info(f"Added {len(ocr_soil_samples)} soil samples from OCR")
+            if need_soil_ocr:
+                if soil_ocr_result and isinstance(soil_ocr_result, dict):
+                    logger.info("Processing soil OCR results")
+                    # Extract samples from OCR result
+                    if soil_ocr_result.get('tables') and len(soil_ocr_result['tables']) > 0:
+                        ocr_soil_samples = soil_ocr_result['tables'][0].get('samples', [])
+                        if ocr_soil_samples:
+                            soil_samples.extend(ocr_soil_samples)
+                            logger.info(f"Added {len(ocr_soil_samples)} soil samples from OCR")
 
-                # Extract raw text
-                if soil_ocr_result.get('raw_data', {}).get('text'):
-                    raw_soil_text = soil_ocr_result['raw_data']['text']
-                elif soil_ocr_result.get('text'):
-                    raw_soil_text = soil_ocr_result['text']
+                    # Extract raw text
+                    if soil_ocr_result.get('raw_data', {}).get('text'):
+                        raw_soil_text = soil_ocr_result['raw_data']['text']
+                    elif soil_ocr_result.get('text'):
+                        raw_soil_text = soil_ocr_result['text']
+                else:
+                    logger.warning("Soil OCR processing returned None or invalid result")
 
-            if need_leaf_ocr and leaf_ocr_result:
-                logger.info("Processing leaf OCR results")
-                # Extract samples from OCR result
-                if leaf_ocr_result.get('tables') and len(leaf_ocr_result['tables']) > 0:
-                    ocr_leaf_samples = leaf_ocr_result['tables'][0].get('samples', [])
-                    if ocr_leaf_samples:
-                        leaf_samples.extend(ocr_leaf_samples)
-                        logger.info(f"Added {len(ocr_leaf_samples)} leaf samples from OCR")
+            if need_leaf_ocr:
+                if leaf_ocr_result and isinstance(leaf_ocr_result, dict):
+                    logger.info("Processing leaf OCR results")
+                    # Extract samples from OCR result
+                    if leaf_ocr_result.get('tables') and len(leaf_ocr_result['tables']) > 0:
+                        ocr_leaf_samples = leaf_ocr_result['tables'][0].get('samples', [])
+                        if ocr_leaf_samples:
+                            leaf_samples.extend(ocr_leaf_samples)
+                            logger.info(f"Added {len(ocr_leaf_samples)} leaf samples from OCR")
 
-                # Extract raw text
-                if leaf_ocr_result.get('raw_data', {}).get('text'):
-                    raw_leaf_text = leaf_ocr_result['raw_data']['text']
-                elif leaf_ocr_result.get('text'):
-                    raw_leaf_text = leaf_ocr_result['text']
+                    # Extract raw text
+                    if leaf_ocr_result.get('raw_data', {}).get('text'):
+                        raw_leaf_text = leaf_ocr_result['raw_data']['text']
+                    elif leaf_ocr_result.get('text'):
+                        raw_leaf_text = leaf_ocr_result['text']
+                else:
+                    logger.warning("Leaf OCR processing returned None or invalid result")
 
         # Log final sample counts
         logger.info(f"Final soil samples count: {len(soil_samples)}")

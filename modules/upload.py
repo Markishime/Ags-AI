@@ -78,9 +78,12 @@ def display_structured_soil_data(soil_data: dict) -> None:
         
         # Create a summary table
         if samples:
-            # Get all unique parameters
+            # Get all unique parameters from the data structure
             all_params = set()
             for sample in samples:
+                # Handle both flat and nested structures
+                if 'data' in sample:
+                    all_params.update(sample['data'].keys())
                 all_params.update(sample.keys())
             
             # Display parameter summary
@@ -90,22 +93,53 @@ def display_structured_soil_data(soil_data: dict) -> None:
             display_samples = samples[:5]  # Show first 5 samples
             
             for i, sample in enumerate(display_samples, 1):
-                with st.expander(f"🧪 Sample {i} - {sample.get('sample_id', sample.get('lab_no', f'Sample {i}'))}", expanded=i==1):
+                sample_id = sample.get('sample_id', sample.get('Lab No.', f'Sample {i}'))
+                with st.expander(f"🧪 Sample {i} - {sample_id}", expanded=i==1):
                     col1, col2 = st.columns(2)
+                    
+                    # Get data from nested structure if it exists
+                    sample_data = sample.get('data', {}) if 'data' in sample else sample
                     
                     with col1:
                         st.markdown("**Basic Parameters:**")
-                        basic_params = ['sample_id', 'lab_no', 'ph', 'nitrogen', 'organic_carbon']
-                        for param in basic_params:
-                            if param in sample:
-                                st.write(f"• **{param.replace('_', ' ').title()}:** {sample[param]}")
+                        # Map actual parameter names to display names
+                        basic_mapping = {
+                            'sample_id': 'Sample ID',
+                            'Lab No.': 'Lab Number',
+                            'pH': 'pH',
+                            'Org. C (%)': 'Organic Carbon (%)',
+                            'N (%)': 'Nitrogen (%)',
+                            'Total N (%)': 'Total Nitrogen (%)'
+                        }
+                        
+                        # Show sample ID first
+                        if 'sample_id' in sample:
+                            st.write(f"• **Sample ID:** {sample['sample_id']}")
+                        
+                        # Show other basic parameters
+                        for param, display_name in basic_mapping.items():
+                            if param in sample_data:
+                                st.write(f"• **{display_name}:** {sample_data[param]}")
                     
                     with col2:
                         st.markdown("**Nutrient Parameters:**")
-                        nutrient_params = ['total_p', 'available_p', 'exchangeable_k', 'exchangeable_ca', 'exchangeable_mg', 'cec']
-                        for param in nutrient_params:
-                            if param in sample:
-                                st.write(f"• **{param.replace('_', ' ').title()}:** {sample[param]}")
+                        # Map actual nutrient parameter names
+                        nutrient_mapping = {
+                            'Avail P (mg/kg)': 'Available P (mg/kg)',
+                            'Total P (mg/kg)': 'Total P (mg/kg)',
+                            'Exch. K (meq%)': 'Exchangeable K (meq%)',
+                            'Exch K (cmol/kg)': 'Exchangeable K (cmol/kg)',
+                            'Exch. Ca (meq%)': 'Exchangeable Ca (meq%)',
+                            'Exch Ca (cmol/kg)': 'Exchangeable Ca (cmol/kg)',
+                            'Exch. Mg (meq%)': 'Exchangeable Mg (meq%)',
+                            'Exch Mg (cmol/kg)': 'Exchangeable Mg (cmol/kg)',
+                            'CEC (meq%)': 'CEC (meq%)',
+                            'CEC (cmol/kg)': 'CEC (cmol/kg)'
+                        }
+                        
+                        for param, display_name in nutrient_mapping.items():
+                            if param in sample_data:
+                                st.write(f"• **{display_name}:** {sample_data[param]}")
             
             if len(samples) > 5:
                 st.info(f"Showing first 5 samples. Total samples: {len(samples)}")
@@ -114,7 +148,7 @@ def display_structured_soil_data(soil_data: dict) -> None:
         st.markdown("**🔍 Detailed Sample Analysis**")
         
         # Sample selector
-        sample_options = [f"Sample {i+1}: {sample.get('sample_id', sample.get('lab_no', f'Sample {i+1}'))}" 
+        sample_options = [f"Sample {i+1}: {sample.get('sample_id', sample.get('Lab No.', f'Sample {i+1}'))}" 
                          for i, sample in enumerate(samples)]
         selected_sample_idx = st.selectbox("Select sample to view:", 
                                          range(len(sample_options)), 
@@ -122,24 +156,54 @@ def display_structured_soil_data(soil_data: dict) -> None:
         
         if selected_sample_idx is not None:
             selected_sample = samples[selected_sample_idx]
+            sample_data = selected_sample.get('data', {}) if 'data' in selected_sample else selected_sample
             
             st.markdown(f"**Sample Details: {sample_options[selected_sample_idx]}**")
             
-            # Group parameters by category
+            # Group parameters by category with actual parameter names
             categories = {
-                'Basic Info': ['sample_id', 'lab_no'],
-                'Soil Chemistry': ['ph', 'nitrogen', 'organic_carbon'],
-                'Phosphorus': ['total_p', 'available_p'],
-                'Exchangeable Cations': ['exchangeable_k', 'exchangeable_ca', 'exchangeable_mg'],
-                'Other': ['cec']
+                'Basic Info': {
+                    'sample_id': 'Sample ID',
+                    'Lab No.': 'Lab Number'
+                },
+                'Soil Chemistry': {
+                    'pH': 'pH',
+                    'Org. C (%)': 'Organic Carbon (%)',
+                    'N (%)': 'Nitrogen (%)',
+                    'Total N (%)': 'Total Nitrogen (%)'
+                },
+                'Phosphorus': {
+                    'Avail P (mg/kg)': 'Available P (mg/kg)',
+                    'Total P (mg/kg)': 'Total P (mg/kg)'
+                },
+                'Exchangeable Cations': {
+                    'Exch. K (meq%)': 'Exchangeable K (meq%)',
+                    'Exch K (cmol/kg)': 'Exchangeable K (cmol/kg)',
+                    'Exch. Ca (meq%)': 'Exchangeable Ca (meq%)',
+                    'Exch Ca (cmol/kg)': 'Exchangeable Ca (cmol/kg)',
+                    'Exch. Mg (meq%)': 'Exchangeable Mg (meq%)',
+                    'Exch Mg (cmol/kg)': 'Exchangeable Mg (cmol/kg)'
+                },
+                'Other': {
+                    'CEC (meq%)': 'CEC (meq%)',
+                    'CEC (cmol/kg)': 'CEC (cmol/kg)'
+                }
             }
             
-            for category, params in categories.items():
-                category_data = {k: v for k, v in selected_sample.items() if k in params}
+            for category, param_mapping in categories.items():
+                category_data = {}
+                
+                # Check both sample and sample_data for parameters
+                for param, display_name in param_mapping.items():
+                    if param in selected_sample:
+                        category_data[display_name] = selected_sample[param]
+                    elif param in sample_data:
+                        category_data[display_name] = sample_data[param]
+                
                 if category_data:
                     st.markdown(f"**{category}:**")
-                    for param, value in category_data.items():
-                        st.write(f"  • {param.replace('_', ' ').title()}: {value}")
+                    for display_name, value in category_data.items():
+                        st.write(f"  • {display_name}: {value}")
                     st.write("")
     
     with tab3:
@@ -318,6 +382,13 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                                         st.markdown("**Recommendations:**")
                                         for rec in validation['recommendations']:
                                             st.info(f"💡 {rec}")
+
+                            # Display the structured data
+                            structured_data = {'samples': samples}
+                            if detected_type == 'soil':
+                                display_structured_soil_data(structured_data)
+                            elif detected_type == 'leaf':
+                                display_structured_leaf_data(structured_data)
 
                         else:
                             st.warning("No valid samples found in structured data, falling back to raw text parsing...")
