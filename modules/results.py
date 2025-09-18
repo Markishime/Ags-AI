@@ -369,13 +369,32 @@ def show_results_page():
     try:
         # Check if there's new analysis data to process
         if 'analysis_data' in st.session_state and st.session_state.analysis_data:
-            # Process the new analysis silently
-            results_data = process_new_analysis(st.session_state.analysis_data)
+            # Enhanced loading interface for non-technical users
+            st.markdown("### 🔬 Analyzing Your Agricultural Reports")
+            st.info("📊 Our AI system is processing your soil and leaf analysis data. This may take a few moments...")
+            
+            # Create enhanced progress display
+            progress_container = st.container()
+            with progress_container:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                time_estimate = st.empty()
+                step_indicator = st.empty()
+            
+            # Process the new analysis with enhanced progress tracking
+            results_data = process_new_analysis(st.session_state.analysis_data, progress_bar, status_text, time_estimate, step_indicator)
             
             # Clear the analysis_data from session state after processing
             del st.session_state.analysis_data
             
-            if not results_data or not results_data.get('success', False):
+            # Always clear the progress container after analysis (success or failure)
+            progress_container.empty()
+            
+            if results_data and results_data.get('success', False):
+                # Enhanced success message
+                st.balloons()
+                st.success("🎉 Analysis completed successfully! Your comprehensive agricultural report is ready.")
+            else:
                 st.error(f"❌ Analysis failed: {results_data.get('message', 'Unknown error')}")
                 st.info("💡 **Tip:** Make sure your uploaded files are clear images of soil and leaf analysis reports.")
                 return
@@ -514,10 +533,24 @@ def load_latest_results():
         st.error(f"Error loading results from database: {str(e)}")
         return None
 
-def process_new_analysis(analysis_data):
-    """Process new analysis data from uploaded files"""
+def process_new_analysis(analysis_data, progress_bar=None, status_text=None, time_estimate=None, step_indicator=None):
+    """Process new analysis data from uploaded files with enhanced progress tracking"""
     try:
         import time
+        
+        # Enhanced progress tracking with detailed steps
+        total_steps = 8
+        current_step = 1
+        
+        # Step 1: Initial validation
+        if progress_bar:
+            progress_bar.progress(5)
+        if status_text:
+            status_text.text("🔍 **Step 1/8:** Validating uploaded files...")
+        if time_estimate:
+            time_estimate.text("⏱️ Estimated time remaining: ~2-3 minutes")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
         
         # Extract data from uploaded files
         soil_file = analysis_data.get('soil_file')
@@ -526,6 +559,17 @@ def process_new_analysis(analysis_data):
         
         if not soil_file or not leaf_file:
             return {'success': False, 'message': 'Missing soil or leaf analysis files'}
+        
+        # Step 2: OCR Processing for Soil
+        current_step = 2
+        if progress_bar:
+            progress_bar.progress(15)
+        if status_text:
+            status_text.text("🌱 **Step 2/8:** Extracting data from soil analysis report...")
+        if time_estimate:
+            time_estimate.text("⏱️ Estimated time remaining: ~2 minutes")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
         
         # Check if structured data is available from upload page (preferred)
         structured_soil_data = st.session_state.get('structured_soil_data', {})
@@ -566,6 +610,17 @@ def process_new_analysis(analysis_data):
             soil_samples = temp_soil_data['data']['samples']
             logger.info(f"Successfully converted {len(soil_samples)} soil samples from structured data")
 
+        # Step 3: Processing Leaf Data
+        current_step = 3
+        if progress_bar:
+            progress_bar.progress(25)
+        if status_text:
+            status_text.text("🍃 **Step 3/8:** Extracting data from leaf analysis report...")
+        if time_estimate:
+            time_estimate.text("⏱️ Estimated time remaining: ~1.5 minutes")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+        
         # Process structured leaf data if available
         if structured_leaf_data:
             logger.info("Processing structured leaf data")
@@ -595,6 +650,17 @@ def process_new_analysis(analysis_data):
         logger.info(f"Leaf samples from structured data: {len(leaf_samples)}, need OCR: {need_leaf_ocr}")
 
         if need_soil_ocr or need_leaf_ocr:
+            # Step 4: OCR Processing
+            current_step = 4
+            if progress_bar:
+                progress_bar.progress(40)
+            if status_text:
+                status_text.text("🔍 **Step 4/8:** Processing images with OCR technology...")
+            if time_estimate:
+                time_estimate.text("⏱️ Estimated time remaining: ~1 minute")
+            if step_indicator:
+                step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+            
             logger.info("Processing missing data through OCR")
         
         # Convert uploaded file to PIL Image for OCR processing
@@ -658,7 +724,7 @@ def process_new_analysis(analysis_data):
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             soil_future = executor.submit(process_soil_ocr)
             leaf_future = executor.submit(process_leaf_ocr)
-
+            
             # Wait for both to complete
             soil_ocr_result = soil_future.result()
             leaf_ocr_result = leaf_future.result()
@@ -722,14 +788,33 @@ def process_new_analysis(analysis_data):
             st.info("• Check that the reports contain readable tabular data")
             return {'success': False, 'message': 'No data could be extracted from uploaded files'}
 
-        # Data Validation
+        # Step 5: Data Validation
+        current_step = 5
+        if progress_bar:
+            progress_bar.progress(55)
+        if status_text:
+            status_text.text("✅ **Step 5/8:** Validating extracted data...")
+        if time_estimate:
+            time_estimate.text("⏱️ Estimated time remaining: ~45 seconds")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
         
         # Get active prompt
         active_prompt = get_active_prompt()
         if not active_prompt:
             return {'success': False, 'message': 'No active analysis prompt found'}
         
-        # AI Analysis
+        # Step 6: AI Analysis
+        current_step = 6
+        if progress_bar:
+            progress_bar.progress(70)
+        if status_text:
+            status_text.text("🤖 **Step 6/8:** Running AI analysis on your data...")
+        if time_estimate:
+            time_estimate.text("⏱️ Estimated time remaining: ~30 seconds")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
+        
         analysis_engine = AnalysisEngine()
         
         # Analysis processing
@@ -888,47 +973,14 @@ def process_new_analysis(analysis_data):
         logger.info(f"  - First soil sample: {transformed_soil_data['data']['samples'][0] if transformed_soil_data['data']['samples'] else 'None'}")
         logger.info(f"  - First leaf sample: {transformed_leaf_data['data']['samples'][0] if transformed_leaf_data['data']['samples'] else 'None'}")
         
-        # Show analysis progress indicators
-        st.markdown("### 🔄 Analysis in Progress...")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        step_indicator = st.empty()
-
-        # Initialize progress tracking
-        progress_bar.progress(0.1)
-        status_text.markdown("🚀 **Starting comprehensive analysis...**")
-
-        def update_progress(step_name, progress_value):
-            """Update progress indicators during analysis"""
-            progress_bar.progress(progress_value)
-            status_text.markdown(f"🔄 **{step_name}...**")
-            step_indicator.markdown(f"📊 **Current Step:** {step_name}")
-
         try:
-            # Set initial progress
-            update_progress("Initializing analysis engine", 0.2)
-
-            # Log structured data usage
-            st.info("📊 **Using Structured OCR Data:** Analysis will use the processed JSON data from both soil and leaf reports for accurate results.")
-            st.info("🤖 **LLM Analysis:** The AI will analyze all parameter values from the structured data and provide step-by-step recommendations based on MPOB standards.")
-
             analysis_results = analysis_engine.generate_comprehensive_analysis(
                 soil_data=transformed_soil_data,
                 leaf_data=transformed_leaf_data,
                 land_yield_data=land_yield_data,
                 prompt_text=active_prompt.get('prompt_text', ''),
-                progress_callback=update_progress
+                progress_callback=None
             )
-
-            # Update progress to completion
-            update_progress("Analysis completed successfully!", 1.0)
-
-            # Clear progress indicators after a short delay
-            import time
-            time.sleep(1)
-            progress_bar.empty()
-            status_text.empty()
-            step_indicator.empty()
 
             logger.info(f"✅ Analysis completed successfully")
             logger.info(f"🔍 Analysis results keys: {list(analysis_results.keys()) if analysis_results else 'None'}")
@@ -939,11 +991,27 @@ def process_new_analysis(analysis_data):
             st.error(f"❌ **Analysis Failed**: {str(e)}")
             return
         
-        # Generating Insights
-        # Insights generation
+        # Step 7: Generating Insights
+        current_step = 7
+        if progress_bar:
+            progress_bar.progress(85)
+        if status_text:
+            status_text.text("💡 **Step 7/8:** Generating insights and recommendations...")
+        if time_estimate:
+            time_estimate.text("⏱️ Estimated time remaining: ~15 seconds")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
 
-        # Saving Results
-        # Saving results
+        # Step 8: Saving Results
+        current_step = 8
+        if progress_bar:
+            progress_bar.progress(95)
+        if status_text:
+            status_text.text("💾 **Step 8/8:** Saving your analysis results...")
+        if time_estimate:
+            time_estimate.text("⏱️ Almost done!")
+        if step_indicator:
+            step_indicator.text(f"📋 Progress: {current_step}/{total_steps} steps completed")
         
         user_email = st.session_state.get('user_email')
         if not user_email:
@@ -981,6 +1049,16 @@ def process_new_analysis(analysis_data):
         
         result_id = f"local_{int(time.time())}"
         st.session_state.stored_analysis_results[result_id] = analysis_results
+        
+        # Final progress completion
+        if progress_bar:
+            progress_bar.progress(100)
+        if status_text:
+            status_text.text("✅ **Analysis Complete!** Your comprehensive report is ready.")
+        if time_estimate:
+            time_estimate.text("🎉 Done!")
+        if step_indicator:
+            step_indicator.text(f"📋 All {total_steps} steps completed successfully!")
         
         # Return data structure with analysis results included
         display_data = {
@@ -1690,20 +1768,20 @@ def display_soil_data_table_with_averages(soil_samples, soil_averages):
             # Soil parameter mappings with accurate MPOB standards for Malaysian oil palm
             soil_standards = {
                 'pH': {'optimal': '4.5-6.0', 'low': '<4.5', 'high': '>6.0'},
-                'Nitrogen_%': {'optimal': '0.15-0.25', 'low': '<0.15', 'high': '>0.25'},
-                'Organic_Carbon_%': {'optimal': '1.5-2.5', 'low': '<1.5', 'high': '>2.5'},
-                'Total_P_mg_kg': {'optimal': '15-25', 'low': '<15', 'high': '>25'},
-                'Available_P_mg_kg': {'optimal': '10-20', 'low': '<10', 'high': '>20'},
-                'Exchangeable_K_meq%': {'optimal': '0.20-0.40', 'low': '<0.20', 'high': '>0.40'},
-                'Exchangeable_Ca_meq%': {'optimal': '2.0-4.0', 'low': '<2.0', 'high': '>4.0'},
-                'Exchangeable_Mg_meq%': {'optimal': '0.6-1.2', 'low': '<0.6', 'high': '>1.2'},
-                'CEC_meq%': {'optimal': '15-25', 'low': '<15', 'high': '>25'}
+                'Nitrogen %': {'optimal': '0.15-0.25', 'low': '<0.15', 'high': '>0.25'},
+                'Organic Carbon %': {'optimal': '1.5-2.5', 'low': '<1.5', 'high': '>2.5'},
+                'Total P mg/kg': {'optimal': '15-25', 'low': '<15', 'high': '>25'},
+                'Available P mg/kg': {'optimal': '10-20', 'low': '<10', 'high': '>20'},
+                'Exch. K meq%': {'optimal': '0.20-0.40', 'low': '<0.20', 'high': '>0.40'},
+                'Exch. Ca meq%': {'optimal': '2.0-4.0', 'low': '<2.0', 'high': '>4.0'},
+                'Exch. Mg meq%': {'optimal': '0.6-1.2', 'low': '<0.6', 'high': '>1.2'},
+                'C.E.C meq%': {'optimal': '15-25', 'low': '<15', 'high': '>25'}
             }
 
             cols = st.columns(2)
             with cols[0]:
                 st.markdown("**Basic Parameters:**")
-                for param in ['pH', 'Organic_Carbon_%', 'CEC_meq%']:
+                for param in ['pH', 'Organic Carbon %', 'C.E.C meq%']:
                     if param in soil_averages:
                         avg_val = soil_averages[param]
                         status = "✅ Optimal"
@@ -1726,11 +1804,11 @@ def display_soil_data_table_with_averages(soil_samples, soil_averages):
                                         status = "⚠️ High"
                                 except:
                                     pass
-                        st.markdown(f"• **{param.replace('_', ' ')}:** {avg_val:.3f} {status}")
+                        st.markdown(f"• **{param}:** {avg_val:.3f} {status}")
 
             with cols[1]:
                 st.markdown("**Nutrient Parameters:**")
-                for param in ['Nitrogen_%', 'Total_P_mg_kg', 'Available_P_mg_kg', 'Exchangeable_K_meq%', 'Exchangeable_Ca_meq%', 'Exchangeable_Mg_meq%']:
+                for param in ['Nitrogen %', 'Total P mg/kg', 'Available P mg/kg', 'Exch. K meq%', 'Exch. Ca meq%', 'Exch. Mg meq%']:
                     if param in soil_averages:
                         avg_val = soil_averages[param]
                         status = "✅ Optimal"
@@ -1744,7 +1822,7 @@ def display_soil_data_table_with_averages(soil_samples, soil_averages):
                                     status = "⚠️ High"
                             except:
                                 pass
-                        st.markdown(f"• **{param.replace('_', ' ')}:** {avg_val:.3f} {status}")
+                        st.markdown(f"• **{param}:** {avg_val:.3f} {status}")
 
 def display_leaf_data_table_with_averages(leaf_samples, leaf_averages):
     """Display leaf data table with parameter averages and MPOB standards"""
@@ -1793,20 +1871,20 @@ def display_leaf_data_table_with_averages(leaf_samples, leaf_averages):
 
             # Leaf parameter mappings with accurate MPOB standards for Malaysian oil palm (mature fronds)
             leaf_standards = {
-                'N_%': {'optimal': '2.4-2.8', 'low': '<2.2', 'high': '>3.0'},
-                'P_%': {'optimal': '0.14-0.20', 'low': '<0.12', 'high': '>0.25'},
-                'K_%': {'optimal': '0.9-1.3', 'low': '<0.8', 'high': '>1.5'},
-                'Mg_%': {'optimal': '0.25-0.45', 'low': '<0.20', 'high': '>0.50'},
-                'Ca_%': {'optimal': '0.5-0.9', 'low': '<0.4', 'high': '>1.0'},
-                'B_mg_kg': {'optimal': '18-28', 'low': '<15', 'high': '>35'},
-                'Cu_mg_kg': {'optimal': '8-18', 'low': '<6', 'high': '>25'},
-                'Zn_mg_kg': {'optimal': '18-35', 'low': '<15', 'high': '>45'}
+                'N': {'optimal': '2.4-2.8', 'low': '<2.2', 'high': '>3.0'},
+                'P': {'optimal': '0.14-0.20', 'low': '<0.12', 'high': '>0.25'},
+                'K': {'optimal': '0.9-1.3', 'low': '<0.8', 'high': '>1.5'},
+                'Mg': {'optimal': '0.25-0.45', 'low': '<0.20', 'high': '>0.50'},
+                'Ca': {'optimal': '0.5-0.9', 'low': '<0.4', 'high': '>1.0'},
+                'B': {'optimal': '18-28', 'low': '<15', 'high': '>35'},
+                'Cu': {'optimal': '8-18', 'low': '<6', 'high': '>25'},
+                'Zn': {'optimal': '18-35', 'low': '<15', 'high': '>45'}
             }
 
             cols = st.columns(2)
             with cols[0]:
                 st.markdown("**Macronutrients:**")
-                for param in ['N_%', 'P_%', 'K_%', 'Mg_%', 'Ca_%']:
+                for param in ['N', 'P', 'K', 'Mg', 'Ca']:
                     if param in leaf_averages:
                         avg_val = leaf_averages[param]
                         status = "✅ Optimal"
@@ -1820,11 +1898,11 @@ def display_leaf_data_table_with_averages(leaf_samples, leaf_averages):
                                     status = "⚠️ High"
                             except:
                                 pass
-                        st.markdown(f"• **{param.replace('_', ' ').replace('%', '(%)')}:** {avg_val:.3f} {status}")
+                        st.markdown(f"• **{param} (%):** {avg_val:.3f} {status}")
 
             with cols[1]:
                 st.markdown("**Micronutrients:**")
-                for param in ['B_mg_kg', 'Cu_mg_kg', 'Zn_mg_kg']:
+                for param in ['B', 'Cu', 'Zn']:
                     if param in leaf_averages:
                         avg_val = leaf_averages[param]
                         status = "✅ Optimal"
@@ -1838,7 +1916,7 @@ def display_leaf_data_table_with_averages(leaf_samples, leaf_averages):
                                     status = "⚠️ High"
                             except:
                                 pass
-                        st.markdown(f"• **{param.replace('_', ' ').replace('mg_kg', '(mg/kg)')}:** {avg_val:.3f} {status}")
+                        st.markdown(f"• **{param} (mg/kg):** {avg_val:.3f} {status}")
 
 
 def format_raw_text_as_table(raw_text, data_type):
@@ -3224,15 +3302,7 @@ def display_step_by_step_results(results_data):
     # Display header with enhanced step information
     st.markdown(f"## 🔬 Step-by-Step Analysis ({total_steps} Steps)")
 
-    # Show data source information
-    st.info("📊 **Data Source:** This analysis is based on the Structured OCR Data (JSON Format) from both soil and leaf reports, ensuring accurate parameter values and MPOB standards compliance.")
-
-    if total_steps > 0:
-        # Show analysis progress with visual indicator
-        progress_bar = st.progress(1.0)
-        
-        # Add analysis metadata
-    else:
+    if total_steps == 0:
         st.warning("⚠️ No step-by-step analysis results found. This may indicate an issue with the analysis process.")
     
     if not step_results:
@@ -3432,10 +3502,7 @@ def display_enhanced_step_result(step_result, step_number):
 
         # Close the enhanced container
         st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("")
-        
-    # 2. KEY FINDINGS SECTION - Removed from individual steps
-    # Key findings are now consolidated and displayed only after Executive Summary
+    
         
     # 3. DETAILED ANALYSIS SECTION - Show if available
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
@@ -3656,146 +3723,7 @@ def display_enhanced_step_result(step_result, step_number):
         logger.error(f"Error calling display_all_step_content for step {step_number}: {e}")
         st.info(f"📊 Step {step_number} content will be displayed by the enhanced analysis system.")
 
-def display_all_step_content(step_result, step_number):
-    """Ensure all step content (visualizations, tables, graphs) is displayed with proper structure"""
-    try:
-        # Ensure parameters are correct types
-        if not isinstance(step_result, dict):
-            logger.error(f"step_result is not a dictionary: {type(step_result)}, value: {step_result}")
-            return
-
-        if not isinstance(step_number, int):
-            try:
-                step_number = int(step_number)
-            except (ValueError, TypeError):
-                logger.error(f"step_number is not a valid integer: {type(step_number)}, value: {step_number}")
-                step_number = 0
-
-        analysis_data = step_result
-
-        # 1. Display VISUALIZATIONS section if available
-        if 'visualizations' in analysis_data and analysis_data['visualizations']:
-                st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                    <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
-                </div>""", unsafe_allow_html=True)
-            
-                try:
-                    visualizations = analysis_data['visualizations']
-                    if isinstance(visualizations, dict):
-                        for i, (viz_type, viz_data) in enumerate(visualizations.items(), 1):
-                            if viz_data and isinstance(viz_data, dict):
-                                if 'type' not in viz_data:
-                                    viz_data['type'] = viz_type
-                                display_visualization(viz_data, i, step_number)
-                    elif isinstance(visualizations, list):
-                        for i, viz in enumerate(visualizations, 1):
-                            if isinstance(viz, dict) and 'type' in viz:
-                                display_visualization(viz, i, step_number)
-                except Exception as e:
-                    logger.error(f"Error displaying visualizations for step {step_number}: {e}")
-                    st.error(f"Error displaying visualizations for Step {step_number}")
-
-        # 2. Generate and display contextual visualizations if no existing ones
-        if step_number == 1:  # Step 1 gets special MPOB comparison bar graphs
-            if 'visualizations' not in analysis_data or not analysis_data['visualizations']:
-                # Generate MPOB comparison bar graphs for Step 1
-                pass  # This is handled by the main Step 1 display function
-
-        # 3. Display FORECAST GRAPH for Step 6
-        if step_number == 6 and should_show_forecast_graph(step_result):
-            # This is handled by the ensure_forecast_graph_displayed function
-            pass
-
-        # 4. Generate additional contextual visualizations based on step content
-        logger.info(f"Calling generate_contextual_visualizations with analysis_data type: {type(analysis_data)}, step_number: {step_number}")
-        try:
-            # Ensure parameters are in correct format before calling
-            if isinstance(analysis_data, dict) and isinstance(step_number, int):
-                contextual_visualizations = generate_contextual_visualizations(analysis_data, step_number)
-            else:
-                logger.warning(f"Invalid parameter types for generate_contextual_visualizations: analysis_data={type(analysis_data)}, step_number={type(step_number)}")
-                contextual_visualizations = None
-        except Exception as e:
-            logger.error(f"Error calling generate_contextual_visualizations: {e}")
-            contextual_visualizations = None
-
-        if contextual_visualizations and isinstance(analysis_data, dict):
-            try:
-                if 'visualizations' not in analysis_data or not analysis_data['visualizations']:
-                    st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                        <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
-                    </div>""", unsafe_allow_html=True)
-
-                for i, viz_data in enumerate(contextual_visualizations, 1):
-                    if viz_data and isinstance(viz_data, dict):
-                        try:
-                            display_visualization(viz_data, i, step_number)
-                        except Exception as e:
-                            logger.error(f"Error displaying visualization {i} for step {step_number}: {e}")
-                            logger.warning(f"Could not display all step content for step {step_number}: {e}")
-                            st.info(f"📊 Step {step_number} visualizations and content will be displayed by the enhanced analysis system.")
-            except Exception as e:
-                logger.error(f"Error processing contextual visualizations: {e}")
-
-def generate_contextual_visualizations(analysis_data, step_number):
-    """Generate contextual visualizations based on step content"""
-    try:
-        logger.info(f"generate_contextual_visualizations (1st version) called with analysis_data type: {type(analysis_data)}, step_number: {step_number}")
-
-        # Handle parameter type issues - if analysis_data is an integer, it means parameters were swapped
-        if isinstance(analysis_data, int) and isinstance(step_number, dict):
-            logger.warning("Parameters appear to be swapped, correcting...")
-            temp = analysis_data
-            analysis_data = step_number
-            step_number = temp
-
-        # Ensure analysis_data is a dictionary
-        if not isinstance(analysis_data, dict):
-            logger.error(f"analysis_data is not a dictionary after correction: {type(analysis_data)}, value: {analysis_data}")
-            return []
-
-        # Ensure step_number is an integer
-        if isinstance(step_number, dict):
-            step_number = step_number.get('step_number', 0)
-        elif not isinstance(step_number, int):
-            try:
-                step_number = int(step_number)
-            except (ValueError, TypeError):
-                logger.error(f"step_number is not a valid integer: {type(step_number)}, value: {step_number}")
-                return []
-
-        visualizations = []
-
-        # Generate nutrient comparison bar graph for Step 1
-        if step_number == 1:
-            # This is handled separately in the main display function
-            pass
-
-        # Generate issue-based visualizations for Step 2
-        elif step_number == 2:
-            if 'detailed_analysis' in analysis_data:
-                detailed_text = str(analysis_data['detailed_analysis'])
-                if 'issue' in detailed_text.lower() or 'problem' in detailed_text.lower():
-                    # Generate an issues summary visualization
-                    issue_viz = create_issues_visualization(detailed_text)
-                    if issue_viz:
-                        visualizations.append(issue_viz)
-
-        # Generate recommendation priority visualization for Step 3
-        elif step_number == 3:
-            if 'detailed_analysis' in analysis_data:
-                detailed_text = str(analysis_data['detailed_analysis'])
-                if 'recommendation' in detailed_text.lower() or 'solution' in detailed_text.lower():
-                    # Generate a recommendations visualization
-                    rec_viz = create_recommendations_visualization(detailed_text)
-                    if rec_viz:
-                        visualizations.append(rec_viz)
-
-        return visualizations if visualizations else None
-
-    except Exception as e:
-        logger.warning(f"Could not generate contextual visualizations for step {step_number}: {e}")
-        return None
+# Removed duplicate function - using the enhanced version below
 
 def create_issues_visualization(detailed_text):
     """Create a visualization of identified issues"""
@@ -3943,106 +3871,248 @@ def display_data_table(table_data, title):
         logger.error(f"Error displaying table {title}: {e}")
         st.error(f"Error displaying table {title}")
 
-def display_visualization(viz_data, viz_number, step_number=None):
-    """Display individual visualization based on type with enhanced chart support"""
-    viz_type = viz_data.get('type', 'unknown')
-    title = viz_data.get('title', f'Visualization {viz_number}')
-    subtitle = viz_data.get('subtitle', '')
-    data = viz_data.get('data', {})
-    options = viz_data.get('options', {})
-    
-    # Visualizations are now displayed for all steps when visual keywords are present
-    
-    # Display title and subtitle
-    st.markdown(f"### {title}")
-    if subtitle:
-        st.markdown(f"*{subtitle}*")
-    
-    if viz_type == 'bar_chart':
-        display_enhanced_bar_chart(data, title, options)
-    elif viz_type == 'range_chart':
-        # Skip range analysis visualizations - no longer displayed
-        return
-    elif viz_type == 'deviation_chart':
-        # Skip deviation analysis visualizations - no longer displayed
-        return
-    elif viz_type == 'radar_chart':
-        return
-    elif viz_type == 'gauge_chart':
-        display_gauge_chart(data, title, options)
-    elif viz_type == 'pie_chart':
-        display_pie_chart(data, title)
-    elif viz_type == 'line_chart':
-        display_line_chart(data, title)
-    elif viz_type == 'scatter_plot':
-        display_scatter_plot(data, title)
-    elif viz_type == 'actual_vs_optimal_bar':
-        display_actual_vs_optimal_bar(data, title, options)
-    elif viz_type == 'nutrient_ratio_diagram':
-        display_nutrient_ratio_diagram(data, title, options)
-    elif viz_type == 'multi_axis_chart':
-        display_multi_axis_chart(data, title, options)
-    elif viz_type == 'heatmap':
-        display_heatmap(data, title, options)
-    elif viz_type == 'plotly_chart':
-        display_plotly_chart(data, title, subtitle)
-    else:
-        st.info(f"Visualization type '{viz_type}' not yet implemented")
-
-def display_plotly_chart(data, title, subtitle):
-    """Display a plotly chart from LLM generated data"""
+def display_all_step_content(step_result, step_number):
+    """Ensure all step content (visualizations, tables, graphs) is displayed with proper structure"""
     try:
-        if isinstance(data, dict) and 'data' in data:
-            # Handle nested data structure
-            chart_data = data['data']
-        else:
-            chart_data = data
+        # Ensure parameters are correct types
+        if not isinstance(step_result, dict):
+            logger.error(f"step_result is not a dictionary: {type(step_result)}, value: {step_result}")
+            return
 
-        if isinstance(chart_data, dict):
-            # Try to extract the actual plotly figure
-            if 'figure' in chart_data:
-                fig = chart_data['figure']
-                if hasattr(fig, 'show'):
-                    st.plotly_chart(fig, use_container_width=True)
-                    return
-            elif 'type' in chart_data and chart_data['type'] == 'scatter':
-                # Handle scatter plot data
-                import plotly.graph_objects as go
-                fig = go.Figure()
-                if 'x' in chart_data and 'y' in chart_data:
-                    fig.add_trace(go.Scatter(
-                        x=chart_data['x'],
-                        y=chart_data['y'],
-                        mode='lines+markers',
-                        name=chart_data.get('name', 'Data')
-                    ))
-                    fig.update_layout(
-                        title=title,
-                        xaxis_title=chart_data.get('x_title', ''),
-                        yaxis_title=chart_data.get('y_title', '')
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    return
-            elif 'labels' in chart_data and 'datasets' in chart_data:
-                # Handle chart.js style data
-                import plotly.graph_objects as go
-                fig = go.Figure()
-                for dataset in chart_data['datasets']:
-                    if 'data' in dataset:
-                        fig.add_trace(go.Bar(
-                            x=chart_data['labels'],
-                            y=dataset['data'],
-                            name=dataset.get('label', 'Data')
-                        ))
-                fig.update_layout(title=title)
-                st.plotly_chart(fig, use_container_width=True)
-                return
+        if not isinstance(step_number, int):
+            try:
+                step_number = int(step_number)
+            except (ValueError, TypeError):
+                logger.error(f"step_number is not a valid integer: {type(step_number)}, value: {step_number}")
+                step_number = 0
 
-        # If we can't parse the data, show a message
-        st.info(f"Unable to display plotly chart: {title}")
+        analysis_data = step_result
 
+        # 1. Display VISUALIZATIONS section if available
+        if 'visualizations' in analysis_data and analysis_data['visualizations']:
+                st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
+                </div>""", unsafe_allow_html=True)
+            
+                try:
+                    visualizations = analysis_data['visualizations']
+                    if isinstance(visualizations, dict):
+                        for i, (viz_type, viz_data) in enumerate(visualizations.items(), 1):
+                            if viz_data and isinstance(viz_data, dict):
+                                if 'type' not in viz_data:
+                                    viz_data['type'] = viz_type
+                                display_visualization(viz_data, i, step_number)
+                    elif isinstance(visualizations, list):
+                        for i, viz in enumerate(visualizations, 1):
+                            if isinstance(viz, dict) and 'type' in viz:
+                                display_visualization(viz, i, step_number)
+                except Exception as e:
+                    logger.error(f"Error displaying visualizations for step {step_number}: {e}")
+                    st.error(f"Error displaying visualizations for Step {step_number}")
+
+        # 2. Generate and display contextual visualizations if no existing ones
+        if step_number == 1:  # Step 1 gets special MPOB comparison bar graphs
+            if 'visualizations' not in analysis_data or not analysis_data['visualizations']:
+                # Generate MPOB comparison bar graphs for Step 1
+                pass  # This is handled by the main Step 1 display function
+
+        # 3. Display FORECAST GRAPH for Step 6
+        if step_number == 6 and should_show_forecast_graph(step_result):
+            # This is handled by the ensure_forecast_graph_displayed function
+            pass
+
+        # 4. Generate additional contextual visualizations based on step content
+        logger.info(f"Calling generate_contextual_visualizations with step_result type: {type(step_result)}, analysis_data type: {type(analysis_data)}")
+        try:
+            # Ensure parameters are in correct format before calling
+            if isinstance(step_result, dict) and isinstance(analysis_data, dict) and isinstance(step_number, int):
+                # Use the correct parameter order: step_result, analysis_data
+                step_result_with_number = step_result.copy()
+                step_result_with_number['step_number'] = step_number
+                contextual_visualizations = generate_contextual_visualizations(step_result_with_number, analysis_data)
+            else:
+                logger.warning(f"Invalid parameter types for generate_contextual_visualizations: step_result={type(step_result)}, analysis_data={type(analysis_data)}, step_number={type(step_number)}")
+                contextual_visualizations = None
+        except Exception as e:
+            logger.error(f"Error calling generate_contextual_visualizations: {e}")
+            contextual_visualizations = None
+
+        try:
+            if contextual_visualizations and isinstance(analysis_data, dict):
+                if 'visualizations' not in analysis_data or not analysis_data['visualizations']:
+                    st.markdown("""<div style="background: linear-gradient(135deg, #17a2b8, #20c997); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                        <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Data Visualizations</h4>
+                    </div>""", unsafe_allow_html=True)
+
+                for i, viz_data in enumerate(contextual_visualizations, 1):
+                    if viz_data and isinstance(viz_data, dict):
+                        try:
+                            display_visualization(viz_data, i, step_number)
+                        except Exception as e:
+                            logger.error(f"Error displaying visualization {i} for step {step_number}: {e}")
+                            logger.warning(f"Could not display all step content for step {step_number}: {e}")
+                            st.info(f"📊 Step {step_number} visualizations and content will be displayed by the enhanced analysis system.")
+        except Exception as e:
+            logger.error(f"Error processing contextual visualizations: {e}")
+
+        # Close the try block for display_all_step_content function
     except Exception as e:
-        st.warning(f"Error displaying plotly chart: {e}")
+        logger.error(f"Error in display_all_step_content: {e}")
+        st.warning(f"Some content for step {step_number} could not be displayed.")
+
+    # End of display_enhanced_step_result function
+
+
+# Temporarily commented out to resolve import issues - function moved below
+
+def create_plotly_figure(viz_data):
+    """Convert visualization data structure to Plotly figure"""
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        
+        viz_type = viz_data.get('type', '')
+        data = viz_data.get('data', {})
+        options = viz_data.get('options', {})
+        
+        if viz_type == 'bar_chart':
+            fig = go.Figure()
+            
+            categories = data.get('categories', [])
+            series = data.get('series', [])
+            
+            for serie in series:
+                fig.add_trace(go.Bar(
+                    name=serie.get('name', ''),
+                    x=categories,
+                    y=serie.get('data', []),
+                    marker_color=serie.get('color', '#3498db')
+                ))
+            
+            fig.update_layout(
+                title=viz_data.get('title', ''),
+                xaxis_title=options.get('x_axis_title', ''),
+                yaxis_title=options.get('y_axis_title', ''),
+                showlegend=options.get('show_legend', True),
+                template='plotly_white',
+                height=400
+            )
+            
+            if options.get('show_grid', True):
+                fig.update_xaxes(showgrid=True)
+                fig.update_yaxes(showgrid=True)
+            
+            return fig
+            
+        elif viz_type == 'line_chart':
+            fig = go.Figure()
+            
+            categories = data.get('categories', [])
+            series = data.get('series', [])
+            
+            for serie in series:
+                fig.add_trace(go.Scatter(
+                    name=serie.get('name', ''),
+                    x=categories,
+                    y=serie.get('data', []),
+                    mode='lines+markers',
+                    line=dict(color=serie.get('color', '#3498db'))
+                ))
+            
+            fig.update_layout(
+                title=viz_data.get('title', ''),
+                xaxis_title=options.get('x_axis_title', ''),
+                yaxis_title=options.get('y_axis_title', ''),
+                showlegend=options.get('show_legend', True),
+                template='plotly_white',
+                height=400
+            )
+            
+            return fig
+            
+        elif viz_type == 'pie_chart':
+            labels = data.get('labels', [])
+            values = data.get('values', [])
+            colors = data.get('colors', [])
+            
+            fig = go.Figure(data=[go.Pie(
+                labels=labels,
+                values=values,
+                marker_colors=colors if colors else None
+            )])
+            
+            fig.update_layout(
+                title=viz_data.get('title', ''),
+                template='plotly_white',
+                height=400
+            )
+            
+            return fig
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error creating Plotly figure: {e}")
+        return None
+
+def display_visualization(viz_data, viz_number, step_number=None):
+    """Display visualization data using Streamlit and Plotly"""
+    if not viz_data or not isinstance(viz_data, dict):
+        return
+    
+    try:
+        # Display visualization title
+        title = viz_data.get('title', f'Visualization {viz_number}')
+        st.markdown(f"#### {title}")
+        
+        # Display subtitle if available
+        subtitle = viz_data.get('subtitle', '')
+        if subtitle:
+            st.markdown(f"*{subtitle}*")
+        
+        # Handle different visualization types
+        viz_type = viz_data.get('type', 'plotly')
+        
+        if viz_type == 'plotly' and 'figure' in viz_data:
+            # Display Plotly figure directly
+            st.plotly_chart(viz_data['figure'], use_container_width=True)
+        
+        elif viz_type in ['bar_chart', 'line_chart', 'pie_chart']:
+            # Convert data structure to Plotly figure
+            fig = create_plotly_figure(viz_data)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning(f"Could not create {viz_type} visualization")
+        
+        elif viz_type == 'dataframe' and 'data' in viz_data:
+            # Display DataFrame
+            st.dataframe(viz_data['data'], use_container_width=True)
+        
+        elif viz_type == 'metric' and 'metrics' in viz_data:
+            # Display metrics
+            metrics = viz_data['metrics']
+            if isinstance(metrics, list) and len(metrics) > 0:
+                cols = st.columns(len(metrics))
+                for i, metric in enumerate(metrics):
+                    with cols[i]:
+                        st.metric(
+                            label=metric.get('label', ''),
+                            value=metric.get('value', ''),
+                            delta=metric.get('delta', None)
+                        )
+        
+        elif viz_type == 'html' and 'content' in viz_data:
+            # Display HTML content
+            st.markdown(viz_data['content'], unsafe_allow_html=True)
+        
+        else:
+            # Fallback: try to display as JSON if no specific type matches
+            st.json(viz_data)
+            
+    except Exception as e:
+        logger.error(f"Error displaying visualization {viz_number}: {e}")
+        st.error(f"Error displaying visualization: {str(e)}")
 
 def has_yield_forecast_data(analysis_data):
     """Check if the analysis data contains yield forecast information"""
@@ -4232,19 +4302,23 @@ def create_nutrient_comparison_viz(soil_params, leaf_params):
         soil_values = []
         leaf_values = []
         
-        # Common nutrients to compare
+        # Common nutrients to compare - mapping soil to leaf parameter names
         nutrient_mapping = {
-            'N_%': 'Nitrogen (%)',
-            'P_%': 'Phosphorus (%)', 
-            'K_%': 'Potassium (%)',
-            'Mg_%': 'Magnesium (%)',
-            'Ca_%': 'Calcium (%)'
+            'Nitrogen %': {'soil': 'Nitrogen %', 'leaf': 'N', 'display': 'Nitrogen (%)'},
+            'Phosphorus': {'soil': 'Total P mg/kg', 'leaf': 'P', 'display': 'Phosphorus'},
+            'Potassium': {'soil': 'K cmol/kg', 'leaf': 'K', 'display': 'Potassium'},
+            'Magnesium': {'soil': 'Mg cmol/kg', 'leaf': 'Mg', 'display': 'Magnesium'},
+            'Calcium': {'soil': 'Ca cmol/kg', 'leaf': 'Ca', 'display': 'Calcium'}
         }
         
-        for soil_key, display_name in nutrient_mapping.items():
-            if soil_key in soil_stats and soil_key in leaf_stats:
+        for nutrient_info in nutrient_mapping.values():
+            soil_key = nutrient_info['soil']
+            leaf_key = nutrient_info['leaf']
+            display_name = nutrient_info['display']
+            
+            if soil_key in soil_stats and leaf_key in leaf_stats:
                 soil_avg = soil_stats[soil_key].get('average', 0)
-                leaf_avg = leaf_stats[soil_key].get('average', 0)
+                leaf_avg = leaf_stats[leaf_key].get('average', 0)
                 
                 if soil_avg > 0 or leaf_avg > 0:
                     nutrients.append(display_name)
@@ -5875,10 +5949,10 @@ def display_step1_data_analysis(analysis_data):
     display_data_echo_table(analysis_data)
     
     # 5. DETAILED TABLES SECTION
-        st.markdown("""<div style="background: linear-gradient(135deg, #6c757d, #495057); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Detailed Tables</h4>
-        </div>""", unsafe_allow_html=True)
-        
+    st.markdown("""<div style="background: linear-gradient(135deg, #6c757d, #495057); padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <h4 style="color: white; margin: 0; font-size: 20px; font-weight: 600;">📊 Detailed Tables</h4>
+    </div>""", unsafe_allow_html=True)
+
     tables_displayed = False
 
     # Display tables from LLM response
@@ -6428,23 +6502,55 @@ def display_data_echo_table(analysis_data):
         if 'parameter_statistics' in leaf_data:
             print(f"Leaf parameter statistics: {list(leaf_data['parameter_statistics'].keys())}")
     
+    # Define parameter type mappings for correct classification
+    soil_parameter_names = {
+        'ph', 'nitrogen', 'nitrogen %', 'n (%)', 'organic carbon', 'organic carbon %', 'org. c (%)',
+        'total p', 'total p (mg/kg)', 'available p', 'available p (mg/kg)', 'avail p (mg/kg)',
+        'exchangeable k', 'exch. k (meq%)', 'exch. k meq%', 'exchangeable ca', 'exch. ca (meq%)', 'exch. ca meq%',
+        'exchangeable mg', 'exch. mg (meq%)', 'exch. mg meq%', 'cec', 'cec (meq%)', 'c.e.c (meq%)', 'c.e.c meq%'
+    }
+    
+    leaf_parameter_names = {
+        'n (%)', 'p (%)', 'k (%)', 'mg (%)', 'ca (%)', 'b (mg/kg)', 'cu (mg/kg)', 'zn (mg/kg)',
+        'n', 'p', 'k', 'mg', 'ca', 'b', 'cu', 'zn'
+    }
+    
+    def determine_parameter_type(param_name):
+        """Determine if a parameter is soil or leaf based on its name"""
+        param_lower = param_name.lower().strip()
+        if param_lower in soil_parameter_names:
+            return 'Soil'
+        elif param_lower in leaf_parameter_names:
+            return 'Leaf'
+        else:
+            # Default classification based on common patterns
+            if any(keyword in param_lower for keyword in ['ph', 'carbon', 'cec', 'exchangeable', 'exch.']):
+                return 'Soil'
+            elif any(keyword in param_lower for keyword in ['b (mg/kg)', 'cu (mg/kg)', 'zn (mg/kg)']):
+                return 'Leaf'
+            else:
+                return 'Unknown'
+    
     # Extract soil parameters
     if soil_data:
         # Try parameter_statistics first
         if 'parameter_statistics' in soil_data:
-        stats = soil_data['parameter_statistics']
-        for param_name, param_data in stats.items():
-            if isinstance(param_data, dict):
-                echo_data.append({
-                    'Parameter': param_name,
-                    'Type': 'Soil',
-                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'Missing',
-                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'Missing',
-                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'Missing',
-                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'Missing',
-                    'Unit': param_data.get('unit', ''),
-                    'Samples': param_data.get('count', 0)
-                    })
+            stats = soil_data['parameter_statistics']
+            for param_name, param_data in stats.items():
+                if isinstance(param_data, dict):
+                    # Ensure correct type classification
+                    param_type = determine_parameter_type(param_name)
+                    if param_type == 'Soil' or param_type == 'Unknown':  # Default unknown to soil if from soil_data
+                        echo_data.append({
+                            'Parameter': param_name,
+                            'Type': 'Soil',
+                            'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'Missing',
+                            'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'Missing',
+                            'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'Missing',
+                            'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'Missing',
+                            'Unit': param_data.get('unit', ''),
+                            'Samples': param_data.get('count', 0)
+                        })
         # Fallback: calculate from samples if parameter_statistics not available
         elif 'samples' in soil_data or 'all_samples' in soil_data:
             samples = soil_data.get('samples', soil_data.get('all_samples', []))
@@ -6501,19 +6607,22 @@ def display_data_echo_table(analysis_data):
     if leaf_data:
         # Try parameter_statistics first
         if 'parameter_statistics' in leaf_data:
-        stats = leaf_data['parameter_statistics']
-        for param_name, param_data in stats.items():
-            if isinstance(param_data, dict):
-                echo_data.append({
-                    'Parameter': param_name,
-                    'Type': 'Leaf',
-                    'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'Missing',
-                    'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'Missing',
-                    'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'Missing',
-                    'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'Missing',
-                    'Unit': param_data.get('unit', ''),
-                    'Samples': param_data.get('count', 0)
-                    })
+            stats = leaf_data['parameter_statistics']
+            for param_name, param_data in stats.items():
+                if isinstance(param_data, dict):
+                    # Ensure correct type classification
+                    param_type = determine_parameter_type(param_name)
+                    if param_type == 'Leaf' or (param_type == 'Unknown' and 'leaf' in str(leaf_data).lower()):  # Default unknown to leaf if from leaf_data
+                        echo_data.append({
+                            'Parameter': param_name,
+                            'Type': 'Leaf',
+                            'Average': f"{param_data.get('average', 0):.2f}" if param_data.get('average') is not None else 'Missing',
+                            'Min': f"{param_data.get('min', 0):.2f}" if param_data.get('min') is not None else 'Missing',
+                            'Max': f"{param_data.get('max', 0):.2f}" if param_data.get('max') is not None else 'Missing',
+                            'Std Dev': f"{param_data.get('std_dev', 0):.2f}" if param_data.get('std_dev') is not None else 'Missing',
+                            'Unit': param_data.get('unit', ''),
+                            'Samples': param_data.get('count', 0)
+                        })
         # Fallback: calculate from samples if parameter_statistics not available
         elif 'samples' in leaf_data or 'all_samples' in leaf_data:
             samples = leaf_data.get('samples', leaf_data.get('all_samples', []))
@@ -6692,17 +6801,39 @@ def generate_nutrient_comparisons_from_raw_data(analysis_data):
         if leaf_data and 'samples' in leaf_data:
             samples = leaf_data['samples']
             if samples:
+                # Map parameter names to their locations in the nested structure
+                param_mapping = {
+                    'N (%)': ('% Dry Matter', 'N'),
+                    'P (%)': ('% Dry Matter', 'P'),
+                    'K (%)': ('% Dry Matter', 'K'),
+                    'Mg (%)': ('% Dry Matter', 'Mg'),
+                    'Ca (%)': ('% Dry Matter', 'Ca'),
+                    'B (mg/kg)': ('mg/kg Dry Matter', 'B'),
+                    'Cu (mg/kg)': ('mg/kg Dry Matter', 'Cu'),
+                    'Zn (mg/kg)': ('mg/kg Dry Matter', 'Zn')
+                }
+                
                 for param, std_info in leaf_standards.items():
                     values = []
-                    for sample in samples:
-                        val = sample.get(param)
-                        if val is not None:
-                            try:
-                                float_val = float(val)
-                                if abs(float_val) < 100:  # Filter out obviously wrong values
-                                    values.append(float_val)
-                            except (ValueError, TypeError):
-                                pass
+                    if param in param_mapping:
+                        section, key = param_mapping[param]
+                        for sample in samples:
+                            section_data = sample.get(section, {})
+                            val = section_data.get(key)
+                            if val is not None:
+                                try:
+                                    # Handle string values like "<1"
+                                    if isinstance(val, str):
+                                        if val.startswith('<'):
+                                            val = val[1:]  # Remove '<' and use the number
+                                        elif val.startswith('>'):
+                                            val = val[1:]  # Remove '>' and use the number
+                                    
+                                    float_val = float(val)
+                                    if abs(float_val) < 100:  # Filter out obviously wrong values
+                                        values.append(float_val)
+                                except (ValueError, TypeError):
+                                    pass
 
                     if values:
                         avg_val = sum(values) / len(values)
@@ -6919,7 +7050,7 @@ def display_nutrient_status_tables(analysis_data):
         'CEC (meq%)'
     ]
     leaf_labels = [
-        'N %', 'P %', 'K %', 'Mg %', 'Ca %',
+        'N (%)', 'P (%)', 'K (%)', 'Mg (%)', 'Ca (%)',
         'B (mg/kg)', 'Cu (mg/kg)', 'Zn (mg/kg)'
     ]
 
@@ -7535,7 +7666,10 @@ def display_step3_solution_recommendations(analysis_data):
     else:
         logger.info("STEP 3 analysis_results NOT found in analysis_data")
     
-
+    # Safety check: If no data available, show a message
+    if not analysis_data or not any(analysis_data.get(key) for key in ['summary', 'detailed_analysis', 'analysis_results']):
+        st.warning("⚠️ No Step 3 analysis data available. Please ensure the analysis has been completed.")
+        return
     
     # 1. SUMMARY SECTION - Always show if available
     if 'summary' in analysis_data and analysis_data['summary']:
@@ -10032,8 +10166,8 @@ def display_raw_data_tables(results_data):
 
     # Check if raw_data has the expected structure (from analysis engine)
     if raw_data.get('soil_parameters') or raw_data.get('leaf_parameters'):
-    soil_params = raw_data.get('soil_parameters', {})
-    leaf_params = raw_data.get('leaf_parameters', {})
+        soil_params = raw_data.get('soil_parameters', {})
+        leaf_params = raw_data.get('leaf_parameters', {})
 
         # Ensure samples are available in the right format
         if 'all_samples' in soil_params and not soil_params.get('samples'):
@@ -10081,8 +10215,8 @@ def display_average_data_tables(results_data):
 
     # Check if raw_data has the expected structure (from analysis engine)
     if raw_data.get('soil_parameters') or raw_data.get('leaf_parameters'):
-    soil_params = raw_data.get('soil_parameters', {})
-    leaf_params = raw_data.get('leaf_parameters', {})
+        soil_params = raw_data.get('soil_parameters', {})
+        leaf_params = raw_data.get('leaf_parameters', {})
 
         # Ensure samples are available in the right format
         if 'all_samples' in soil_params and not soil_params.get('samples'):
@@ -10117,6 +10251,9 @@ def display_average_data_tables(results_data):
         'Exch. K (meq%)': {'optimal': 0.30, 'low': '<0.20', 'high': '>0.40', 'range': '0.20-0.40'},
         'Exch. Ca (meq%)': {'optimal': 3.0, 'low': '<2.0', 'high': '>4.0', 'range': '2.0-4.0'},
         'Exch. Mg (meq%)': {'optimal': 0.9, 'low': '<0.6', 'high': '>1.2', 'range': '0.6-1.2'},
+        'Exch. K meq%': {'optimal': 0.30, 'low': '<0.20', 'high': '>0.40', 'range': '0.20-0.40'},
+        'Exch. Ca meq%': {'optimal': 3.0, 'low': '<2.0', 'high': '>4.0', 'range': '2.0-4.0'},
+        'Exch. Mg meq%': {'optimal': 0.9, 'low': '<0.6', 'high': '>1.2', 'range': '0.6-1.2'},
         'CEC (meq%)': {'optimal': 20, 'low': '<15', 'high': '>25', 'range': '15-25'}
     }
 
@@ -10169,18 +10306,24 @@ def display_average_data_tables(results_data):
                         val = sample['Exchangeable_K_meq%']
                     elif param == 'Exch. K (meq%)' and 'Exch. K meq%' in sample:
                         val = sample['Exch. K meq%']
+                    elif param == 'Exch. K (meq%)' and 'Exch. K (meq%)' in sample:
+                        val = sample['Exch. K (meq%)']
                     elif param == 'Exch. Ca (meq%)' and 'Exchangeable Ca (meq%)' in sample:
                         val = sample['Exchangeable Ca (meq%)']
                     elif param == 'Exch. Ca (meq%)' and 'Exchangeable_Ca_meq%' in sample:
                         val = sample['Exchangeable_Ca_meq%']
                     elif param == 'Exch. Ca (meq%)' and 'Exch. Ca meq%' in sample:
                         val = sample['Exch. Ca meq%']
+                    elif param == 'Exch. Ca (meq%)' and 'Exch. Ca (meq%)' in sample:
+                        val = sample['Exch. Ca (meq%)']
                     elif param == 'Exch. Mg (meq%)' and 'Exchangeable Mg (meq%)' in sample:
                         val = sample['Exchangeable Mg (meq%)']
                     elif param == 'Exch. Mg (meq%)' and 'Exchangeable_Mg_meq%' in sample:
                         val = sample['Exchangeable_Mg_meq%']
                     elif param == 'Exch. Mg (meq%)' and 'Exch. Mg meq%' in sample:
                         val = sample['Exch. Mg meq%']
+                    elif param == 'Exch. Mg (meq%)' and 'Exch. Mg (meq%)' in sample:
+                        val = sample['Exch. Mg (meq%)']
                     elif param == 'CEC (meq%)' and 'C.E.C (meq%)' in sample:
                         val = sample['C.E.C (meq%)']
                     elif param == 'CEC (meq%)' and 'CEC_meq%' in sample:

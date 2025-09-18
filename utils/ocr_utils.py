@@ -40,6 +40,16 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Excel processing imports
+try:
+    import openpyxl
+    import xlrd
+    EXCEL_AVAILABLE = True
+except ImportError:
+    EXCEL_AVAILABLE = False
+    logger.error("Excel processing libraries not available: No module named 'xlrd'")
+    logger.error("Install required libraries: pip install openpyxl xlrd pandas")
+
 class DocumentAIProcessor:
     """Google Document AI processor for OCR extraction"""
     
@@ -182,6 +192,8 @@ class DocumentAIProcessor:
             file_ext = os.path.splitext(file_path)[1].lower()
             mime_type_map = {
                 '.pdf': 'application/pdf',
+                '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                '.xls': 'application/vnd.ms-excel',
                 '.png': 'image/png',
                 '.jpg': 'image/jpeg',
                 '.jpeg': 'image/jpeg'
@@ -1317,10 +1329,133 @@ def _process_csv_file(csv_path: str) -> Optional[Dict]:
         return None
 
 
-def _extract_table_data_from_csv(headers: List[str], rows: List[List[str]]) -> Optional[Dict]:
-    """Extract structured data from CSV table"""
+def _process_excel_file(excel_path: str) -> Optional[Dict]:
+    """Process Excel file directly for table extraction"""
+    if not EXCEL_AVAILABLE:
+        logger.error("Excel processing libraries not available")
+        return None
+        
     try:
-        logger.debug(f"Processing CSV table with headers: {headers}")
+        import pandas as pd
+        from openpyxl import load_workbook
+        import xlrd
+
+        logger.info(f"Processing Excel file: {os.path.basename(excel_path)}")
+
+        # Determine file type and read accordingly
+        file_ext = os.path.splitext(excel_path)[1].lower()
+
+        if file_ext == '.xlsx':
+            # Use openpyxl for .xlsx files
+            workbook = load_workbook(excel_path, data_only=True)
+            sheet = workbook.active
+            data = []
+
+            # Read all rows
+            for row in sheet.iter_rows(values_only=True):
+                if any(cell is not None for cell in row):  # Skip completely empty rows
+                    data.append([str(cell) if cell is not None else '' for cell in row])
+
+        elif file_ext == '.xls':
+            # Use xlrd for .xls files
+            workbook = xlrd.open_workbook(excel_path)
+            sheet = workbook.sheet_by_index(0)
+            data = []
+
+            # Read all rows
+            for row_idx in range(sheet.nrows):
+                row = []
+                for col_idx in range(sheet.ncols):
+                    cell_value = sheet.cell_value(row_idx, col_idx)
+                    row.append(str(cell_value) if cell_value is not None else '')
+                if any(cell.strip() for cell in row):  # Skip rows with only empty strings
+                    data.append(row)
+
+        if not data or len(data) < 2:
+            logger.warning("Excel file has insufficient data")
+            return None
+
+        # First row is headers
+        headers = [cell.strip() for cell in data[0]]
+        data_rows = data[1:]
+
+        # Filter out empty rows from data
+        data_rows = [row for row in data_rows if any(cell.strip() for cell in row)]
+
+        logger.info(f"Excel parsed: {len(headers)} headers, {len(data_rows)} data rows")
+
+        # Process the data
+        table_data = _extract_table_data_from_excel(headers, data_rows)
+
+        result = {
+            'success': True,
+            'tables': [table_data] if table_data else [],
+            'text': f"Excel file with {len(data_rows)} rows",
+            'raw_data': {
+                'headers': headers,
+                'rows': data_rows,
+                'extraction_details': {}
+            }
+        }
+
+        # Format the output in the requested structure
+        if table_data and table_data.get('type') == 'soil':
+            logger.debug(f"Processing soil table with {table_data.get('total_samples', 0)} samples")
+
+            soil_samples = {}
+            for sample in table_data.get('samples', []):
+                if isinstance(sample, dict) and 'sample_id' in sample and 'data' in sample:
+                    sample_id = sample['sample_id']
+                    sample_data = sample['data']
+                    soil_samples[sample_id] = sample_data
+                    logger.debug(f"Added sample {sample_id} with parameters: {list(sample_data.keys())}")
+
+            if soil_samples:
+                # Detect the report type based on sample naming pattern
+                report_type = _detect_report_type(list(soil_samples.keys()))
+
+                result['raw_data']['extraction_details']['soil_samples'] = soil_samples
+                result['raw_data']['extraction_details']['soil_summary'] = {
+                    'total_samples': len(soil_samples),
+                    'sample_ids': list(soil_samples.keys()),
+                    'parameters': list(set([param for sample_data in soil_samples.values() for param in sample_data.keys()])),
+                    'report_type': report_type
+                }
+
+        elif table_data and table_data.get('type') == 'leaf':
+            logger.debug(f"Processing leaf table with {table_data.get('total_samples', 0)} samples")
+
+            leaf_samples = {}
+            for sample in table_data.get('samples', []):
+                if isinstance(sample, dict) and 'sample_id' in sample and 'data' in sample:
+                    sample_id = sample['sample_id']
+                    sample_data = sample['data']
+                    leaf_samples[sample_id] = sample_data
+                    logger.debug(f"Added sample {sample_id} with parameters: {list(sample_data.keys())}")
+
+            if leaf_samples:
+                result['raw_data']['extraction_details']['leaf_samples'] = leaf_samples
+                result['raw_data']['extraction_details']['leaf_summary'] = {
+                    'total_samples': len(leaf_samples),
+                    'sample_ids': list(leaf_samples.keys()),
+                    'parameters': list(set([param for sample_data in leaf_samples.values() for param in sample_data.keys()]))
+                }
+
+        return result
+
+    except ImportError as e:
+        logger.error(f"Excel processing libraries not available: {e}")
+        logger.error("Install required libraries: pip install openpyxl xlrd pandas")
+        return None
+    except Exception as e:
+        logger.error(f"Excel processing failed: {e}")
+        return None
+
+
+def _extract_table_data_from_excel(headers: List[str], rows: List[List[str]]) -> Optional[Dict]:
+    """Extract structured data from Excel table"""
+    try:
+        logger.debug(f"Processing Excel table with headers: {headers}")
 
         # Determine table type using class method
         processor = DocumentAIProcessor()
@@ -1380,7 +1515,7 @@ def extract_data_from_image(image_path: str) -> Dict[str, Any]:
             result['error'] = f"File not found: {image_path}"
             return result
         
-        # Check if it's a CSV or text file and handle differently
+        # Check if it's a CSV, Excel, or text file and handle differently
         file_ext = os.path.splitext(image_path)[1].lower()
         if file_ext in ['.csv', '.txt', '.tsv']:
             csv_result = _process_csv_file(image_path)
@@ -1391,7 +1526,31 @@ def extract_data_from_image(image_path: str) -> Dict[str, Any]:
                 result['raw_data'] = csv_result.get('raw_data', {})
                 # Add structured markdown sections for preview
                 try:
-                    sections = self._tables_to_structured_sections(result['tables'])
+                    processor = DocumentAIProcessor()
+                    sections = processor._tables_to_structured_sections(result['tables'])
+                    if sections and sections.get('markdown'):
+                        if 'extraction_details' not in result['raw_data']:
+                            result['raw_data']['extraction_details'] = {}
+                        result['raw_data']['structured_markdown'] = sections['markdown']
+                        result['raw_data']['structured_tables'] = sections['tables']
+                except Exception:
+                    pass
+                return result
+        elif file_ext in ['.xlsx', '.xls']:
+            if not EXCEL_AVAILABLE:
+                result['error'] = "Excel processing libraries not available. Install with: pip install openpyxl xlrd"
+                return result
+                
+            excel_result = _process_excel_file(image_path)
+            if excel_result and excel_result.get('success'):
+                result['success'] = True
+                result['method'] = f'{file_ext[1:]}_parser'
+                result['tables'] = excel_result.get('tables', [])
+                result['raw_data'] = excel_result.get('raw_data', {})
+                # Add structured markdown sections for preview
+                try:
+                    processor = DocumentAIProcessor()
+                    sections = processor._tables_to_structured_sections(result['tables'])
                     if sections and sections.get('markdown'):
                         if 'extraction_details' not in result['raw_data']:
                             result['raw_data']['extraction_details'] = {}
@@ -1401,8 +1560,8 @@ def extract_data_from_image(image_path: str) -> Dict[str, Any]:
                     pass
                 return result
 
-        # Try Google Document AI first
-        if DOCUMENT_AI_AVAILABLE:
+        # Try Google Document AI first (but skip for Excel files as they're not supported)
+        if DOCUMENT_AI_AVAILABLE and file_ext not in ['.xlsx', '.xls']:
             doc_ai = DocumentAIProcessor()
             doc_result = doc_ai.process_document(image_path)
             
@@ -1468,8 +1627,8 @@ def extract_data_from_image(image_path: str) -> Dict[str, Any]:
                     logger.debug(f"Raw text content: {raw_text[:500]}...")
 
                     try:
-                        text_parser = TextTableParser()
-                        parsed_tables = text_parser._parse_text_for_tables(raw_text)
+                        # Use the existing DocumentAI processor to parse text for tables
+                        parsed_tables = doc_ai._parse_text_for_tables(raw_text)
 
                         if parsed_tables:
                             logger.info(f"Found {len(parsed_tables)} tables from raw text parsing")
@@ -1541,8 +1700,8 @@ def extract_data_from_image(image_path: str) -> Dict[str, Any]:
                 if not result['tables'] and result['raw_data'] and result['raw_data'].get('text'):
                     logger.info("No tables found, attempting to parse raw text for structured data")
                     try:
-                        text_parser = TextTableParser()
-                        parsed_tables = text_parser._parse_text_for_tables(raw_text)
+                        # Use the existing DocumentAI processor to parse text for tables
+                        parsed_tables = doc_ai._parse_text_for_tables(raw_text)
 
                         if parsed_tables:
                             logger.info(f"Found {len(parsed_tables)} tables from raw text parsing")
