@@ -5379,7 +5379,7 @@ def create_actual_vs_optimal_viz(parameter_stats, parameter_type):
         
         return {
             'type': 'actual_vs_optimal_bar',
-            'title': f'📊 {parameter_type.title()} Nutrients: Actual vs Optimal Levels',
+            'title': f'🌱 {parameter_type.title()} Parameters vs MPOB Standards',
             'subtitle': f'Direct comparison of current {parameter_type} nutrient levels against MPOB optimal standards',
             'data': {
                 'categories': categories,

@@ -5203,6 +5203,21 @@ class AnalysisEngine:
             except Exception as _e:
                 self.logger.warning(f"Could not build Step 1 visualizations: {_e}")
 
+            # Enhanced Step 2 processing with real issue analysis
+            try:
+                for i, sr in enumerate(step_results):
+                    if sr and sr.get('step_number') == 2:
+                        # Always rebuild Step 2 with REAL soil and leaf issues for accuracy
+                        sr['identified_issues'] = self._build_step2_issues(soil_params, leaf_params, all_issues)
+                        sr['soil_issues'] = soil_issues
+                        sr['leaf_issues'] = leaf_issues
+                        sr['total_issues'] = len(all_issues)
+                        sr['issues_source'] = 'deterministic'
+                        step_results[i] = sr
+                        break
+            except Exception as _e:
+                self.logger.warning(f"Could not build Step 2 issues: {_e}")
+
             # Calculate processing time
             end_time = datetime.now()
             processing_time = (end_time - start_time).total_seconds()
@@ -5492,64 +5507,31 @@ class AnalysisEngine:
         """Build Step 1 visualizations with soil and leaf parameter comparisons"""
         try:
             visualizations = []
+            
+            # Debug logging
+            self.logger.info(f"Building Step 1 visualizations - Soil params: {bool(soil_params)}, Leaf params: {bool(leaf_params)}")
+            if soil_params:
+                self.logger.info(f"Soil parameter keys: {list(soil_params.get('parameter_statistics', {}).keys())}")
+            if leaf_params:
+                self.logger.info(f"Leaf parameter keys: {list(leaf_params.get('parameter_statistics', {}).keys())}")
 
             # Soil Parameters vs MPOB Standards Visualization
             if soil_params and 'parameter_statistics' in soil_params:
-                soil_viz = {
-                    'type': 'plotly_chart',
-                    'title': '🌱 Soil Parameters vs MPOB Standards',
-                    'subtitle': 'Comparison of your soil parameters against MPOB optimal standards for Malaysian oil palm',
-                    'data': {
-                        'chart_type': 'bar',
-                        'chart_data': {
-                            'x': [],
-                            'y': [],
-                            'name': 'Your Values',
-                            'color': '#2E7D32'
-                        },
-                        'layout': {
-                            'xaxis_title': 'Soil Parameters',
-                            'yaxis_title': 'Values',
-                            'barmode': 'group'
-                        }
-                    }
-                }
-
-                # Add soil parameters
-                for param, stats in soil_params['parameter_statistics'].items():
-                    soil_viz['data']['chart_data']['x'].append(param)
-                    soil_viz['data']['chart_data']['y'].append(stats['average'])
-
-                visualizations.append(soil_viz)
+                soil_viz = self._create_soil_mpob_comparison_viz(soil_params['parameter_statistics'])
+                if soil_viz:
+                    visualizations.append(soil_viz)
+                    self.logger.info("Added soil visualization")
+                else:
+                    self.logger.warning("Soil visualization creation returned None")
 
             # Leaf Parameters vs MPOB Standards Visualization
             if leaf_params and 'parameter_statistics' in leaf_params:
-                leaf_viz = {
-                    'type': 'plotly_chart',
-                    'title': '🍃 Leaf Parameters vs MPOB Standards',
-                    'subtitle': 'Comparison of your leaf parameters against MPOB optimal standards for Malaysian oil palm',
-                    'data': {
-                        'chart_type': 'bar',
-                        'chart_data': {
-                            'x': [],
-                            'y': [],
-                            'name': 'Your Values',
-                            'color': '#FF8C00'
-                        },
-                        'layout': {
-                            'xaxis_title': 'Leaf Parameters',
-                            'yaxis_title': 'Values (mg/kg or %)',
-                            'barmode': 'group'
-                        }
-                    }
-                }
-
-                # Add leaf parameters
-                for param, stats in leaf_params['parameter_statistics'].items():
-                    leaf_viz['data']['chart_data']['x'].append(param)
-                    leaf_viz['data']['chart_data']['y'].append(stats['average'])
-
-                visualizations.append(leaf_viz)
+                leaf_viz = self._create_leaf_mpob_comparison_viz(leaf_params['parameter_statistics'])
+                if leaf_viz:
+                    visualizations.append(leaf_viz)
+                    self.logger.info("Added leaf visualization")
+                else:
+                    self.logger.warning("Leaf visualization creation returned None")
 
             # If no visualizations were created, provide fallback
             if not visualizations:
@@ -5572,18 +5554,435 @@ class AnalysisEngine:
 
         except Exception as e:
             self.logger.error(f"Error building Step 1 visualizations: {str(e)}")
-            return [{
-                'type': 'plotly_chart',
-                'title': 'Visualization Error',
-                'subtitle': f'Error creating visualizations: {str(e)}',
+            return []
+
+    def _create_soil_mpob_comparison_viz(self, soil_param_stats: Dict[str, Any]) -> Dict[str, Any]:
+        """Create soil parameters vs MPOB standards comparison visualization"""
+        try:
+            categories = []
+            actual_values = []
+            optimal_values = []
+            
+            # Debug logging
+            self.logger.info(f"Creating soil visualization with keys: {list(soil_param_stats.keys())}")
+            
+            # Soil parameter mappings - using actual parameter keys from data
+            param_mapping = {
+                'pH': ('pH', 5.0),
+                'N (%)': ('Nitrogen (%)', 0.125),
+                'Org. C (%)': ('Organic Carbon (%)', 2.0),
+                'Total P (mg/kg)': ('Total P (mg/kg)', 30),
+                'Avail P (mg/kg)': ('Available P (mg/kg)', 22),
+                'Exch. K (meq%)': ('Exch. K (meq%)', 0.20),
+                'Exch. Ca (meq%)': ('Exch. Ca (meq%)', 3.0),
+                'Exch. Mg (meq%)': ('Exch. Mg (meq%)', 1.15),
+                'CEC (meq%)': ('CEC (meq%)', 12.0)
+            }
+            
+            for param_key, (display_name, optimal_val) in param_mapping.items():
+                if param_key in soil_param_stats:
+                    actual_val = soil_param_stats[param_key].get('average', 0)
+                    self.logger.info(f"Found soil param {param_key}: {actual_val}")
+                    if actual_val > 0:
+                        categories.append(display_name)
+                        actual_values.append(actual_val)
+                        optimal_values.append(optimal_val)
+            
+            self.logger.info(f"Soil visualization categories: {categories}")
+            if not categories:
+                self.logger.warning("No soil categories found for visualization")
+                return None
+                
+            return {
+                'type': 'actual_vs_optimal_bar',
+                'title': '🌱 Soil Parameters vs MPOB Standards',
+                'subtitle': 'Comparison of current soil nutrient levels against MPOB optimal standards',
                 'data': {
-                    'chart_type': 'bar',
-                    'chart_data': {
-                        'x': ['Error'],
-                        'y': [0]
-                    }
+                    'categories': categories,
+                    'series': [
+                        {'name': 'Current Values', 'values': actual_values, 'color': '#3498db'},
+                        {'name': 'MPOB Optimal', 'values': optimal_values, 'color': '#e74c3c'}
+                    ]
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'y_axis_title': 'Values',
+                    'x_axis_title': 'Soil Parameters',
+                    'show_target_line': True,
+                    'target_line_color': '#f39c12'
                 }
-            }]
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error creating soil MPOB comparison visualization: {e}")
+            return None
+
+    def _create_leaf_mpob_comparison_viz(self, leaf_param_stats: Dict[str, Any]) -> Dict[str, Any]:
+        """Create leaf parameters vs MPOB standards comparison visualization"""
+        try:
+            categories = []
+            actual_values = []
+            optimal_values = []
+            
+            # Debug logging
+            self.logger.info(f"Creating leaf visualization with keys: {list(leaf_param_stats.keys())}")
+            
+            # Leaf parameter mappings - using actual parameter keys from data
+            param_mapping = {
+                'N (%)': ('N (%)', 2.6),
+                'P (%)': ('P (%)', 0.165),
+                'K (%)': ('K (%)', 1.05),
+                'Mg (%)': ('Mg (%)', 0.30),
+                'Ca (%)': ('Ca (%)', 0.60),
+                'B (mg/kg)': ('B (mg/kg)', 20),
+                'Cu (mg/kg)': ('Cu (mg/kg)', 7.5),
+                'Zn (mg/kg)': ('Zn (mg/kg)', 20)
+            }
+            
+            for param_key, (display_name, optimal_val) in param_mapping.items():
+                if param_key in leaf_param_stats:
+                    actual_val = leaf_param_stats[param_key].get('average', 0)
+                    self.logger.info(f"Found leaf param {param_key}: {actual_val}")
+                    if actual_val > 0:
+                        categories.append(display_name)
+                        actual_values.append(actual_val)
+                        optimal_values.append(optimal_val)
+            
+            self.logger.info(f"Leaf visualization categories: {categories}")
+            if not categories:
+                self.logger.warning("No leaf categories found for visualization")
+                return None
+                
+            return {
+                'type': 'actual_vs_optimal_bar',
+                'title': '🍃 Leaf Parameters vs MPOB Standards',
+                'subtitle': 'Comparison of current leaf nutrient levels against MPOB optimal standards',
+                'data': {
+                    'categories': categories,
+                    'series': [
+                        {'name': 'Current Values', 'values': actual_values, 'color': '#2ecc71'},
+                        {'name': 'MPOB Optimal', 'values': optimal_values, 'color': '#e67e22'}
+                    ]
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'y_axis_title': 'Values',
+                    'x_axis_title': 'Leaf Parameters',
+                    'show_target_line': True,
+                    'target_line_color': '#f39c12'
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error creating leaf MPOB comparison visualization: {e}")
+            return None
+
+    def _build_step2_issues(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any], 
+                           all_issues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build Step 2 issues with comprehensive soil and leaf analysis"""
+        try:
+            issues = []
+            
+            # Process soil issues
+            soil_issue_count = 0
+            if soil_params and 'parameter_statistics' in soil_params:
+                for param_name, param_stats in soil_params['parameter_statistics'].items():
+                    avg_val = param_stats.get('average', 0)
+                    if avg_val > 0:
+                        # Determine issue severity based on MPOB standards
+                        severity = self._determine_soil_issue_severity(param_name, avg_val)
+                        if severity != 'Optimal':
+                            soil_issue_count += 1
+                            issues.append({
+                                'parameter': param_name,
+                                'type': 'Soil',
+                                'issue_type': f'{param_name} {severity}',
+                                'severity': severity,
+                                'current_value': avg_val,
+                                'cause': self._get_soil_issue_cause(param_name, avg_val),
+                                'impact': self._get_soil_issue_impact(param_name, avg_val),
+                                'recommendation': self._get_soil_issue_recommendation(param_name, avg_val)
+                            })
+            
+            # Process leaf issues
+            leaf_issue_count = 0
+            if leaf_params and 'parameter_statistics' in leaf_params:
+                for param_name, param_stats in leaf_params['parameter_statistics'].items():
+                    avg_val = param_stats.get('average', 0)
+                    if avg_val > 0:
+                        # Determine issue severity based on MPOB standards
+                        severity = self._determine_leaf_issue_severity(param_name, avg_val)
+                        if severity != 'Optimal':
+                            leaf_issue_count += 1
+                            issues.append({
+                                'parameter': param_name,
+                                'type': 'Leaf',
+                                'issue_type': f'{param_name} {severity}',
+                                'severity': severity,
+                                'current_value': avg_val,
+                                'cause': self._get_leaf_issue_cause(param_name, avg_val),
+                                'impact': self._get_leaf_issue_impact(param_name, avg_val),
+                                'recommendation': self._get_leaf_issue_recommendation(param_name, avg_val)
+                            })
+            
+            # Add summary information
+            if issues:
+                issues.insert(0, {
+                    'parameter': 'Summary',
+                    'type': 'Summary',
+                    'issue_type': 'Total Issues Identified',
+                    'severity': 'Information',
+                    'current_value': len(issues),
+                    'cause': f'Analysis of {soil_issue_count} soil issues and {leaf_issue_count} leaf issues',
+                    'impact': 'Multiple agronomic factors affecting palm health and yield',
+                    'recommendation': 'Address critical issues first, then implement comprehensive nutrient management'
+                })
+            
+            return issues
+            
+        except Exception as e:
+            self.logger.error(f"Error building Step 2 issues: {e}")
+            return []
+
+    def _determine_soil_issue_severity(self, param_name: str, value: float) -> str:
+        """Determine soil issue severity based on MPOB standards"""
+        try:
+            # MPOB soil standards
+            if 'pH' in param_name.lower():
+                if 4.5 <= value <= 6.0:
+                    return 'Optimal'
+                elif value < 4.0 or value > 7.0:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'organic' in param_name.lower() or 'carbon' in param_name.lower():
+                if value >= 2.0:
+                    return 'Optimal'
+                elif value >= 1.0:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            elif 'nitrogen' in param_name.lower():
+                if value >= 0.15:
+                    return 'Optimal'
+                elif value >= 0.10:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            elif 'phosphorus' in param_name.lower() or 'p' in param_name.lower():
+                if value >= 15:
+                    return 'Optimal'
+                elif value >= 5:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            elif 'potassium' in param_name.lower() or 'k' in param_name.lower():
+                if value >= 0.20:
+                    return 'Optimal'
+                elif value >= 0.10:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            elif 'calcium' in param_name.lower() or 'ca' in param_name.lower():
+                if value >= 0.50:
+                    return 'Optimal'
+                elif value >= 0.25:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            elif 'magnesium' in param_name.lower() or 'mg' in param_name.lower():
+                if value >= 0.25:
+                    return 'Optimal'
+                elif value >= 0.15:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            elif 'cec' in param_name.lower():
+                if value >= 8.0:
+                    return 'Optimal'
+                elif value >= 5.0:
+                    return 'Low'
+                else:
+                    return 'Critical'
+            else:
+                return 'Unknown'
+        except Exception:
+            return 'Unknown'
+
+    def _determine_leaf_issue_severity(self, param_name: str, value: float) -> str:
+        """Determine leaf issue severity based on MPOB standards"""
+        try:
+            # MPOB leaf standards
+            if 'n' in param_name.lower() and '%' in param_name:
+                if 2.4 <= value <= 2.8:
+                    return 'Optimal'
+                elif value < 2.0 or value > 3.0:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'p' in param_name.lower() and '%' in param_name:
+                if 0.15 <= value <= 0.18:
+                    return 'Optimal'
+                elif value < 0.10 or value > 0.25:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'k' in param_name.lower() and '%' in param_name:
+                if 0.9 <= value <= 1.2:
+                    return 'Optimal'
+                elif value < 0.7 or value > 1.5:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'mg' in param_name.lower() and '%' in param_name:
+                if 0.25 <= value <= 0.35:
+                    return 'Optimal'
+                elif value < 0.15 or value > 0.45:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'ca' in param_name.lower() and '%' in param_name:
+                if 0.5 <= value <= 0.7:
+                    return 'Optimal'
+                elif value < 0.3 or value > 0.9:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'b' in param_name.lower() and 'mg' in param_name.lower():
+                if 15 <= value <= 25:
+                    return 'Optimal'
+                elif value < 10 or value > 35:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'cu' in param_name.lower() and 'mg' in param_name.lower():
+                if 5 <= value <= 10:
+                    return 'Optimal'
+                elif value < 3 or value > 15:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            elif 'zn' in param_name.lower() and 'mg' in param_name.lower():
+                if 15 <= value <= 25:
+                    return 'Optimal'
+                elif value < 10 or value > 35:
+                    return 'Critical'
+                else:
+                    return 'Sub-optimal'
+            else:
+                return 'Unknown'
+        except Exception:
+            return 'Unknown'
+
+    def _get_soil_issue_cause(self, param_name: str, value: float) -> str:
+        """Get cause description for soil issues"""
+        causes = {
+            'pH': 'Soil pH imbalance due to acidic or alkaline conditions',
+            'organic': 'Low organic matter content affecting soil structure and nutrient retention',
+            'nitrogen': 'Insufficient nitrogen availability for plant growth',
+            'phosphorus': 'Low phosphorus levels limiting root development and energy transfer',
+            'potassium': 'Potassium deficiency affecting water regulation and disease resistance',
+            'calcium': 'Calcium deficiency impacting cell wall strength and nutrient uptake',
+            'magnesium': 'Magnesium deficiency affecting chlorophyll production',
+            'cec': 'Low cation exchange capacity reducing nutrient holding capacity'
+        }
+        
+        for key, cause in causes.items():
+            if key in param_name.lower():
+                return cause
+        return 'Nutrient imbalance affecting plant health'
+
+    def _get_leaf_issue_cause(self, param_name: str, value: float) -> str:
+        """Get cause description for leaf issues"""
+        causes = {
+            'n': 'Nitrogen deficiency affecting protein synthesis and growth',
+            'p': 'Phosphorus deficiency limiting energy transfer and root development',
+            'k': 'Potassium deficiency affecting water regulation and disease resistance',
+            'mg': 'Magnesium deficiency impacting chlorophyll production',
+            'ca': 'Calcium deficiency affecting cell wall strength',
+            'b': 'Boron deficiency impacting cell division and sugar transport',
+            'cu': 'Copper deficiency affecting enzyme activity',
+            'zn': 'Zinc deficiency limiting enzyme function and growth'
+        }
+        
+        for key, cause in causes.items():
+            if key in param_name.lower():
+                return cause
+        return 'Nutrient deficiency affecting leaf function'
+
+    def _get_soil_issue_impact(self, param_name: str, value: float) -> str:
+        """Get impact description for soil issues"""
+        impacts = {
+            'pH': 'Reduced nutrient availability and root development',
+            'organic': 'Poor soil structure and reduced water retention',
+            'nitrogen': 'Stunted growth and yellowing of leaves',
+            'phosphorus': 'Poor root development and delayed maturity',
+            'potassium': 'Reduced drought tolerance and disease susceptibility',
+            'calcium': 'Weak cell walls and blossom end rot',
+            'magnesium': 'Chlorosis and reduced photosynthesis',
+            'cec': 'Nutrient leaching and poor fertilizer efficiency'
+        }
+        
+        for key, impact in impacts.items():
+            if key in param_name.lower():
+                return impact
+        return 'Reduced plant health and yield potential'
+
+    def _get_leaf_issue_impact(self, param_name: str, value: float) -> str:
+        """Get impact description for leaf issues"""
+        impacts = {
+            'n': 'Reduced growth and chlorosis',
+            'p': 'Poor root development and delayed flowering',
+            'k': 'Reduced drought tolerance and disease resistance',
+            'mg': 'Interveinal chlorosis and reduced photosynthesis',
+            'ca': 'Tip burn and poor fruit quality',
+            'b': 'Corky fruit and poor seed development',
+            'cu': 'Dieback and reduced enzyme activity',
+            'zn': 'Small leaves and poor growth'
+        }
+        
+        for key, impact in impacts.items():
+            if key in param_name.lower():
+                return impact
+        return 'Reduced leaf function and plant health'
+
+    def _get_soil_issue_recommendation(self, param_name: str, value: float) -> str:
+        """Get recommendation for soil issues"""
+        recommendations = {
+            'pH': 'Apply lime to raise pH or sulfur to lower pH based on current level',
+            'organic': 'Add organic matter through compost, mulch, or cover crops',
+            'nitrogen': 'Apply nitrogen fertilizer based on soil test recommendations',
+            'phosphorus': 'Apply phosphorus fertilizer and ensure proper pH for availability',
+            'potassium': 'Apply potassium fertilizer, preferably in split applications',
+            'calcium': 'Apply calcium carbonate or gypsum based on pH requirements',
+            'magnesium': 'Apply magnesium sulfate or dolomitic lime',
+            'cec': 'Improve soil organic matter and consider clay amendments'
+        }
+        
+        for key, rec in recommendations.items():
+            if key in param_name.lower():
+                return rec
+        return 'Consult with agronomist for specific fertilizer recommendations'
+
+    def _get_leaf_issue_recommendation(self, param_name: str, value: float) -> str:
+        """Get recommendation for leaf issues"""
+        recommendations = {
+            'n': 'Apply nitrogen fertilizer and improve soil organic matter',
+            'p': 'Apply phosphorus fertilizer and ensure proper pH',
+            'k': 'Apply potassium fertilizer in split applications',
+            'mg': 'Apply magnesium sulfate or foliar spray',
+            'ca': 'Apply calcium fertilizer and improve soil pH',
+            'b': 'Apply boron fertilizer or foliar spray',
+            'cu': 'Apply copper fertilizer or foliar spray',
+            'zn': 'Apply zinc fertilizer or foliar spray'
+        }
+        
+        for key, rec in recommendations.items():
+            if key in param_name.lower():
+                return rec
+        return 'Apply appropriate fertilizer based on soil test recommendations'
 
     def _build_step1_tables(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any],
                            land_yield_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -5650,6 +6049,59 @@ class AnalysisEngine:
                     ])
 
                 tables.append(leaf_table)
+                
+                # Add Leaf Nutrient Status vs. MPOB Optimum Ranges table
+                leaf_status_table = {
+                    'title': 'Leaf Nutrient Status vs. MPOB Optimum Ranges',
+                    'subtitle': 'Comparison of leaf nutrient levels against MPOB optimal ranges for Malaysian oil palm',
+                    'headers': ['Parameter', 'Current Value', 'MPOB Optimal Range', 'Status', 'Recommendation'],
+                    'rows': []
+                }
+                
+                # MPOB optimal ranges for leaf parameters
+                mpob_ranges = {
+                    'N_%': (2.4, 2.8),
+                    'P_%': (0.15, 0.18),
+                    'K_%': (0.9, 1.2),
+                    'Mg_%': (0.25, 0.35),
+                    'Ca_%': (0.5, 0.7),
+                    'B_mg_kg': (15, 25),
+                    'Cu_mg_kg': (5, 10),
+                    'Zn_mg_kg': (15, 25)
+                }
+                
+                for param, stats in leaf_params['parameter_statistics'].items():
+                    avg_val = stats['average']
+                    if avg_val > 0:
+                        # Find matching MPOB range
+                        mpob_range = None
+                        for mpob_param, (min_val, max_val) in mpob_ranges.items():
+                            if mpob_param in param or param in mpob_param:
+                                mpob_range = (min_val, max_val)
+                                break
+                        
+                        if mpob_range:
+                            min_val, max_val = mpob_range
+                            if min_val <= avg_val <= max_val:
+                                status = 'Optimal'
+                                recommendation = 'Maintain current levels'
+                            elif avg_val < min_val:
+                                status = 'Deficient'
+                                recommendation = 'Apply foliar fertilizer'
+                            else:
+                                status = 'Excessive'
+                                recommendation = 'Reduce fertilizer application'
+                            
+                            leaf_status_table['rows'].append([
+                                param,
+                                f"{avg_val:.3f}",
+                                f"{min_val}-{max_val}",
+                                status,
+                                recommendation
+                            ])
+                
+                if leaf_status_table['rows']:
+                    tables.append(leaf_status_table)
 
             # Land and Yield Summary Table
             if land_yield_data:
