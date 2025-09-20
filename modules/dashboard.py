@@ -790,7 +790,7 @@ def display_dashboard_header():
         """, unsafe_allow_html=True)
     
     with col3:
-        if st.button("🚪 Logout", type="secondary", use_container_width=True):
+        if st.button("🚪 Logout", type="secondary", width='stretch'):
             clear_authentication_state()
             st.success("Logged out successfully!")
             st.rerun()
@@ -1195,7 +1195,7 @@ def display_monthly_trends_chart(user_id: str):
             showlegend=True
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
     except Exception as e:
         st.error(f"Error displaying monthly trends: {str(e)}")
@@ -1244,7 +1244,7 @@ def display_issue_analysis_chart(user_id: str):
                 title="Issues by Type",
                 color_discrete_sequence=px.colors.qualitative.Set3
             )
-            st.plotly_chart(fig_types, use_container_width=True)
+            st.plotly_chart(fig_types, width='stretch')
         
         with col2:
             fig_priority = px.pie(
@@ -1258,7 +1258,7 @@ def display_issue_analysis_chart(user_id: str):
                     'Critical': '#FF6347'
                 }
             )
-            st.plotly_chart(fig_priority, use_container_width=True)
+            st.plotly_chart(fig_priority, width='stretch')
         
     except Exception as e:
         st.error(f"Error displaying issue analysis: {str(e)}")
@@ -1309,7 +1309,7 @@ def display_recommendation_patterns_chart(user_id: str):
                 color_continuous_scale='Viridis'
             )
             fig_categories.update_layout(showlegend=False)
-            st.plotly_chart(fig_categories, use_container_width=True)
+            st.plotly_chart(fig_categories, width='stretch')
         
         with col2:
             fig_cost = px.bar(
@@ -1320,7 +1320,7 @@ def display_recommendation_patterns_chart(user_id: str):
                 color_discrete_map="identity"
             )
             fig_cost.update_layout(showlegend=False)
-            st.plotly_chart(fig_cost, use_container_width=True)
+            st.plotly_chart(fig_cost, width='stretch')
         
     except Exception as e:
         st.error(f"Error displaying recommendation patterns: {str(e)}")
@@ -1583,7 +1583,7 @@ def display_user_profile_section(user_info: Dict[str, Any]):
             st.metric("Recommendations", stats.get('total_recommendations', 0))
         
         # Edit profile button
-        if st.button("✏️ Edit Profile", use_container_width=True, type="secondary"):
+        if st.button("✏️ Edit Profile", width='stretch', type="secondary"):
             edit_profile_modal(user_info)
 
 # ===== QUICK ACTIONS SECTION =====
@@ -1592,24 +1592,24 @@ def display_quick_actions_section():
     st.subheader("⚡ Quick Actions")
     
     # Primary actions
-    if st.button("📤 Analyze Files", use_container_width=True, type="primary"):
+    if st.button("📤 Analyze Files", width='stretch', type="primary"):
         st.session_state.current_page = 'upload'
         st.rerun()
     
-    if st.button("📈 View History", use_container_width=True):
+    if st.button("📈 View History", width='stretch'):
         st.session_state.current_page = 'history'
         st.rerun()
     
     st.markdown("---")
     
     # Secondary actions
-    if st.button("📋 Generate Report", use_container_width=True):
+    if st.button("📋 Generate Report", width='stretch'):
         st.info("Report generation feature coming soon!")
     
-    if st.button("📧 Export Data", use_container_width=True):
+    if st.button("📧 Export Data", width='stretch'):
         st.info("Data export feature coming soon!")
     
-    if st.button("⚙️ Settings", use_container_width=True):
+    if st.button("⚙️ Settings", width='stretch'):
         st.info("Settings page coming soon!")
     
     # Admin actions
@@ -1618,11 +1618,11 @@ def display_quick_actions_section():
         st.markdown("---")
         st.write("**🔧 Admin Actions:**")
         
-        if st.button("👥 User Management", use_container_width=True):
+        if st.button("👥 User Management", width='stretch'):
             st.session_state.current_page = 'admin'
             st.rerun()
         
-        if st.button("🤖 AI Configuration", use_container_width=True):
+        if st.button("🤖 AI Configuration", width='stretch'):
             st.session_state.current_page = 'admin'
             st.rerun()
 
@@ -1671,7 +1671,7 @@ def display_system_status_section():
         st.metric("Success Rate", f"{status.get('success_rate', 0):.1f}%")
     
     # Refresh status button
-    if st.button("🔄 Refresh Status", use_container_width=True):
+    if st.button("🔄 Refresh Status", width='stretch'):
         st.rerun()
 
 def get_system_status() -> Dict[str, Any]:
@@ -2070,7 +2070,7 @@ def display_analytics_insights_tab(user_id):
                 line=dict(width=3),
                 marker=dict(size=8)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
             # Show trend summary
             if len(monthly_data) > 1:

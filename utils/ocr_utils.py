@@ -1651,7 +1651,7 @@ def extract_data_from_image(image_path: str) -> Dict[str, Any]:
                             logger.info(f"Found {len(parsed_tables)} tables from raw text parsing")
                             result['tables'] = parsed_tables
                         else:
-                            logger.warning("Raw text parsing returned no tables")
+                            logger.debug("Raw text parsing returned no tables - this is normal for some document types")
 
                             # Update extraction details with parsed data
                             for table in parsed_tables:

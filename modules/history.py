@@ -16,21 +16,21 @@ def show_history_page():
     """Main history page - displays past analysis results"""
     # Check authentication
     if not st.session_state.get('authenticated', False):
-        st.markdown('<h1 style="color: #2E8B57; text-align: center;">📋 Analysis History</h1>', unsafe_allow_html=True)
+        st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📋 Analysis History</h1>', unsafe_allow_html=True)
         st.warning("🔒 Please log in to view analysis history.")
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔑 Login", type="primary", use_container_width=True):
+            if st.button("🔑 Login", type="primary"):
                 st.session_state.current_page = 'login'
                 st.rerun()
         with col2:
-            if st.button("📝 Register", use_container_width=True):
+            if st.button("📝 Register"):
                 st.session_state.current_page = 'register'
                 st.rerun()
         return
     
-    st.markdown('<h1 style="color: #2E8B57; text-align: center;">📋 Analysis History</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📋 Analysis History</h1>', unsafe_allow_html=True)
     
     # Display analysis history
     display_analysis_history()
@@ -40,17 +40,17 @@ def show_history_page():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("📤 Analyze Files", type="primary", use_container_width=True):
+        if st.button("📤 Analyze Files", type="primary"):
             st.session_state.current_page = 'upload'
             st.rerun()
     
     with col2:
-        if st.button("🔍 View Current Results", use_container_width=True):
+        if st.button("🔍 View Current Results"):
             st.session_state.current_page = 'results'
             st.rerun()
     
     with col3:
-        if st.button("🏠 Home", use_container_width=True):
+        if st.button("🏠 Home"):
             st.session_state.current_page = 'home'
             st.rerun()
 
@@ -735,7 +735,7 @@ def _generate_intelligent_key_findings(analysis_data, step_results):
     return all_key_findings
 
 def _generate_comprehensive_parameter_findings(analysis_data, step_results):
-    """Generate comprehensive key findings grouped by specific parameters - History page version"""
+    """Generate concise parameter-specific findings only for significant deficiencies or excesses - History page version"""
     findings = []
     
     # Get raw data for analysis
@@ -750,194 +750,112 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
     except:
         mpob = None
     
-    # 1. Soil pH Analysis
+    # Only generate findings for significant issues (deficient or excessive levels)
+    critical_findings = []
+    
+    # 1. Soil pH Analysis - only if significantly off
     if 'pH' in soil_params and mpob:
         ph_value = soil_params['pH'].get('average', 0)
         ph_optimal = mpob.get('soil', {}).get('ph', {}).get('optimal', 6.5)
         
         if ph_value > 0:
-            if ph_value < 5.5:
-                findings.append({
-                    'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development."
+            if ph_value < 5.2:  # Significantly acidic
+                critical_findings.append({
+                    'finding': f"Soil pH is critically acidic at {ph_value:.1f}, requiring lime application to improve nutrient availability."
                 })
-            elif ph_value > 7.5:
-                findings.append({
-                    'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc."
-                })
-            else:
-                findings.append({
-                    'finding': f"Soil pH is within optimal range at {ph_value:.1f}, providing good conditions for nutrient availability and root development."
+            elif ph_value > 7.8:  # Significantly alkaline
+                critical_findings.append({
+                    'finding': f"Soil pH is too alkaline at {ph_value:.1f}, may cause nutrient lockup requiring acidification."
                 })
     
-    # 2. Soil Nitrogen Analysis
+    # 2. Soil Nitrogen Analysis - only if significantly deficient
     if 'Nitrogen_%' in soil_params and mpob:
         n_value = soil_params['Nitrogen_%'].get('average', 0)
         n_optimal = mpob.get('soil', {}).get('nitrogen', {}).get('optimal', 0.2)
         
-        if n_value > 0:
-            if n_value < n_optimal * 0.7:
-                findings.append({
-                    'finding': f"Soil nitrogen is critically deficient at {n_value:.2f}%, well below optimal level of {n_optimal:.2f}%. This severely limits plant growth and leaf development."
-                })
-            elif n_value > n_optimal * 1.3:
-                findings.append({
-                    'finding': f"Soil nitrogen is excessive at {n_value:.2f}%, above optimal level of {n_optimal:.2f}%. This may cause nutrient imbalances and environmental concerns."
-                })
-            else:
-                findings.append({
-                    'finding': f"Soil nitrogen is adequate at {n_value:.2f}%, within optimal range for healthy plant growth."
-                })
+        if n_value > 0 and n_value < n_optimal * 0.6:  # Significantly deficient
+            critical_findings.append({
+                'finding': f"Soil nitrogen is critically low at {n_value:.2f}%, requiring immediate nitrogen fertilization."
+            })
     
-    # 3. Soil Phosphorus Analysis
+    # 3. Soil Phosphorus Analysis - only if significantly off
     if 'Available_P_mg_kg' in soil_params and mpob:
         p_value = soil_params['Available_P_mg_kg'].get('average', 0)
         p_optimal = mpob.get('soil', {}).get('available_phosphorus', {}).get('optimal', 15)
         
         if p_value > 0:
-            if p_value < p_optimal * 0.5:
-                findings.append({
-                    'finding': f"Available phosphorus is critically low at {p_value:.1f} mg/kg, severely below optimal level of {p_optimal} mg/kg. This limits root development and energy transfer."
+            if p_value < p_optimal * 0.4:  # Significantly deficient
+                critical_findings.append({
+                    'finding': f"Available phosphorus is critically low at {p_value:.1f} mg/kg, requiring phosphorus supplementation."
                 })
-            elif p_value > p_optimal * 2:
-                findings.append({
-                    'finding': f"Available phosphorus is excessive at {p_value:.1f} mg/kg, well above optimal level of {p_optimal} mg/kg. This may cause nutrient lockup and environmental issues."
-                })
-            else:
-                findings.append({
-                    'finding': f"Available phosphorus is adequate at {p_value:.1f} mg/kg, within optimal range for proper plant development."
+            elif p_value > p_optimal * 2.5:  # Significantly excessive
+                critical_findings.append({
+                    'finding': f"Available phosphorus is excessive at {p_value:.1f} mg/kg, may cause environmental issues."
                 })
     
-    # 4. Soil Potassium Analysis
+    # 4. Soil Potassium Analysis - only if significantly deficient
     if 'Exchangeable_K_meq%' in soil_params and mpob:
         k_value = soil_params['Exchangeable_K_meq%'].get('average', 0)
         k_optimal = mpob.get('soil', {}).get('exchangeable_potassium', {}).get('optimal', 0.3)
         
-        if k_value > 0:
-            if k_value < k_optimal * 0.6:
-                findings.append({
-                    'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq%, below optimal level of {k_optimal:.2f} meq%. This affects water regulation and disease resistance."
-                })
-            elif k_value > k_optimal * 1.5:
-                findings.append({
-                    'finding': f"Exchangeable potassium is high at {k_value:.2f} meq%, above optimal level of {k_optimal:.2f} meq%. This may cause nutrient imbalances."
-                })
-            else:
-                findings.append({
-                    'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq%, within optimal range for healthy plant function."
-                })
+        if k_value > 0 and k_value < k_optimal * 0.5:  # Significantly deficient
+            critical_findings.append({
+                'finding': f"Exchangeable potassium is critically low at {k_value:.2f} meq%, requiring potassium fertilization."
+            })
     
-    # 5. Leaf Nutrient Analysis
+    # 5. Leaf Nutrient Analysis - only critical issues
     if leaf_params:
-        # Leaf Nitrogen
+        # Leaf Nitrogen - only if significantly off
         if 'N_%' in leaf_params:
             leaf_n = leaf_params['N_%'].get('average', 0)
             if leaf_n > 0:
-                if leaf_n < 2.5:
-                    findings.append({
-                        'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.5-3.5%. This indicates poor nitrogen uptake and affects photosynthesis.",
+                if leaf_n < 2.2:  # Significantly deficient
+                    critical_findings.append({
+                        'finding': f"Leaf nitrogen is critically low at {leaf_n:.1f}%, indicating severe nitrogen deficiency."
                     })
-                elif leaf_n > 3.5:
-                    findings.append({
-                        'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.5-3.5%. This may cause nutrient imbalances and delayed maturity.",
-                    })
-                else:
-                    findings.append({
-                        'finding': f"Leaf nitrogen is optimal at {leaf_n:.1f}%, within recommended range for healthy palm growth.",
+                elif leaf_n > 4.0:  # Significantly excessive
+                    critical_findings.append({
+                        'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, may delay fruit maturity."
                     })
         
-        # Leaf Phosphorus
+        # Leaf Phosphorus - only if significantly deficient
         if 'P_%' in leaf_params:
             leaf_p = leaf_params['P_%'].get('average', 0)
-            if leaf_p > 0:
-                if leaf_p < 0.15:
-                    findings.append({
-                        'finding': f"Leaf phosphorus is deficient at {leaf_p:.2f}%, below optimal range of 0.15-0.25%. This limits energy transfer and root development.",
-                    })
-                elif leaf_p > 0.25:
-                    findings.append({
-                        'finding': f"Leaf phosphorus is high at {leaf_p:.2f}%, above optimal range of 0.15-0.25%. This may indicate over-fertilization.",
-                    })
-                else:
-                    findings.append({
-                        'finding': f"Leaf phosphorus is adequate at {leaf_p:.2f}%, within optimal range for proper plant function.",
-                    })
+            if leaf_p > 0 and leaf_p < 0.12:  # Significantly deficient
+                critical_findings.append({
+                    'finding': f"Leaf phosphorus is critically low at {leaf_p:.2f}%, requiring phosphorus supplementation."
+                })
         
-        # Leaf Potassium
+        # Leaf Potassium - only if significantly deficient
         if 'K_%' in leaf_params:
             leaf_k = leaf_params['K_%'].get('average', 0)
-            if leaf_k > 0:
-                if leaf_k < 1.0:
-                    findings.append({
-                        'finding': f"Leaf potassium is deficient at {leaf_k:.1f}%, below optimal range of 1.0-1.5%. This affects water regulation and disease resistance.",
-                    })
-                elif leaf_k > 1.5:
-                    findings.append({
-                        'finding': f"Leaf potassium is high at {leaf_k:.1f}%, above optimal range of 1.0-1.5%. This may cause nutrient imbalances.",
-                    })
-                else:
-                    findings.append({
-                        'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within recommended range for healthy palm growth.",
-                    })
+            if leaf_k > 0 and leaf_k < 0.8:  # Significantly deficient
+                critical_findings.append({
+                    'finding': f"Leaf potassium is critically low at {leaf_k:.1f}%, requiring potassium fertilization."
+                })
         
-        # Leaf Magnesium - Conditional recommendation considering GML and K:Mg ratio
+        # Leaf Magnesium - only if deficient with problematic K:Mg ratio
         if 'Mg_%' in leaf_params:
             leaf_mg = leaf_params['Mg_%'].get('average', 0)
-            if leaf_mg > 0:
-                if leaf_mg < 0.25:  # Only recommend kieserite if clearly deficient
-                    # Check if K:Mg ratio is also problematic
-                    leaf_k = leaf_params.get('K_%', {}).get('average', 0)
-                    if leaf_k > 0:
-                        k_mg_ratio = leaf_k / leaf_mg if leaf_mg > 0 else 0
-                        if k_mg_ratio > 3.0:  # K:Mg ratio too high
-                            findings.append({
-                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}. Kieserite recommended only after GML correction and if K:Mg ratio remains >3.0.",
-                            })
-                        else:
-                            findings.append({
-                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% but K:Mg ratio is acceptable. Consider GML first before kieserite application.",
-                            })
-                    else:
-                        findings.append({
-                            'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%. Consider GML application first, then kieserite only if needed after GML correction.",
+            if leaf_mg > 0 and leaf_mg < 0.22:  # Significantly deficient
+                leaf_k = leaf_params.get('K_%', {}).get('average', 0)
+                if leaf_k > 0:
+                    k_mg_ratio = leaf_k / leaf_mg if leaf_mg > 0 else 0
+                    if k_mg_ratio > 3.5:  # Problematic ratio
+                        critical_findings.append({
+                            'finding': f"Leaf magnesium is critically low at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}, requiring magnesium supplementation."
                         })
-                elif leaf_mg > 0.35:  # Only flag when clearly excessive
-                    findings.append({
-                        'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range. Monitor for nutrient imbalances.",
-                    })
-                # No recommendation for adequate levels (0.25-0.35%)
         
-        # Leaf Calcium
-        if 'Ca_%' in leaf_params:
-            leaf_ca = leaf_params['Ca_%'].get('average', 0)
-            if leaf_ca > 0:
-                if leaf_ca < 0.5:
-                    findings.append({
-                        'finding': f"Leaf calcium is deficient at {leaf_ca:.1f}%, below optimal range of 0.5-1.0%. This affects cell wall strength and fruit quality.",
-                    })
-                elif leaf_ca > 1.0:
-                    findings.append({
-                        'finding': f"Leaf calcium is high at {leaf_ca:.1f}%, above optimal range of 0.5-1.0%. This may cause nutrient imbalances.",
-                    })
-                else:
-                    findings.append({
-                        'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within recommended range for healthy palm growth.",
-                    })
-        
-        # Leaf Boron - Conditional recommendation only when deficient
+        # Leaf Boron - only if significantly deficient
         if 'B_mg_kg' in leaf_params:
             leaf_b = leaf_params['B_mg_kg'].get('average', 0)
-            if leaf_b > 0:
-                if leaf_b < 12:  # Only recommend when clearly deficient
-                    findings.append({
-                        'finding': f"Leaf boron is deficient at {leaf_b:.1f} mg/kg, below critical threshold of 12 mg/kg. Boron supplementation recommended only for this specific deficiency.",
-                    })
-                elif leaf_b > 25:  # Only flag when clearly excessive
-                    findings.append({
-                        'finding': f"Leaf boron is high at {leaf_b:.1f} mg/kg, above optimal range. Monitor for toxicity symptoms.",
-                    })
-                # No recommendation for adequate levels (12-25 mg/kg)
+            if leaf_b > 0 and leaf_b < 10:  # Significantly deficient
+                critical_findings.append({
+                    'finding': f"Leaf boron is critically low at {leaf_b:.1f} mg/kg, requiring boron supplementation."
+                })
     
-    return findings
+    # Return only the most critical findings (max 3-4 to avoid overwhelming)
+    return critical_findings[:4]
 
 def _search_in_analysis_content(analysis_data: dict, search_term: str) -> bool:
     """Search for term in analysis content"""

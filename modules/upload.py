@@ -18,10 +18,12 @@ try:
     from utils.ocr_utils import extract_data_from_image
     from utils.parsing_utils import _parse_raw_text_to_structured_json
     from utils.analysis_engine import validate_soil_data, validate_leaf_data
+    from utils.parameter_standardizer import parameter_standardizer
 except Exception:
     try:
         from ocr_utils import extract_data_from_image, validate_soil_data, validate_leaf_data
         from parsing_utils import _parse_raw_text_to_structured_json
+        from parameter_standardizer import parameter_standardizer
     except Exception as e:
         st.error(f"Import error (utils): {e}")
         st.stop()
@@ -39,7 +41,7 @@ def show_upload_page():
     """Main upload page - focused only on file upload and preview"""
     # Check authentication at page level
     if not st.session_state.get('authenticated', False):
-        st.markdown('<h1 style="color: #2E8B57; text-align: center;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
+        st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
         st.warning("🔒 Please log in to access upload features.")
         
         col1, col2 = st.columns(2)
@@ -53,7 +55,7 @@ def show_upload_page():
                 st.rerun()
         return
     
-    st.markdown('<h1 style="color: #2E8B57; text-align: center;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
     st.markdown("### Upload your soil and leaf analysis reports for comprehensive AI-powered analysis")
     
     # Main upload section
@@ -123,21 +125,20 @@ def display_structured_soil_data(soil_data: dict) -> None:
                     
                     with col2:
                         st.markdown("**Nutrient Parameters:**")
-                        # Map actual nutrient parameter names
-                        nutrient_mapping = {
-                            'Avail P (mg/kg)': 'Available P (mg/kg)',
+                        # Use standardized parameter names from parameter_standardizer
+                        nutrient_mapping = parameter_standardizer.get_display_name_mapping('soil')
+                        
+                        # Filter to show only nutrient parameters (exclude pH, N, Org.C)
+                        nutrient_params = {
                             'Total P (mg/kg)': 'Total P (mg/kg)',
+                            'Avail P (mg/kg)': 'Available P (mg/kg)',
                             'Exch. K (meq%)': 'Exchangeable K (meq%)',
-                            'Exch K (cmol/kg)': 'Exchangeable K (cmol/kg)',
                             'Exch. Ca (meq%)': 'Exchangeable Ca (meq%)',
-                            'Exch Ca (cmol/kg)': 'Exchangeable Ca (cmol/kg)',
                             'Exch. Mg (meq%)': 'Exchangeable Mg (meq%)',
-                            'Exch Mg (cmol/kg)': 'Exchangeable Mg (cmol/kg)',
-                            'CEC (meq%)': 'CEC (meq%)',
-                            'CEC (cmol/kg)': 'CEC (cmol/kg)'
+                            'CEC (meq%)': 'CEC (meq%)'
                         }
                         
-                        for param, display_name in nutrient_mapping.items():
+                        for param, display_name in nutrient_params.items():
                             if param in sample_data:
                                 st.write(f"• **{display_name}:** {sample_data[param]}")
             
@@ -178,15 +179,11 @@ def display_structured_soil_data(soil_data: dict) -> None:
                 },
                 'Exchangeable Cations': {
                     'Exch. K (meq%)': 'Exchangeable K (meq%)',
-                    'Exch K (cmol/kg)': 'Exchangeable K (cmol/kg)',
                     'Exch. Ca (meq%)': 'Exchangeable Ca (meq%)',
-                    'Exch Ca (cmol/kg)': 'Exchangeable Ca (cmol/kg)',
-                    'Exch. Mg (meq%)': 'Exchangeable Mg (meq%)',
-                    'Exch Mg (cmol/kg)': 'Exchangeable Mg (cmol/kg)'
+                    'Exch. Mg (meq%)': 'Exchangeable Mg (meq%)'
                 },
                 'Other': {
-                    'CEC (meq%)': 'CEC (meq%)',
-                    'CEC (cmol/kg)': 'CEC (cmol/kg)'
+                    'CEC (meq%)': 'CEC (meq%)'
                 }
             }
             
@@ -757,24 +754,14 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
 
                     if len(numbers) >= 8:  # SP Lab has 8 parameters per sample
                         sample_data = {}
-                        # Map numbers to SP Lab parameters
-                        sp_lab_params = ['pH', 'Nitrogen (%)', 'Organic Carbon (%)', 'Total P (mg/kg)',
-                                       'Available P (mg/kg)', 'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'C.E.C (meq%)']
+                        # Map numbers to standardized SP Lab parameters
+                        sp_lab_params = ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)',
+                                       'Avail P (mg/kg)', 'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)']
 
                         for i, param in enumerate(sp_lab_params):
                             if i < len(numbers):
                                 try:
-                                    # Convert SP Lab parameter names to standard format
-                                    if param == 'Nitrogen (%)':
-                                        sample_data['N (%)'] = float(numbers[i])
-                                    elif param == 'Organic Carbon (%)':
-                                        sample_data['Org. C (%)'] = float(numbers[i])
-                                    elif param == 'C.E.C (meq%)':
-                                        sample_data['CEC (meq%)'] = float(numbers[i])
-                                    elif param == 'Available P (mg/kg)':
-                                        sample_data['Avail P (mg/kg)'] = float(numbers[i])
-                                    else:
-                                        sample_data[param] = float(numbers[i])
+                                    sample_data[param] = float(numbers[i])
                                 except (ValueError, TypeError):
                                     sample_data[param] = 0.0
 
@@ -975,8 +962,8 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
 
             # Strategy 5: Look for parameter-value pairs in the text (SP Lab format)
             if not samples_data:
-                sp_lab_params = ['pH', 'Nitrogen (%)', 'Organic Carbon (%)', 'Total P (mg/kg)',
-                               'Available P (mg/kg)', 'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'C.E.C (meq%)']
+                sp_lab_params = ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)',
+                               'Avail P (mg/kg)', 'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)']
 
                 for param in sp_lab_params:
                     # Look for patterns like "pH: 4.5", "pH = 4.5", etc.
@@ -994,17 +981,7 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
 
                         try:
                             float_val = float(value)
-                            # Convert SP Lab parameter names to standard format
-                            if param == 'Nitrogen (%)':
-                                samples_data["S001"]['N (%)'] = float_val
-                            elif param == 'Organic Carbon (%)':
-                                samples_data["S001"]['Org. C (%)'] = float_val
-                            elif param == 'C.E.C (meq%)':
-                                samples_data["S001"]['CEC (meq%)'] = float_val
-                            elif param == 'Available P (mg/kg)':
-                                samples_data["S001"]['Avail P (mg/kg)'] = float_val
-                            else:
-                                samples_data["S001"][param] = float_val
+                            samples_data["S001"][param] = float_val
                         except (ValueError, TypeError):
                             pass
 
@@ -1316,8 +1293,14 @@ def _show_raw_text_as_json(raw_text: str, container_type: str, ocr_result: dict 
         st.markdown("### 📊 Structured OCR Data (JSON Format)")
         st.markdown("**This data will be used by the AI for analysis. Each sample ID contains its parameter values:**")
 
-        # Display the structured JSON
-        st.json(structured_data)
+        # Display the structured JSON with better formatting
+        try:
+            import json
+            formatted_json = json.dumps(structured_data, indent=2, ensure_ascii=False)
+            st.code(formatted_json, language="json")
+        except Exception as e:
+            # Fallback to st.json if formatting fails
+            st.json(structured_data)
 
         # Store structured data in session state for analysis
         if container_type == 'soil':

@@ -2947,14 +2947,14 @@ class PDFReportGenerator:
             story.append(Paragraph("5-Year Yield Projections", self.styles['Heading3']))
             projections = step['yield_projections']
             
-            years = list(range(2024, 2029))
+            years = list(range(2025, 2030))
             table_data = [['Year'] + [f'{level.title()} Investment' for level in ['high', 'medium', 'low'] if level in projections]]
             
             for year in years:
                 row = [str(year)]
                 for level in ['high', 'medium', 'low']:
                     if level in projections and len(projections[level]) >= (year - 2023):
-                        value = projections[level][year - 2024]
+                        value = projections[level][year - 2025]
                         row.append(f"{value:.1f} tons/ha" if isinstance(value, (int, float)) else str(value))
                     else:
                         row.append("N/A")
