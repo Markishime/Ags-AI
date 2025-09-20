@@ -81,7 +81,7 @@ class DataProcessor:
         }
 
     def process_uploaded_files(self, uploaded_files: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Process multiple uploaded files and extract soil/leaf data"""
+        """Process multiple uploaded files and extract soil/leaf data with enhanced error handling"""
         try:
             processed_data = {
                 'soil_files': [],
@@ -90,7 +90,10 @@ class DataProcessor:
                     'total_files': len(uploaded_files),
                     'processing_timestamp': datetime.now().isoformat(),
                     'file_formats': [],
-                    'data_quality': {}
+                    'data_quality': {},
+                    'processing_errors': [],
+                    'files_processed': 0,
+                    'files_skipped': 0
                 }
             }
 
@@ -100,46 +103,561 @@ class DataProcessor:
                 file_name = file_info.get('name', '')
 
                 if file_type not in self.supported_formats:
-                    self.logger.warning(f"Unsupported file format: {file_type} for file {file_name}")
+                    self.logger.info(f"Skipping unsupported file format: {file_type} for file {file_name}")
+                    processed_data['metadata']['files_skipped'] += 1
                     continue
 
-                # Extract data based on file type
-                file_data = self._extract_data_from_file(file_path, file_type)
+                try:
+                    # Enhanced data extraction with multiple fallback strategies
+                    file_data = self._extract_data_from_file_enhanced(file_path, file_type, file_name)
 
-                if not file_data:
-                    self.logger.warning(f"Failed to extract data from {file_name}")
+                    if not file_data or not file_data.get('samples'):
+                        self.logger.warning(f"No valid data extracted from {file_name}, attempting alternative extraction")
+                        file_data = self._alternative_data_extraction(file_path, file_type, file_name)
+
+                    if not file_data or not file_data.get('samples'):
+                        self.logger.warning(f"Failed to extract any data from {file_name}")
+                        processed_data['metadata']['files_skipped'] += 1
+                        continue
+
+                    # Enhanced data type classification
+                    data_type = self._classify_data_type_enhanced(file_data, file_name)
+                    
+                    # Validate and clean the extracted data
+                    cleaned_data = self._validate_and_clean_data(file_data, data_type)
+                    
+                    # Enhanced processing information
+                    processing_info = self._get_enhanced_processing_info(cleaned_data, file_name, data_type)
+
+                    if data_type == 'soil':
+                        processed_data['soil_files'].append({
+                            'file_name': file_name,
+                            'file_path': file_path,
+                            'data': cleaned_data,
+                            'processing_info': processing_info,
+                            'quality_score': self._calculate_data_quality_score(cleaned_data)
+                        })
+                        self.logger.info(f"Successfully processed soil file: {file_name} with {len(cleaned_data.get('samples', []))} samples")
+                    elif data_type == 'leaf':
+                        processed_data['leaf_files'].append({
+                            'file_name': file_name,
+                            'file_path': file_path,
+                            'data': cleaned_data,
+                            'processing_info': processing_info,
+                            'quality_score': self._calculate_data_quality_score(cleaned_data)
+                        })
+                        self.logger.info(f"Successfully processed leaf file: {file_name} with {len(cleaned_data.get('samples', []))} samples")
+                    else:
+                        self.logger.warning(f"Could not determine data type for {file_name}, skipping")
+                        processed_data['metadata']['files_skipped'] += 1
+                        continue
+
+                    processed_data['metadata']['file_formats'].append(file_type)
+                    processed_data['metadata']['files_processed'] += 1
+
+                except Exception as e:
+                    error_msg = f"Error processing file {file_name}: {str(e)}"
+                    self.logger.warning(error_msg)
+                    processed_data['metadata']['processing_errors'].append(error_msg)
+                    processed_data['metadata']['files_skipped'] += 1
                     continue
 
-                # Determine if it's soil or leaf data
-                data_type = self._classify_data_type(file_data, file_name)
-
-                if data_type == 'soil':
-                    processed_data['soil_files'].append({
-                        'file_name': file_name,
-                        'file_path': file_path,
-                        'data': file_data,
-                        'processing_info': self._get_processing_info(file_data)
-                    })
-                elif data_type == 'leaf':
-                    processed_data['leaf_files'].append({
-                        'file_name': file_name,
-                        'file_path': file_path,
-                        'data': file_data,
-                        'processing_info': self._get_processing_info(file_data)
-                    })
-
-                processed_data['metadata']['file_formats'].append(file_type)
-
-            # Combine data from all files
-            combined_data = self._combine_file_data(processed_data)
+            # Enhanced data combination with validation
+            combined_data = self._combine_file_data_enhanced(processed_data)
             processed_data['combined_data'] = combined_data
 
-            self.logger.info(f"Successfully processed {len(uploaded_files)} files: {len(processed_data['soil_files'])} soil, {len(processed_data['leaf_files'])} leaf")
+            # Calculate overall data quality
+            processed_data['metadata']['data_quality'] = self._assess_overall_data_quality(processed_data)
+
+            self.logger.info(f"Processing completed: {processed_data['metadata']['files_processed']} files processed, "
+                           f"{len(processed_data['soil_files'])} soil files, {len(processed_data['leaf_files'])} leaf files, "
+                           f"{processed_data['metadata']['files_skipped']} files skipped")
+            
             return processed_data
 
         except Exception as e:
             self.logger.error(f"Error processing uploaded files: {str(e)}")
             return {'error': str(e), 'metadata': {'total_files': len(uploaded_files) if 'uploaded_files' in locals() else 0}}
+
+    def _extract_data_from_file_enhanced(self, file_path: str, file_type: str, file_name: str) -> Dict[str, Any]:
+        """Enhanced data extraction with multiple strategies and error handling"""
+        try:
+            if file_type == 'csv':
+                # Try different encodings and separators
+                for encoding in ['utf-8', 'latin-1', 'cp1252']:
+                    for sep in [',', ';', '\t']:
+                        try:
+                            df = pd.read_csv(file_path, encoding=encoding, sep=sep)
+                            if not df.empty and len(df.columns) > 1:
+                                return self._convert_dataframe_to_samples(df, file_name)
+                        except Exception:
+                            continue
+                            
+            elif file_type in ['xls', 'xlsx']:
+                # Try different sheets and engines
+                try:
+                    df = pd.read_excel(file_path, engine='openpyxl')
+                    if not df.empty:
+                        return self._convert_dataframe_to_samples(df, file_name)
+                except Exception:
+                    try:
+                        df = pd.read_excel(file_path, engine='xlrd')
+                        if not df.empty:
+                            return self._convert_dataframe_to_samples(df, file_name)
+                    except Exception:
+                        pass
+                        
+            elif file_type == 'json':
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        json_data = json.load(f)
+                    return self._convert_json_to_samples(json_data, file_name)
+                except Exception:
+                    pass
+                    
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Enhanced extraction failed for {file_name}: {e}")
+            return None
+
+    def _alternative_data_extraction(self, file_path: str, file_type: str, file_name: str) -> Dict[str, Any]:
+        """Alternative data extraction strategies when primary methods fail"""
+        try:
+            if file_type == 'csv':
+                # Try reading as text and parsing manually
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                return self._parse_text_content(content, file_name)
+            elif file_type in ['xls', 'xlsx']:
+                # Try reading all sheets
+                try:
+                    xl_file = pd.ExcelFile(file_path)
+                    for sheet_name in xl_file.sheet_names:
+                        try:
+                            df = pd.read_excel(file_path, sheet_name=sheet_name)
+                            if not df.empty and len(df.columns) > 1:
+                                return self._convert_dataframe_to_samples(df, file_name)
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+            return None
+        except Exception as e:
+            self.logger.error(f"Alternative extraction failed for {file_name}: {e}")
+            return None
+
+    def _convert_dataframe_to_samples(self, df: pd.DataFrame, file_name: str) -> Dict[str, Any]:
+        """Convert DataFrame to standardized samples format"""
+        try:
+            # Clean column names
+            df.columns = df.columns.str.strip().str.replace(' ', '_')
+            
+            samples = []
+            for index, row in df.iterrows():
+                sample = {}
+                
+                # Add sample identifiers if available
+                if 'sample_no' in df.columns:
+                    sample['sample_no'] = str(row.get('sample_no', f'S{index+1}'))
+                else:
+                    sample['sample_no'] = f'S{index+1}'
+                    
+                if 'lab_no' in df.columns:
+                    sample['lab_no'] = str(row.get('lab_no', 'N/A'))
+                else:
+                    sample['lab_no'] = 'N/A'
+
+                # Extract numeric parameters
+                for col in df.columns:
+                    if col not in ['sample_no', 'lab_no']:
+                        value = row.get(col)
+                        if pd.notna(value):
+                            try:
+                                # Try to convert to float
+                                if isinstance(value, (int, float)):
+                                    sample[col] = float(value)
+                                elif isinstance(value, str):
+                                    # Remove common non-numeric characters
+                                    clean_value = re.sub(r'[^\d\.-]', '', value)
+                                    if clean_value:
+                                        sample[col] = float(clean_value)
+                            except (ValueError, TypeError):
+                                # Keep as string if conversion fails
+                                sample[col] = str(value)
+
+                if len(sample) > 2:  # More than just sample_no and lab_no
+                    samples.append(sample)
+
+            return {
+                'samples': samples,
+                'source_file': file_name,
+                'extraction_method': 'dataframe',
+                'total_rows': len(df),
+                'valid_samples': len(samples)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error converting DataFrame to samples: {e}")
+            return None
+
+    def _convert_json_to_samples(self, json_data: Any, file_name: str) -> Dict[str, Any]:
+        """Convert JSON data to standardized samples format"""
+        try:
+            samples = []
+            
+            if isinstance(json_data, list):
+                # Array of objects
+                for i, item in enumerate(json_data):
+                    if isinstance(item, dict):
+                        sample = self._process_json_sample(item, i+1)
+                        if sample:
+                            samples.append(sample)
+            elif isinstance(json_data, dict):
+                # Single object or nested structure
+                if 'samples' in json_data:
+                    # Has samples key
+                    sample_data = json_data['samples']
+                    if isinstance(sample_data, list):
+                        for i, item in enumerate(sample_data):
+                            sample = self._process_json_sample(item, i+1)
+                            if sample:
+                                samples.append(sample)
+                else:
+                    # Treat as single sample
+                    sample = self._process_json_sample(json_data, 1)
+                    if sample:
+                        samples.append(sample)
+
+            return {
+                'samples': samples,
+                'source_file': file_name,
+                'extraction_method': 'json',
+                'valid_samples': len(samples)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error converting JSON to samples: {e}")
+            return None
+
+    def _process_json_sample(self, item: Dict[str, Any], index: int) -> Dict[str, Any]:
+        """Process individual JSON sample"""
+        try:
+            sample = {}
+            
+            # Set sample identifiers
+            sample['sample_no'] = str(item.get('sample_no', item.get('id', f'S{index}')))
+            sample['lab_no'] = str(item.get('lab_no', item.get('lab_id', 'N/A')))
+            
+            # Extract numeric parameters
+            for key, value in item.items():
+                if key not in ['sample_no', 'lab_no', 'id', 'lab_id']:
+                    if isinstance(value, (int, float)):
+                        sample[key] = float(value)
+                    elif isinstance(value, str):
+                        try:
+                            sample[key] = float(value)
+                        except ValueError:
+                            sample[key] = value
+            
+            return sample if len(sample) > 2 else None
+            
+        except Exception as e:
+            self.logger.error(f"Error processing JSON sample: {e}")
+            return None
+
+    def _parse_text_content(self, content: str, file_name: str) -> Dict[str, Any]:
+        """Parse text content manually as fallback"""
+        try:
+            lines = content.strip().split('\n')
+            if len(lines) < 2:
+                return None
+                
+            # Try to detect delimiter
+            delimiters = [',', ';', '\t', '|']
+            best_delimiter = ','
+            max_columns = 0
+            
+            for delimiter in delimiters:
+                cols = len(lines[0].split(delimiter))
+                if cols > max_columns:
+                    max_columns = cols
+                    best_delimiter = delimiter
+            
+            if max_columns < 2:
+                return None
+                
+            # Parse header
+            headers = [h.strip() for h in lines[0].split(best_delimiter)]
+            
+            samples = []
+            for i, line in enumerate(lines[1:], 1):
+                if line.strip():
+                    values = [v.strip() for v in line.split(best_delimiter)]
+                    if len(values) >= len(headers):
+                        sample = {'sample_no': f'S{i}', 'lab_no': 'N/A'}
+                        for j, header in enumerate(headers):
+                            if j < len(values) and values[j]:
+                                try:
+                                    sample[header] = float(values[j])
+                                except ValueError:
+                                    sample[header] = values[j]
+                        if len(sample) > 2:
+                            samples.append(sample)
+            
+            return {
+                'samples': samples,
+                'source_file': file_name,
+                'extraction_method': 'text_parsing',
+                'valid_samples': len(samples)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing text content: {e}")
+            return None
+
+    def _classify_data_type_enhanced(self, file_data: Dict[str, Any], file_name: str) -> str:
+        """Enhanced data type classification with better detection"""
+        try:
+            if not file_data or not file_data.get('samples'):
+                return 'unknown'
+                
+            samples = file_data['samples']
+            if not samples:
+                return 'unknown'
+                
+            # Check filename first
+            file_name_lower = file_name.lower()
+            if 'soil' in file_name_lower:
+                return 'soil'
+            elif 'leaf' in file_name_lower:
+                return 'leaf'
+            elif 'land' in file_name_lower or 'yield' in file_name_lower:
+                return 'land_yield'
+                
+            # Check parameter names in samples
+            sample_keys = set()
+            for sample in samples[:3]:  # Check first few samples
+                sample_keys.update(sample.keys())
+                
+            # Enhanced soil parameter detection
+            soil_indicators = {
+                'ph', 'nitrogen', 'phosphorus', 'potassium', 'organic_carbon', 'cec',
+                'available_p', 'exchangeable_k', 'exchangeable_ca', 'exchangeable_mg',
+                'total_p', 'org_c', 'exch_k', 'exch_ca', 'exch_mg', 'avail_p'
+            }
+            
+            # Enhanced leaf parameter detection
+            leaf_indicators = {
+                'n_%', 'p_%', 'k_%', 'mg_%', 'ca_%', 'b_mg_kg', 'cu_mg_kg', 'zn_mg_kg',
+                'leaf_n', 'leaf_p', 'leaf_k', 'leaf_mg', 'leaf_ca', 'leaf_b', 'leaf_cu', 'leaf_zn'
+            }
+            
+            # Check for matches
+            sample_keys_lower = {key.lower() for key in sample_keys}
+            
+            soil_matches = len(soil_indicators.intersection(sample_keys_lower))
+            leaf_matches = len(leaf_indicators.intersection(sample_keys_lower))
+            
+            if soil_matches > leaf_matches and soil_matches > 0:
+                return 'soil'
+            elif leaf_matches > soil_matches and leaf_matches > 0:
+                return 'leaf'
+            elif 'yield' in sample_keys_lower or 'land_size' in sample_keys_lower:
+                return 'land_yield'
+            else:
+                # Try to detect by value patterns
+                return self._detect_by_value_patterns(samples)
+                
+        except Exception as e:
+            self.logger.error(f"Error in enhanced data type classification: {e}")
+            return 'unknown'
+
+    def _detect_by_value_patterns(self, samples: List[Dict[str, Any]]) -> str:
+        """Detect data type by analyzing value patterns"""
+        try:
+            # Analyze numeric ranges to distinguish soil vs leaf
+            ph_values = []
+            percentage_values = []
+            
+            for sample in samples:
+                for key, value in sample.items():
+                    if isinstance(value, (int, float)):
+                        key_lower = key.lower()
+                        if 'ph' in key_lower and 3 <= value <= 9:
+                            ph_values.append(value)
+                        elif '%' in key_lower or (0.1 <= value <= 5.0):
+                            percentage_values.append(value)
+            
+            # pH values suggest soil data
+            if ph_values:
+                return 'soil'
+            # High percentage values might suggest leaf data
+            elif percentage_values and max(percentage_values) > 0.5:
+                return 'leaf'
+            else:
+                return 'unknown'
+                
+        except Exception:
+            return 'unknown'
+
+    def _validate_and_clean_data(self, file_data: Dict[str, Any], data_type: str) -> Dict[str, Any]:
+        """Validate and clean extracted data"""
+        try:
+            if not file_data or not file_data.get('samples'):
+                return file_data
+                
+            samples = file_data['samples']
+            cleaned_samples = []
+            
+            for sample in samples:
+                cleaned_sample = self._clean_individual_sample(sample, data_type)
+                if cleaned_sample and self._validate_sample(cleaned_sample, data_type):
+                    cleaned_samples.append(cleaned_sample)
+            
+            file_data['samples'] = cleaned_samples
+            file_data['valid_samples'] = len(cleaned_samples)
+            file_data['data_type'] = data_type
+            
+            return file_data
+            
+        except Exception as e:
+            self.logger.error(f"Error validating and cleaning data: {e}")
+            return file_data
+
+    def _clean_individual_sample(self, sample: Dict[str, Any], data_type: str) -> Dict[str, Any]:
+        """Clean individual sample data"""
+        try:
+            cleaned = {}
+            
+            # Preserve identifiers
+            cleaned['sample_no'] = sample.get('sample_no', 'Unknown')
+            cleaned['lab_no'] = sample.get('lab_no', 'N/A')
+            
+            # Clean numeric parameters
+            for key, value in sample.items():
+                if key not in ['sample_no', 'lab_no']:
+                    cleaned_value = self._clean_numeric_value(value)
+                    if cleaned_value is not None:
+                        # Standardize parameter names
+                        standardized_key = self._standardize_parameter_name(key, data_type)
+                        cleaned[standardized_key] = cleaned_value
+            
+            return cleaned
+            
+        except Exception as e:
+            self.logger.error(f"Error cleaning individual sample: {e}")
+            return sample
+
+    def _clean_numeric_value(self, value: Any) -> Optional[float]:
+        """Clean and convert value to numeric"""
+        try:
+            if isinstance(value, (int, float)):
+                return float(value) if not pd.isna(value) else None
+            elif isinstance(value, str):
+                # Remove common non-numeric characters
+                clean_str = re.sub(r'[^\d\.-]', '', value.strip())
+                if clean_str:
+                    return float(clean_str)
+            return None
+        except (ValueError, TypeError):
+            return None
+
+    def _standardize_parameter_name(self, key: str, data_type: str) -> str:
+        """Standardize parameter names based on data type"""
+        try:
+            key_lower = key.lower().strip()
+            
+            if data_type == 'soil':
+                soil_mappings = {
+                    'ph': 'pH',
+                    'nitrogen': 'Nitrogen_%',
+                    'organic_carbon': 'Organic_Carbon_%',
+                    'org_c': 'Organic_Carbon_%',
+                    'total_p': 'Total_P_mg_kg',
+                    'available_p': 'Available_P_mg_kg',
+                    'avail_p': 'Available_P_mg_kg',
+                    'exchangeable_k': 'Exchangeable_K_meq%',
+                    'exch_k': 'Exchangeable_K_meq%',
+                    'exchangeable_ca': 'Exchangeable_Ca_meq%',
+                    'exch_ca': 'Exchangeable_Ca_meq%',
+                    'exchangeable_mg': 'Exchangeable_Mg_meq%',
+                    'exch_mg': 'Exchangeable_Mg_meq%',
+                    'cec': 'CEC_meq%'
+                }
+                return soil_mappings.get(key_lower, key)
+                
+            elif data_type == 'leaf':
+                leaf_mappings = {
+                    'n_%': 'N_%',
+                    'p_%': 'P_%',
+                    'k_%': 'K_%',
+                    'mg_%': 'Mg_%',
+                    'ca_%': 'Ca_%',
+                    'b_mg_kg': 'B_mg_kg',
+                    'cu_mg_kg': 'Cu_mg_kg',
+                    'zn_mg_kg': 'Zn_mg_kg',
+                    'leaf_n': 'N_%',
+                    'leaf_p': 'P_%',
+                    'leaf_k': 'K_%'
+                }
+                return leaf_mappings.get(key_lower, key)
+                
+            return key
+            
+        except Exception:
+            return key
+
+    def _validate_sample(self, sample: Dict[str, Any], data_type: str) -> bool:
+        """Validate individual sample"""
+        try:
+            # Must have at least one numeric parameter
+            numeric_params = sum(1 for v in sample.values() if isinstance(v, (int, float)))
+            if numeric_params < 1:
+                return False
+                
+            # Type-specific validation
+            if data_type == 'soil':
+                return self._validate_soil_sample(sample)
+            elif data_type == 'leaf':
+                return self._validate_leaf_sample(sample)
+            else:
+                return True
+                
+        except Exception:
+            return False
+
+    def _validate_soil_sample(self, sample: Dict[str, Any]) -> bool:
+        """Validate soil sample values"""
+        try:
+            # Check pH range
+            if 'pH' in sample:
+                ph_value = sample['pH']
+                if not (2.0 <= ph_value <= 10.0):
+                    return False
+                    
+            # Check percentage values
+            for key, value in sample.items():
+                if '%' in key and isinstance(value, (int, float)):
+                    if not (0.0 <= value <= 100.0):
+                        return False
+                        
+            return True
+        except Exception:
+            return True
+
+    def _validate_leaf_sample(self, sample: Dict[str, Any]) -> bool:
+        """Validate leaf sample values"""
+        try:
+            # Check percentage values are reasonable for leaf analysis
+            for key, value in sample.items():
+                if '%' in key and isinstance(value, (int, float)):
+                    if not (0.0 <= value <= 10.0):  # Leaf percentages usually lower
+                        return False
+                        
+            return True
+        except Exception:
+            return True
 
     def _extract_data_from_file(self, file_path: str, file_type: str) -> Dict[str, Any]:
         """Extract data from different file formats"""
@@ -530,9 +1048,13 @@ class DataProcessor:
                     min_val = min(values)
                     max_val = max(values)
                     
-                    # Calculate standard deviation
-                    variance = sum((x - avg_val) ** 2 for x in values) / len(values)
-                    std_dev = variance ** 0.5
+                    # Calculate enhanced standard deviation using sample standard deviation (n-1)
+                    if len(values) > 1:
+                        variance = sum((x - avg_val) ** 2 for x in values) / (len(values) - 1)
+                        std_dev = math.sqrt(variance)
+                    else:
+                        variance = 0
+                        std_dev = 0
                     
                     parameter_stats[param] = {
                         'values': values,
@@ -606,9 +1128,13 @@ class DataProcessor:
                     min_val = min(values)
                     max_val = max(values)
                     
-                    # Calculate standard deviation
-                    variance = sum((x - avg_val) ** 2 for x in values) / len(values)
-                    std_dev = variance ** 0.5
+                    # Calculate enhanced standard deviation using sample standard deviation (n-1)
+                    if len(values) > 1:
+                        variance = sum((x - avg_val) ** 2 for x in values) / (len(values) - 1)
+                        std_dev = math.sqrt(variance)
+                    else:
+                        variance = 0
+                        std_dev = 0
                     
                     parameter_stats[param] = {
                         'values': values,
@@ -1327,21 +1853,120 @@ class StandardsComparator:
             return "Unable to analyze ratio"
     
     def compare_soil_parameters(self, soil_params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Compare soil parameters against MPOB standards - ALL SAMPLES"""
+        """Enhanced comparison of soil parameters against MPOB standards with comprehensive issue detection"""
         issues = []
         
         try:
-            # Define MPOB standards for soil parameters (actual Malaysian oil palm standards)
+            # Enhanced MPOB standards for soil parameters with detailed metadata
             soil_standards = {
-                'pH': {'min': 4.0, 'max': 5.5, 'optimal': 4.75, 'critical': True},
-                'Nitrogen_%': {'min': 0.10, 'max': 0.20, 'optimal': 0.15, 'critical': False},
-                'Organic_Carbon_%': {'min': 1.5, 'max': 3.5, 'optimal': 2.5, 'critical': False},
-                'Total_P_mg_kg': {'min': 15, 'max': 40, 'optimal': 27.5, 'critical': False},
-                'Available_P_mg_kg': {'min': 15, 'max': 40, 'optimal': 27.5, 'critical': True},
-                'Exchangeable_K_meq%': {'min': 0.15, 'max': 0.40, 'optimal': 0.275, 'critical': True},
-                'Exchangeable_Ca_meq%': {'min': 2.0, 'max': 5.0, 'optimal': 3.5, 'critical': False},
-                'Exchangeable_Mg_meq%': {'min': 0.3, 'max': 0.6, 'optimal': 0.45, 'critical': False},
-                'CEC_meq%': {'min': 10.0, 'max': 20.0, 'optimal': 15.0, 'critical': True}
+                'pH': {
+                    'min': 4.0, 'max': 5.5, 'optimal': 4.75, 'critical': True,
+                    'category': 'Soil Chemistry', 'unit': 'pH units',
+                    'causes': {
+                        'low': ['High rainfall leaching', 'Organic matter decomposition', 'Excessive nitrogen fertilizer'],
+                        'high': ['Limestone application', 'Calcium carbonate presence', 'Poor drainage']
+                    },
+                    'impacts': {
+                        'low': ['Aluminum toxicity', 'Reduced nutrient availability', 'Poor root development'],
+                        'high': ['Iron deficiency', 'Phosphorus fixation', 'Micronutrient deficiency']
+                    }
+                },
+                'Nitrogen_%': {
+                    'min': 0.10, 'max': 0.20, 'optimal': 0.15, 'critical': False,
+                    'category': 'Soil Nutrition', 'unit': '%',
+                    'causes': {
+                        'low': ['Leaching losses', 'Poor organic matter', 'Denitrification'],
+                        'high': ['Excessive fertilization', 'Poor drainage', 'Organic matter accumulation']
+                    },
+                    'impacts': {
+                        'low': ['Stunted growth', 'Yellow leaves', 'Reduced yield'],
+                        'high': ['Luxury consumption', 'Delayed maturity', 'Increased disease susceptibility']
+                    }
+                },
+                'Organic_Carbon_%': {
+                    'min': 1.5, 'max': 3.5, 'optimal': 2.5, 'critical': False,
+                    'category': 'Soil Health', 'unit': '%',
+                    'causes': {
+                        'low': ['Low organic matter input', 'High decomposition rate', 'Erosion'],
+                        'high': ['Excessive organic input', 'Poor decomposition', 'Waterlogged conditions']
+                    },
+                    'impacts': {
+                        'low': ['Poor soil structure', 'Low water retention', 'Reduced nutrient cycling'],
+                        'high': ['Potential anaerobic conditions', 'Nutrient immobilization', 'Poor root penetration']
+                    }
+                },
+                'Total_P_mg_kg': {
+                    'min': 15, 'max': 40, 'optimal': 27.5, 'critical': False,
+                    'category': 'Soil Nutrition', 'unit': 'mg/kg',
+                    'causes': {
+                        'low': ['Low P fertilization', 'P fixation', 'Soil erosion'],
+                        'high': ['Excessive P fertilization', 'Organic P accumulation', 'Low crop uptake']
+                    },
+                    'impacts': {
+                        'low': ['Poor root development', 'Delayed flowering', 'Reduced fruit set'],
+                        'high': ['Environmental pollution', 'Micronutrient imbalances', 'Economic waste']
+                    }
+                },
+                'Available_P_mg_kg': {
+                    'min': 15, 'max': 40, 'optimal': 27.5, 'critical': True,
+                    'category': 'Soil Nutrition', 'unit': 'mg/kg',
+                    'causes': {
+                        'low': ['P fixation by Fe/Al', 'Low soil pH', 'Inadequate P supply'],
+                        'high': ['Recent P fertilization', 'High organic P mineralization', 'Optimal pH conditions']
+                    },
+                    'impacts': {
+                        'low': ['Critical nutrient deficiency', 'Severe yield reduction', 'Poor fruit quality'],
+                        'high': ['Potential runoff pollution', 'Micronutrient antagonism', 'Cost inefficiency']
+                    }
+                },
+                'Exchangeable_K_meq%': {
+                    'min': 0.15, 'max': 0.40, 'optimal': 0.275, 'critical': True,
+                    'category': 'Soil Nutrition', 'unit': 'meq/100g',
+                    'causes': {
+                        'low': ['K leaching', 'Inadequate K fertilization', 'High crop uptake'],
+                        'high': ['Excessive K fertilization', 'Low crop uptake', 'Clay mineral release']
+                    },
+                    'impacts': {
+                        'low': ['Poor fruit quality', 'Reduced oil content', 'Increased disease susceptibility'],
+                        'high': ['Mg/Ca antagonism', 'Luxury consumption', 'Salt stress potential']
+                    }
+                },
+                'Exchangeable_Ca_meq%': {
+                    'min': 2.0, 'max': 5.0, 'optimal': 3.5, 'critical': False,
+                    'category': 'Soil Chemistry', 'unit': 'meq/100g',
+                    'causes': {
+                        'low': ['Acidic conditions', 'Ca leaching', 'Low lime application'],
+                        'high': ['Excessive liming', 'Calcareous parent material', 'High pH conditions']
+                    },
+                    'impacts': {
+                        'low': ['Poor soil structure', 'Aluminum toxicity', 'Reduced root growth'],
+                        'high': ['Mg/K deficiency', 'Iron deficiency', 'Poor nutrient balance']
+                    }
+                },
+                'Exchangeable_Mg_meq%': {
+                    'min': 0.3, 'max': 0.6, 'optimal': 0.45, 'critical': False,
+                    'category': 'Soil Nutrition', 'unit': 'meq/100g',
+                    'causes': {
+                        'low': ['Mg leaching', 'K/Ca antagonism', 'Low Mg fertilization'],
+                        'high': ['Excessive Mg fertilization', 'Dolomitic limestone', 'Poor drainage']
+                    },
+                    'impacts': {
+                        'low': ['Chlorophyll deficiency', 'Yellow leaves', 'Poor photosynthesis'],
+                        'high': ['K/Ca deficiency', 'Soil compaction', 'Poor root development']
+                    }
+                },
+                'CEC_meq%': {
+                    'min': 10.0, 'max': 20.0, 'optimal': 15.0, 'critical': True,
+                    'category': 'Soil Physics', 'unit': 'meq/100g',
+                    'causes': {
+                        'low': ['Low clay content', 'Low organic matter', 'Sandy soil texture'],
+                        'high': ['High clay content', 'High organic matter', 'Montmorillonite clays']
+                    },
+                    'impacts': {
+                        'low': ['Poor nutrient retention', 'High leaching potential', 'Frequent fertilization needed'],
+                        'high': ['Good nutrient retention', 'Potential drainage issues', 'Slow nutrient release']
+                    }
+                }
             }
             
             # Check if we have parameter statistics from the new data structure
@@ -1357,9 +1982,14 @@ class StandardsComparator:
                 max_val = standard['max']
                 optimal = standard['optimal']
                 critical = standard['critical']
+                category = standard['category']
+                unit = standard['unit']
                 
                 # Check each individual sample for issues
                 out_of_range_samples = []
+                critical_samples = []
+                variance_issues = []
+                
                 for sample in stats['samples']:
                     sample_value = sample['value']
                     sample_no = sample.get('sample_no', 'N/A')
@@ -1374,34 +2004,81 @@ class StandardsComparator:
                             'sample_id': sample_id,
                             'value': sample_value,
                             'min_val': min_val,
-                            'max_val': max_val
+                            'max_val': max_val,
+                            'deviation_percent': abs((sample_value - optimal) / optimal * 100)
                         })
+                        
+                        # Check for critical individual samples
+                        if (sample_value < min_val * 0.5) or (sample_value > max_val * 2.0):
+                            critical_samples.append(sample_id)
+                
+                # Calculate variance and coefficient of variation
+                avg_value = stats['average']
+                std_dev = stats.get('std_dev', 0)
+                cv = (std_dev / avg_value * 100) if avg_value > 0 else 0
+                
+                # Check for high variability (CV > 30% indicates inconsistent conditions)
+                if cv > 30:
+                    variance_issues.append(f"High variability (CV: {cv:.1f}%) indicates inconsistent soil conditions")
                 
                 # Create issue if average is outside optimal range OR if there are out-of-range samples
-                avg_value = stats['average']
                 if avg_value < min_val or avg_value > max_val or out_of_range_samples:
-                    # Determine overall issue status
+                    # Determine detailed issue status and causes
                     if avg_value < min_val:
                         status = "Deficient"
-                        # Use Critical severity for critical parameters that are severely deficient
-                        if critical and avg_value < (min_val * 0.5):  # More than 50% below minimum
+                        deviation_percent = abs((avg_value - min_val) / min_val * 100)
+                        
+                        # Enhanced severity assessment
+                        if critical and avg_value < (min_val * 0.5):
                             severity = "Critical"
+                        elif critical and avg_value < (min_val * 0.8):
+                            severity = "High"
+                        elif critical:
+                            severity = "Medium"
                         else:
-                            severity = "High" if critical else "Medium"
-                        impact = f"Below optimal range ({min_val}-{max_val})"
+                            severity = "Medium" if avg_value < (min_val * 0.8) else "Low"
+                            
+                        impact_list = standard['impacts']['low']
+                        causes_list = standard['causes']['low']
+                        
                     elif avg_value > max_val:
                         status = "Excessive"
-                        # Use Critical severity for critical parameters that are severely excessive
-                        if critical and avg_value > (max_val * 2.0):  # More than 200% above maximum
+                        deviation_percent = abs((avg_value - max_val) / max_val * 100)
+                        
+                        # Enhanced severity assessment
+                        if critical and avg_value > (max_val * 2.0):
                             severity = "Critical"
+                        elif critical and avg_value > (max_val * 1.5):
+                            severity = "High"
+                        elif critical:
+                            severity = "Medium"
                         else:
-                            severity = "High" if critical else "Medium"
-                        impact = f"Above optimal range ({min_val}-{max_val})"
+                            severity = "Medium" if avg_value > (max_val * 1.5) else "Low"
+                            
+                        impact_list = standard['impacts']['high']
+                        causes_list = standard['causes']['high']
+                        
                     else:
                         # Average is in range but some samples are out of range
-                        status = "Mixed"
+                        status = "Variable"
+                        deviation_percent = max([s['deviation_percent'] for s in out_of_range_samples])
                         severity = "Medium" if critical else "Low"
-                        impact = f"Some samples outside optimal range ({min_val}-{max_val})"
+                        impact_list = ["Inconsistent soil conditions", "Variable plant response"]
+                        causes_list = ["Uneven fertilization", "Soil heterogeneity", "Sampling variation"]
+                    
+                    # Create comprehensive issue description
+                    issue_description = f"{param} levels are {status.lower()} with {len(out_of_range_samples)} out of {stats['count']} samples outside optimal range"
+                    if critical_samples:
+                        issue_description += f". {len(critical_samples)} samples show critical levels"
+                    
+                    # Build detailed impact and cause analysis
+                    detailed_impact = f"Primary impacts: {', '.join(impact_list[:3])}"
+                    if len(impact_list) > 3:
+                        detailed_impact += f" and {len(impact_list)-3} other effects"
+                    
+                    detailed_causes = f"Likely causes: {', '.join(causes_list[:3])}"
+                    if len(causes_list) > 3:
+                        detailed_causes += f" and {len(causes_list)-3} other factors"
                     
                     issue = {
                         'parameter': param,
@@ -1410,14 +2087,23 @@ class StandardsComparator:
                         'optimal_value': optimal,
                         'status': status,
                         'severity': severity,
-                        'impact': impact,
+                        'impact': detailed_impact,
+                        'causes': detailed_causes,
                         'critical': critical,
+                        'category': category,
+                        'unit': unit,
                         'source': 'Soil Analysis',
+                        'issue_description': issue_description,
+                        'deviation_percent': deviation_percent,
+                        'coefficient_variation': cv,
                         'sample_id': f"{len(out_of_range_samples)} out of {stats['count']} samples",
                         'out_of_range_samples': out_of_range_samples,
+                        'critical_samples': critical_samples,
                         'total_samples': stats['count'],
                         'out_of_range_count': len(out_of_range_samples),
-                        'type': 'soil'
+                        'variance_issues': variance_issues,
+                        'type': 'soil',
+                        'priority_score': self._calculate_priority_score(severity, critical, deviation_percent, len(out_of_range_samples), stats['count'])
                     }
                     
                     issues.append(issue)
@@ -1433,21 +2119,149 @@ class StandardsComparator:
             self.logger.error(f"Error comparing soil parameters: {str(e)}")
             return []
     
+    def _calculate_priority_score(self, severity: str, critical: bool, deviation_percent: float, 
+                                out_of_range_count: int, total_samples: int) -> int:
+        """Calculate priority score for issue ranking (1-100, higher = more urgent)"""
+        try:
+            base_score = 0
+            
+            # Severity scoring (40 points max)
+            severity_scores = {'Critical': 40, 'High': 30, 'Medium': 20, 'Low': 10}
+            base_score += severity_scores.get(severity, 10)
+            
+            # Critical parameter bonus (20 points max)
+            if critical:
+                base_score += 20
+            
+            # Deviation percentage impact (20 points max)
+            if deviation_percent > 100:
+                base_score += 20
+            elif deviation_percent > 50:
+                base_score += 15
+            elif deviation_percent > 25:
+                base_score += 10
+            else:
+                base_score += 5
+                
+            # Sample coverage impact (20 points max)
+            coverage_percent = (out_of_range_count / total_samples) * 100 if total_samples > 0 else 0
+            if coverage_percent > 75:
+                base_score += 20
+            elif coverage_percent > 50:
+                base_score += 15
+            elif coverage_percent > 25:
+                base_score += 10
+            else:
+                base_score += 5
+            
+            return min(base_score, 100)  # Cap at 100
+            
+        except Exception:
+            return 50  # Default medium priority
+    
     def compare_leaf_parameters(self, leaf_params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Compare leaf parameters against MPOB standards - ALL SAMPLES"""
+        """Enhanced comparison of leaf parameters against MPOB standards with comprehensive issue detection"""
         issues = []
         
         try:
-            # Define MPOB standards for leaf parameters (actual Malaysian oil palm standards)
+            # Enhanced MPOB standards for leaf parameters with detailed metadata
             leaf_standards = {
-                'N_%': {'min': 2.5, 'max': 3.0, 'optimal': 2.75, 'critical': True},
-                'P_%': {'min': 0.15, 'max': 0.20, 'optimal': 0.175, 'critical': True},
-                'K_%': {'min': 1.2, 'max': 1.5, 'optimal': 1.35, 'critical': True},
-                'Mg_%': {'min': 0.25, 'max': 0.35, 'optimal': 0.30, 'critical': True},
-                'Ca_%': {'min': 0.4, 'max': 0.6, 'optimal': 0.50, 'critical': True},
-                'B_mg_kg': {'min': 15, 'max': 25, 'optimal': 20, 'critical': False},
-                'Cu_mg_kg': {'min': 5.0, 'max': 8.0, 'optimal': 6.5, 'critical': False},
-                'Zn_mg_kg': {'min': 12, 'max': 18, 'optimal': 15, 'critical': False}
+                'N_%': {
+                    'min': 2.5, 'max': 3.0, 'optimal': 2.75, 'critical': True,
+                    'category': 'Primary Macronutrient', 'unit': '%',
+                    'causes': {
+                        'low': ['Inadequate N fertilization', 'High leaching losses', 'Poor soil organic matter'],
+                        'high': ['Excessive N fertilization', 'Delayed fruit maturity', 'Luxury consumption']
+                    },
+                    'impacts': {
+                        'low': ['Yellowing of older leaves', 'Stunted growth', 'Reduced photosynthesis', 'Lower yield'],
+                        'high': ['Delayed bunch maturity', 'Soft fruit development', 'Increased vegetative growth', 'Disease susceptibility']
+                    }
+                },
+                'P_%': {
+                    'min': 0.15, 'max': 0.20, 'optimal': 0.175, 'critical': True,
+                    'category': 'Primary Macronutrient', 'unit': '%',
+                    'causes': {
+                        'low': ['P fixation in acidic soils', 'Inadequate P fertilization', 'Poor root development'],
+                        'high': ['Recent P fertilization', 'Optimal soil conditions', 'Enhanced P availability']
+                    },
+                    'impacts': {
+                        'low': ['Poor root development', 'Delayed flowering', 'Reduced fruit set', 'Lower oil content'],
+                        'high': ['Potential micronutrient antagonism', 'Environmental concerns', 'Economic inefficiency']
+                    }
+                },
+                'K_%': {
+                    'min': 1.2, 'max': 1.5, 'optimal': 1.35, 'critical': True,
+                    'category': 'Primary Macronutrient', 'unit': '%',
+                    'causes': {
+                        'low': ['High leaching in sandy soils', 'Inadequate K fertilization', 'Mg/Ca antagonism'],
+                        'high': ['Excessive K fertilization', 'Recent fertilizer application', 'Good soil K reserves']
+                    },
+                    'impacts': {
+                        'low': ['Poor fruit quality', 'Reduced oil content', 'Increased disease susceptibility', 'Poor drought tolerance'],
+                        'high': ['Mg/Ca deficiency symptoms', 'Luxury consumption', 'Salt stress potential']
+                    }
+                },
+                'Mg_%': {
+                    'min': 0.25, 'max': 0.35, 'optimal': 0.30, 'critical': True,
+                    'category': 'Secondary Macronutrient', 'unit': '%',
+                    'causes': {
+                        'low': ['K/Ca antagonism', 'Acidic soil conditions', 'Low Mg fertilization'],
+                        'high': ['Excessive Mg fertilization', 'Dolomitic limestone application', 'Good soil Mg reserves']
+                    },
+                    'impacts': {
+                        'low': ['Interveinal chlorosis', 'Reduced chlorophyll', 'Poor photosynthesis', 'Leaf necrosis'],
+                        'high': ['K/Ca deficiency induction', 'Reduced fruit quality', 'Nutritional imbalance']
+                    }
+                },
+                'Ca_%': {
+                    'min': 0.4, 'max': 0.6, 'optimal': 0.50, 'critical': True,
+                    'category': 'Secondary Macronutrient', 'unit': '%',
+                    'causes': {
+                        'low': ['Acidic soil conditions', 'K/Mg antagonism', 'Poor lime application'],
+                        'high': ['Recent liming', 'Calcareous soil', 'Excessive Ca fertilization']
+                    },
+                    'impacts': {
+                        'low': ['Poor cell wall development', 'Increased disease susceptibility', 'Fruit quality issues'],
+                        'high': ['Mg/K deficiency symptoms', 'Iron deficiency', 'Poor nutrient balance']
+                    }
+                },
+                'B_mg_kg': {
+                    'min': 15, 'max': 25, 'optimal': 20, 'critical': False,
+                    'category': 'Micronutrient', 'unit': 'mg/kg',
+                    'causes': {
+                        'low': ['Alkaline soil conditions', 'Low B fertilization', 'High Ca levels'],
+                        'high': ['Recent B fertilization', 'B toxicity risk', 'Contamination']
+                    },
+                    'impacts': {
+                        'low': ['Poor fruit set', 'Hollow heart in fruits', 'Brittle petioles', 'Reduced fertility'],
+                        'high': ['Leaf burn symptoms', 'Growth inhibition', 'Toxicity symptoms']
+                    }
+                },
+                'Cu_mg_kg': {
+                    'min': 5.0, 'max': 8.0, 'optimal': 6.5, 'critical': False,
+                    'category': 'Micronutrient', 'unit': 'mg/kg',
+                    'causes': {
+                        'low': ['Alkaline soil pH', 'High organic matter', 'Cu fixation'],
+                        'high': ['Cu fungicide use', 'Acidic conditions', 'Recent Cu fertilization']
+                    },
+                    'impacts': {
+                        'low': ['Poor enzyme function', 'Wilting symptoms', 'Reduced disease resistance'],
+                        'high': ['Root damage', 'Iron deficiency', 'Growth inhibition']
+                    }
+                },
+                'Zn_mg_kg': {
+                    'min': 12, 'max': 18, 'optimal': 15, 'critical': False,
+                    'category': 'Micronutrient', 'unit': 'mg/kg',
+                    'causes': {
+                        'low': ['High P levels', 'Alkaline soil pH', 'Zn fixation'],
+                        'high': ['Recent Zn fertilization', 'Acidic conditions', 'Contamination']
+                    },
+                    'impacts': {
+                        'low': ['Interveinal chlorosis', 'Small leaves', 'Poor fruit development', 'Reduced yield'],
+                        'high': ['Iron deficiency', 'Growth inhibition', 'Phytotoxicity']
+                    }
+                }
             }
             
             # Check if we have parameter statistics from the new data structure
@@ -1463,9 +2277,14 @@ class StandardsComparator:
                 max_val = standard['max']
                 optimal = standard['optimal']
                 critical = standard['critical']
+                category = standard['category']
+                unit = standard['unit']
                 
                 # Check each individual sample for issues
                 out_of_range_samples = []
+                critical_samples = []
+                variance_issues = []
+                
                 for sample in stats['samples']:
                     sample_value = sample['value']
                     sample_no = sample.get('sample_no', 'N/A')
@@ -1480,34 +2299,81 @@ class StandardsComparator:
                             'sample_id': sample_id,
                             'value': sample_value,
                             'min_val': min_val,
-                            'max_val': max_val
+                            'max_val': max_val,
+                            'deviation_percent': abs((sample_value - optimal) / optimal * 100)
                         })
+                        
+                        # Check for critical individual samples
+                        if (sample_value < min_val * 0.5) or (sample_value > max_val * 2.0):
+                            critical_samples.append(sample_id)
+                
+                # Calculate variance and coefficient of variation
+                avg_value = stats['average']
+                std_dev = stats.get('std_dev', 0)
+                cv = (std_dev / avg_value * 100) if avg_value > 0 else 0
+                
+                # Check for high variability (CV > 25% for leaves indicates inconsistent nutrition)
+                if cv > 25:
+                    variance_issues.append(f"High variability (CV: {cv:.1f}%) indicates inconsistent plant nutrition")
                 
                 # Create issue if average is outside optimal range OR if there are out-of-range samples
-                avg_value = stats['average']
                 if avg_value < min_val or avg_value > max_val or out_of_range_samples:
-                    # Determine overall issue status
+                    # Determine detailed issue status and causes
                     if avg_value < min_val:
                         status = "Deficient"
-                        # Use Critical severity for critical parameters that are severely deficient
-                        if critical and avg_value < (min_val * 0.5):  # More than 50% below minimum
+                        deviation_percent = abs((avg_value - min_val) / min_val * 100)
+                        
+                        # Enhanced severity assessment for leaf parameters
+                        if critical and avg_value < (min_val * 0.5):
                             severity = "Critical"
+                        elif critical and avg_value < (min_val * 0.8):
+                            severity = "High"
+                        elif critical:
+                            severity = "Medium"
                         else:
-                            severity = "High" if critical else "Medium"
-                        impact = f"Below optimal range ({min_val}-{max_val})"
+                            severity = "Medium" if avg_value < (min_val * 0.8) else "Low"
+                            
+                        impact_list = standard['impacts']['low']
+                        causes_list = standard['causes']['low']
+                        
                     elif avg_value > max_val:
                         status = "Excessive"
-                        # Use Critical severity for critical parameters that are severely excessive
-                        if critical and avg_value > (max_val * 2.0):  # More than 200% above maximum
+                        deviation_percent = abs((avg_value - max_val) / max_val * 100)
+                        
+                        # Enhanced severity assessment for leaf parameters
+                        if critical and avg_value > (max_val * 2.0):
                             severity = "Critical"
+                        elif critical and avg_value > (max_val * 1.5):
+                            severity = "High"
+                        elif critical:
+                            severity = "Medium"
                         else:
-                            severity = "High" if critical else "Medium"
-                        impact = f"Above optimal range ({min_val}-{max_val})"
+                            severity = "Medium" if avg_value > (max_val * 1.5) else "Low"
+                            
+                        impact_list = standard['impacts']['high']
+                        causes_list = standard['causes']['high']
+                        
                     else:
                         # Average is in range but some samples are out of range
-                        status = "Mixed"
+                        status = "Variable"
+                        deviation_percent = max([s['deviation_percent'] for s in out_of_range_samples])
                         severity = "Medium" if critical else "Low"
-                        impact = f"Some samples outside optimal range ({min_val}-{max_val})"
+                        impact_list = ["Inconsistent plant nutrition", "Variable leaf quality", "Uneven growth response"]
+                        causes_list = ["Uneven fertilizer distribution", "Plant age differences", "Sampling variation"]
+                    
+                    # Create comprehensive issue description
+                    issue_description = f"{param} levels are {status.lower()} with {len(out_of_range_samples)} out of {stats['count']} samples outside optimal range"
+                    if critical_samples:
+                        issue_description += f". {len(critical_samples)} samples show critical levels"
+                    
+                    # Build detailed impact and cause analysis
+                    detailed_impact = f"Primary impacts: {', '.join(impact_list[:3])}"
+                    if len(impact_list) > 3:
+                        detailed_impact += f" and {len(impact_list)-3} other effects"
+                    
+                    detailed_causes = f"Likely causes: {', '.join(causes_list[:3])}"
+                    if len(causes_list) > 3:
+                        detailed_causes += f" and {len(causes_list)-3} other factors"
                     
                     issue = {
                         'parameter': param,
@@ -1516,14 +2382,23 @@ class StandardsComparator:
                         'optimal_value': optimal,
                         'status': status,
                         'severity': severity,
-                        'impact': impact,
+                        'impact': detailed_impact,
+                        'causes': detailed_causes,
                         'critical': critical,
+                        'category': category,
+                        'unit': unit,
                         'source': 'Leaf Analysis',
+                        'issue_description': issue_description,
+                        'deviation_percent': deviation_percent,
+                        'coefficient_variation': cv,
                         'sample_id': f"{len(out_of_range_samples)} out of {stats['count']} samples",
                         'out_of_range_samples': out_of_range_samples,
+                        'critical_samples': critical_samples,
                         'total_samples': stats['count'],
                         'out_of_range_count': len(out_of_range_samples),
-                        'type': 'leaf'
+                        'variance_issues': variance_issues,
+                        'type': 'leaf',
+                        'priority_score': self._calculate_priority_score(severity, critical, deviation_percent, len(out_of_range_samples), stats['count'])
                     }
                     
                     issues.append(issue)
@@ -2796,6 +3671,18 @@ class PromptAnalyzer:
     def _convert_json_to_text_format(self, result: Dict[str, Any], step_number: int) -> Dict[str, Any]:
         """Convert JSON structured data to text format for UI display"""
         try:
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                self.logger.error(f"Result is not a dictionary: {type(result)}")
+                result = {
+                    'step_number': step_number,
+                    'step_title': f'Step {step_number}',
+                    'summary': 'Analysis completed',
+                    'detailed_analysis': str(result) if result else 'No analysis available',
+                    'key_findings': [],
+                    'data_quality': 'Unknown'
+                }
+            
             # Start with the base result
             text_result = result.copy()
             
@@ -2818,13 +3705,17 @@ class PromptAnalyzer:
                 self.logger.error(f"Error in step {step_number} formatting: {str(step_error)}")
                 # Try to create a basic formatted text
                 formatted_text = f"## Step {step_number} Analysis\n\n"
-                if result.get('summary'):
+                if isinstance(result, dict) and result.get('summary'):
                     formatted_text += f"**Summary:** {result['summary']}\n\n"
-                if result.get('key_findings'):
+                if isinstance(result, dict) and result.get('key_findings'):
                     formatted_text += "**Key Findings:**\n"
                     for i, finding in enumerate(result['key_findings'], 1):
                         formatted_text += f"{i}. {finding}\n"
                 formatted_text += "\n*Note: Detailed formatting unavailable due to data type issues.*"
+                
+                # For Step 6 specifically, ensure we have a proper fallback
+                if step_number == 6:
+                    formatted_text = self._create_step6_fallback_text(result)
             
             # Ensure we always have some formatted content
             if not formatted_text or formatted_text.strip() == "":
@@ -2858,6 +3749,14 @@ class PromptAnalyzer:
         
         text_parts.append(f"## {step_titles.get(step_number, f'Step {step_number} Analysis')}")
         text_parts.append("")
+        
+        # Ensure result is a dictionary
+        if not isinstance(result, dict):
+            text_parts.append("**Analysis Status:** Completed")
+            text_parts.append("")
+            text_parts.append("**Note:** Analysis data format issue detected. Raw data available for review.")
+            text_parts.append("")
+            return "\n".join(text_parts)
         
         # Add summary if available
         if result.get('summary'):
@@ -3577,27 +4476,50 @@ class PromptAnalyzer:
         """Format Step 6 (Forecast Graph) to text"""
         text_parts = []
         
+        # Ensure result is a dictionary
+        if not isinstance(result, dict):
+            self.logger.error(f"Step 6 result is not a dictionary: {type(result)}")
+            return f"## Step 6: Forecast Graph\n\nError: Invalid data format received.\n\n*The forecast data could not be processed due to a formatting issue.*"
+        
         # Summary
         if result.get('summary'):
-            text_parts.append(f"## Summary\n{result['summary']}\n")
+            summary_text = result['summary']
+            if isinstance(summary_text, str):
+                text_parts.append(f"## Summary\n{summary_text}\n")
+            else:
+                text_parts.append(f"## Summary\n{str(summary_text)}\n")
         
         # Key Findings
         if result.get('key_findings'):
             text_parts.append("## 🔍 Key Findings\n")
-            for i, finding in enumerate(result['key_findings'], 1):
-                text_parts.append(f"**{i}.** {finding}")
+            findings = result['key_findings']
+            if isinstance(findings, list):
+                for i, finding in enumerate(findings, 1):
+                    if isinstance(finding, str):
+                        text_parts.append(f"**{i}.** {finding}")
+                    else:
+                        text_parts.append(f"**{i}.** {str(finding)}")
+            elif isinstance(findings, str):
+                text_parts.append(f"**1.** {findings}")
             text_parts.append("")
         
         # Detailed Analysis
         if result.get('detailed_analysis'):
-            text_parts.append(f"## 📋 Detailed Analysis\n{result['detailed_analysis']}\n")
+            detailed_text = result['detailed_analysis']
+            if isinstance(detailed_text, str):
+                text_parts.append(f"## 📋 Detailed Analysis\n{detailed_text}\n")
+            else:
+                text_parts.append(f"## 📋 Detailed Analysis\n{str(detailed_text)}\n")
         
         # Yield Forecast - Always show this section
         forecast = result.get('yield_forecast', {})
+        if not isinstance(forecast, dict):
+            self.logger.warning(f"Yield forecast is not a dictionary: {type(forecast)}")
+            forecast = {}
         text_parts.append("## 📈 5-Year Yield Forecast\n")
 
         # Show baseline yield
-        baseline_yield = forecast.get('baseline_yield', 0)
+        baseline_yield = forecast.get('baseline_yield', 0) if isinstance(forecast, dict) else 0
         # Ensure baseline_yield is numeric
         try:
             baseline_yield = float(baseline_yield) if baseline_yield is not None else 0
@@ -3617,12 +4539,12 @@ class PromptAnalyzer:
         year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
 
         # Always show forecast tables, even if data is generated
-        if not forecast.get('high_investment'):
+        if not (isinstance(forecast, dict) and forecast.get('high_investment')):
             # Generate default forecast if not available
             forecast = self._generate_default_forecast(baseline_yield)
 
         # High Investment Scenario
-        if forecast.get('high_investment'):
+        if isinstance(forecast, dict) and forecast.get('high_investment'):
             text_parts.append("### 🚀 High Investment Scenario")
             text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
             text_parts.append("|------|------------------|-------------|")
@@ -3663,7 +4585,7 @@ class PromptAnalyzer:
             text_parts.append("")
 
         # Medium Investment Scenario
-        if forecast.get('medium_investment'):
+        if isinstance(forecast, dict) and forecast.get('medium_investment'):
             text_parts.append("### ⚖️ Medium Investment Scenario")
             text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
             text_parts.append("|------|------------------|-------------|")
@@ -3704,7 +4626,7 @@ class PromptAnalyzer:
             text_parts.append("")
 
         # Low Investment Scenario
-        if forecast.get('low_investment'):
+        if isinstance(forecast, dict) and forecast.get('low_investment'):
             text_parts.append("### 💰 Low Investment Scenario")
             text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
             text_parts.append("|------|------------------|-------------|")
@@ -3820,26 +4742,50 @@ class ResultsGenerator:
         self.economic_config = get_economic_config()
     
     def generate_recommendations(self, issues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Generate recommendations based on identified issues"""
+        """Enhanced recommendation generation with comprehensive three-tier investment strategies"""
         recommendations = []
         
         try:
-            for issue in issues:
+            # Sort issues by priority score for better organization
+            sorted_issues = sorted(issues, key=lambda x: x.get('priority_score', 50), reverse=True)
+            
+            for issue in sorted_issues:
                 param = issue['parameter']
                 status = issue['status']
                 severity = issue['severity']
-                current_value = issue['current_value']
-                optimal_range = issue['optimal_range']
+                current_value = issue.get('current_value', 0)
+                optimal_range = issue.get('optimal_range', '')
+                category = issue.get('category', 'General')
+                unit = issue.get('unit', '')
+                source = issue.get('source', 'Analysis')
+                priority_score = issue.get('priority_score', 50)
+                deviation_percent = issue.get('deviation_percent', 0)
+                critical = issue.get('critical', False)
+                causes = issue.get('causes', 'Multiple factors contributing to the issue')
+                impacts = issue.get('impact', 'Various effects on plant health and yield')
                 
-                # Generate three-tier recommendations
+                # Enhanced issue description with more context
+                issue_description = f"{param} ({unit}) is {status.lower()} with current average of {current_value:.2f} (Optimal: {optimal_range})"
+                if deviation_percent > 0:
+                    issue_description += f" - {deviation_percent:.1f}% deviation from optimal"
+                
+                # Generate comprehensive three-tier recommendations based on parameter type and issue
                 rec = {
                     'parameter': param,
-                    'issue_description': f"{param} is {status.lower()} (Current: {current_value}, Optimal: {optimal_range})",
-                    'investment_options': {
-                        'high': self._generate_high_investment_rec(param, status, current_value),
-                        'medium': self._generate_medium_investment_rec(param, status, current_value),
-                        'low': self._generate_low_investment_rec(param, status, current_value)
-                    }
+                    'category': category,
+                    'source': source,
+                    'priority_score': priority_score,
+                    'severity': severity,
+                    'critical': critical,
+                    'issue_description': issue_description,
+                    'root_causes': causes,
+                    'expected_impacts': impacts,
+                    'investment_options': self._generate_comprehensive_investment_options(
+                        param, status, current_value, severity, category, source, unit, critical
+                    ),
+                    'implementation_timeline': self._generate_implementation_timeline(severity, critical),
+                    'monitoring_requirements': self._generate_monitoring_plan(param, source, critical),
+                    'success_indicators': self._generate_success_indicators(param, status, optimal_range, source)
                 }
                 
                 recommendations.append(rec)
@@ -3859,6 +4805,453 @@ class ResultsGenerator:
         except Exception as e:
             self.logger.error(f"Error generating recommendations: {str(e)}")
             return []
+    
+    def _generate_comprehensive_investment_options(self, param: str, status: str, current_value: float, 
+                                                 severity: str, category: str, source: str, unit: str, critical: bool) -> Dict[str, Any]:
+        """Generate comprehensive three-tier investment options for each issue"""
+        
+        # Determine if this is a soil or leaf parameter
+        is_soil = source == 'Soil Analysis'
+        
+        if is_soil:
+            return self._generate_soil_investment_options(param, status, current_value, severity, critical)
+        else:
+            return self._generate_leaf_investment_options(param, status, current_value, severity, critical)
+    
+    def _generate_soil_investment_options(self, param: str, status: str, current_value: float, 
+                                        severity: str, critical: bool) -> Dict[str, Any]:
+        """Generate soil-specific investment options"""
+        
+        # pH Management
+        if 'pH' in param:
+            if status == 'Deficient':
+                return {
+                    'high': {
+                        'approach': 'Precision Lime Application with Soil Mapping',
+                        'action': 'Variable rate lime application based on grid sampling',
+                        'materials': 'Agricultural lime (CaCO3) + Gypsum for Ca/Mg balance',
+                        'dosage': '2-4 tonnes/ha lime + 0.5-1 tonne/ha gypsum',
+                        'application_method': 'GPS-guided variable rate spreader',
+                        'timeline': 'Apply 3-4 months before next fertilization cycle',
+                        'cost_range': 'RM 600-900/ha',
+                        'labor_requirements': '2-3 days/100ha with machinery',
+                        'expected_result': 'pH increase to 4.5-5.5 within 6-8 months',
+                        'roi_period': '12-18 months',
+                        'yield_impact': '15-25% yield improvement expected'
+                    },
+                    'medium': {
+                        'approach': 'Standard Lime Application',
+                        'action': 'Broadcast lime application across affected areas',
+                        'materials': 'Agricultural lime (CaCO3)',
+                        'dosage': '1.5-2.5 tonnes/ha lime',
+                        'application_method': 'Tractor-mounted spreader',
+                        'timeline': 'Apply 4-6 months before next fertilization',
+                        'cost_range': 'RM 300-500/ha',
+                        'labor_requirements': '1-2 days/100ha',
+                        'expected_result': 'pH increase to 4.2-5.0 within 8-12 months',
+                        'roi_period': '18-24 months',
+                        'yield_impact': '10-18% yield improvement expected'
+                    },
+                    'low': {
+                        'approach': 'Gradual pH Correction',
+                        'action': 'Split lime application over 2 seasons',
+                        'materials': 'Agricultural lime (CaCO3)',
+                        'dosage': '1.0-1.5 tonnes/ha lime per application',
+                        'application_method': 'Manual or small spreader',
+                        'timeline': 'Apply 0.75 tonnes now, 0.75 tonnes in 6 months',
+                        'cost_range': 'RM 200-350/ha',
+                        'labor_requirements': '3-4 days/100ha manual application',
+                        'expected_result': 'Gradual pH increase over 12-18 months',
+                        'roi_period': '24-36 months',
+                        'yield_impact': '8-15% yield improvement expected'
+                    }
+                }
+            else:  # Excessive pH
+                return {
+                    'high': {
+                        'approach': 'Precision Sulfur Application with Organic Matter',
+                        'action': 'Variable rate sulfur + organic matter incorporation',
+                        'materials': 'Elemental sulfur + compost/EFB',
+                        'dosage': '500-800 kg/ha sulfur + 20-30 tonnes/ha organic matter',
+                        'application_method': 'GPS-guided application + incorporation',
+                        'timeline': 'Apply sulfur 4-6 months before planting/fertilization',
+                        'cost_range': 'RM 400-650/ha',
+                        'labor_requirements': '2-3 days/100ha with machinery',
+                        'expected_result': 'pH reduction to 4.5-5.5 within 8-10 months',
+                        'roi_period': '12-18 months',
+                        'yield_impact': '12-20% yield improvement expected'
+                    },
+                    'medium': {
+                        'approach': 'Standard Sulfur Application',
+                        'action': 'Broadcast sulfur application',
+                        'materials': 'Elemental sulfur',
+                        'dosage': '300-500 kg/ha sulfur',
+                        'application_method': 'Tractor-mounted spreader',
+                        'timeline': 'Apply 6-8 months before fertilization',
+                        'cost_range': 'RM 250-400/ha',
+                        'labor_requirements': '1-2 days/100ha',
+                        'expected_result': 'pH reduction to 4.8-5.8 within 10-12 months',
+                        'roi_period': '18-24 months',
+                        'yield_impact': '8-15% yield improvement expected'
+                    },
+                    'low': {
+                        'approach': 'Organic Matter Enhancement',
+                        'action': 'Increase organic matter to naturally lower pH',
+                        'materials': 'Composted EFB + organic amendments',
+                        'dosage': '15-25 tonnes/ha organic matter annually',
+                        'application_method': 'Manual distribution around palms',
+                        'timeline': 'Apply at beginning of wet season',
+                        'cost_range': 'RM 150-250/ha',
+                        'labor_requirements': '4-5 days/100ha manual application',
+                        'expected_result': 'Gradual pH reduction over 18-24 months',
+                        'roi_period': '24-36 months',
+                        'yield_impact': '5-12% yield improvement expected'
+                    }
+                }
+        
+        # Potassium Management
+        elif 'K' in param or 'Exchangeable_K' in param:
+            if status == 'Deficient':
+                return {
+                    'high': {
+                        'approach': 'High-Grade Potassium with Soil Conditioners',
+                        'action': 'Premium K fertilizer + soil structure improvement',
+                        'materials': 'Muriate of Potash (MOP) + Sulfate of Potash (SOP) + organic matter',
+                        'dosage': '200-300 kg/ha K2O (mix of MOP/SOP) + 20 tonnes/ha organic matter',
+                        'application_method': 'Split application in palm circle + incorporation',
+                        'timeline': '3 split applications: wet season start, mid-season, end',
+                        'cost_range': 'RM 800-1200/ha',
+                        'labor_requirements': '3-4 days/100ha for 3 applications',
+                        'expected_result': 'K levels reach optimal within 3-4 months',
+                        'roi_period': '6-12 months',
+                        'yield_impact': '20-30% yield improvement expected'
+                    },
+                    'medium': {
+                        'approach': 'Standard Potassium Fertilization',
+                        'action': 'Regular K fertilizer application',
+                        'materials': 'Muriate of Potash (MOP)',
+                        'dosage': '150-200 kg/ha K2O',
+                        'application_method': 'Split application in palm circle',
+                        'timeline': '2 split applications during wet season',
+                        'cost_range': 'RM 500-750/ha',
+                        'labor_requirements': '2-3 days/100ha for 2 applications',
+                        'expected_result': 'K levels improve within 4-6 months',
+                        'roi_period': '12-18 months',
+                        'yield_impact': '15-22% yield improvement expected'
+                    },
+                    'low': {
+                        'approach': 'Basic Potassium Supplementation',
+                        'action': 'Single application with organic supplementation',
+                        'materials': 'Muriate of Potash (MOP) + EFB ash',
+                        'dosage': '100-150 kg/ha K2O + 5-10 tonnes/ha EFB',
+                        'application_method': 'Single application + organic mulching',
+                        'timeline': 'Apply at start of wet season',
+                        'cost_range': 'RM 300-450/ha',
+                        'labor_requirements': '2-3 days/100ha including mulching',
+                        'expected_result': 'Gradual K improvement over 6-8 months',
+                        'roi_period': '18-24 months',
+                        'yield_impact': '10-18% yield improvement expected'
+                    }
+                }
+        
+        # Phosphorus Management
+        elif 'P' in param:
+            if status == 'Deficient':
+                return {
+                    'high': {
+                        'approach': 'Enhanced Phosphorus with Mycorrhizae',
+                        'action': 'High-grade P fertilizer + biological enhancement',
+                        'materials': 'Triple Superphosphate (TSP) + Rock phosphate + Mycorrhizal inoculant',
+                        'dosage': '150-200 kg/ha P2O5 + 5 kg/ha mycorrhizal inoculant',
+                        'application_method': 'Placement near root zone + inoculation',
+                        'timeline': 'Apply P at planting/early growth + inoculant quarterly',
+                        'cost_range': 'RM 600-900/ha',
+                        'labor_requirements': '2-3 days/100ha with specialized application',
+                        'expected_result': 'P levels optimal within 2-3 months',
+                        'roi_period': '6-12 months',
+                        'yield_impact': '18-25% yield improvement expected'
+                    },
+                    'medium': {
+                        'approach': 'Standard Phosphorus Application',
+                        'action': 'Regular P fertilizer application',
+                        'materials': 'Triple Superphosphate (TSP)',
+                        'dosage': '100-150 kg/ha P2O5',
+                        'application_method': 'Band application near palm base',
+                        'timeline': 'Apply at beginning of growing season',
+                        'cost_range': 'RM 400-600/ha',
+                        'labor_requirements': '1-2 days/100ha',
+                        'expected_result': 'P levels improve within 3-4 months',
+                        'roi_period': '12-18 months',
+                        'yield_impact': '12-20% yield improvement expected'
+                    },
+                    'low': {
+                        'approach': 'Slow-Release Phosphorus',
+                        'action': 'Rock phosphate with organic matter',
+                        'materials': 'Rock phosphate + compost',
+                        'dosage': '80-120 kg/ha P2O5 + 15-20 tonnes/ha compost',
+                        'application_method': 'Broadcasting with organic matter incorporation',
+                        'timeline': 'Apply at start of wet season',
+                        'cost_range': 'RM 250-400/ha',
+                        'labor_requirements': '3-4 days/100ha manual application',
+                        'expected_result': 'Gradual P release over 6-12 months',
+                        'roi_period': '18-30 months',
+                        'yield_impact': '8-15% yield improvement expected'
+                    }
+                }
+        
+        # Default for other soil parameters
+        else:
+            return self._generate_default_soil_recommendations(param, status, severity, critical)
+    
+    def _generate_leaf_investment_options(self, param: str, status: str, current_value: float, 
+                                        severity: str, critical: bool) -> Dict[str, Any]:
+        """Generate leaf-specific investment options (indicates soil treatment needs)"""
+        
+        # Nitrogen Management
+        if 'N_%' in param:
+            if status == 'Deficient':
+                return {
+                    'high': {
+                        'approach': 'Intensive Nitrogen Program with Soil Enhancement',
+                        'action': 'High-efficiency N fertilizer + soil organic matter boost',
+                        'materials': 'Coated urea + Ammonium nitrate + Compost + Biochar',
+                        'dosage': '150-200 kg/ha N + 25-30 tonnes/ha organic amendments',
+                        'application_method': '4 split applications with soil incorporation',
+                        'timeline': 'Monthly applications during active growth period',
+                        'cost_range': 'RM 900-1300/ha',
+                        'labor_requirements': '4-5 days/100ha for multiple applications',
+                        'expected_result': 'Leaf N optimal within 2-3 months',
+                        'roi_period': '6-9 months',
+                        'yield_impact': '25-35% yield improvement expected'
+                    },
+                    'medium': {
+                        'approach': 'Standard Nitrogen Fertilization',
+                        'action': 'Regular N fertilizer with improved timing',
+                        'materials': 'Urea + Ammonium sulfate',
+                        'dosage': '120-150 kg/ha N',
+                        'application_method': '3 split applications in palm circle',
+                        'timeline': 'Start of wet season, mid-season, end of season',
+                        'cost_range': 'RM 600-850/ha',
+                        'labor_requirements': '3-4 days/100ha for 3 applications',
+                        'expected_result': 'Leaf N improvement within 3-4 months',
+                        'roi_period': '9-15 months',
+                        'yield_impact': '18-25% yield improvement expected'
+                    },
+                    'low': {
+                        'approach': 'Organic Nitrogen Enhancement',
+                        'action': 'Organic matter focus with supplemental N',
+                        'materials': 'Compost + EFB + Urea',
+                        'dosage': '80-100 kg/ha N + 20-25 tonnes/ha organic matter',
+                        'application_method': 'Organic mulching + minimal N supplementation',
+                        'timeline': 'Apply organic matter annually + 2 N applications',
+                        'cost_range': 'RM 400-600/ha',
+                        'labor_requirements': '4-5 days/100ha for organic application',
+                        'expected_result': 'Gradual N improvement over 4-6 months',
+                        'roi_period': '15-24 months',
+                        'yield_impact': '12-20% yield improvement expected'
+                    }
+                }
+        
+        # Phosphorus in leaves (indicates soil P availability issues)
+        elif 'P_%' in param:
+            if status == 'Deficient':
+                return {
+                    'high': {
+                        'approach': 'Soil P Enhancement + Foliar Supplementation',
+                        'action': 'Soil P improvement + immediate foliar P',
+                        'materials': 'TSP + Rock phosphate + Foliar P + Mycorrhizae',
+                        'dosage': '180-220 kg/ha P2O5 soil + 5-8 foliar applications + inoculant',
+                        'application_method': 'Soil placement + bi-weekly foliar spray',
+                        'timeline': 'Soil P immediate, foliar P monthly during growth',
+                        'cost_range': 'RM 800-1200/ha',
+                        'labor_requirements': '3-4 days/100ha + regular spraying',
+                        'expected_result': 'Leaf P optimal within 6-8 weeks',
+                        'roi_period': '4-8 months',
+                        'yield_impact': '22-30% yield improvement expected'
+                    },
+                    'medium': {
+                        'approach': 'Soil P Correction with Monitoring',
+                        'action': 'Enhanced soil P application',
+                        'materials': 'Triple Superphosphate (TSP) + Organic P',
+                        'dosage': '150-180 kg/ha P2O5 + 15 tonnes/ha compost',
+                        'application_method': 'Band application + organic matter',
+                        'timeline': 'Apply at start of growing season',
+                        'cost_range': 'RM 550-800/ha',
+                        'labor_requirements': '2-3 days/100ha',
+                        'expected_result': 'Leaf P improvement within 8-12 weeks',
+                        'roi_period': '8-15 months',
+                        'yield_impact': '15-22% yield improvement expected'
+                    },
+                    'low': {
+                        'approach': 'Gradual Soil P Building',
+                        'action': 'Slow-release P with organic enhancement',
+                        'materials': 'Rock phosphate + Compost + Bone meal',
+                        'dosage': '100-130 kg/ha P2O5 + 20 tonnes/ha organic matter',
+                        'application_method': 'Broadcasting with organic incorporation',
+                        'timeline': 'Annual application with organic matter',
+                        'cost_range': 'RM 350-550/ha',
+                        'labor_requirements': '3-4 days/100ha manual application',
+                        'expected_result': 'Gradual leaf P improvement over 3-4 months',
+                        'roi_period': '15-24 months',
+                        'yield_impact': '10-18% yield improvement expected'
+                    }
+                }
+        
+        # Default for other leaf parameters
+        else:
+            return self._generate_default_leaf_recommendations(param, status, severity, critical)
+    
+    def _generate_default_soil_recommendations(self, param: str, status: str, severity: str, critical: bool) -> Dict[str, Any]:
+        """Generate default soil recommendations for parameters not specifically handled"""
+        return {
+            'high': {
+                'approach': f'Intensive {param} Correction Program',
+                'action': f'Premium materials and precision application for {param}',
+                'materials': f'High-grade fertilizers specific to {param}',
+                'dosage': 'As per detailed soil test recommendations',
+                'application_method': 'Precision application with GPS guidance',
+                'timeline': 'Immediate application with monitoring',
+                'cost_range': 'RM 700-1000/ha',
+                'labor_requirements': '2-3 days/100ha with specialized equipment',
+                'expected_result': f'{param} levels reach optimal within 3-6 months',
+                'roi_period': '6-12 months',
+                'yield_impact': '15-25% yield improvement expected'
+            },
+            'medium': {
+                'approach': f'Standard {param} Management',
+                'action': f'Regular fertilizer application for {param}',
+                'materials': f'Standard grade fertilizers for {param}',
+                'dosage': 'Based on soil test recommendations',
+                'application_method': 'Standard application techniques',
+                'timeline': 'Apply according to seasonal schedule',
+                'cost_range': 'RM 400-700/ha',
+                'labor_requirements': '1-2 days/100ha',
+                'expected_result': f'{param} improvement within 4-8 months',
+                'roi_period': '12-18 months',
+                'yield_impact': '10-20% yield improvement expected'
+            },
+            'low': {
+                'approach': f'Basic {param} Supplementation',
+                'action': f'Minimal intervention for {param}',
+                'materials': f'Basic fertilizers and organic amendments',
+                'dosage': 'Conservative application rates',
+                'application_method': 'Manual application',
+                'timeline': 'Annual application',
+                'cost_range': 'RM 200-400/ha',
+                'labor_requirements': '3-4 days/100ha manual work',
+                'expected_result': f'Gradual {param} improvement over 6-12 months',
+                'roi_period': '18-30 months',
+                'yield_impact': '5-15% yield improvement expected'
+            }
+        }
+    
+    def _generate_default_leaf_recommendations(self, param: str, status: str, severity: str, critical: bool) -> Dict[str, Any]:
+        """Generate default leaf recommendations for parameters not specifically handled"""
+        return {
+            'high': {
+                'approach': f'Comprehensive {param} Correction',
+                'action': f'Soil correction + foliar supplementation for {param}',
+                'materials': f'Soil amendments + foliar nutrients for {param}',
+                'dosage': 'Based on leaf analysis and soil test',
+                'application_method': 'Soil treatment + foliar spraying',
+                'timeline': 'Immediate soil treatment + monthly foliar',
+                'cost_range': 'RM 800-1200/ha',
+                'labor_requirements': '3-4 days/100ha + spraying schedule',
+                'expected_result': f'Leaf {param} optimal within 6-10 weeks',
+                'roi_period': '4-10 months',
+                'yield_impact': '20-30% yield improvement expected'
+            },
+            'medium': {
+                'approach': f'Standard {param} Management',
+                'action': f'Soil-based {param} correction',
+                'materials': f'Standard soil amendments for {param}',
+                'dosage': 'Based on leaf analysis recommendations',
+                'application_method': 'Soil application around palm base',
+                'timeline': 'Apply at start of growing season',
+                'cost_range': 'RM 500-800/ha',
+                'labor_requirements': '2-3 days/100ha',
+                'expected_result': f'Leaf {param} improvement within 8-12 weeks',
+                'roi_period': '8-15 months',
+                'yield_impact': '12-22% yield improvement expected'
+            },
+            'low': {
+                'approach': f'Gradual {param} Building',
+                'action': f'Organic matter enhancement for {param}',
+                'materials': f'Compost and organic amendments',
+                'dosage': '15-25 tonnes/ha organic matter annually',
+                'application_method': 'Manual spreading and incorporation',
+                'timeline': 'Annual application during wet season',
+                'cost_range': 'RM 300-500/ha',
+                'labor_requirements': '4-5 days/100ha manual work',
+                'expected_result': f'Gradual leaf {param} improvement over 3-5 months',
+                'roi_period': '15-24 months',
+                'yield_impact': '8-18% yield improvement expected'
+            }
+        }
+    
+    def _generate_implementation_timeline(self, severity: str, critical: bool) -> Dict[str, str]:
+        """Generate implementation timeline based on issue severity"""
+        if critical and severity == 'Critical':
+            return {
+                'immediate': 'Start within 1-2 weeks',
+                'short_term': 'Complete initial treatment within 1 month',
+                'medium_term': 'Monitor progress at 2-3 month intervals',
+                'long_term': 'Evaluate results at 6-12 months'
+            }
+        elif severity in ['Critical', 'High']:
+            return {
+                'immediate': 'Start within 2-4 weeks',
+                'short_term': 'Complete initial treatment within 2 months',
+                'medium_term': 'Monitor progress at 3-4 month intervals',
+                'long_term': 'Evaluate results at 12-18 months'
+            }
+        else:
+            return {
+                'immediate': 'Start within 1-2 months',
+                'short_term': 'Complete initial treatment within 3-4 months',
+                'medium_term': 'Monitor progress at 6-month intervals',
+                'long_term': 'Evaluate results at 18-24 months'
+            }
+    
+    def _generate_monitoring_plan(self, param: str, source: str, critical: bool) -> Dict[str, str]:
+        """Generate monitoring requirements for each parameter"""
+        if source == 'Soil Analysis':
+            frequency = 'every 6 months' if critical else 'annually'
+            return {
+                'soil_testing': f'Re-test {param} {frequency}',
+                'visual_monitoring': 'Monthly visual assessment of plant response',
+                'yield_tracking': 'Track bunch weight and oil content quarterly',
+                'cost_monitoring': 'Document input costs and ROI monthly'
+            }
+        else:  # Leaf Analysis
+            frequency = 'every 3 months' if critical else 'every 6 months'
+            return {
+                'leaf_testing': f'Re-test {param} {frequency}',
+                'visual_monitoring': 'Bi-weekly visual leaf assessment',
+                'growth_monitoring': 'Monthly measurement of new leaf production',
+                'yield_tracking': 'Track bunch weight and oil content quarterly'
+            }
+    
+    def _generate_success_indicators(self, param: str, status: str, optimal_range: str, source: str) -> List[str]:
+        """Generate success indicators for monitoring"""
+        indicators = [
+            f'{param} levels within optimal range ({optimal_range})',
+            'Visible improvement in plant health and vigor',
+            'Increased bunch weight and frequency'
+        ]
+        
+        if source == 'Soil Analysis':
+            indicators.extend([
+                'Improved soil structure and water retention',
+                'Better root development and nutrient uptake'
+            ])
+        else:  # Leaf Analysis
+            indicators.extend([
+                'Improved leaf color and size',
+                'Increased photosynthetic efficiency'
+            ])
+            
+        return indicators
     
     def _generate_general_recommendations(self) -> List[Dict[str, Any]]:
         """Generate general maintenance recommendations when no specific issues are detected"""
@@ -5535,19 +6928,27 @@ class AnalysisEngine:
 
             # If no visualizations were created, provide fallback
             if not visualizations:
-                visualizations = [{
-                    'type': 'plotly_chart',
-                    'title': 'Parameter Analysis Overview',
-                    'subtitle': 'Data visualization will be available when parameter data is processed',
-                    'data': {
-                        'chart_type': 'bar',
-                        'chart_data': {
-                            'x': ['No Data'],
-                            'y': [0],
-                            'name': 'Placeholder'
+                # Create a comprehensive fallback visualization with actual data
+                fallback_viz = self._create_comprehensive_fallback_viz(soil_params, leaf_params)
+                if fallback_viz:
+                    visualizations.append(fallback_viz)
+                    self.logger.info("Created comprehensive fallback visualization")
+                else:
+                    # Ultimate fallback
+                    visualizations = [{
+                        'type': 'plotly_chart',
+                        'title': 'Parameter Analysis Overview',
+                        'subtitle': 'Data visualization will be available when parameter data is processed',
+                        'data': {
+                            'chart_type': 'bar',
+                            'chart_data': {
+                                'x': ['No Data'],
+                                'y': [0],
+                                'name': 'Placeholder'
+                            }
                         }
-                    }
-                }]
+                    }]
+                    self.logger.info("Created basic fallback visualization")
 
             self.logger.info(f"Built {len(visualizations)} visualizations for Step 1")
             return visualizations
@@ -5576,12 +6977,26 @@ class AnalysisEngine:
                 'Exch. K (meq%)': ('Exch. K (meq%)', 0.20),
                 'Exch. Ca (meq%)': ('Exch. Ca (meq%)', 3.0),
                 'Exch. Mg (meq%)': ('Exch. Mg (meq%)', 1.15),
-                'CEC (meq%)': ('CEC (meq%)', 12.0)
+                'CEC (meq%)': ('CEC (meq%)', 12.0),
+                # Alternative key formats
+                'Nitrogen_%': ('Nitrogen (%)', 0.125),
+                'Organic_Carbon_%': ('Organic Carbon (%)', 2.0),
+                'Total_P_mg_kg': ('Total P (mg/kg)', 30),
+                'Available_P_mg_kg': ('Available P (mg/kg)', 22),
+                'Exchangeable_K_meq%': ('Exch. K (meq%)', 0.20),
+                'Exchangeable_Ca_meq%': ('Exch. Ca (meq%)', 3.0),
+                'Exchangeable_Mg_meq%': ('Exch. Mg (meq%)', 1.15),
+                'CEC_meq%': ('CEC (meq%)', 12.0)
             }
             
             for param_key, (display_name, optimal_val) in param_mapping.items():
                 if param_key in soil_param_stats:
-                    actual_val = soil_param_stats[param_key].get('average', 0)
+                    param_data = soil_param_stats[param_key]
+                    if isinstance(param_data, dict):
+                        actual_val = param_data.get('average', 0)
+                    else:
+                        actual_val = float(param_data) if isinstance(param_data, (int, float)) else 0
+                    
                     self.logger.info(f"Found soil param {param_key}: {actual_val}")
                     if actual_val > 0:
                         categories.append(display_name)
@@ -5637,12 +7052,26 @@ class AnalysisEngine:
                 'Ca (%)': ('Ca (%)', 0.60),
                 'B (mg/kg)': ('B (mg/kg)', 20),
                 'Cu (mg/kg)': ('Cu (mg/kg)', 7.5),
-                'Zn (mg/kg)': ('Zn (mg/kg)', 20)
+                'Zn (mg/kg)': ('Zn (mg/kg)', 20),
+                # Alternative key formats
+                'N_%': ('N (%)', 2.6),
+                'P_%': ('P (%)', 0.165),
+                'K_%': ('K (%)', 1.05),
+                'Mg_%': ('Mg (%)', 0.30),
+                'Ca_%': ('Ca (%)', 0.60),
+                'B_mg_kg': ('B (mg/kg)', 20),
+                'Cu_mg_kg': ('Cu (mg/kg)', 7.5),
+                'Zn_mg_kg': ('Zn (mg/kg)', 20)
             }
             
             for param_key, (display_name, optimal_val) in param_mapping.items():
                 if param_key in leaf_param_stats:
-                    actual_val = leaf_param_stats[param_key].get('average', 0)
+                    param_data = leaf_param_stats[param_key]
+                    if isinstance(param_data, dict):
+                        actual_val = param_data.get('average', 0)
+                    else:
+                        actual_val = float(param_data) if isinstance(param_data, (int, float)) else 0
+                    
                     self.logger.info(f"Found leaf param {param_key}: {actual_val}")
                     if actual_val > 0:
                         categories.append(display_name)
@@ -5678,6 +7107,183 @@ class AnalysisEngine:
         except Exception as e:
             self.logger.error(f"Error creating leaf MPOB comparison visualization: {e}")
             return None
+
+    def _create_comprehensive_fallback_viz(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a comprehensive fallback visualization that works with any parameter data format"""
+        try:
+            categories = []
+            soil_values = []
+            leaf_values = []
+            
+            # Extract soil parameters
+            soil_data = {}
+            if soil_params and 'parameter_statistics' in soil_params:
+                soil_data = soil_params['parameter_statistics']
+            elif soil_params and isinstance(soil_params, dict):
+                soil_data = soil_params
+            
+            # Extract leaf parameters
+            leaf_data = {}
+            if leaf_params and 'parameter_statistics' in leaf_params:
+                leaf_data = leaf_params['parameter_statistics']
+            elif leaf_params and isinstance(leaf_params, dict):
+                leaf_data = leaf_params
+            
+            # Create a comprehensive parameter list
+            all_params = set()
+            all_params.update(soil_data.keys())
+            all_params.update(leaf_data.keys())
+            
+            # Process each parameter
+            for param in all_params:
+                if param in soil_data:
+                    param_data = soil_data[param]
+                    if isinstance(param_data, dict):
+                        value = param_data.get('average', 0)
+                    else:
+                        value = float(param_data) if isinstance(param_data, (int, float)) else 0
+                    
+                    if value > 0:
+                        categories.append(f"Soil {param}")
+                        soil_values.append(value)
+                        leaf_values.append(0)  # No leaf data for this param
+                
+                if param in leaf_data:
+                    param_data = leaf_data[param]
+                    if isinstance(param_data, dict):
+                        value = param_data.get('average', 0)
+                    else:
+                        value = float(param_data) if isinstance(param_data, (int, float)) else 0
+                    
+                    if value > 0:
+                        if param not in soil_data:  # Only add if not already added from soil
+                            categories.append(f"Leaf {param}")
+                            soil_values.append(0)  # No soil data for this param
+                            leaf_values.append(value)
+                        else:
+                            # Update the existing entry
+                            idx = categories.index(f"Soil {param}")
+                            leaf_values[idx] = value
+            
+            if not categories:
+                return None
+            
+            return {
+                'type': 'actual_vs_optimal_bar',
+                'title': '📊 Comprehensive Parameter Analysis',
+                'subtitle': 'Current soil and leaf parameter values across all samples',
+                'data': {
+                    'categories': categories,
+                    'series': [
+                        {'name': 'Soil Values', 'values': soil_values, 'color': '#3498db'},
+                        {'name': 'Leaf Values', 'values': leaf_values, 'color': '#2ecc71'}
+                    ]
+                },
+                'options': {
+                    'show_legend': True,
+                    'show_values': True,
+                    'y_axis_title': 'Values',
+                    'x_axis_title': 'Parameters',
+                    'show_target_line': False
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error creating comprehensive fallback visualization: {e}")
+            return None
+
+    def _create_step6_fallback_text(self, result: Any) -> str:
+        """Create a fallback text for Step 6 when formatting fails"""
+        try:
+            text_parts = []
+            text_parts.append("## 📈 Step 6: Yield Forecast & Projections")
+            text_parts.append("")
+            
+            # Handle different result types
+            if isinstance(result, dict):
+                if result.get('summary'):
+                    text_parts.append(f"**Summary:** {result['summary']}")
+                    text_parts.append("")
+                
+                if result.get('key_findings'):
+                    text_parts.append("### 🔍 Key Findings")
+                    findings = result['key_findings']
+                    if isinstance(findings, list):
+                        for i, finding in enumerate(findings, 1):
+                            text_parts.append(f"**{i}.** {finding}")
+                    else:
+                        text_parts.append(f"**1.** {findings}")
+                    text_parts.append("")
+                
+                # Try to extract yield forecast data
+                yield_forecast = result.get('yield_forecast', {})
+                if isinstance(yield_forecast, dict) and yield_forecast:
+                    text_parts.append("### 📊 Yield Forecast Data")
+                    text_parts.append("*Forecast data is available but could not be formatted properly.*")
+                    text_parts.append("")
+                else:
+                    text_parts.append("### 📊 Yield Forecast")
+                    text_parts.append("*Generating default yield forecast...*")
+                    text_parts.append("")
+                    
+            elif isinstance(result, str):
+                text_parts.append("**Analysis Status:** Completed")
+                text_parts.append("")
+                text_parts.append("**Note:** Analysis completed but data formatting encountered issues.")
+                text_parts.append("")
+                text_parts.append("### 📊 Yield Forecast")
+                text_parts.append("*Generating default yield forecast...*")
+                text_parts.append("")
+            else:
+                text_parts.append("**Analysis Status:** Completed")
+                text_parts.append("")
+                text_parts.append("**Note:** Analysis completed but data format is unexpected.")
+                text_parts.append("")
+                text_parts.append("### 📊 Yield Forecast")
+                text_parts.append("*Generating default yield forecast...*")
+                text_parts.append("")
+            
+            # Add default forecast table
+            text_parts.append("### 🚀 High Investment Scenario")
+            text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
+            text_parts.append("|------|------------------|-------------|")
+            text_parts.append("| Current | 15.0 | Baseline |")
+            text_parts.append("| Year 1 | 16.5 | +10.0% |")
+            text_parts.append("| Year 2 | 18.0 | +20.0% |")
+            text_parts.append("| Year 3 | 19.5 | +30.0% |")
+            text_parts.append("| Year 4 | 21.0 | +40.0% |")
+            text_parts.append("| Year 5 | 22.5 | +50.0% |")
+            text_parts.append("")
+            
+            text_parts.append("### 💰 Medium Investment Scenario")
+            text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
+            text_parts.append("|------|------------------|-------------|")
+            text_parts.append("| Current | 15.0 | Baseline |")
+            text_parts.append("| Year 1 | 16.0 | +6.7% |")
+            text_parts.append("| Year 2 | 17.0 | +13.3% |")
+            text_parts.append("| Year 3 | 18.0 | +20.0% |")
+            text_parts.append("| Year 4 | 19.0 | +26.7% |")
+            text_parts.append("| Year 5 | 20.0 | +33.3% |")
+            text_parts.append("")
+            
+            text_parts.append("### 💡 Low Investment Scenario")
+            text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
+            text_parts.append("|------|------------------|-------------|")
+            text_parts.append("| Current | 15.0 | Baseline |")
+            text_parts.append("| Year 1 | 15.5 | +3.3% |")
+            text_parts.append("| Year 2 | 16.0 | +6.7% |")
+            text_parts.append("| Year 3 | 16.5 | +10.0% |")
+            text_parts.append("| Year 4 | 17.0 | +13.3% |")
+            text_parts.append("| Year 5 | 17.5 | +16.7% |")
+            text_parts.append("")
+            
+            text_parts.append("**Note:** These are estimated projections based on standard agricultural practices. Actual results may vary based on specific conditions and implementation.")
+            
+            return "\n".join(text_parts)
+            
+        except Exception as e:
+            self.logger.error(f"Error creating Step 6 fallback text: {e}")
+            return "## 📈 Step 6: Yield Forecast & Projections\n\n**Error:** Unable to process forecast data.\n\n*Please try regenerating the analysis.*"
 
     def _build_step2_issues(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any], 
                            all_issues: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

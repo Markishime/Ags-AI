@@ -837,17 +837,6 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         
         analysis_engine = AnalysisEngine()
         
-        # Show enhanced animated processing for the main analysis
-        analysis_phases = [
-            "Initializing AI models...",
-            "Processing soil data patterns...",
-            "Analyzing leaf nutrient levels...",
-            "Computing yield projections...",
-            "Generating recommendations...",
-            "Creating visualizations...",
-            "Finalizing comprehensive report..."
-        ]
-        
         # Analysis processing (optimized - no delays)
         status_text.text("🔬 **Step 4/5:** Running comprehensive agricultural analysis... 🔄")
         time_estimate.text("⏱️ Processing data patterns and generating insights...")
@@ -999,13 +988,6 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         current_step = 7
         progress_bar.progress(75)
         
-        # Show animated processing for insights generation
-        insight_phases = [
-            "Analyzing data patterns...",
-            "Generating actionable insights...",
-            "Creating personalized recommendations...",
-            "Optimizing suggestions..."
-        ]
         
         # Insights generation (optimized - no delays)
         status_text.text("📈 **Step 5/5:** Generating insights and recommendations... 🔄")
@@ -1022,13 +1004,6 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         current_step = 8
         progress_bar.progress(85)
         
-        # Show animated processing for saving results
-        saving_phases = [
-            "Preparing final report...",
-            "Saving to database...",
-            "Generating unique ID...",
-            "Finalizing analysis..."
-        ]
         
         # Saving results (optimized - no delays)
         status_text.text("💾 **Step 8/8:** Saving analysis results to database... 🔄")
@@ -3977,9 +3952,7 @@ def display_enhanced_step_result(step_result, step_number):
                             display_visualization(viz_data, i, step_number)
     # No farmer message needed - removed as requested
 
-def should_show_visualizations(step_result):
-    """Check if a step should display visualizations based on visual keywords"""
-    return False
+# This function is defined later in the file - removing duplicate
 
 def should_show_forecast_graph(step_result):
     """Check if a step should show forecast graph instead of data visualizations"""
@@ -4880,18 +4853,40 @@ def display_enhanced_step_result(step_result, step_number):
     # 5. INTERPRETATIONS SECTION - Display detailed interpretations if available
     if 'interpretations' in analysis_data and analysis_data['interpretations']:
         st.markdown("### 🔍 Detailed Interpretations")
-        for idx, interpretation in enumerate(analysis_data['interpretations'], 1):
-            if interpretation and interpretation.strip():
-                # Remove any existing "Interpretation X:" prefix to avoid duplication
-                clean_interpretation = interpretation.strip()
-                if clean_interpretation.startswith(f"Interpretation {idx}:"):
-                    clean_interpretation = clean_interpretation.replace(f"Interpretation {idx}:", "").strip()
-                elif clean_interpretation.startswith(f"Detailed interpretation {idx}"):
-                    clean_interpretation = clean_interpretation.replace(f"Detailed interpretation {idx}", "").strip()
+        interpretations = analysis_data['interpretations']
+        
+        # Handle different interpretation formats
+        if isinstance(interpretations, list):
+            for idx, interpretation in enumerate(interpretations, 1):
+                # Handle both string and dict formats
+                if isinstance(interpretation, dict):
+                    # Extract text from dictionary format
+                    interpretation_text = interpretation.get('text', str(interpretation))
+                elif isinstance(interpretation, str):
+                    interpretation_text = interpretation
+                else:
+                    interpretation_text = str(interpretation)
                 
+                if interpretation_text and isinstance(interpretation_text, str) and interpretation_text.strip():
+                    # Remove any existing "Interpretation X:" prefix to avoid duplication
+                    clean_interpretation = interpretation_text.strip()
+                    if clean_interpretation.startswith(f"Interpretation {idx}:"):
+                        clean_interpretation = clean_interpretation.replace(f"Interpretation {idx}:", "").strip()
+                    elif clean_interpretation.startswith(f"Detailed interpretation {idx}"):
+                        clean_interpretation = clean_interpretation.replace(f"Detailed interpretation {idx}", "").strip()
+                    
+                    st.markdown(
+                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">'
+                        f'<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #2c3e50;"><strong>Interpretation {idx}:</strong> {clean_interpretation}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+        elif isinstance(interpretations, str):
+            # Single interpretation as string
+            if interpretations.strip():
                 st.markdown(
                     f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">'
-                    f'<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #2c3e50;"><strong>Interpretation {idx}:</strong> {clean_interpretation}</p>'
+                    f'<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #2c3e50;"><strong>Interpretation:</strong> {interpretations.strip()}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
@@ -5013,49 +5008,62 @@ def display_data_table(table_data, title):
 
 def display_visualization(viz_data, viz_number, step_number=None):
     """Display individual visualization based on type with enhanced chart support"""
+    # Ensure viz_data is a dictionary
+    if not isinstance(viz_data, dict):
+        logger.error(f"Visualization data is not a dictionary: {type(viz_data)}")
+        st.error(f"Visualization data format error: expected dictionary, got {type(viz_data)}")
+        return
+    
     viz_type = viz_data.get('type', 'unknown')
     title = viz_data.get('title', f'Visualization {viz_number}')
     subtitle = viz_data.get('subtitle', '')
     data = viz_data.get('data', {})
     options = viz_data.get('options', {})
     
-    # Visualizations are now displayed for all steps when visual keywords are present
+    # Ensure data is a dictionary
+    if not isinstance(data, dict):
+        logger.warning(f"Visualization data is not a dictionary: {type(data)}")
+        data = {}
     
     # Display title and subtitle
     st.markdown(f"### {title}")
     if subtitle:
         st.markdown(f"*{subtitle}*")
     
-    if viz_type == 'bar_chart':
-        display_enhanced_bar_chart(data, title, options)
-    elif viz_type == 'range_chart':
-        # Skip range analysis visualizations - no longer displayed
-        return
-    elif viz_type == 'deviation_chart':
-        # Skip deviation analysis visualizations - no longer displayed
-        return
-    elif viz_type == 'radar_chart':
-        return
-    elif viz_type == 'gauge_chart':
-        display_gauge_chart(data, title, options)
-    elif viz_type == 'pie_chart':
-        display_pie_chart(data, title)
-    elif viz_type == 'line_chart':
-        display_line_chart(data, title)
-    elif viz_type == 'scatter_plot':
-        display_scatter_plot(data, title)
-    elif viz_type == 'actual_vs_optimal_bar':
-        display_actual_vs_optimal_bar(data, title, options)
-    elif viz_type == 'nutrient_ratio_diagram':
-        display_nutrient_ratio_diagram(data, title, options)
-    elif viz_type == 'multi_axis_chart':
-        display_multi_axis_chart(data, title, options)
-    elif viz_type == 'heatmap':
-        display_heatmap(data, title, options)
-    elif viz_type == 'plotly_chart':
-        display_plotly_chart(data, title, options)
-    else:
-        st.info(f"Visualization type '{viz_type}' not yet implemented")
+    try:
+        if viz_type == 'bar_chart':
+            display_enhanced_bar_chart(data, title, options)
+        elif viz_type == 'range_chart':
+            # Skip range analysis visualizations - no longer displayed
+            return
+        elif viz_type == 'deviation_chart':
+            # Skip deviation analysis visualizations - no longer displayed
+            return
+        elif viz_type == 'radar_chart':
+            return
+        elif viz_type == 'gauge_chart':
+            display_gauge_chart(data, title, options)
+        elif viz_type == 'pie_chart':
+            display_pie_chart(data, title)
+        elif viz_type == 'line_chart':
+            display_line_chart(data, title)
+        elif viz_type == 'scatter_plot':
+            display_scatter_plot(data, title)
+        elif viz_type == 'actual_vs_optimal_bar':
+            display_actual_vs_optimal_bar(data, title, options)
+        elif viz_type == 'nutrient_ratio_diagram':
+            display_nutrient_ratio_diagram(data, title, options)
+        elif viz_type == 'multi_axis_chart':
+            display_multi_axis_chart(data, title, options)
+        elif viz_type == 'heatmap':
+            display_heatmap(data, title, options)
+        elif viz_type == 'plotly_chart':
+            display_plotly_chart(data, title, options)
+        else:
+            st.info(f"Visualization type '{viz_type}' not yet implemented")
+    except Exception as e:
+        logger.error(f"Error displaying visualization {viz_type}: {e}")
+        st.error(f"Error displaying visualization: {str(e)}")
 
 def has_yield_forecast_data(analysis_data):
     """Check if the analysis data contains yield forecast information"""
@@ -6339,23 +6347,32 @@ def display_actual_vs_optimal_bar(data, title, options):
                 tickfont=dict(size=10)
             )
         
-        # Update layout
+        # Enhanced professional layout
         fig.update_layout(
             title={
                 'text': title,
                 'x': 0.5,
                 'xanchor': 'center',
-                'font': {'size': 16}
+                'font': {'size': 18, 'color': '#1B5E20', 'family': 'Arial Black'},
+                'pad': {'t': 20, 'b': 20}
             },
-            height=600 if rows > 1 else 400,
+            height=650 if rows > 1 else 450,
             showlegend=True,
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
-                xanchor="right",
-                x=1
-            )
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="rgba(0,0,0,0.2)",
+                borderwidth=1,
+                font=dict(size=12)
+            ),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12, family='Arial'),
+            margin=dict(l=60, r=60, t=100, b=60)
         )
         
         st.plotly_chart(fig, width='stretch')
@@ -6505,27 +6522,53 @@ def display_enhanced_bar_chart(data, title, options=None):
                         textposition='auto'
                     ))
             
-            # Update layout with options
-            fig.update_layout(
-                title=dict(
-                    text=title,
-                    x=0.5,
-                    font=dict(size=16, color='#2E7D32')
-                ),
-                    xaxis_title=options.get('x_axis_title', 'Parameters') if options else 'Parameters',
-                    yaxis_title=options.get('y_axis_title', 'Value') if options else 'Value',
-                barmode='group',
-                    showlegend=options.get('show_legend', True) if options else True,
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(size=12),
-                height=500
+        # Enhanced professional layout with options
+        fig.update_layout(
+            title=dict(
+                text=title,
+                x=0.5,
+                font=dict(size=18, color='#1B5E20', family='Arial Black'),
+                pad=dict(t=20, b=20)
+            ),
+            xaxis_title=options.get('x_axis_title', 'Parameters') if options else 'Parameters',
+            yaxis_title=options.get('y_axis_title', 'Value') if options else 'Value',
+            barmode='group',
+            showlegend=options.get('show_legend', True) if options else True,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12, family='Arial'),
+            height=550,
+            margin=dict(l=60, r=60, t=80, b=60),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="rgba(0,0,0,0.2)",
+                borderwidth=1
+            ),
+            xaxis=dict(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='rgba(128,128,128,0.2)',
+                tickfont=dict(size=11),
+                title_font=dict(size=14, color='#424242')
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='rgba(128,128,128,0.2)',
+                zeroline=True,
+                zerolinewidth=1,
+                zerolinecolor='rgba(128,128,128,0.3)',
+                tickfont=dict(size=11),
+                title_font=dict(size=14, color='#424242')
             )
-            
-            st.plotly_chart(fig, width='stretch')
-        else:
-            # Silently skip if data format not recognized - don't show error message
-            return
+        )
+        
+        st.plotly_chart(fig, width='stretch')
     except ImportError:
         st.info("Plotly not available for chart display")
 
@@ -6779,16 +6822,24 @@ def display_step1_data_analysis(analysis_data):
         
         try:
             visualizations = analysis_data['visualizations']
+            viz_count = 0
+            
             if isinstance(visualizations, dict):
                 for i, (viz_type, viz_data) in enumerate(visualizations.items(), 1):
                     if viz_data and isinstance(viz_data, dict):
                         if 'type' not in viz_data:
                             viz_data['type'] = viz_type
                         display_visualization(viz_data, i, 1)
+                        viz_count += 1
             elif isinstance(visualizations, list):
                 for i, viz in enumerate(visualizations, 1):
                     if isinstance(viz, dict) and 'type' in viz:
                         display_visualization(viz, i, 1)
+                        viz_count += 1
+            
+            if viz_count == 0:
+                st.info("📊 No visualizations available for this data.")
+                
         except Exception as e:
             logger.error(f"Error displaying visualizations: {e}")
             st.error("Error displaying visualizations")
@@ -10196,6 +10247,5 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
         <p style="margin: 5px 0; color: #495057;"><strong>Impact:</strong> {impact}</p>
     </div>
     """
-
 
 
