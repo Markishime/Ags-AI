@@ -8606,10 +8606,10 @@ def parse_and_display_json_analysis(json_text):
                             st.markdown(
                                 f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-left: 4px solid #007bff; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
                                 f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">'
-                                    f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {str(finding)}</p>'
-                                f'</div>',
-                                unsafe_allow_html=True
-                            )
+                                f'<strong style="color: #007bff; font-size: 18px;">{i}.</strong> {str(finding)}</p>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
             except Exception as e:
                 logger.error(f"Error parsing key findings: {str(e)}")
                 st.info("📋 Key findings could not be parsed from the analysis.")
