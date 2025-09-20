@@ -6936,19 +6936,19 @@ class AnalysisEngine:
                 else:
                     # Ultimate fallback
                     visualizations = [{
-                        'type': 'plotly_chart',
-                        'title': 'Parameter Analysis Overview',
-                        'subtitle': 'Data visualization will be available when parameter data is processed',
-                        'data': {
-                            'chart_type': 'bar',
-                            'chart_data': {
-                                'x': ['No Data'],
-                                'y': [0],
-                                'name': 'Placeholder'
-                            }
+                    'type': 'plotly_chart',
+                    'title': 'Parameter Analysis Overview',
+                    'subtitle': 'Data visualization will be available when parameter data is processed',
+                    'data': {
+                        'chart_type': 'bar',
+                        'chart_data': {
+                            'x': ['No Data'],
+                            'y': [0],
+                            'name': 'Placeholder'
                         }
-                    }]
-                    self.logger.info("Created basic fallback visualization")
+                    }
+                }]
+                self.logger.info("Created basic fallback visualization")
 
             self.logger.info(f"Built {len(visualizations)} visualizations for Step 1")
             return visualizations

@@ -1,5 +1,6 @@
 import io
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -218,33 +219,46 @@ class PDFReportGenerator:
         
         # Check if this is step-by-step analysis format
         is_step_by_step = 'step_by_step_analysis' in analysis_data
-        
+
         if is_step_by_step:
             # Comprehensive PDF format with step-by-step analysis and visualizations
             # Include ALL sections from results page to match exactly what user sees
-            
+
             # 1. Results Header (metadata)
             story.extend(self._create_results_header_section(analysis_data, metadata))
-            
-            # 2. Raw Data Section (if enabled)
-            if options.get('include_raw_data', True):
-                story.extend(self._create_raw_data_section(analysis_data))
-            
-            # 3. Executive Summary (if enabled)
+
+            # 2. Executive Summary (if enabled) - COPY EXACTLY FROM RESULTS PAGE
             if options.get('include_summary', True):
                 story.extend(self._create_enhanced_executive_summary(analysis_data))
-            
-            # 4. Key Findings (if enabled)
+
+            # 4. Key Findings - COPY FROM RESULTS PAGE
             if options.get('include_key_findings', True):
-                story.extend(self._create_enhanced_key_findings(analysis_data))
-            
+                story.extend(self._create_consolidated_key_findings_section(analysis_data))
+
             # 5. Step-by-Step Analysis (if enabled)
             if options.get('include_step_analysis', True):
                 story.extend(self._create_comprehensive_step_by_step_analysis(analysis_data))
-            
-            # 6. Economic Forecast Tables (always included for step-by-step)
+
+            # 6. Data Visualizations - ALL GRAPHS AND CHARTS
+            if options.get('include_charts', True):
+                try:
+                    viz_section = self._create_comprehensive_visualizations_section(analysis_data)
+                    if viz_section:
+                        story.extend(viz_section)
+                    else:
+                        logger.warning("Visualizations section returned empty")
+                        story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
+                        story.append(Spacer(1, 12))
+                        story.append(Paragraph("No visualizations available for this analysis.", self.styles['Normal']))
+                except Exception as e:
+                    logger.error(f"Error creating visualizations section: {str(e)}")
+                    story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
+                    story.append(Spacer(1, 12))
+                    story.append(Paragraph("Visualizations could not be generated due to technical issues.", self.styles['Normal']))
+
+            # 7. Economic Forecast Tables (always included for step-by-step)
             story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
-            
+
             # 8. References (if enabled)
             if options.get('include_references', True):
                 story.extend(self._create_references_section(analysis_data))
@@ -382,8 +396,110 @@ class PDFReportGenerator:
         
         return story
     
+    def _create_executive_summary(self, analysis_data: Dict[str, Any]) -> List:
+        """Create executive summary for legacy format"""
+        story = []
+        
+        # Executive Summary header
+        story.append(Paragraph("Executive Summary", self.styles['Heading1']))
+        story.append(Spacer(1, 12))
+        
+        # Simple executive summary
+        story.append(Paragraph(
+            "This comprehensive agronomic analysis evaluates key nutritional parameters from both soil and leaf tissue samples to assess the current fertility status and plant health of the oil palm plantation. The analysis is based on adherence to Malaysian Palm Oil Board (MPOB) standards for optimal oil palm cultivation.",
+            self.styles['CustomBody']
+        ))
+        story.append(Spacer(1, 20))
+        
+        return story
+    
+    def _create_parameters_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create parameters section for legacy format"""
+        story = []
+        
+        # Parameters header
+        story.append(Paragraph("Parameters Analysis", self.styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        # Simple parameters summary
+        story.append(Paragraph(
+            "Parameter analysis includes soil and leaf nutrient assessment based on MPOB standards.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_recommendations_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create recommendations section for legacy format"""
+        story = []
+        
+        # Recommendations header
+        story.append(Paragraph("Recommendations", self.styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        # Simple recommendations summary
+        story.append(Paragraph(
+            "Recommendations are based on the analysis results and MPOB standards for optimal oil palm cultivation.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_forecast_section(self, forecast_data: Dict[str, Any]) -> List:
+        """Create forecast section for legacy format"""
+        story = []
+        
+        # Forecast header
+        story.append(Paragraph("📈 Yield Forecast", self.styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        # Simple forecast summary
+        story.append(Paragraph(
+            "Yield forecast analysis is available in the comprehensive analysis section.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_charts_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create charts section for legacy format"""
+        story = []
+        
+        # Charts header
+        story.append(Paragraph("📊 Charts and Visualizations", self.styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        # Simple charts summary
+        story.append(Paragraph(
+            "Charts and visualizations are available in the comprehensive analysis section.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 12))
+        
+        return story
+    
+    def _create_comprehensive_charts_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create comprehensive charts section"""
+        story = []
+        
+        # Charts header
+        story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
+        story.append(Spacer(1, 12))
+        
+        # Simple charts summary
+        story.append(Paragraph(
+            "Data visualizations include soil and leaf nutrient status charts based on MPOB standards.",
+            self.styles['Normal']
+        ))
+        story.append(Spacer(1, 12))
+        
+        return story
+    
     def _create_enhanced_executive_summary(self, analysis_data: Dict[str, Any]) -> List:
-        """Create enhanced executive summary matching the results page format exactly"""
+        """Create executive summary - COPY EXACTLY FROM RESULTS PAGE"""
         story = []
         
         # Executive Summary header
@@ -398,125 +514,18 @@ class PDFReportGenerator:
             # Direct structure: analysis_data IS the analysis_results content
             analysis_results = analysis_data
         
-        # First check if there's a pre-generated executive summary
+        # Copy executive summary EXACTLY from results page
         if 'executive_summary' in analysis_results and analysis_results['executive_summary']:
-            # Use the pre-generated executive summary exactly as it is
             executive_summary_text = analysis_results['executive_summary']
             if isinstance(executive_summary_text, str) and executive_summary_text.strip():
-                # Display as a single paragraph without breaking it into sentences
-                story.append(Paragraph(executive_summary_text.strip(), self.styles['CustomBody']))
-                story.append(Spacer(1, 20))
+                # Use the executive summary text exactly as it appears in results page
+                story.append(Paragraph(executive_summary_text, self.styles['CustomBody']))
+                story.append(Spacer(1, 12))
                 return story
         
-        # If no pre-generated summary, generate using the exact same logic as results page
-        raw_data = analysis_results.get('raw_data', {})
-        soil_params = raw_data.get('soil_parameters', {})
-        leaf_params = raw_data.get('leaf_parameters', {})
-        land_yield_data = raw_data.get('land_yield_data', {})
-        all_issues = analysis_results.get('issues_analysis', {}).get('all_issues', [])
-        metadata = analysis_results.get('analysis_metadata', {})
-        
-        # Generate comprehensive agronomic summary (exact same as results page)
-        summary_sentences = []
-        
-        # 1-3: Analysis overview and scope
-        total_samples = metadata.get('total_parameters_analyzed', 0)
-        confidence = metadata.get('confidence_level', 'Medium')
-        summary_sentences.append(
-            f"This comprehensive agronomic analysis evaluates {total_samples} "
-            f"key nutritional parameters from both soil and leaf tissue samples "
-            f"to assess the current fertility status and plant health of the "
-            f"oil palm plantation.")
-        summary_sentences.append(
-            f"The analysis is based on adherence to Malaysian Palm "
-            f"Oil Board (MPOB) standards for optimal oil palm cultivation.")
-        summary_sentences.append(
-            f"Laboratory results indicate {len(all_issues)} significant "
-            f"nutritional imbalances requiring immediate attention to optimize "
-            f"yield potential and maintain sustainable production.")
-        
-        # 4-7: Soil analysis findings (exact same as results page)
-        if soil_params.get('parameter_statistics'):
-            soil_stats = soil_params['parameter_statistics']
-            ph_data = soil_stats.get('pH', {})
-            if ph_data:
-                ph_avg = ph_data.get('average', 0)
-                summary_sentences.append(f"Soil pH analysis reveals an average value of {ph_avg:.2f}, which {'falls within' if 4.5 <= ph_avg <= 5.5 else 'deviates from'} the optimal range of 4.5-5.5 required for efficient nutrient uptake in oil palm cultivation.")
-            
-            p_data = soil_stats.get('Available_P_mg_kg', {})
-            if p_data:
-                p_avg = p_data.get('average', 0)
-                summary_sentences.append(f"Available phosphorus levels average {p_avg:.1f} mg/kg, {'meeting' if p_avg >= 10 else 'falling below'} the critical threshold of 10-15 mg/kg necessary for root development and fruit bunch formation.")
-            
-            k_data = soil_stats.get('Exchangeable_K_meq%', {})
-            if k_data:
-                k_avg = k_data.get('average', 0)
-                summary_sentences.append(f"Exchangeable potassium content shows an average of {k_avg:.2f} meq%, which {'supports' if k_avg >= 0.2 else 'limits'} the palm's ability to regulate water balance and enhance oil synthesis processes.")
-            
-            ca_data = soil_stats.get('Exchangeable_Ca_meq%', {})
-            if ca_data:
-                ca_avg = ca_data.get('average', 0)
-                summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% {'provides adequate' if ca_avg >= 0.5 else 'indicates insufficient'} structural support for cell wall development and overall plant vigor.")
-        
-        # 8-11: Leaf analysis findings (exact same as results page)
-        if leaf_params.get('parameter_statistics'):
-            leaf_stats = leaf_params['parameter_statistics']
-            n_data = leaf_stats.get('N_%', {})
-            if n_data:
-                n_avg = n_data.get('average', 0)
-                summary_sentences.append(f"Leaf nitrogen content averages {n_avg:.2f}%, {'indicating optimal' if 2.5 <= n_avg <= 2.8 else 'suggesting suboptimal'} protein synthesis and chlorophyll production for photosynthetic efficiency.")
-            
-            p_leaf_data = leaf_stats.get('P_%', {})
-            if p_leaf_data:
-                p_leaf_avg = p_leaf_data.get('average', 0)
-                summary_sentences.append(f"Foliar phosphorus levels at {p_leaf_avg:.3f}% {'support' if p_leaf_avg >= 0.15 else 'may limit'} energy transfer processes and reproductive development in the palm canopy.")
-            
-            k_leaf_data = leaf_stats.get('K_%', {})
-            if k_leaf_data:
-                k_leaf_avg = k_leaf_data.get('average', 0)
-                summary_sentences.append(f"Leaf potassium concentration of {k_leaf_avg:.2f}% {'ensures proper' if k_leaf_avg >= 1.0 else 'indicates compromised'} stomatal regulation and carbohydrate translocation to developing fruit bunches.")
-            
-            mg_data = leaf_stats.get('Mg_%', {})
-            if mg_data:
-                mg_avg = mg_data.get('average', 0)
-                summary_sentences.append(f"Magnesium content in leaf tissue shows {mg_avg:.3f}%, which {'maintains' if mg_avg >= 0.25 else 'threatens'} the structural integrity of chlorophyll molecules essential for photosynthetic capacity.")
-        
-        # 12-15: Critical issues and severity assessment (exact same as results page)
-        critical_issues = [i for i in all_issues if i.get('severity') == 'Critical']
-        high_issues = [i for i in all_issues if i.get('severity') == 'High']
-        medium_issues = [i for i in all_issues if i.get('severity') == 'Medium']
-        
-        summary_sentences.append(f"Critical nutritional deficiencies identified in {len(critical_issues)} parameters pose immediate threats to palm productivity and require urgent corrective measures within the next 30-60 days.")
-        summary_sentences.append(f"High-severity imbalances affecting {len(high_issues)} additional parameters will significantly impact yield potential if not addressed through targeted fertilization programs within 3-6 months.")
-        summary_sentences.append(f"Medium-priority nutritional concerns in {len(medium_issues)} parameters suggest the need for adjusted maintenance fertilization schedules to prevent future deficiencies.")
-        
-        # 16-18: Yield and economic implications (exact same as results page)
-        current_yield = land_yield_data.get('current_yield', 0)
-        land_size = land_yield_data.get('land_size', 0)
-        if current_yield and land_size:
-            summary_sentences.append(f"Current yield performance of {current_yield} tonnes per hectare across {land_size} hectares {'exceeds' if current_yield > 20 else 'falls below'} industry benchmarks, with nutritional corrections potentially {'maintaining' if current_yield > 20 else 'improving'} production by 15-25%.")
-        else:
-            summary_sentences.append("Yield optimization potential through nutritional management could increase production by 15-25% when combined with proper agronomic practices and timely intervention strategies.")
-        
-        summary_sentences.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production.")
-        
-        # 19-20: Recommendations and monitoring (exact same as results page)
-        summary_sentences.append("Implementation of precision fertilization based on these findings, combined with regular soil and leaf monitoring every 6 months, will ensure sustained productivity and long-term plantation profitability.")
-        summary_sentences.append("Adoption of integrated nutrient management practices, including organic matter incorporation and micronutrient supplementation, will enhance soil health and support the plantation's transition toward sustainable intensification goals.")
-        
-        # Ensure we have exactly 20 sentences (exact same as results page)
-        while len(summary_sentences) < 20:
-            summary_sentences.append("Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation.")
-        
-        # Take only the first 20 sentences (exact same as results page)
-        summary_sentences = summary_sentences[:20]
-        
-        # Join sentences into a comprehensive summary (exact same as results page)
-        comprehensive_summary = " ".join(summary_sentences)
-        
-        # Display the summary as a single paragraph without breaking it into sentences
-        story.append(Paragraph(comprehensive_summary, self.styles['CustomBody']))
-        
+        # If no executive summary found, add a placeholder
+        story.append(Paragraph("Executive summary not available in analysis data.", self.styles['CustomBody']))
+        story.append(Spacer(1, 12))
         return story
     
     def _clean_finding_text_pdf(self, text):
@@ -1485,10 +1494,9 @@ class PDFReportGenerator:
             
             # Step-specific tables and content
             if step_number == 1:
-                # Step 1: Data Analysis - Add all data tables and visualizations
-                story.extend(self._create_step1_data_tables(step, analysis_data))
-                # Add Step 1 visualizations
-                story.extend(self._create_contextual_visualizations(step, 1, analysis_data))
+                # Step 1: Data Analysis - Add ONLY bar graphs (no data tables)
+                # Add Step 1 visualizations (bar graphs)
+                story.extend(self._create_step1_bar_graphs(analysis_data))
             elif step_number == 2:
                 # Step 2: Issue Diagnosis - Add diagnostic tables
                 story.extend(self._create_step2_diagnostic_tables(step))
@@ -2712,6 +2720,59 @@ class PDFReportGenerator:
         
         # Nutrient Status Tables
         story.extend(self._create_nutrient_status_tables(step))
+        
+        return story
+    
+    def _create_step1_bar_graphs(self, analysis_data: Dict[str, Any]) -> List:
+        """Create Step 1 bar graphs - Soil and Leaf Nutrient Status from results page"""
+        story = []
+        
+        try:
+            # Add section header
+            story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
+            story.append(Spacer(1, 12))
+            
+            # Import the visualization functions from results module
+            from modules.results import (
+                create_soil_vs_mpob_visualization_with_robust_mapping,
+                create_leaf_vs_mpob_visualization_with_robust_mapping
+            )
+            
+            # Create soil bar graph
+            soil_viz = create_soil_vs_mpob_visualization_with_robust_mapping(None)
+            if soil_viz:
+                story.append(Paragraph("🌱 Soil Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading3']))
+                story.append(Spacer(1, 8))
+                
+                # Convert visualization to image for PDF
+                soil_image = self._create_chart_image_for_pdf(soil_viz)
+                if soil_image:
+                    story.append(soil_image)
+                    story.append(Spacer(1, 12))
+                else:
+                    story.append(Paragraph("Soil visualization could not be generated.", self.styles['Normal']))
+            
+            # Create leaf bar graph
+            leaf_viz = create_leaf_vs_mpob_visualization_with_robust_mapping(None)
+            if leaf_viz:
+                story.append(Paragraph("🍃 Leaf Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading3']))
+                story.append(Spacer(1, 8))
+                
+                # Convert visualization to image for PDF
+                leaf_image = self._create_chart_image_for_pdf(leaf_viz)
+                if leaf_image:
+                    story.append(leaf_image)
+                    story.append(Spacer(1, 12))
+                else:
+                    story.append(Paragraph("Leaf visualization could not be generated.", self.styles['Normal']))
+            
+            logger.info("✅ Created Step 1 bar graphs for PDF")
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating Step 1 bar graphs: {e}")
+            story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
+            story.append(Spacer(1, 12))
+            story.append(Paragraph("Bar graphs could not be generated due to technical issues.", self.styles['Normal']))
         
         return story
     
@@ -4205,6 +4266,831 @@ class PDFReportGenerator:
         
         return story
 
+    def _create_comprehensive_data_tables_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create comprehensive data tables section with WORLD-CLASS robust mapping"""
+        story = []
+
+        try:
+            # Section header
+            story.append(Paragraph("📊 Comprehensive Data Analysis Tables", self.styles['Heading2']))
+            story.append(Spacer(1, 12))
+
+            # Use the same world-class robust mapping system as results page
+            soil_data = self._extract_soil_data_with_robust_mapping_pdf(analysis_data)
+            leaf_data = self._extract_leaf_data_with_robust_mapping_pdf(analysis_data)
+            
+            logger.info(f"🎯 PDF Robust extraction results - Soil: {bool(soil_data)}, Leaf: {bool(leaf_data)}")
+
+            # Soil Parameters Table with robust mapping
+            if soil_data and 'parameter_statistics' in soil_data:
+                story.extend(self._create_soil_parameters_pdf_table(soil_data['parameter_statistics']))
+                logger.info(f"✅ Created soil parameters table with {len(soil_data['parameter_statistics'])} parameters")
+            else:
+                logger.warning("❌ No soil parameter statistics found for PDF table")
+
+            # Leaf Parameters Table with robust mapping
+            if leaf_data and 'parameter_statistics' in leaf_data:
+                story.extend(self._create_leaf_parameters_pdf_table(leaf_data['parameter_statistics']))
+                logger.info(f"✅ Created leaf parameters table with {len(leaf_data['parameter_statistics'])} parameters")
+            else:
+                logger.warning("❌ No leaf parameter statistics found for PDF table")
+
+            # Raw Sample Data Tables with robust extraction
+            if soil_data and 'raw_samples' in soil_data and soil_data['raw_samples']:
+                story.extend(self._create_raw_samples_pdf_table(soil_data['raw_samples'], 'Soil'))
+                logger.info(f"✅ Created soil raw samples table with {len(soil_data['raw_samples'])} samples")
+
+            if leaf_data and 'raw_samples' in leaf_data and leaf_data['raw_samples']:
+                story.extend(self._create_raw_samples_pdf_table(leaf_data['raw_samples'], 'Leaf'))
+                logger.info(f"✅ Created leaf raw samples table with {len(leaf_data['raw_samples'])} samples")
+
+            # Data Quality Summary with robust data
+            story.extend(self._create_data_quality_pdf_table_with_robust_data(analysis_data, soil_data, leaf_data))
+
+        except Exception as e:
+            logger.error(f"❌ Error creating comprehensive data tables section: {str(e)}")
+            story.append(Paragraph("Error generating data tables section", self.styles['Normal']))
+
+        return story
+
+    def _extract_soil_data_with_robust_mapping_pdf(self, analysis_data):
+        """WORLD-CLASS robust soil data extraction for PDF - same as results page"""
+        try:
+            logger.info("🔍 Starting robust soil data extraction for PDF")
+            
+            # Same comprehensive parameter mapping as results page
+            soil_parameter_mappings = {
+                'ph': 'pH', 'pH': 'pH', 'soil_ph': 'pH', 'soil_p_h': 'pH',
+                'p_h': 'pH', 'soil_ph_value': 'pH', 'ph_value': 'pH',
+                'n': 'N (%)', 'nitrogen': 'N (%)', 'n_percent': 'N (%)', 'n_%': 'N (%)',
+                'soil_n': 'N (%)', 'soil_nitrogen': 'N (%)', 'nitrogen_percent': 'N (%)',
+                'org_c': 'Org. C (%)', 'organic_carbon': 'Org. C (%)', 'org_carbon': 'Org. C (%)',
+                'organic_c': 'Org. C (%)', 'soil_organic_carbon': 'Org. C (%)', 'oc': 'Org. C (%)',
+                'soil_oc': 'Org. C (%)', 'carbon': 'Org. C (%)', 'soil_carbon': 'Org. C (%)',
+                'total_p': 'Total P (mg/kg)', 'total_phosphorus': 'Total P (mg/kg)', 'tp': 'Total P (mg/kg)',
+                'soil_total_p': 'Total P (mg/kg)', 'total_p_mg_kg': 'Total P (mg/kg)', 'p_total': 'Total P (mg/kg)',
+                'avail_p': 'Avail P (mg/kg)', 'available_p': 'Avail P (mg/kg)', 'ap': 'Avail P (mg/kg)',
+                'soil_avail_p': 'Avail P (mg/kg)', 'available_phosphorus': 'Avail P (mg/kg)', 'p_available': 'Avail P (mg/kg)',
+                'avail_p_mg_kg': 'Avail P (mg/kg)', 'p_avail': 'Avail P (mg/kg)',
+                'exch_k': 'Exch. K (meq%)', 'exchangeable_k': 'Exch. K (meq%)', 'ek': 'Exch. K (meq%)',
+                'soil_exch_k': 'Exch. K (meq%)', 'k_exchangeable': 'Exch. K (meq%)', 'exch_k_meq': 'Exch. K (meq%)',
+                'k_exch': 'Exch. K (meq%)', 'exchangeable_potassium': 'Exch. K (meq%)',
+                'exch_ca': 'Exch. Ca (meq%)', 'exchangeable_ca': 'Exch. Ca (meq%)', 'eca': 'Exch. Ca (meq%)',
+                'soil_exch_ca': 'Exch. Ca (meq%)', 'ca_exchangeable': 'Exch. Ca (meq%)', 'exch_ca_meq': 'Exch. Ca (meq%)',
+                'ca_exch': 'Exch. Ca (meq%)', 'exchangeable_calcium': 'Exch. Ca (meq%)',
+                'exch_mg': 'Exch. Mg (meq%)', 'exchangeable_mg': 'Exch. Mg (meq%)', 'emg': 'Exch. Mg (meq%)',
+                'soil_exch_mg': 'Exch. Mg (meq%)', 'mg_exchangeable': 'Exch. Mg (meq%)', 'exch_mg_meq': 'Exch. Mg (meq%)',
+                'mg_exch': 'Exch. Mg (meq%)', 'exchangeable_magnesium': 'Exch. Mg (meq%)',
+                'cec': 'CEC (meq%)', 'cation_exchange_capacity': 'CEC (meq%)', 'cec_meq': 'CEC (meq%)',
+                'soil_cec': 'CEC (meq%)', 'exchange_capacity': 'CEC (meq%)', 'c_e_c': 'CEC (meq%)'
+            }
+            
+            # Same search locations as results page
+            search_locations = [
+                'raw_data.soil_parameters',
+                'analysis_results.soil_parameters', 
+                'step_by_step_analysis',
+                'raw_ocr_data.soil_data.structured_ocr_data',
+                'soil_parameters',
+                'soil_data',
+                'soil_analysis',
+                'soil_samples'
+            ]
+            
+            soil_data = None
+            
+            # Try each location
+            for location in search_locations:
+                try:
+                    if '.' in location:
+                        parts = location.split('.')
+                        current = analysis_data
+                        for part in parts:
+                            if isinstance(current, dict) and part in current:
+                                current = current[part]
+                            else:
+                                current = None
+                                break
+                        if current:
+                            soil_data = current
+                            logger.info(f"✅ Found soil data in: {location}")
+                            break
+                    else:
+                        if location in analysis_data:
+                            soil_data = analysis_data[location]
+                            logger.info(f"✅ Found soil data in: {location}")
+                            break
+                except Exception as e:
+                    logger.debug(f"Location {location} failed: {e}")
+                    continue
+            
+            if not soil_data:
+                logger.warning("❌ No soil data found in any location")
+                return None
+                
+            # Extract parameter statistics with robust mapping
+            param_stats = None
+            if isinstance(soil_data, dict):
+                for key in ['parameter_statistics', 'statistics', 'data', 'parameters', 'param_stats', 'stats']:
+                    if key in soil_data and isinstance(soil_data[key], dict):
+                        param_stats = soil_data[key]
+                        logger.info(f"✅ Found parameter statistics in key: {key}")
+                        break
+                
+                if not param_stats:
+                    param_stats = soil_data
+                    logger.info("✅ Using soil_data directly as parameter statistics")
+            
+            if not param_stats or not isinstance(param_stats, dict):
+                logger.warning("❌ No valid parameter statistics found")
+                return None
+                
+            # Apply robust parameter mapping
+            mapped_params = {}
+            for param_key, param_data in param_stats.items():
+                normalized_key = param_key.lower().strip().replace(' ', '_').replace('(', '').replace(')', '').replace('%', '').replace('.', '')
+                
+                mapped_name = soil_parameter_mappings.get(normalized_key)
+                if mapped_name:
+                    mapped_params[mapped_name] = param_data
+                    logger.info(f"✅ PDF Mapped {param_key} -> {mapped_name}")
+                else:
+                    # Try partial matching
+                    for mapping_key, mapping_value in soil_parameter_mappings.items():
+                        if mapping_key in normalized_key or normalized_key in mapping_key:
+                            mapped_params[mapping_value] = param_data
+                            logger.info(f"✅ PDF Partial mapped {param_key} -> {mapping_value}")
+                            break
+                    else:
+                        mapped_params[param_key] = param_data
+                        logger.info(f"⚠️ PDF No mapping found for {param_key}, keeping original")
+            
+            logger.info(f"🎯 PDF Robust soil data extraction complete: {len(mapped_params)} parameters")
+            return {
+                'parameter_statistics': mapped_params,
+                'raw_samples': soil_data.get('raw_samples', []),
+                'metadata': soil_data.get('metadata', {})
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error in PDF robust soil data extraction: {e}")
+            return None
+
+    def _extract_leaf_data_with_robust_mapping_pdf(self, analysis_data):
+        """WORLD-CLASS robust leaf data extraction for PDF - same as results page"""
+        try:
+            logger.info("🔍 Starting robust leaf data extraction for PDF")
+            
+            # Same comprehensive parameter mapping as results page
+            leaf_parameter_mappings = {
+                'n': 'N (%)', 'nitrogen': 'N (%)', 'n_percent': 'N (%)', 'n_%': 'N (%)',
+                'leaf_n': 'N (%)', 'leaf_nitrogen': 'N (%)', 'nitrogen_percent': 'N (%)',
+                'p': 'P (%)', 'phosphorus': 'P (%)', 'p_percent': 'P (%)', 'p_%': 'P (%)',
+                'leaf_p': 'P (%)', 'leaf_phosphorus': 'P (%)', 'phosphorus_percent': 'P (%)',
+                'k': 'K (%)', 'potassium': 'K (%)', 'k_percent': 'K (%)', 'k_%': 'K (%)',
+                'leaf_k': 'K (%)', 'leaf_potassium': 'K (%)', 'potassium_percent': 'K (%)',
+                'mg': 'Mg (%)', 'magnesium': 'Mg (%)', 'mg_percent': 'Mg (%)', 'mg_%': 'Mg (%)',
+                'leaf_mg': 'Mg (%)', 'leaf_magnesium': 'Mg (%)', 'magnesium_percent': 'Mg (%)',
+                'ca': 'Ca (%)', 'calcium': 'Ca (%)', 'ca_percent': 'Ca (%)', 'ca_%': 'Ca (%)',
+                'leaf_ca': 'Ca (%)', 'leaf_calcium': 'Ca (%)', 'calcium_percent': 'Ca (%)',
+                'b': 'B (mg/kg)', 'boron': 'B (mg/kg)', 'b_mg_kg': 'B (mg/kg)', 'b_mg/kg': 'B (mg/kg)',
+                'leaf_b': 'B (mg/kg)', 'leaf_boron': 'B (mg/kg)', 'boron_mg_kg': 'B (mg/kg)',
+                'cu': 'Cu (mg/kg)', 'copper': 'Cu (mg/kg)', 'cu_mg_kg': 'Cu (mg/kg)', 'cu_mg/kg': 'Cu (mg/kg)',
+                'leaf_cu': 'Cu (mg/kg)', 'leaf_copper': 'Cu (mg/kg)', 'copper_mg_kg': 'Cu (mg/kg)',
+                'zn': 'Zn (mg/kg)', 'zinc': 'Zn (mg/kg)', 'zn_mg_kg': 'Zn (mg/kg)', 'zn_mg/kg': 'Zn (mg/kg)',
+                'leaf_zn': 'Zn (mg/kg)', 'leaf_zinc': 'Zn (mg/kg)', 'zinc_mg_kg': 'Zn (mg/kg)'
+            }
+            
+            # Same search locations as results page
+            search_locations = [
+                'raw_data.leaf_parameters',
+                'analysis_results.leaf_parameters',
+                'step_by_step_analysis',
+                'raw_ocr_data.leaf_data.structured_ocr_data',
+                'leaf_parameters',
+                'leaf_data',
+                'leaf_analysis',
+                'leaf_samples'
+            ]
+            
+            leaf_data = None
+            
+            # Try each location
+            for location in search_locations:
+                try:
+                    if '.' in location:
+                        parts = location.split('.')
+                        current = analysis_data
+                        for part in parts:
+                            if isinstance(current, dict) and part in current:
+                                current = current[part]
+                            else:
+                                current = None
+                                break
+                        if current:
+                            leaf_data = current
+                            logger.info(f"✅ Found leaf data in: {location}")
+                            break
+                    else:
+                        if location in analysis_data:
+                            leaf_data = analysis_data[location]
+                            logger.info(f"✅ Found leaf data in: {location}")
+                            break
+                except Exception as e:
+                    logger.debug(f"Location {location} failed: {e}")
+                    continue
+            
+            if not leaf_data:
+                logger.warning("❌ No leaf data found in any location")
+                return None
+                
+            # Extract parameter statistics with robust mapping
+            param_stats = None
+            if isinstance(leaf_data, dict):
+                for key in ['parameter_statistics', 'statistics', 'data', 'parameters', 'param_stats', 'stats']:
+                    if key in leaf_data and isinstance(leaf_data[key], dict):
+                        param_stats = leaf_data[key]
+                        logger.info(f"✅ Found parameter statistics in key: {key}")
+                        break
+                
+                if not param_stats:
+                    param_stats = leaf_data
+                    logger.info("✅ Using leaf_data directly as parameter statistics")
+            
+            if not param_stats or not isinstance(param_stats, dict):
+                logger.warning("❌ No valid parameter statistics found")
+                return None
+                
+            # Apply robust parameter mapping
+            mapped_params = {}
+            for param_key, param_data in param_stats.items():
+                normalized_key = param_key.lower().strip().replace(' ', '_').replace('(', '').replace(')', '').replace('%', '').replace('.', '')
+                
+                mapped_name = leaf_parameter_mappings.get(normalized_key)
+                if mapped_name:
+                    mapped_params[mapped_name] = param_data
+                    logger.info(f"✅ PDF Mapped {param_key} -> {mapped_name}")
+                else:
+                    # Try partial matching
+                    for mapping_key, mapping_value in leaf_parameter_mappings.items():
+                        if mapping_key in normalized_key or normalized_key in mapping_key:
+                            mapped_params[mapping_value] = param_data
+                            logger.info(f"✅ PDF Partial mapped {param_key} -> {mapping_value}")
+                            break
+                    else:
+                        mapped_params[param_key] = param_data
+                        logger.info(f"⚠️ PDF No mapping found for {param_key}, keeping original")
+            
+            logger.info(f"🎯 PDF Robust leaf data extraction complete: {len(mapped_params)} parameters")
+            return {
+                'parameter_statistics': mapped_params,
+                'raw_samples': leaf_data.get('raw_samples', []),
+                'metadata': leaf_data.get('metadata', {})
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error in PDF robust leaf data extraction: {e}")
+            return None
+
+    def _create_data_quality_pdf_table_with_robust_data(self, analysis_data: Dict[str, Any], soil_data: Dict[str, Any], leaf_data: Dict[str, Any]) -> List:
+        """Create data quality summary table with robust data"""
+        story = []
+        
+        try:
+            story.append(Paragraph("■ Data Quality Summary", self.styles['Heading3']))
+            story.append(Spacer(1, 8))
+            
+            # Calculate actual counts from robust data
+            soil_sample_count = 0
+            soil_param_count = 0
+            if soil_data and 'parameter_statistics' in soil_data:
+                soil_param_count = len(soil_data['parameter_statistics'])
+                if 'raw_samples' in soil_data:
+                    soil_sample_count = len(soil_data['raw_samples'])
+            
+            leaf_sample_count = 0
+            leaf_param_count = 0
+            if leaf_data and 'parameter_statistics' in leaf_data:
+                leaf_param_count = len(leaf_data['parameter_statistics'])
+                if 'raw_samples' in leaf_data:
+                    leaf_sample_count = len(leaf_data['raw_samples'])
+            
+            # Create table data with actual counts
+            headers = ['Data Type', 'Samples Count', 'Parameters Count', 'Quality Score', 'Status']
+            table_data = [headers]
+            
+            # Soil quality assessment
+            soil_quality = "Good" if soil_param_count >= 7 else "Fair" if soil_param_count >= 5 else "Poor"
+            soil_status = "Complete" if soil_param_count >= 7 else "Partial" if soil_param_count >= 5 else "Limited"
+            
+            table_data.append([
+                'Soil Analysis',
+                str(soil_sample_count),
+                str(soil_param_count),
+                soil_quality,
+                soil_status
+            ])
+            
+            # Leaf quality assessment
+            leaf_quality = "Good" if leaf_param_count >= 6 else "Fair" if leaf_param_count >= 4 else "Poor"
+            leaf_status = "Complete" if leaf_param_count >= 6 else "Partial" if leaf_param_count >= 4 else "Limited"
+            
+            table_data.append([
+                'Leaf Analysis',
+                str(leaf_sample_count),
+                str(leaf_param_count),
+                leaf_quality,
+                leaf_status
+            ])
+            
+            # Create table
+            col_widths = [doc.width * 0.25, doc.width * 0.15, doc.width * 0.20, doc.width * 0.15, doc.width * 0.15]
+            table = self._create_table_with_proper_layout(table_data, col_widths, 9)
+            story.append(table)
+            story.append(Spacer(1, 12))
+            
+            logger.info(f"✅ Created robust data quality table - Soil: {soil_param_count} params, Leaf: {leaf_param_count} params")
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating robust data quality table: {e}")
+            story.append(Paragraph("Error generating data quality summary", self.styles['Normal']))
+            
+        return story
+
+    def _create_consolidated_key_findings_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create consolidated key findings section by calling the results module function"""
+        story = []
+        
+        try:
+            # Import the results module function directly
+            from modules.results import generate_consolidated_key_findings
+            
+            # Extract step results for key findings generation
+            step_results = analysis_data.get('step_by_step_analysis', [])
+            if not step_results:
+                # Try alternative locations
+                step_results = analysis_data.get('analysis_results', [])
+                if not step_results:
+                    step_results = [analysis_data]  # Use the whole analysis data as a single step
+            
+            # Generate consolidated key findings
+            consolidated_findings = generate_consolidated_key_findings(analysis_data, step_results)
+            
+            if consolidated_findings:
+                story.append(Paragraph("🌱 Consolidated Findings", self.styles['Heading2']))
+                story.append(Spacer(1, 12))
+                
+                for finding in consolidated_findings:
+                    if isinstance(finding, dict):
+                        title = finding.get('title', 'Finding')
+                        description = finding.get('description', 'No description available')
+                        
+                        story.append(Paragraph(title, self.styles['Heading4']))
+                        story.append(Paragraph(description, self.styles['Normal']))
+                        story.append(Spacer(1, 8))
+                    else:
+                        story.append(Paragraph(str(finding), self.styles['Normal']))
+                        story.append(Spacer(1, 6))
+            else:
+                story.append(Paragraph("🌱 Consolidated Findings", self.styles['Heading2']))
+                story.append(Spacer(1, 12))
+                story.append(Paragraph("No consolidated findings available.", self.styles['Normal']))
+                
+        except Exception as e:
+            logger.error(f"Error creating consolidated key findings section: {str(e)}")
+            story.append(Paragraph("Error generating key findings section", self.styles['Normal']))
+
+        return story
+
+    def _create_comprehensive_visualizations_section(self, analysis_data: Dict[str, Any]) -> List:
+        """Create comprehensive visualizations section with all charts and graphs"""
+        story = []
+        
+        try:
+            # Section header
+            story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
+            story.append(Spacer(1, 12))
+            
+            # Extract visualizations from step-by-step analysis
+            visualizations = self._extract_visualizations_from_analysis(analysis_data)
+            
+            if visualizations:
+                for viz_data in visualizations:
+                    if not isinstance(viz_data, dict):
+                        continue
+                        
+                    viz_type = viz_data.get('type', 'unknown')
+                    title = viz_data.get('title', 'Visualization')
+
+                    # Create chart image for PDF
+                    try:
+                        chart_image = self._create_chart_image_for_pdf(viz_data, viz_type, title)
+                        if chart_image is not None and hasattr(chart_image, 'width') and chart_image.width is not None:
+                            story.append(Paragraph(title, self.styles['Heading4']))
+                            story.append(Spacer(1, 6))
+                            story.append(chart_image)
+                            story.append(Spacer(1, 12))
+                            logger.info(f"Successfully added chart to PDF: {title}")
+                        else:
+                            logger.warning(f"Chart image is None or invalid for {title}")
+                            story.append(Paragraph(f"{title} - Chart generation failed", self.styles['Normal']))
+                    except Exception as e:
+                        logger.error(f"Error creating chart for {title}: {str(e)}")
+                        story.append(Paragraph(f"{title} - Chart generation error", self.styles['Normal']))
+            else:
+                story.append(Paragraph("No visualizations available", self.styles['Normal']))
+
+        except Exception as e:
+            logger.error(f"Error creating comprehensive visualizations section: {str(e)}")
+            story.append(Paragraph("Error generating visualizations section", self.styles['Normal']))
+
+        return story
+
+    def _extract_visualizations_from_analysis(self, analysis_data: Dict[str, Any]) -> List:
+        """Extract all visualizations from the analysis data"""
+        visualizations = []
+        
+        try:
+            # Check step-by-step analysis
+            step_analysis = analysis_data.get('step_by_step_analysis', [])
+            for step in step_analysis:
+                if isinstance(step, dict) and 'visualizations' in step:
+                    step_viz = step['visualizations']
+                    if isinstance(step_viz, list):
+                        visualizations.extend(step_viz)
+                    elif isinstance(step_viz, dict):
+                        visualizations.append(step_viz)
+            
+            # Check raw data for visualizations
+            raw_data = analysis_data.get('raw_data', {})
+            if 'visualizations' in raw_data:
+                raw_viz = raw_data['visualizations']
+                if isinstance(raw_viz, list):
+                    visualizations.extend(raw_viz)
+                elif isinstance(raw_viz, dict):
+                    visualizations.append(raw_viz)
+                    
+        except Exception as e:
+            logger.error(f"Error extracting visualizations: {str(e)}")
+            return []
+
+        return visualizations
+
+    def _create_chart_image_for_pdf(self, viz_data: Dict[str, Any], viz_type: str, title: str) -> Optional[Image]:
+        """Create chart image for PDF from visualization data"""
+        try:
+            # Create a simple placeholder chart
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.text(0.5, 0.5, f'Chart: {title}\nType: {viz_type}',
+                   transform=ax.transAxes, ha='center', va='center', fontsize=14)
+            ax.set_title(title)
+            ax.axis('off')
+
+            # Save to buffer
+            from io import BytesIO
+            buffer = BytesIO()
+            fig.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+            plt.close(fig)
+            
+            # Get buffer data and reset position
+            buffer_data = buffer.getvalue()
+            buffer.seek(0)
+            
+            # Validate buffer data
+            if not buffer_data or len(buffer_data) == 0:
+                logger.warning(f"Empty buffer for chart: {title}")
+                return None
+                
+            # Create new buffer with the data
+            image_buffer = BytesIO(buffer_data)
+            
+            # Create reportlab Image with proper error handling
+            try:
+                chart_image = Image(image_buffer, width=6*inch, height=4*inch)
+                logger.info(f"Successfully created chart image for: {title}")
+                return chart_image
+            except Exception as img_error:
+                logger.error(f"Error creating Image object for {title}: {str(img_error)}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error creating chart image for PDF: {str(e)}")
+            return None
+
+    def _create_soil_parameters_pdf_table(self, soil_stats: Dict[str, Any]) -> List:
+        """Create soil parameters PDF table with actual values from results page"""
+        story = []
+        
+        try:
+            story.append(Paragraph("🌱 Soil Parameters Summary", self.styles['Heading3']))
+            story.append(Spacer(1, 8))
+            
+            # Create table data
+            table_data = [['Parameter', 'Average', 'Min', 'Max', 'Std Dev', 'MPOB Optimal', 'Status']]
+            
+            # Use the exact same MPOB standards as the results page
+            soil_mpob_standards = {
+                'pH': (5.0, 6.0),
+                'N (%)': (0.15, 0.25),
+                'Org. C (%)': (2.0, 4.0),
+                'Total P (mg/kg)': (20, 50),
+                'Avail P (mg/kg)': (20, 50),
+                'Exch. K (meq%)': (0.2, 0.5),
+                'Exch. Ca (meq%)': (3.0, 6.0),
+                'Exch. Mg (meq%)': (0.4, 0.8),
+                'CEC (meq%)': (12.0, 25.0)
+            }
+            
+            for param_name, param_data in soil_stats.items():
+                # Handle different data formats
+                if isinstance(param_data, dict):
+                    avg_val = param_data.get('average', 0)
+                    min_val = param_data.get('min', 0)
+                    max_val = param_data.get('max', 0)
+                    std_dev = param_data.get('std_dev', 0)
+                elif isinstance(param_data, (int, float)):
+                    avg_val = param_data
+                    min_val = param_data
+                    max_val = param_data
+                    std_dev = 0
+                else:
+                    avg_val = 0
+                    min_val = 0
+                    max_val = 0
+                    std_dev = 0
+                
+                logger.info(f"PDF Soil param {param_name}: avg={avg_val}, min={min_val}, max={max_val}")
+                
+                # Get MPOB optimal range
+                optimal_range = soil_mpob_standards.get(param_name)
+                if optimal_range:
+                    opt_min, opt_max = optimal_range
+                    opt_display = f"{opt_min}-{opt_max}"
+                    
+                    # Determine status
+                    if avg_val is not None and avg_val != 0:
+                        if opt_min <= avg_val <= opt_max:
+                            status = "Optimal"
+                        elif avg_val < opt_min:
+                            status = "Critical Low"
+                        else:
+                            status = "Critical High"
+                    else:
+                        status = "No Data"
+                else:
+                    opt_display = "N/A"
+                    status = "No Standard"
+                
+                table_data.append([
+                    param_name,
+                    f"{avg_val:.2f}" if avg_val is not None else "0.00",
+                    f"{min_val:.2f}" if min_val is not None else "0.00",
+                    f"{max_val:.2f}" if max_val is not None else "0.00",
+                    f"{std_dev:.2f}" if std_dev is not None else "0.00",
+                    opt_display,
+                    status
+                ])
+            
+            # Create table
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 12))
+            
+        except Exception as e:
+            logger.error(f"Error creating soil parameters PDF table: {str(e)}")
+            story.append(Paragraph("Error generating soil parameters table", self.styles['Normal']))
+        
+        return story
+
+    def _create_leaf_parameters_pdf_table(self, leaf_stats: Dict[str, Any]) -> List:
+        """Create leaf parameters PDF table with actual values from results page"""
+        story = []
+        
+        try:
+            story.append(Paragraph("🍃 Leaf Parameters Summary", self.styles['Heading3']))
+            story.append(Spacer(1, 8))
+            
+            # Create table data
+            table_data = [['Parameter', 'Average', 'Min', 'Max', 'Std Dev', 'MPOB Optimal', 'Status']]
+            
+            # Use the exact same MPOB standards as the results page
+            leaf_mpob_standards = {
+                'N (%)': (2.6, 3.2),
+                'P (%)': (0.16, 0.22),
+                'K (%)': (1.3, 1.7),
+                'Mg (%)': (0.28, 0.38),
+                'Ca (%)': (0.5, 0.7),
+                'B (mg/kg)': (18, 28),
+                'Cu (mg/kg)': (6.0, 10.0),
+                'Zn (mg/kg)': (15, 25)
+            }
+            
+            for param_name, param_data in leaf_stats.items():
+                # Handle different data formats
+                if isinstance(param_data, dict):
+                    avg_val = param_data.get('average', 0)
+                    min_val = param_data.get('min', 0)
+                    max_val = param_data.get('max', 0)
+                    std_dev = param_data.get('std_dev', 0)
+                elif isinstance(param_data, (int, float)):
+                    avg_val = param_data
+                    min_val = param_data
+                    max_val = param_data
+                    std_dev = 0
+                else:
+                    avg_val = 0
+                    min_val = 0
+                    max_val = 0
+                    std_dev = 0
+                
+                logger.info(f"PDF Leaf param {param_name}: avg={avg_val}, min={min_val}, max={max_val}")
+                
+                # Get MPOB optimal range
+                optimal_range = leaf_mpob_standards.get(param_name)
+                if optimal_range:
+                    opt_min, opt_max = optimal_range
+                    opt_display = f"{opt_min}-{opt_max}"
+                    
+                    # Determine status
+                    if avg_val is not None and avg_val != 0:
+                        if opt_min <= avg_val <= opt_max:
+                            status = "Optimal"
+                        elif avg_val < opt_min:
+                            status = "Critical Low"
+                        else:
+                            status = "Critical High"
+                    else:
+                        status = "No Data"
+                else:
+                    opt_display = "N/A"
+                    status = "No Standard"
+                
+                table_data.append([
+                    param_name,
+                    f"{avg_val:.2f}" if avg_val is not None else "0.00",
+                    f"{min_val:.2f}" if min_val is not None else "0.00",
+                    f"{max_val:.2f}" if max_val is not None else "0.00",
+                    f"{std_dev:.2f}" if std_dev is not None else "0.00",
+                    opt_display,
+                    status
+                ])
+            
+            # Create table
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 12))
+            
+        except Exception as e:
+            logger.error(f"Error creating leaf parameters PDF table: {str(e)}")
+            story.append(Paragraph("Error generating leaf parameters table", self.styles['Normal']))
+        
+        return story
+
+    def _create_raw_samples_pdf_table(self, raw_samples: List[Dict], sample_type: str) -> List:
+        """Create raw samples PDF table with actual values from results page"""
+        story = []
+        
+        try:
+            story.append(Paragraph(f"📊 Raw {sample_type} Sample Data", self.styles['Heading3']))
+            story.append(Spacer(1, 8))
+            
+            if not raw_samples:
+                story.append(Paragraph(f"No {sample_type.lower()} sample data available", self.styles['Normal']))
+                return story
+            
+            # Get all parameter names from the first sample
+            first_sample = raw_samples[0] if raw_samples else {}
+            param_names = [key for key in first_sample.keys() if key != 'sample_id']
+            
+            # Create table headers
+            headers = ['Sample ID'] + param_names
+            table_data = [headers]
+            
+            # Add sample data
+            for sample in raw_samples[:10]:  # Limit to first 10 samples for readability
+                row = [sample.get('sample_id', 'Unknown')]
+                for param in param_names:
+                    value = sample.get(param, 0)
+                    if isinstance(value, (int, float)):
+                        row.append(f"{value:.2f}")
+                    else:
+                        row.append(str(value))
+                table_data.append(row)
+            
+            # Create table
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 12))
+            
+        except Exception as e:
+            logger.error(f"Error creating raw samples PDF table: {str(e)}")
+            story.append(Paragraph(f"Error generating {sample_type.lower()} samples table", self.styles['Normal']))
+        
+        return story
+
+    def _create_data_quality_pdf_table(self, analysis_data: Dict[str, Any]) -> List:
+        """Create data quality summary PDF table"""
+        story = []
+        
+        try:
+            story.append(Paragraph("📈 Data Quality Summary", self.styles['Heading3']))
+            story.append(Spacer(1, 8))
+            
+            # Extract data quality information
+            raw_data = analysis_data.get('raw_data', {})
+            soil_params = raw_data.get('soil_parameters', {})
+            leaf_params = raw_data.get('leaf_parameters', {})
+            
+            table_data = [
+                ['Data Type', 'Samples Count', 'Parameters Count', 'Quality Score', 'Status']
+            ]
+            
+            # Soil data quality
+            if soil_params:
+                soil_samples = soil_params.get('raw_samples', [])
+                soil_stats = soil_params.get('parameter_statistics', {})
+                soil_count = len(soil_samples)
+                param_count = len(soil_stats)
+                quality_score = "Good" if soil_count > 0 and param_count > 0 else "Poor"
+                status = "Complete" if soil_count > 5 else "Limited"
+                table_data.append(['Soil Analysis', str(soil_count), str(param_count), quality_score, status])
+            
+            # Leaf data quality
+            if leaf_params:
+                leaf_samples = leaf_params.get('raw_samples', [])
+                leaf_stats = leaf_params.get('parameter_statistics', {})
+                leaf_count = len(leaf_samples)
+                param_count = len(leaf_stats)
+                quality_score = "Good" if leaf_count > 0 and param_count > 0 else "Poor"
+                status = "Complete" if leaf_count > 5 else "Limited"
+                table_data.append(['Leaf Analysis', str(leaf_count), str(param_count), quality_score, status])
+            
+            if len(table_data) == 1:
+                table_data.append(['No Data Available', '0', '0', 'Poor', 'Incomplete'])
+            
+            # Create table
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 12))
+            
+        except Exception as e:
+            logger.error(f"Error creating data quality PDF table: {str(e)}")
+            story.append(Paragraph("Error generating data quality table", self.styles['Normal']))
+        
+        return story
+
 def generate_pdf_report(analysis_data: Dict[str, Any], metadata: Dict[str, Any], 
                        options: Optional[Dict[str, Any]] = None) -> bytes:
     """Main function to generate PDF report"""
@@ -4220,360 +5106,7 @@ def generate_pdf_report(analysis_data: Dict[str, Any], metadata: Dict[str, Any],
         pdf_bytes = generator.generate_report(analysis_data, metadata, options)
         
         return pdf_bytes
-        
+
     except Exception as e:
         logger.error(f"Error generating PDF report: {str(e)}")
         raise
-
-def _create_actual_vs_optimal_chart(parameter_stats: Dict[str, Any], parameter_type: str) -> Optional[bytes]:
-    """Create actual vs optimal nutrient levels bar chart for PDF"""
-    try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-        
-        # Get MPOB standards
-        try:
-            from utils.mpob_standards import get_mpob_standards
-            mpob = get_mpob_standards()
-        except:
-            mpob = None
-        
-        categories = []
-        actual_values = []
-        optimal_values = []
-        
-        # Define parameter mappings
-        if parameter_type == 'soil':
-            param_mapping = {
-                'pH': 'pH',
-                'Nitrogen_%': 'Nitrogen %',
-                'Organic_Carbon_%': 'Organic Carbon %',
-                'Total_P_mg_kg': 'Total P (mg/kg)',
-                'Available_P_mg_kg': 'Available P (mg/kg)',
-                'Exchangeable_K_meq%': 'Exch. K (meq%)',
-                'Exchangeable_Ca_meq%': 'Exch. Ca (meq%)',
-                'Exchangeable_Mg_meq%': 'Exch. Mg (meq%)',
-                'CEC_meq%': 'CEC (meq%)'
-            }
-        else:  # leaf
-            param_mapping = {
-                'N_%': 'N %',
-                'P_%': 'P %',
-                'K_%': 'K %',
-                'Mg_%': 'Mg %',
-                'Ca_%': 'Ca %',
-                'B_mg_kg': 'B (mg/kg)',
-                'Cu_mg_kg': 'Cu (mg/kg)',
-                'Zn_mg_kg': 'Zn (mg/kg)'
-            }
-        
-        # Extract data
-        for param_key, display_name in param_mapping.items():
-            if param_key in parameter_stats:
-                actual_val = parameter_stats[param_key].get('average', 0)
-                if actual_val > 0:
-                    categories.append(display_name)
-                    actual_values.append(actual_val)
-                    
-                    # Get optimal value (simplified for PDF)
-                    optimal_val = actual_val * 1.2  # Placeholder - should use MPOB standards
-                    optimal_values.append(optimal_val)
-        
-        if not categories:
-            return None
-        
-        # Create subplots - one for each parameter with better layout
-        num_params = len(categories)
-        
-        # Calculate optimal layout - use 2 rows if more than 5 parameters
-        if num_params > 5:
-            rows = 2
-            cols = (num_params + 1) // 2
-        else:
-            rows = 1
-            cols = num_params
-        
-        # Make each chart wider and taller for better readability
-        fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 8*rows))
-        
-        # If only one parameter, axes won't be a list
-        if num_params == 1:
-            axes = [axes]
-        elif rows == 1:
-            axes = axes
-        else:
-            axes = axes.flatten()
-        
-        # Define colors
-        actual_color = '#3498db' if parameter_type == 'soil' else '#2ecc71'
-        optimal_color = '#e74c3c' if parameter_type == 'soil' else '#e67e22'
-        
-        # Create chart for each parameter
-        for i, param in enumerate(categories):
-            actual_val = actual_values[i]
-            optimal_val = optimal_values[i]
-            
-            # Calculate appropriate scale for this parameter
-            max_val = max(actual_val, optimal_val)
-            min_val = min(actual_val, optimal_val)
-            
-            # Add some padding to the scale
-            range_val = max_val - min_val
-            if range_val == 0:
-                range_val = max_val * 0.1 if max_val > 0 else 1
-            
-            y_max = max_val + (range_val * 0.2)
-            y_min = max(0, min_val - (range_val * 0.1))
-            
-            # Create bars
-            x_pos = [0, 1]
-            heights = [actual_val, optimal_val]
-            colors = [actual_color, optimal_color]
-            labels = ['Observed', 'Recommended']
-            
-            bars = axes[i].bar(x_pos, heights, color=colors, alpha=0.8, width=0.6)
-        
-        # Add value labels on bars
-            for bar, height in zip(bars, heights):
-                axes[i].text(bar.get_x() + bar.get_width()/2., height + (y_max - y_min) * 0.02,
-                           f'{height:.1f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
-            
-            # Customize subplot
-            axes[i].set_title(param, fontsize=12, fontweight='bold', pad=10)
-            axes[i].set_ylim(y_min, y_max)
-            axes[i].set_xticks(x_pos)
-            axes[i].set_xticklabels(labels, fontsize=10)
-            axes[i].grid(True, alpha=0.3, linestyle='--')
-            axes[i].set_ylabel('Values', fontsize=10)
-            
-            # Only show legend on first chart
-            if i == 0:
-                axes[i].legend(['Observed', 'Recommended'], loc='upper right', fontsize=9)
-        
-        # Hide unused subplots
-        for i in range(num_params, len(axes)):
-            axes[i].set_visible(False)
-        
-        # Set main title
-        fig.suptitle(f'{parameter_type.title()} Nutrients: Actual vs Optimal Levels', fontsize=16, fontweight='bold', y=0.95)
-        
-        # Improve layout with more spacing
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        
-        # Save to bytes
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        img_buffer.seek(0)
-        chart_bytes = img_buffer.getvalue()
-        
-        plt.clf()
-        plt.close('all')
-        
-        return chart_bytes
-        
-    except Exception as e:
-        logger.warning(f"Error creating actual vs optimal chart: {e}")
-        return None
-
-
-def _create_nutrient_ratio_chart(parameter_stats: Dict[str, Any], parameter_type: str) -> Optional[bytes]:
-    """Create nutrient ratio chart for PDF with individual bars for each ratio"""
-    try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-        
-        # Calculate nutrient ratios
-        if parameter_type == 'soil':
-            ratios = _calculate_soil_nutrient_ratios(parameter_stats)
-            optimal_ranges = {
-                'N:P': (10, 15),
-                'N:K': (1, 2),
-                'Ca:Mg': (2, 4),
-                'K:Mg': (0.2, 0.5),
-                'C:N': (10, 20)
-            }
-        else:  # leaf
-            ratios = _calculate_leaf_nutrient_ratios(parameter_stats)
-            optimal_ranges = {
-                'N:P': (8, 12),
-                'N:K': (1.5, 2.5),
-                'Ca:Mg': (2, 3),
-                'K:Mg': (0.3, 0.6),
-                'P:K': (0.4, 0.8)
-            }
-        
-        if not ratios:
-            return None
-        
-        # Filter out zero ratios
-        valid_ratios = {k: v for k, v in ratios.items() if v > 0}
-        if not valid_ratios:
-            return None
-        
-        categories = list(valid_ratios.keys())
-        values = list(valid_ratios.values())
-        
-        # Create subplots - one for each ratio
-        num_params = len(categories)
-        
-        # Calculate optimal layout
-        if num_params > 4:
-            rows = 2
-            cols = (num_params + 1) // 2
-        else:
-            rows = 1
-            cols = num_params
-        
-        fig, axes = plt.subplots(rows, cols, figsize=(6*cols, 8*rows))
-        if num_params == 1:
-            axes = [axes]
-        elif rows == 1:
-            axes = axes
-        else:
-            axes = axes.flatten()
-        
-        # Define colors
-        current_color = '#2ecc71'  # Green for current ratios
-        optimal_color = '#e67e22'  # Orange for optimal ranges
-        
-        # Create chart for each ratio
-        for i, ratio_name in enumerate(categories):
-            current_value = values[i]
-            
-            # Calculate appropriate scale for this ratio
-            max_val = current_value
-            min_val = 0
-            
-            # Add optimal range if available
-            if ratio_name in optimal_ranges:
-                min_opt, max_opt = optimal_ranges[ratio_name]
-                optimal_midpoint = (min_opt + max_opt) / 2
-                max_val = max(current_value, max_opt)
-                min_val = min(current_value, min_opt)
-            else:
-                optimal_midpoint = current_value * 1.2  # Default if no optimal range
-            
-            # Add padding to the scale
-            range_val = max_val - min_val
-            if range_val == 0:
-                range_val = max_val * 0.1 if max_val > 0 else 1
-            
-            y_max = max_val + (range_val * 0.2)
-            y_min = max(0, min_val - (range_val * 0.1))
-            
-            # Create bars
-            x_pos = [0, 1]
-            heights = [current_value, optimal_midpoint]
-            colors = [current_color, optimal_color]
-            labels = ['Current', 'Optimal']
-            
-            bars = axes[i].bar(x_pos, heights, color=colors, alpha=0.8, width=0.6)
-            
-            # Add value labels on bars
-            for bar, height in zip(bars, heights):
-                axes[i].text(bar.get_x() + bar.get_width()/2., height + (y_max - y_min) * 0.02,
-                           f'{height:.2f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
-            
-            # Add optimal range lines if available
-            if ratio_name in optimal_ranges:
-                min_opt, max_opt = optimal_ranges[ratio_name]
-                axes[i].axhline(y=min_opt, color='orange', linestyle='--', alpha=0.7, linewidth=1)
-                axes[i].axhline(y=max_opt, color='orange', linestyle='--', alpha=0.7, linewidth=1)
-                axes[i].text(1.5, min_opt, f'Min: {min_opt:.1f}', fontsize=8, va='center')
-                axes[i].text(1.5, max_opt, f'Max: {max_opt:.1f}', fontsize=8, va='center')
-            
-            # Customize subplot
-            axes[i].set_title(ratio_name, fontsize=12, fontweight='bold', pad=10)
-            axes[i].set_ylim(y_min, y_max)
-            axes[i].set_xticks(x_pos)
-            axes[i].set_xticklabels(labels, fontsize=10)
-            axes[i].grid(True, alpha=0.3, linestyle='--')
-            axes[i].set_ylabel('Ratio Value', fontsize=10)
-            
-            # Only show legend on first chart
-            if i == 0:
-                axes[i].legend(['Current Ratio', 'Optimal Range (Midpoint)'], loc='upper right', fontsize=9)
-        
-        # Hide unused subplots
-        for i in range(num_params, len(axes)):
-            axes[i].set_visible(False)
-        
-        # Set main title
-        fig.suptitle(f'{parameter_type.title()} Nutrient Ratios', fontsize=16, fontweight='bold', y=0.95)
-        
-        # Improve layout with more spacing
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        
-        # Save to bytes
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        img_buffer.seek(0)
-        chart_bytes = img_buffer.getvalue()
-        
-        plt.clf()
-        plt.close('all')
-        
-        return chart_bytes
-        
-    except Exception as e:
-        logger.error(f"Error creating nutrient ratio chart: {str(e)}")
-        return None
-
-
-def _calculate_soil_nutrient_ratios(soil_stats: Dict[str, Any]) -> Dict[str, float]:
-    """Calculate key soil nutrient ratios"""
-    ratios = {}
-    
-    try:
-        # Get average values
-        n_avg = soil_stats.get('Nitrogen_%', {}).get('average', 0)
-        p_avg = soil_stats.get('Total_P_mg_kg', {}).get('average', 0)
-        k_avg = soil_stats.get('Exchangeable_K_meq%', {}).get('average', 0)
-        ca_avg = soil_stats.get('Exchangeable_Ca_meq%', {}).get('average', 0)
-        mg_avg = soil_stats.get('Exchangeable_Mg_meq%', {}).get('average', 0)
-        oc_avg = soil_stats.get('Organic_Carbon_%', {}).get('average', 0)
-        
-        # Calculate ratios (avoid division by zero)
-        if p_avg > 0:
-            ratios['N:P'] = n_avg / (p_avg / 1000) if p_avg > 0 else 0  # Convert mg/kg to %
-        if k_avg > 0:
-            ratios['N:K'] = n_avg / k_avg if k_avg > 0 else 0
-        if mg_avg > 0:
-            ratios['Ca:Mg'] = ca_avg / mg_avg if mg_avg > 0 else 0
-            ratios['K:Mg'] = k_avg / mg_avg if mg_avg > 0 else 0
-        if n_avg > 0:
-            ratios['C:N'] = oc_avg / n_avg if n_avg > 0 else 0
-            
-    except Exception as e:
-        logger.error(f"Error calculating soil nutrient ratios: {e}")
-    
-    return ratios
-
-
-def _calculate_leaf_nutrient_ratios(leaf_stats: Dict[str, Any]) -> Dict[str, float]:
-    """Calculate key leaf nutrient ratios"""
-    ratios = {}
-    
-    try:
-        # Get average values
-        n_avg = leaf_stats.get('Nitrogen_%', {}).get('average', 0)
-        p_avg = leaf_stats.get('Phosphorus_%', {}).get('average', 0)
-        k_avg = leaf_stats.get('Potassium_%', {}).get('average', 0)
-        ca_avg = leaf_stats.get('Calcium_%', {}).get('average', 0)
-        mg_avg = leaf_stats.get('Magnesium_%', {}).get('average', 0)
-        
-        # Calculate ratios (avoid division by zero)
-        if p_avg > 0:
-            ratios['N:P'] = n_avg / p_avg if p_avg > 0 else 0
-        if k_avg > 0:
-            ratios['N:K'] = n_avg / k_avg if k_avg > 0 else 0
-        if mg_avg > 0:
-            ratios['Ca:Mg'] = ca_avg / mg_avg if mg_avg > 0 else 0
-            ratios['K:Mg'] = k_avg / mg_avg if mg_avg > 0 else 0
-        if k_avg > 0 and p_avg > 0:
-            ratios['P:K'] = p_avg / k_avg if k_avg > 0 else 0
-            
-    except Exception as e:
-        logger.error(f"Error calculating leaf nutrient ratios: {e}")
-    
-    return ratios
