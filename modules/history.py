@@ -276,33 +276,48 @@ def display_analysis_history():
         # Filter analyses based on search and status
         filtered_analyses = []
         for doc in user_analyses:
-            analysis_data = doc.to_dict()
-            
-            # Apply status filter (analysis_results are always completed)
-            if status_filter != "All" and status_filter != "completed":
-                continue
-            
-            # Apply search filter
-            if search_term:
-                search_lower = search_term.lower()
-                created_at = analysis_data.get('created_at', datetime.now())
-                
-                # Handle timezone-aware datetime for string formatting
-                if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
-                    created_at_naive = created_at.replace(tzinfo=None)
-                else:
-                    created_at_naive = created_at
-                    
-                timestamp_str = created_at_naive.strftime('%Y-%m-%d %H:%M').lower()
-                status_str = 'completed'  # analysis_results are always completed
-                
-                # Search in timestamp, status, and analysis content
-                if (search_lower not in timestamp_str and 
-                    search_lower not in status_str and
-                    not _search_in_analysis_content(analysis_data, search_lower)):
+            try:
+                analysis_data = doc.to_dict()
+
+                # Skip if no data
+                if not analysis_data:
+                    logger.warning(f"Empty document found: {doc.id}")
                     continue
-            
-            filtered_analyses.append((doc, analysis_data))
+
+                # Debug logging for data structure
+                logger.info(f"🔍 DEBUG - Processing analysis document {doc.id}")
+                logger.info(f"🔍 DEBUG - Analysis data keys: {list(analysis_data.keys())}")
+                logger.info(f"🔍 DEBUG - Analysis data type: {type(analysis_data)}")
+
+                # Apply status filter (analysis_results are always completed)
+                if status_filter != "All" and status_filter != "completed":
+                    continue
+
+                # Apply search filter
+                if search_term:
+                    search_lower = search_term.lower()
+                    created_at = analysis_data.get('created_at', datetime.now())
+
+                    # Handle timezone-aware datetime for string formatting
+                    if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
+                        created_at_naive = created_at.replace(tzinfo=None)
+                    else:
+                        created_at_naive = created_at
+
+                    timestamp_str = created_at_naive.strftime('%Y-%m-%d %H:%M').lower()
+                    status_str = 'completed'  # analysis_results are always completed
+
+                    # Search in timestamp, status, and analysis content
+                    if (search_lower not in timestamp_str and
+                        search_lower not in status_str and
+                        not _search_in_analysis_content(analysis_data, search_lower)):
+                        continue
+
+                filtered_analyses.append((doc, analysis_data))
+
+            except Exception as e:
+                logger.error(f"Error processing document {doc.id}: {str(e)}")
+                continue
         
         if not filtered_analyses:
             st.info("🔍 No analyses match your search criteria.")
@@ -312,27 +327,76 @@ def display_analysis_history():
         st.markdown(f"**Found {len(filtered_analyses)} analysis record(s)**")
         
         for doc, analysis_data in filtered_analyses:
-            logger.info(f"🔍 DEBUG - Processing analysis document {doc.id}")
-            logger.info(f"🔍 DEBUG - Analysis data keys: {list(analysis_data.keys())}")
-            logger.info(f"🔍 DEBUG - Has analysis_results: {'analysis_results' in analysis_data}")
-            logger.info(f"🔍 DEBUG - Has step_by_step_analysis: {'step_by_step_analysis' in analysis_data}")
+            try:
+                logger.info(f"🔍 DEBUG - Processing analysis document {doc.id}")
+                logger.info(f"🔍 DEBUG - Analysis data keys: {list(analysis_data.keys())}")
+                logger.info(f"🔍 DEBUG - Has analysis_results: {'analysis_results' in analysis_data}")
+                logger.info(f"🔍 DEBUG - Has step_by_step_analysis: {'step_by_step_analysis' in analysis_data}")
 
-            if 'analysis_results' in analysis_data:
-                analysis_results = analysis_data['analysis_results']
-                logger.info(f"🔍 DEBUG - analysis_results keys: {list(analysis_results.keys())}")
-                logger.info(f"🔍 DEBUG - Has step_by_step_analysis in analysis_results: {'step_by_step_analysis' in analysis_results}")
-                if 'step_by_step_analysis' in analysis_results:
-                    step_analysis = analysis_results['step_by_step_analysis']
-                    logger.info(f"🔍 DEBUG - Step-by-step analysis length: {len(step_analysis)}")
-                    for i, step in enumerate(step_analysis):
-                        logger.info(f"🔍 DEBUG - Step {i+1}: {step.get('step_title', 'Unknown')} - keys: {list(step.keys()) if isinstance(step, dict) else 'Not a dict'}")
+                # Extract step analysis from multiple possible locations
+                step_analysis = []
+                analysis_results = None
+
+                # Initialize step_analysis to ensure it's always defined
+                if 'analysis_results' in analysis_data and isinstance(analysis_data['analysis_results'], dict):
+                    analysis_results = analysis_data['analysis_results']
+                    logger.info(f"🔍 DEBUG - analysis_results keys: {list(analysis_results.keys())}")
+                    logger.info(f"🔍 DEBUG - Has step_by_step_analysis in analysis_results: {'step_by_step_analysis' in analysis_results}")
+                    if 'step_by_step_analysis' in analysis_results:
+                        step_analysis = analysis_results.get('step_by_step_analysis', [])
+                        logger.info(f"🔍 DEBUG - Step-by-step analysis length: {len(step_analysis)}")
+                        for i, step in enumerate(step_analysis):
+                            logger.info(f"🔍 DEBUG - Step {i+1}: {step.get('step_title', 'Unknown')} - keys: {list(step.keys()) if isinstance(step, dict) else 'Not a dict'}")
+                elif 'step_by_step_analysis' in analysis_data:
+                    # Direct step-by-step analysis
+                    step_analysis = analysis_data.get('step_by_step_analysis', [])
+                    logger.info(f"🔍 DEBUG - Direct step-by-step analysis length: {len(step_analysis)}")
                 else:
-                    logger.warning(f"🔍 DEBUG - No step_by_step_analysis found in analysis_results")
-            else:
-                logger.warning(f"🔍 DEBUG - No analysis_results found in document")
+                    logger.warning(f"🔍 DEBUG - No analysis data structure found in document {doc.id}")
+                    # Look for any nested data that might contain analysis
+                    for key, value in analysis_data.items():
+                        if isinstance(value, dict) and 'step_by_step_analysis' in value:
+                            step_analysis = value.get('step_by_step_analysis', [])
+                            logger.info(f"🔍 DEBUG - Found step analysis in nested structure '{key}': {len(step_analysis)} steps")
+                            break
 
-            created_at = analysis_data.get('created_at', datetime.now())
-            status = 'completed'  # analysis_results are always completed
+                # If still no step analysis, try to extract from any available data
+                if not step_analysis:
+                    logger.warning(f"🔍 DEBUG - No step analysis found for document {doc.id}, looking for any content...")
+                    # Check for any data that might contain analysis
+                    for key, value in analysis_data.items():
+                        if isinstance(value, list) and len(value) > 0:
+                            step_analysis = value
+                            logger.info(f"🔍 DEBUG - Using list data as step analysis: {len(step_analysis)} items")
+                            break
+
+
+                created_at = analysis_data.get('created_at', datetime.now())
+                status = 'completed'  # analysis_results are always completed
+
+                # Debug information for the analysis display
+                st.markdown(f"""
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #17a2b8;">
+                <h4>📊 Analysis Summary</h4>
+                <p>Analysis results summary</p>
+                <p><strong>Compiled into logical sections by merging related findings (e.g., all nutrient deficiencies grouped together). Total Compiled Findings: {len(step_analysis) if step_analysis else 0}</strong></p>
+                <p><strong>🔬 Step-by-Step Analysis ({len(step_analysis) if step_analysis else 0} Steps)</strong></p>
+                {"<p>✅ Analysis data found and processed successfully.</p>" if step_analysis else "<p>⚠️ No step-by-step analysis results found. This may indicate an issue with the analysis process.</p>"}
+                <div style="font-family: monospace; font-size: 0.8em; background: #e9ecef; padding: 10px; border-radius: 3px; margin-top: 10px;">
+                <p><strong>Debug Information:</strong></p>
+                <p>Analysis results type: {type(analysis_data)}</p>
+                <p>Analysis results keys: {list(analysis_data.keys())}</p>
+                <p>Step results type: {type(step_analysis)}</p>
+                <p>Step results length: {len(step_analysis)}</p>
+                <p>Has stored analysis results: {bool(step_analysis)}</p>
+                </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            except Exception as e:
+                logger.error(f"Error processing document {doc.id}: {str(e)}")
+                st.error(f"Error processing analysis data: {str(e)}")
+                continue
 
             # Handle timezone-aware datetime for display
             if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
@@ -446,22 +510,28 @@ def display_analysis_history():
                             st.session_state[f"confirm_delete_{doc.id}"] = True
                             st.warning("Click again to confirm deletion")
                 
-                # Show detailed summary if available
-                analysis_results_local = analysis_data.get('analysis_results', {})
-                step_analysis = analysis_data.get('step_by_step_analysis', []) or analysis_results_local.get('step_by_step_analysis', [])
+                # Show detailed summary if available - use the step_analysis we already extracted
                 if step_analysis and status.lower() == 'completed':
                     st.markdown("---")
                     st.markdown("**📋 Analysis Summary**")
                     
                     # Show key findings from step-by-step analysis with intelligent deduplication
-                    if step_analysis:
-                        key_findings = _generate_intelligent_key_findings(analysis_data, step_analysis)
-                        
-                        if key_findings:
-                            st.markdown("**Key Findings:**")
-                            for i, finding_data in enumerate(key_findings[:5], 1):  # Show top 5
-                                finding = finding_data['finding'] if isinstance(finding_data, dict) else finding_data
-                                st.write(f"{i}. {finding}")
+                    if step_analysis and len(step_analysis) > 0:
+                        try:
+                            key_findings = _generate_intelligent_key_findings(analysis_data, step_analysis)
+
+                            if key_findings and len(key_findings) > 0:
+                                st.markdown("**Key Findings:**")
+                                for i, finding_data in enumerate(key_findings[:5], 1):  # Show top 5
+                                    finding = finding_data['finding'] if isinstance(finding_data, dict) else finding_data
+                                    st.write(f"{i}. {finding}")
+                            else:
+                                st.write("**Key Findings:** Analysis completed but no specific findings available.")
+                        except Exception as e:
+                            logger.error(f"Error generating key findings: {str(e)}")
+                            st.write("**Key Findings:** Could not process analysis findings due to technical issues.")
+                    else:
+                        st.write("**Key Findings:** Analysis data structure is empty or malformed.")
                     
                     # Economic forecast details omitted on history view
         
