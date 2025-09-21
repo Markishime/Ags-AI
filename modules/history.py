@@ -1,6 +1,7 @@
 import streamlit as st
 import sys
 import os
+import logging
 from datetime import datetime
 import pandas as pd
 # Use our configured Firestore client instead of direct import
@@ -11,6 +12,9 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils'
 # Import utilities
 from utils.firebase_config import get_firestore_client, COLLECTIONS
 from google.cloud.firestore import Query, FieldFilter
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 def show_history_page():
     """Main history page - displays past analysis results"""
