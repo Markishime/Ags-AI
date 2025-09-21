@@ -407,9 +407,7 @@ def display_analysis_history():
                         st.session_state.current_page = 'results'
                         st.rerun()
                     
-                    if st.button("📄 Generate PDF", key=f"pdf_{doc.id}"):
-                        # Generate and download PDF
-                        _download_analysis_pdf(analysis_data, doc.id)
+                    # PDF generation button removed as requested
                     
                     if st.button("🗑️ Delete", key=f"delete_{doc.id}"):
                         if st.session_state.get(f"confirm_delete_{doc.id}", False):
@@ -903,43 +901,7 @@ def _search_in_analysis_content(analysis_data: dict, search_term: str) -> bool:
     except Exception:
         return False
 
-def _download_analysis_pdf(analysis_data: dict, analysis_id: str):
-    """Download analysis as PDF using the same generator as results page"""
-    try:
-        # Reuse the same PDF generator used on results page for consistency
-        from modules.results import generate_results_pdf
-
-        if not analysis_data:
-            st.error("No analysis data available for PDF generation")
-            return
-
-        # Build a results-like payload to maximize section coverage
-        results_payload = {
-            'analysis_results': analysis_data,
-            'timestamp': analysis_data.get('created_at', datetime.now()),
-        }
-        # Promote common optional fields if present
-        for key in ['raw_data', 'summary_metrics', 'key_findings', 'step_by_step_analysis', 'references', 'economic_forecast', 'yield_forecast']:
-            if key in analysis_data:
-                results_payload[key] = analysis_data.get(key)
-
-        with st.spinner("🔄 Generating PDF report..."):
-            pdf_bytes = generate_results_pdf(results_payload)
-
-        if not pdf_bytes:
-            st.error("Failed to generate PDF report.")
-            return
-
-        filename = f"agricultural_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        st.download_button(
-            label="💾 Save PDF",
-            data=pdf_bytes,
-            file_name=filename,
-            mime="application/pdf"
-        )
-
-    except Exception as e:
-        st.error(f"Error generating PDF: {str(e)}")
+# PDF download function removed as requested
 
 def _delete_analysis(analysis_id: str):
     """Delete analysis from database"""

@@ -641,7 +641,7 @@ def store_analysis_to_firestore(analysis_results, result_id):
             'analysis_results': analysis_results
         }
         
-        # Ensure the data is properly flattened for Firestore
+        # Ensure the data is properly flattened for Firestore (preserves step_by_step_analysis structure)
         firestore_data = flatten_nested_arrays_for_firestore(firestore_data)
         
         # Validate the data before storing
@@ -660,11 +660,19 @@ def store_analysis_to_firestore(analysis_results, result_id):
         raise e
 
 def flatten_nested_arrays_for_firestore(data):
-    """Flatten nested arrays in data structure to make it Firestore-compatible"""
+    """Flatten nested arrays in data structure to make it Firestore-compatible, but preserve step-by-step analysis structure"""
     try:
+        # Keys that should not be flattened (preserve their structure)
+        preserve_keys = ['step_by_step_analysis']
+
         if isinstance(data, dict):
             flattened = {}
             for key, value in data.items():
+                # Skip flattening for preserved keys
+                if key in preserve_keys:
+                    flattened[key] = value
+                    continue
+
                 if isinstance(value, list):
                     # Check if any item in the list is also a list (nested array)
                     has_nested_arrays = any(isinstance(item, list) for item in value)
@@ -1200,7 +1208,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         analysis_results['soil_tables'] = soil_data.get('tables', [])
         analysis_results['leaf_tables'] = leaf_data.get('tables', [])
         
-        # Flatten any remaining nested arrays in analysis_results
+        # Flatten nested arrays in analysis_results (the new flatten function preserves step_by_step_analysis)
         analysis_results = flatten_nested_arrays_for_firestore(analysis_results)
         
         # Store analysis results in both session state and Firestore
