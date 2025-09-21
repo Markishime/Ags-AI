@@ -6904,13 +6904,13 @@ class AnalysisEngine:
             # Debug logging
             self.logger.info(f"Building Step 1 visualizations - Soil params: {bool(soil_params)}, Leaf params: {bool(leaf_params)}")
             if soil_params:
-                self.logger.info(f"Soil parameter keys: {list(soil_params.get('parameter_statistics', {}).keys())}")
+                self.logger.info(f"Soil parameter keys: {list(soil_params.get('samples', {}).keys())}")
             if leaf_params:
-                self.logger.info(f"Leaf parameter keys: {list(leaf_params.get('parameter_statistics', {}).keys())}")
+                self.logger.info(f"Leaf parameter keys: {list(leaf_params.get('samples', {}).keys())}")
 
             # Soil Parameters vs MPOB Standards Visualization
-            if soil_params and 'parameter_statistics' in soil_params:
-                soil_viz = self._create_soil_mpob_comparison_viz(soil_params['parameter_statistics'])
+            if soil_params and 'samples' in soil_params:
+                soil_viz = self._create_soil_mpob_comparison_viz(soil_params['samples'])
                 if soil_viz:
                     visualizations.append(soil_viz)
                     self.logger.info("Added soil visualization")
@@ -6918,8 +6918,8 @@ class AnalysisEngine:
                     self.logger.warning("Soil visualization creation returned None")
 
             # Leaf Parameters vs MPOB Standards Visualization
-            if leaf_params and 'parameter_statistics' in leaf_params:
-                leaf_viz = self._create_leaf_mpob_comparison_viz(leaf_params['parameter_statistics'])
+            if leaf_params and 'samples' in leaf_params:
+                leaf_viz = self._create_leaf_mpob_comparison_viz(leaf_params['samples'])
                 if leaf_viz:
                     visualizations.append(leaf_viz)
                     self.logger.info("Added leaf visualization")

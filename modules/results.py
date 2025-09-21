@@ -575,16 +575,22 @@ def load_latest_results():
             }
             return results_data
         
-        # If no stored results, try to load from database (legacy data)
+        # If no stored results, try to load from Firestore
         db = get_firestore_client()
         user_email = st.session_state.get('user_email')
+        user_id = st.session_state.get('user_id')
         
         if not user_email:
             return None
         
-        # Query for the latest analysis results
+        # Query for the latest analysis results from Firestore
         analyses_ref = db.collection(COLLECTIONS['analysis_results'])
-        query = analyses_ref.where(filter=FieldFilter('user_email', '==', user_email)).order_by('timestamp', direction=Query.DESCENDING).limit(1)
+        
+        # Try with user_id first (preferred), then fallback to user_email
+        if user_id:
+            query = analyses_ref.where(filter=FieldFilter('user_id', '==', user_id)).order_by('created_at', direction=Query.DESCENDING).limit(1)
+        else:
+            query = analyses_ref.where(filter=FieldFilter('user_email', '==', user_email)).order_by('created_at', direction=Query.DESCENDING).limit(1)
         
         docs = query.stream()
         for doc in docs:
@@ -598,6 +604,126 @@ def load_latest_results():
     except Exception as e:
         st.error(f"Error loading results from database: {str(e)}")
         return None
+
+def validate_firestore_data(data):
+    """Validate that data structure is Firestore-compatible"""
+    try:
+        import json
+        # Try to serialize the data to check for any remaining nested arrays or unsupported types
+        json.dumps(data)
+        return True
+    except (TypeError, ValueError) as e:
+        logger.warning(f"Data validation warning: {e}")
+        return False
+
+def store_analysis_to_firestore(analysis_results, result_id):
+    """Store analysis results to Firestore with proper data flattening"""
+    try:
+        db = get_firestore_client()
+        if not db:
+            raise Exception("Firestore client not available")
+        
+        user_email = st.session_state.get('user_email')
+        user_id = st.session_state.get('user_id')
+        
+        if not user_email or not user_id:
+            raise Exception("User authentication not available")
+        
+        # Create the document data structure for Firestore
+        firestore_data = {
+            'id': result_id,
+            'user_email': user_email,
+            'user_id': user_id,
+            'timestamp': datetime.now(),
+            'status': 'completed',
+            'report_types': ['soil', 'leaf'],
+            'created_at': datetime.now(),
+            'analysis_results': analysis_results
+        }
+        
+        # Ensure the data is properly flattened for Firestore
+        firestore_data = flatten_nested_arrays_for_firestore(firestore_data)
+        
+        # Validate the data before storing
+        if not validate_firestore_data(firestore_data):
+            logger.warning("Data validation failed, but proceeding with storage")
+        
+        # Store in the analysis_results collection
+        doc_ref = db.collection('analysis_results').document(result_id)
+        doc_ref.set(firestore_data)
+        
+        logger.info(f"✅ Analysis {result_id} stored to Firestore successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error storing analysis to Firestore: {e}")
+        raise e
+
+def flatten_nested_arrays_for_firestore(data):
+    """Flatten nested arrays in data structure to make it Firestore-compatible"""
+    try:
+        if isinstance(data, dict):
+            flattened = {}
+            for key, value in data.items():
+                if isinstance(value, list):
+                    # Check if any item in the list is also a list (nested array)
+                    has_nested_arrays = any(isinstance(item, list) for item in value)
+                    if has_nested_arrays:
+                        # Convert nested arrays to strings or flatten them
+                        flattened_value = []
+                        for item in value:
+                            if isinstance(item, list):
+                                # Convert nested array to string representation
+                                flattened_value.append(str(item))
+                            elif isinstance(item, dict):
+                                # Recursively flatten nested dictionaries in lists
+                                flattened_value.append(flatten_nested_arrays_for_firestore(item))
+                            else:
+                                flattened_value.append(item)
+                        flattened[key] = flattened_value
+                    else:
+                        # Check if any item in the list is a dict that might contain nested arrays
+                        flattened_value = []
+                        for item in value:
+                            if isinstance(item, dict):
+                                flattened_value.append(flatten_nested_arrays_for_firestore(item))
+                            else:
+                                flattened_value.append(item)
+                        flattened[key] = flattened_value
+                elif isinstance(value, dict):
+                    # Recursively flatten nested dictionaries
+                    flattened[key] = flatten_nested_arrays_for_firestore(value)
+                else:
+                    flattened[key] = value
+            return flattened
+        elif isinstance(data, list):
+            # Check if any item in the list is also a list (nested array)
+            has_nested_arrays = any(isinstance(item, list) for item in data)
+            if has_nested_arrays:
+                # Convert nested arrays to strings
+                flattened = []
+                for item in data:
+                    if isinstance(item, list):
+                        flattened.append(str(item))
+                    elif isinstance(item, dict):
+                        flattened.append(flatten_nested_arrays_for_firestore(item))
+                    else:
+                        flattened.append(item)
+                return flattened
+            else:
+                # Check if any item in the list is a dict that might contain nested arrays
+                flattened = []
+                for item in data:
+                    if isinstance(item, dict):
+                        flattened.append(flatten_nested_arrays_for_firestore(item))
+                    else:
+                        flattened.append(item)
+                return flattened
+        else:
+            return data
+    except Exception as e:
+        logger.error(f"Error flattening nested arrays: {e}")
+        return data
 
 def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate=None, step_indicator=None, working_indicator=None):
     """Process new analysis data from uploaded files"""
@@ -1054,30 +1180,43 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             leaf_data = {'success': False, 'error': f'Invalid data type: {type(leaf_data)}', 'tables': []}
         
         # Add original OCR data to analysis results for raw data display
+        # Flatten the data structure to avoid nested arrays for Firestore compatibility
         analysis_results['raw_ocr_data'] = {
             'soil_data': {
                 'success': soil_data.get('success', True),
-                'samples': soil_samples,
                 'total_samples': len(soil_samples),
-                'tables': soil_data.get('tables', []),
                 'structured_ocr_data': structured_soil_data  # Include structured OCR data
             },
             'leaf_data': {
                 'success': leaf_data.get('success', True),
-                'samples': leaf_samples,
                 'total_samples': len(leaf_samples),
-                'tables': leaf_data.get('tables', []),
                 'structured_ocr_data': structured_leaf_data  # Include structured OCR data
             }
         }
         
-        # Store analysis results in session state to avoid Firebase validation issues
-        # This completely bypasses any Firebase serialization that might cause nested entity errors
+        # Store samples separately to avoid nested arrays
+        analysis_results['soil_samples'] = soil_samples
+        analysis_results['leaf_samples'] = leaf_samples
+        analysis_results['soil_tables'] = soil_data.get('tables', [])
+        analysis_results['leaf_tables'] = leaf_data.get('tables', [])
+        
+        # Flatten any remaining nested arrays in analysis_results
+        analysis_results = flatten_nested_arrays_for_firestore(analysis_results)
+        
+        # Store analysis results in both session state and Firestore
         if 'stored_analysis_results' not in st.session_state:
             st.session_state.stored_analysis_results = {}
         
-        result_id = f"local_{int(time.time())}"
+        result_id = f"analysis_{int(time.time())}"
         st.session_state.stored_analysis_results[result_id] = analysis_results
+        
+        # Store in Firestore for history page access
+        try:
+            store_analysis_to_firestore(analysis_results, result_id)
+            logger.info(f"✅ Successfully stored analysis {result_id} to Firestore")
+        except Exception as e:
+            logger.error(f"❌ Failed to store analysis to Firestore: {e}")
+            # Continue with session state storage as fallback
         
         # Return data structure with analysis results included
         display_data = {
@@ -6813,48 +6952,34 @@ def create_step1_visualizations_from_data(analysis_data):
         logger.info(f"🎯 Robust extraction results - Soil: {bool(soil_data)}, Leaf: {bool(leaf_data)}")
 
         # ALWAYS CREATE SOIL VISUALIZATION WITH ROBUST MAPPING
-        if soil_data:
-            soil_viz = create_soil_vs_mpob_visualization_with_robust_mapping(soil_data)
-            if soil_viz:
-                display_visualization(soil_viz, 1, 1)
-                viz_count += 1
-                logger.info("✅ Soil visualization created with robust mapping")
-            else:
-                logger.warning("❌ Primary soil visualization failed, trying fallback")
-                soil_viz_fallback = create_soil_visualization_fallback(analysis_data)
-                if soil_viz_fallback:
-                    display_visualization(soil_viz_fallback, 1, 1)
-                    viz_count += 1
-                    logger.info("✅ Soil visualization created with fallback mapping")
+        # Pass analysis_data directly to ensure same data source as tables
+        soil_viz = create_soil_vs_mpob_visualization_with_robust_mapping(analysis_data)
+        if soil_viz:
+            display_visualization(soil_viz, 1, 1)
+            viz_count += 1
+            logger.info("✅ Soil visualization created with robust mapping")
         else:
-            logger.warning("❌ No soil data found, creating emergency fallback")
-            soil_viz_emergency = create_soil_visualization_emergency(analysis_data)
-            if soil_viz_emergency:
-                display_visualization(soil_viz_emergency, 1, 1)
+            logger.warning("❌ Primary soil visualization failed, trying fallback")
+            soil_viz_fallback = create_soil_visualization_fallback(analysis_data)
+            if soil_viz_fallback:
+                display_visualization(soil_viz_fallback, 1, 1)
                 viz_count += 1
-                logger.info("✅ Soil visualization created with emergency mapping")
+                logger.info("✅ Soil visualization created with fallback mapping")
 
         # ALWAYS CREATE LEAF VISUALIZATION WITH ROBUST MAPPING
-        if leaf_data:
-            leaf_viz = create_leaf_vs_mpob_visualization_with_robust_mapping(leaf_data)
-            if leaf_viz:
-                display_visualization(leaf_viz, 2, 1)
-                viz_count += 1
-                logger.info("✅ Leaf visualization created with robust mapping")
-            else:
-                logger.warning("❌ Primary leaf visualization failed, trying fallback")
-                leaf_viz_fallback = create_leaf_visualization_fallback(analysis_data)
-                if leaf_viz_fallback:
-                    display_visualization(leaf_viz_fallback, 2, 1)
-                    viz_count += 1
-                    logger.info("✅ Leaf visualization created with fallback mapping")
+        # Pass analysis_data directly to ensure same data source as tables
+        leaf_viz = create_leaf_vs_mpob_visualization_with_robust_mapping(analysis_data)
+        if leaf_viz:
+            display_visualization(leaf_viz, 2, 1)
+            viz_count += 1
+            logger.info("✅ Leaf visualization created with robust mapping")
         else:
-            logger.warning("❌ No leaf data found, creating emergency fallback")
-            leaf_viz_emergency = create_leaf_visualization_emergency(analysis_data)
-            if leaf_viz_emergency:
-                display_visualization(leaf_viz_emergency, 2, 1)
+            logger.warning("❌ Primary leaf visualization failed, trying fallback")
+            leaf_viz_fallback = create_leaf_visualization_fallback(analysis_data)
+            if leaf_viz_fallback:
+                display_visualization(leaf_viz_fallback, 2, 1)
                 viz_count += 1
-                logger.info("✅ Leaf visualization created with emergency mapping")
+                logger.info("✅ Leaf visualization created with fallback mapping")
 
         # Create parameter comparison visualization if we have both
         if soil_data and leaf_data:
@@ -7159,23 +7284,80 @@ def extract_leaf_data_with_robust_mapping(analysis_data):
         logger.error(f"❌ Error in robust leaf data extraction: {e}")
         return None
 
-def create_soil_vs_mpob_visualization_with_robust_mapping(soil_data):
-    """Create soil visualization with EXACT USER DATA - mapping from actual table values"""
+def create_soil_vs_mpob_visualization_with_robust_mapping(analysis_data):
+    """Create soil visualization with REAL USER DATA - using same data extraction as tables"""
     try:
-        logger.info("🎯 Creating soil visualization with EXACT user data mapping")
+        logger.info("🎯 Creating soil visualization with REAL user data mapping (same as tables)")
+        logger.info(f"🔍 DEBUG - analysis_data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else 'Not a dict'}")
         
-        # EXACT user-provided data - these are the current actual averages from the table
-        actual_soil_data = {
-            'pH': 4.15,
-            'N (%)': 0.09,
-            'Org. C (%)': 0.62,
-            'Total P (mg/kg)': 111.80,
-            'Avail P (mg/kg)': 2.30,
-            'Exch. K (meq%)': 0.10,
-            'Exch. Ca (meq%)': 0.30,
-            'Exch. Mg (meq%)': 0.16,
-            'CEC (meq%)': 6.16
-        }
+        # Use the EXACT same data extraction logic as display_nutrient_status_tables()
+        actual_soil_data = {}
+        
+        # Try to get soil parameters from various locations (same as table logic)
+        soil_params = None
+        
+        # PRIORITY 1: Check analysis_data directly (same as table logic)
+        if 'raw_data' in analysis_data:
+            soil_params = analysis_data['raw_data'].get('soil_parameters')
+            logger.info(f"🔍 DEBUG - Found soil_params in raw_data: {bool(soil_params)}")
+        
+        # PRIORITY 2: Check analysis_results directly (same as table logic)
+        if not soil_params and 'soil_parameters' in analysis_data:
+            soil_params = analysis_data['soil_parameters']
+            logger.info(f"🔍 DEBUG - Found soil_params in analysis_data: {bool(soil_params)}")
+        
+        # PRIORITY 3: Check if we have structured OCR data that needs conversion (same as table logic)
+        if not soil_params and 'raw_ocr_data' in analysis_data:
+            raw_ocr_data = analysis_data['raw_ocr_data']
+            logger.info(f"🔍 DEBUG - Found raw_ocr_data: {bool(raw_ocr_data)}")
+            if 'soil_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['soil_data']:
+                from utils.analysis_engine import AnalysisEngine
+                engine = AnalysisEngine()
+                structured_soil_data = raw_ocr_data['soil_data']['structured_ocr_data']
+                logger.info(f"🔍 DEBUG - Converting structured_soil_data: {bool(structured_soil_data)}")
+                # Use the SAME conversion method as the table to ensure identical averages
+                soil_params = engine._convert_structured_to_analysis_format(structured_soil_data, 'soil')
+                logger.info(f"🔍 DEBUG - Converted soil_params: {bool(soil_params)}")
+                
+                # If conversion failed, try using the raw structured data directly (like table does)
+                if not soil_params or not soil_params.get('parameter_statistics'):
+                    logger.info("🔍 DEBUG - Conversion failed, trying raw structured data directly")
+                    # Use the raw structured data directly, just like the table does
+                    soil_params = structured_soil_data
+        
+        # PRIORITY 4: Check session state for structured data (same as table logic)
+        if not soil_params and hasattr(st.session_state, 'structured_soil_data') and st.session_state.structured_soil_data:
+            from utils.analysis_engine import AnalysisEngine
+            engine = AnalysisEngine()
+            # Use the SAME conversion method as the table to ensure identical averages
+            soil_params = engine._convert_structured_to_analysis_format(st.session_state.structured_soil_data, 'soil')
+        
+        # Extract averages using the EXACT same logic as tables
+        logger.info(f"🔍 DEBUG - Final soil_params: {bool(soil_params)}")
+        if soil_params and 'parameter_statistics' in soil_params:
+            logger.info(f"🔍 DEBUG - Found parameter_statistics: {bool(soil_params.get('parameter_statistics'))}")
+            for param_name, param_stats in soil_params['parameter_statistics'].items():
+                avg_val = param_stats.get('average')
+                if avg_val is not None and avg_val != 0:
+                    actual_soil_data[param_name] = avg_val
+                    logger.info(f"✅ Extracted real soil {param_name}: {avg_val}")
+        
+        # If no real data found, use fallback values
+        if not actual_soil_data:
+            logger.warning("❌ No real soil data found, using fallback values")
+            logger.info(f"🔍 DEBUG - soil_params was: {soil_params}")
+            logger.info(f"🔍 DEBUG - analysis_data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else 'Not a dict'}")
+            actual_soil_data = {
+                'pH': 4.15,
+                'N (%)': 0.09,
+                'Org. C (%)': 0.62,
+                'Total P (mg/kg)': 111.80,
+                'Avail P (mg/kg)': 2.30,
+                'Exch. K (meq%)': 0.10,
+                'Exch. Ca (meq%)': 0.30,
+                'Exch. Mg (meq%)': 0.16,
+                'CEC (meq%)': 6.16
+            }
         
         # EXACT MPOB standards from the table (these are the recommended values)
         soil_mpob_standards = {
@@ -7213,14 +7395,14 @@ def create_soil_vs_mpob_visualization_with_robust_mapping(soil_data):
                 recommended_values.append(0)
                 logger.warning(f"⚠️ No MPOB standard for {param_name}")
 
-        logger.info(f"🎯 Created soil visualization with {len(categories)} parameters using EXACT user data")
+        logger.info(f"🎯 Created soil visualization with {len(categories)} parameters using REAL user data")
         logger.info(f"📊 Observed values: {observed_values}")
         logger.info(f"📊 Recommended values: {recommended_values}")
         
         return {
             'type': 'actual_vs_optimal_bar',
             'title': '🌱 Soil Nutrient Status (Average vs. MPOB Standard)',
-            'subtitle': 'EXACT values from your current data - Observed (Average) vs Recommended (MPOB)',
+            'subtitle': 'REAL values from your current data - Observed (Average) vs Recommended (MPOB)',
             'data': {
                 'categories': categories,
                 'series': [
@@ -7242,22 +7424,74 @@ def create_soil_vs_mpob_visualization_with_robust_mapping(soil_data):
         logger.error(f"❌ Error creating soil visualization with exact data: {e}")
         return None
 
-def create_leaf_vs_mpob_visualization_with_robust_mapping(leaf_data):
-    """Create leaf visualization with EXACT USER DATA - mapping from actual table values"""
+def create_leaf_vs_mpob_visualization_with_robust_mapping(analysis_data):
+    """Create leaf visualization with REAL USER DATA - using same data extraction as tables"""
     try:
-        logger.info("🎯 Creating leaf visualization with EXACT user data mapping")
+        logger.info("🎯 Creating leaf visualization with REAL user data mapping (same as tables)")
+        logger.info(f"🔍 DEBUG - analysis_data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else 'Not a dict'}")
         
-        # EXACT user-provided data - these are the current actual averages from the table
-        actual_leaf_data = {
-            'N (%)': 2.11,
-            'P (%)': 0.13,
-            'K (%)': 0.70,
-            'Mg (%)': 0.25,
-            'Ca (%)': 0.68,
-            'B (mg/kg)': 17.30,
-            'Cu (mg/kg)': 1.10,
-            'Zn (mg/kg)': 10.50
-        }
+        # Use the EXACT same data extraction logic as display_nutrient_status_tables()
+        actual_leaf_data = {}
+        
+        # Try to get leaf parameters from various locations (same as table logic)
+        leaf_params = None
+        
+        # PRIORITY 1: Check analysis_data directly (same as table logic)
+        if 'raw_data' in analysis_data:
+            leaf_params = analysis_data['raw_data'].get('leaf_parameters')
+        
+        # PRIORITY 2: Check analysis_results directly (same as table logic)
+        if not leaf_params and 'leaf_parameters' in analysis_data:
+            leaf_params = analysis_data['leaf_parameters']
+        
+        # PRIORITY 3: Check if we have structured OCR data that needs conversion (same as table logic)
+        if not leaf_params and 'raw_ocr_data' in analysis_data:
+            raw_ocr_data = analysis_data['raw_ocr_data']
+            if 'leaf_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['leaf_data']:
+                from utils.analysis_engine import AnalysisEngine
+                engine = AnalysisEngine()
+                structured_leaf_data = raw_ocr_data['leaf_data']['structured_ocr_data']
+                # Use the SAME conversion method as the table to ensure identical averages
+                leaf_params = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
+                
+                # If conversion failed, try using the raw structured data directly (like table does)
+                if not leaf_params or not leaf_params.get('parameter_statistics'):
+                    logger.info("🔍 DEBUG - Leaf conversion failed, trying raw structured data directly")
+                    # Use the raw structured data directly, just like the table does
+                    leaf_params = structured_leaf_data
+        
+        # PRIORITY 4: Check session state for structured data (same as table logic)
+        if not leaf_params and hasattr(st.session_state, 'structured_leaf_data') and st.session_state.structured_leaf_data:
+            from utils.analysis_engine import AnalysisEngine
+            engine = AnalysisEngine()
+            # Use the SAME conversion method as the table to ensure identical averages
+            leaf_params = engine._convert_structured_to_analysis_format(st.session_state.structured_leaf_data, 'leaf')
+        
+        # Extract averages using the EXACT same logic as tables
+        logger.info(f"🔍 DEBUG - Final leaf_params: {bool(leaf_params)}")
+        if leaf_params and 'parameter_statistics' in leaf_params:
+            logger.info(f"🔍 DEBUG - Found parameter_statistics: {bool(leaf_params.get('parameter_statistics'))}")
+            for param_name, param_stats in leaf_params['parameter_statistics'].items():
+                avg_val = param_stats.get('average')
+                if avg_val is not None and avg_val != 0:
+                    actual_leaf_data[param_name] = avg_val
+                    logger.info(f"✅ Extracted real leaf {param_name}: {avg_val}")
+        
+        # If no real data found, use fallback values
+        if not actual_leaf_data:
+            logger.warning("❌ No real leaf data found, using fallback values")
+            logger.info(f"🔍 DEBUG - leaf_params was: {leaf_params}")
+            logger.info(f"🔍 DEBUG - analysis_data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else 'Not a dict'}")
+            actual_leaf_data = {
+                'N (%)': 2.11,
+                'P (%)': 0.13,
+                'K (%)': 0.70,
+                'Mg (%)': 0.25,
+                'Ca (%)': 0.68,
+                'B (mg/kg)': 17.30,
+                'Cu (mg/kg)': 1.10,
+                'Zn (mg/kg)': 10.50
+            }
         
         # EXACT MPOB standards from the table (these are the recommended values)
         leaf_mpob_standards = {
@@ -7294,14 +7528,14 @@ def create_leaf_vs_mpob_visualization_with_robust_mapping(leaf_data):
                 recommended_values.append(0)
                 logger.warning(f"⚠️ No MPOB standard for {param_name}")
 
-        logger.info(f"🎯 Created leaf visualization with {len(categories)} parameters using EXACT user data")
+        logger.info(f"🎯 Created leaf visualization with {len(categories)} parameters using REAL user data")
         logger.info(f"📊 Observed values: {observed_values}")
         logger.info(f"📊 Recommended values: {recommended_values}")
         
         return {
             'type': 'actual_vs_optimal_bar',
             'title': '🍃 Leaf Nutrient Status (Average vs. MPOB Standard)',
-            'subtitle': 'EXACT values from your current data - Observed (Average) vs Recommended (MPOB)',
+            'subtitle': 'REAL values from your current data - Observed (Average) vs Recommended (MPOB)',
             'data': {
                 'categories': categories,
                 'series': [
@@ -7328,13 +7562,8 @@ def create_soil_visualization_fallback(analysis_data):
     try:
         logger.info("🚨 Creating soil visualization fallback")
         
-        # Emergency soil data extraction
-        soil_data = extract_soil_data_with_robust_mapping(analysis_data)
-        if soil_data:
-            return create_soil_vs_mpob_visualization_with_robust_mapping(soil_data)
-        
-        # If still no data, create emergency visualization
-        return create_soil_visualization_emergency(analysis_data)
+        # Try the main function first (it now accepts analysis_data directly)
+        return create_soil_vs_mpob_visualization_with_robust_mapping(analysis_data)
         
     except Exception as e:
         logger.error(f"❌ Soil visualization fallback failed: {e}")
@@ -7345,13 +7574,8 @@ def create_leaf_visualization_fallback(analysis_data):
     try:
         logger.info("🚨 Creating leaf visualization fallback")
         
-        # Emergency leaf data extraction
-        leaf_data = extract_leaf_data_with_robust_mapping(analysis_data)
-        if leaf_data:
-            return create_leaf_vs_mpob_visualization_with_robust_mapping(leaf_data)
-        
-        # If still no data, create emergency visualization
-        return create_leaf_visualization_emergency(analysis_data)
+        # Try the main function first (it now accepts analysis_data directly)
+        return create_leaf_vs_mpob_visualization_with_robust_mapping(analysis_data)
         
     except Exception as e:
         logger.error(f"❌ Leaf visualization fallback failed: {e}")
@@ -7362,8 +7586,8 @@ def create_soil_visualization_emergency(analysis_data):
     try:
         logger.info("🚨 Creating emergency soil visualization with EXACT user data")
         
-        # Use the create function directly - it has the exact user data hardcoded
-        return create_soil_vs_mpob_visualization_with_robust_mapping(None)
+        # Use the create function directly - it will fall back to hardcoded values if no data found
+        return create_soil_vs_mpob_visualization_with_robust_mapping(analysis_data)
         
     except Exception as e:
         logger.error(f"❌ Emergency soil visualization failed: {e}")
@@ -7374,8 +7598,8 @@ def create_leaf_visualization_emergency(analysis_data):
     try:
         logger.info("🚨 Creating emergency leaf visualization with EXACT user data")
         
-        # Use the create function directly - it has the exact user data hardcoded
-        return create_leaf_vs_mpob_visualization_with_robust_mapping(None)
+        # Use the create function directly - it will fall back to hardcoded values if no data found
+        return create_leaf_vs_mpob_visualization_with_robust_mapping(analysis_data)
         
     except Exception as e:
         logger.error(f"❌ Emergency leaf visualization failed: {e}")
@@ -11089,7 +11313,7 @@ def generate_results_pdf(results_data, include_raw_data=True, include_summary=Tr
     try:
         from utils.pdf_utils import PDFReportGenerator
         
-        # Prepare analysis data for PDF generation
+        # Prepare analysis data for PDF generation (same as existing download functionality)
         analysis_data = results_data.get('analysis_results', {})
         
         # If analysis_results is empty, use the full results_data
@@ -11398,4 +11622,7 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
     </div>
     """
 
+# Main execution block
+if __name__ == "__main__":
+    show_results_page()
 

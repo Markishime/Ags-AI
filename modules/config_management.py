@@ -27,10 +27,9 @@ def show_config_management():
     st.markdown("Manage system-wide configurations including AI models, MPOB standards, economic parameters, OCR settings, and UI preferences.")
     
     # Create tabs for simplified configuration
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2 = st.tabs([
         "🤖 AI Configuration", 
-        "📊 MPOB Standards", 
-        "📋 System Overview"
+        "📊 MPOB Standards"
     ])
     
     with tab1:
@@ -38,9 +37,6 @@ def show_config_management():
     
     with tab2:
         show_mpob_standards_configuration()
-    
-    with tab3:
-        show_system_overview()
 
 def show_ai_configuration():
     """AI configuration management"""
@@ -55,10 +51,15 @@ def show_ai_configuration():
         col1, col2 = st.columns(2)
         
         with col1:
+            # Safe model selection with proper error handling
+            available_models = ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
+            current_model = getattr(current_config, 'model', 'gemini-2.5-pro')
+            model_index = available_models.index(current_model) if current_model in available_models else 0
+            
             model = st.selectbox(
                 "AI Model",
-                ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"],
-                index=["gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"].index(current_config.model) if current_config.model in ["gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"] else 0
+                available_models,
+                index=model_index
             )
             
             temperature = st.slider(
@@ -118,10 +119,15 @@ def show_ai_configuration():
         col3, col4 = st.columns(2)
         
         with col3:
+            # Safe embedding model selection
+            available_embeddings = ["text-embedding-004"]
+            current_embedding = getattr(current_config, 'embedding_model', 'text-embedding-004')
+            embedding_index = available_embeddings.index(current_embedding) if current_embedding in available_embeddings else 0
+            
             embedding_model = st.selectbox(
                 "Embedding Model",
-                ["text-embedding-004"],
-                index=["text-embedding-004"].index(current_config.embedding_model) if current_config.embedding_model in ["text-embedding-004"] else 0
+                available_embeddings,
+                index=embedding_index
             )
             
             enable_rag = st.checkbox(
@@ -202,39 +208,39 @@ def show_mpob_standards_configuration():
                     with col1:
                         min_val = st.number_input(
                             f"Minimum {param_name}",
-                            value=standard.min if hasattr(standard, 'min') else standard['min'],
+                            value=standard.min_value,
                             key=f"soil_{param_name}_min"
                         )
                     
                     with col2:
                         max_val = st.number_input(
                             f"Maximum {param_name}",
-                            value=standard.max if hasattr(standard, 'max') else standard['max'],
+                            value=standard.max_value,
                             key=f"soil_{param_name}_max"
                         )
                     
                     with col3:
                         optimal_val = st.number_input(
                             f"Optimal {param_name}",
-                            value=standard.optimal if hasattr(standard, 'optimal') else standard['optimal'],
+                            value=standard.optimal_value if standard.optimal_value is not None else (standard.min_value + standard.max_value) / 2,
                             key=f"soil_{param_name}_optimal"
                         )
                     
                     unit = st.text_input(
                         f"Unit for {param_name}",
-                        value=standard.unit if hasattr(standard, 'unit') else standard['unit'],
+                        value=standard.unit,
                         key=f"soil_{param_name}_unit"
                     )
                     
                     description = st.text_area(
                         f"Description for {param_name}",
-                        value=standard.description if hasattr(standard, 'description') else standard.get('description', ''),
+                        value=standard.description,
                         key=f"soil_{param_name}_desc"
                     )
                     
                     critical = st.checkbox(
                         f"Critical Parameter",
-                        value=standard.critical if hasattr(standard, 'critical') else standard.get('critical', False),
+                        value=standard.critical,
                         key=f"soil_{param_name}_critical"
                     )
     
@@ -249,39 +255,39 @@ def show_mpob_standards_configuration():
                     with col1:
                         min_val = st.number_input(
                             f"Minimum {param_name}",
-                            value=standard.min if hasattr(standard, 'min') else standard['min'],
+                            value=standard.min_value,
                             key=f"leaf_{param_name}_min"
                         )
                     
                     with col2:
                         max_val = st.number_input(
                             f"Maximum {param_name}",
-                            value=standard.max if hasattr(standard, 'max') else standard['max'],
+                            value=standard.max_value,
                             key=f"leaf_{param_name}_max"
                         )
                     
                     with col3:
                         optimal_val = st.number_input(
                             f"Optimal {param_name}",
-                            value=standard.optimal if hasattr(standard, 'optimal') else standard['optimal'],
+                            value=standard.optimal_value if standard.optimal_value is not None else (standard.min_value + standard.max_value) / 2,
                             key=f"leaf_{param_name}_optimal"
                         )
                     
                     unit = st.text_input(
                         f"Unit for {param_name}",
-                        value=standard.unit if hasattr(standard, 'unit') else standard['unit'],
+                        value=standard.unit,
                         key=f"leaf_{param_name}_unit"
                     )
                     
                     description = st.text_area(
                         f"Description for {param_name}",
-                        value=standard.description if hasattr(standard, 'description') else standard.get('description', ''),
+                        value=standard.description,
                         key=f"leaf_{param_name}_desc"
                     )
                     
                     critical = st.checkbox(
                         f"Critical Parameter",
-                        value=standard.critical if hasattr(standard, 'critical') else standard.get('critical', False),
+                        value=standard.critical,
                         key=f"leaf_{param_name}_critical"
                     )
     
@@ -309,10 +315,15 @@ def show_economic_configuration():
         col1, col2 = st.columns(2)
         
         with col1:
+            # Safe currency selection
+            available_currencies = ["RM", "USD", "EUR", "GBP", "SGD"]
+            current_currency = getattr(current_config, 'currency', 'RM')
+            currency_index = available_currencies.index(current_currency) if current_currency in available_currencies else 0
+            
             currency = st.selectbox(
                 "Currency",
-                ["RM", "USD", "EUR", "GBP", "SGD"],
-                index=["RM", "USD", "EUR", "GBP", "SGD"].index(current_config.currency)
+                available_currencies,
+                index=currency_index
             )
             
             yield_price = st.number_input(
@@ -576,10 +587,15 @@ def show_ui_configuration():
         col1, col2 = st.columns(2)
         
         with col1:
+            # Safe theme selection
+            available_themes = ["light", "dark", "auto"]
+            current_theme = getattr(current_config, 'theme', 'light')
+            theme_index = available_themes.index(current_theme) if current_theme in available_themes else 0
+            
             theme = st.selectbox(
                 "Theme",
-                ["light", "dark", "auto"],
-                index=["light", "dark", "auto"].index(current_config.theme)
+                available_themes,
+                index=theme_index
             )
             
             primary_color = st.color_picker(
@@ -598,10 +614,15 @@ def show_ui_configuration():
                 value=current_config.accent_color
             )
             
+            # Safe language selection
+            available_languages = ["English", "Malay", "Chinese", "Tamil"]
+            current_language = getattr(current_config, 'language', 'English')
+            language_index = available_languages.index(current_language) if current_language in available_languages else 0
+            
             language = st.selectbox(
                 "Language",
-                ["English", "Malay", "Chinese", "Tamil"],
-                index=["English", "Malay", "Chinese", "Tamil"].index(current_config.language)
+                available_languages,
+                index=language_index
             )
         
         st.markdown("#### Formatting and Units")
@@ -609,16 +630,26 @@ def show_ui_configuration():
         col3, col4 = st.columns(2)
         
         with col3:
+            # Safe date format selection
+            available_date_formats = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"]
+            current_date_format = getattr(current_config, 'date_format', '%Y-%m-%d')
+            date_format_index = available_date_formats.index(current_date_format) if current_date_format in available_date_formats else 0
+            
             date_format = st.selectbox(
                 "Date Format",
-                ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"],
-                index=["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"].index(current_config.date_format)
+                available_date_formats,
+                index=date_format_index
             )
+            
+            # Safe number format selection
+            available_number_formats = ["en_US", "en_GB", "ms_MY", "zh_CN"]
+            current_number_format = getattr(current_config, 'number_format', 'en_US')
+            number_format_index = available_number_formats.index(current_number_format) if current_number_format in available_number_formats else 0
             
             number_format = st.selectbox(
                 "Number Format",
-                ["en_US", "en_GB", "ms_MY", "zh_CN"],
-                index=["en_US", "en_GB", "ms_MY", "zh_CN"].index(current_config.number_format)
+                available_number_formats,
+                index=number_format_index
             )
         
         with col4:
@@ -664,10 +695,15 @@ def show_ui_configuration():
                 value=current_config.display_preferences.get("auto_refresh", True)
             )
         
+        # Safe default chart type selection
+        available_chart_types = ["line", "bar", "scatter", "area"]
+        current_chart_type = current_config.display_preferences.get("default_chart_type", "line") if hasattr(current_config, 'display_preferences') and current_config.display_preferences else "line"
+        chart_type_index = available_chart_types.index(current_chart_type) if current_chart_type in available_chart_types else 0
+        
         default_chart_type = st.selectbox(
             "Default Chart Type",
-            ["line", "bar", "scatter", "area"],
-            index=["line", "bar", "scatter", "area"].index(current_config.display_preferences.get("default_chart_type", "line"))
+            available_chart_types,
+            index=chart_type_index
         )
         
         # Form submission
@@ -740,17 +776,17 @@ def show_system_overview():
     
     if ai_config:
         with st.expander("🤖 AI Configuration"):
-            st.write(f"Model: {ai_config.get('model', 'gemini-2.5-pro')}")
-            st.write(f"Temperature: {ai_config.get('temperature', 0.0)}")
-            st.write(f"Max Tokens: {ai_config.get('max_tokens', 65536)}")
-            st.write(f"Embedding Model: {ai_config.get('embedding_model', 'text-embedding-004')}")
+            st.write(f"Model: {ai_config.model}")
+            st.write(f"Temperature: {ai_config.temperature}")
+            st.write(f"Max Tokens: {ai_config.max_tokens}")
+            st.write(f"Embedding Model: {ai_config.embedding_model}")
     else:
         st.warning("AI Configuration is missing.")
     
     if mpob:
         with st.expander("📊 MPOB Standards"):
-            soil_count = len(mpob.get('soil_standards', {})) if isinstance(mpob.get('soil_standards'), dict) else 0
-            leaf_count = len(mpob.get('leaf_standards', {})) if isinstance(mpob.get('leaf_standards'), dict) else 0
+            soil_count = len(mpob.soil_standards) if mpob.soil_standards else 0
+            leaf_count = len(mpob.leaf_standards) if mpob.leaf_standards else 0
             st.write(f"Soil parameters: {soil_count}")
             st.write(f"Leaf parameters: {leaf_count}")
     else:

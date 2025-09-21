@@ -51,8 +51,10 @@ except Exception:
 
 try:
     from modules.results import show_results_page as results_page_func
-except Exception:
-    print("Warning: Could not import results module")
+except Exception as e:
+    print(f"Warning: Could not import results module: {e}")
+    import traceback
+    traceback.print_exc()
     results_page_func = None
 
 try:
@@ -63,8 +65,10 @@ except Exception:
 
 try:
     from modules.admin import show_admin_panel as admin_panel_func
-except Exception:
-    print("Warning: Could not import admin module")
+except Exception as e:
+    print(f"Warning: Could not import admin module: {e}")
+    import traceback
+    traceback.print_exc()
     admin_panel_func = None
 
 # Page configuration
