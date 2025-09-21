@@ -659,79 +659,82 @@ def store_analysis_to_firestore(analysis_results, result_id):
         logger.error(f"❌ Error storing analysis to Firestore: {e}")
         raise e
 
+
 def flatten_nested_arrays_for_firestore(data):
-    """Flatten nested arrays in data structure to make it Firestore-compatible, but preserve step-by-step analysis structure"""
-    try:
-        # Keys that should not be flattened (preserve their structure)
-        preserve_keys = ['step_by_step_analysis']
+        """Flatten nested arrays in data structure to make it Firestore-compatible, but preserve step-by-step analysis structure"""
+        try:
+            logger.info(f"🔍 DEBUG - Flattening data with keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            # Keys that should not be flattened (preserve their structure)
+            preserve_keys = ['step_by_step_analysis']
 
-        if isinstance(data, dict):
-            flattened = {}
-            for key, value in data.items():
-                # Skip flattening for preserved keys
-                if key in preserve_keys:
-                    flattened[key] = value
-                    continue
+            if isinstance(data, dict):
+                flattened = {}
+                for key, value in data.items():
+                    # Skip flattening for preserved keys
+                    if key in preserve_keys:
+                        logger.info(f"🔍 DEBUG - Preserving key: {key}")
+                        flattened[key] = value
+                        continue
 
-                if isinstance(value, list):
-                    # Check if any item in the list is also a list (nested array)
-                    has_nested_arrays = any(isinstance(item, list) for item in value)
-                    if has_nested_arrays:
-                        # Convert nested arrays to strings or flatten them
-                        flattened_value = []
-                        for item in value:
-                            if isinstance(item, list):
-                                # Convert nested array to string representation
-                                flattened_value.append(str(item))
-                            elif isinstance(item, dict):
-                                # Recursively flatten nested dictionaries in lists
-                                flattened_value.append(flatten_nested_arrays_for_firestore(item))
-                            else:
-                                flattened_value.append(item)
-                        flattened[key] = flattened_value
+                    if isinstance(value, list):
+                        # Check if any item in the list is also a list (nested array)
+                        has_nested_arrays = any(isinstance(item, list) for item in value)
+                        if has_nested_arrays:
+                            # Convert nested arrays to strings or flatten them
+                            flattened_value = []
+                            for item in value:
+                                if isinstance(item, list):
+                                    # Convert nested array to string representation
+                                    flattened_value.append(str(item))
+                                elif isinstance(item, dict):
+                                    # Recursively flatten nested dictionaries in lists
+                                    flattened_value.append(flatten_nested_arrays_for_firestore(item))
+                                else:
+                                    flattened_value.append(item)
+                            flattened[key] = flattened_value
+                        else:
+                            # Check if any item in the list is a dict that might contain nested arrays
+                            flattened_value = []
+                            for item in value:
+                                if isinstance(item, dict):
+                                    flattened_value.append(flatten_nested_arrays_for_firestore(item))
+                                else:
+                                    flattened_value.append(item)
+                            flattened[key] = flattened_value
+                    elif isinstance(value, dict):
+                        # Recursively flatten nested dictionaries
+                        flattened[key] = flatten_nested_arrays_for_firestore(value)
                     else:
-                        # Check if any item in the list is a dict that might contain nested arrays
-                        flattened_value = []
-                        for item in value:
-                            if isinstance(item, dict):
-                                flattened_value.append(flatten_nested_arrays_for_firestore(item))
-                            else:
-                                flattened_value.append(item)
-                        flattened[key] = flattened_value
-                elif isinstance(value, dict):
-                    # Recursively flatten nested dictionaries
-                    flattened[key] = flatten_nested_arrays_for_firestore(value)
+                        flattened[key] = value
+                return flattened
+            elif isinstance(data, list):
+                # Check if any item in the list is also a list (nested array)
+                has_nested_arrays = any(isinstance(item, list) for item in data)
+                if has_nested_arrays:
+                    # Convert nested arrays to strings
+                    flattened = []
+                    for item in data:
+                        if isinstance(item, list):
+                            flattened.append(str(item))
+                        elif isinstance(item, dict):
+                            flattened.append(flatten_nested_arrays_for_firestore(item))
+                        else:
+                            flattened.append(item)
+                    return flattened
                 else:
-                    flattened[key] = value
-            return flattened
-        elif isinstance(data, list):
-            # Check if any item in the list is also a list (nested array)
-            has_nested_arrays = any(isinstance(item, list) for item in data)
-            if has_nested_arrays:
-                # Convert nested arrays to strings
-                flattened = []
-                for item in data:
-                    if isinstance(item, list):
-                        flattened.append(str(item))
-                    elif isinstance(item, dict):
-                        flattened.append(flatten_nested_arrays_for_firestore(item))
-                    else:
-                        flattened.append(item)
-                return flattened
+                    # Check if any item in the list is a dict that might contain nested arrays
+                    flattened = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            flattened.append(flatten_nested_arrays_for_firestore(item))
+                        else:
+                            flattened.append(item)
+                    return flattened
             else:
-                # Check if any item in the list is a dict that might contain nested arrays
-                flattened = []
-                for item in data:
-                    if isinstance(item, dict):
-                        flattened.append(flatten_nested_arrays_for_firestore(item))
-                    else:
-                        flattened.append(item)
-                return flattened
-        else:
+                return data
+        except Exception as e:
+            logger.error(f"Error flattening nested arrays: {e}")
             return data
-    except Exception as e:
-        logger.error(f"Error flattening nested arrays: {e}")
-        return data
 
 def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate=None, step_indicator=None, working_indicator=None):
     """Process new analysis data from uploaded files"""
@@ -1209,14 +1212,33 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         analysis_results['leaf_tables'] = leaf_data.get('tables', [])
         
         # Flatten nested arrays in analysis_results (the new flatten function preserves step_by_step_analysis)
+        # Add debug logging to track step-by-step analysis preservation
+        step_by_step_before = analysis_results.get('step_by_step_analysis', [])
+        logger.info(f"🔍 DEBUG - Before flattening: step_by_step_analysis length: {len(step_by_step_before)}")
+
         analysis_results = flatten_nested_arrays_for_firestore(analysis_results)
+
+        step_by_step_after = analysis_results.get('step_by_step_analysis', [])
+        logger.info(f"🔍 DEBUG - After flattening: step_by_step_analysis length: {len(step_by_step_after)}")
+        logger.info(f"🔍 DEBUG - Step-by-step analysis preserved: {len(step_by_step_after) == len(step_by_step_before)}")
+
+        # Verify step-by-step analysis structure is intact
+        if step_by_step_after:
+            for i, step in enumerate(step_by_step_after):
+                logger.info(f"🔍 DEBUG - Step {i+1}: {step.get('step_title', 'Unknown')} - has summary: {'summary' in step}, has detailed_analysis: {'detailed_analysis' in step}")
         
         # Store analysis results in both session state and Firestore
         if 'stored_analysis_results' not in st.session_state:
             st.session_state.stored_analysis_results = {}
         
         result_id = f"analysis_{int(time.time())}"
+        logger.info(f"🔍 DEBUG - Storing analysis {result_id} to session state")
+        logger.info(f"🔍 DEBUG - Analysis keys before storage: {list(analysis_results.keys())}")
+        logger.info(f"🔍 DEBUG - Step-by-step analysis length before storage: {len(analysis_results.get('step_by_step_analysis', []))}")
+
         st.session_state.stored_analysis_results[result_id] = analysis_results
+
+        logger.info(f"🔍 DEBUG - Analysis stored successfully in session state")
         
         # Store in Firestore for history page access
         try:

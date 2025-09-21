@@ -86,13 +86,19 @@ def display_history_statistics():
         
         for doc in user_analyses:
             analysis_data = doc.to_dict()
-            
+            logger.info(f"🔍 DEBUG - Statistics processing document {doc.id}")
+            logger.info(f"🔍 DEBUG - Document keys: {list(analysis_data.keys())}")
+
             # Get step analysis from multiple possible locations
             step_analysis = analysis_data.get('step_by_step_analysis', [])
+            logger.info(f"🔍 DEBUG - Step analysis from top level: {len(step_analysis)} steps")
+
             if not step_analysis:
                 # Try to get from analysis_results
                 analysis_results = analysis_data.get('analysis_results', {})
+                logger.info(f"🔍 DEBUG - Analysis results found: {'analysis_results' in analysis_data}")
                 step_analysis = analysis_results.get('step_by_step_analysis', [])
+                logger.info(f"🔍 DEBUG - Step analysis from analysis_results: {len(step_analysis)} steps")
             
             if step_analysis:
                 # Calculate a simple health score based on number of issues found
@@ -302,15 +308,34 @@ def display_analysis_history():
         st.markdown(f"**Found {len(filtered_analyses)} analysis record(s)**")
         
         for doc, analysis_data in filtered_analyses:
+            logger.info(f"🔍 DEBUG - Processing analysis document {doc.id}")
+            logger.info(f"🔍 DEBUG - Analysis data keys: {list(analysis_data.keys())}")
+            logger.info(f"🔍 DEBUG - Has analysis_results: {'analysis_results' in analysis_data}")
+            logger.info(f"🔍 DEBUG - Has step_by_step_analysis: {'step_by_step_analysis' in analysis_data}")
+
+            if 'analysis_results' in analysis_data:
+                analysis_results = analysis_data['analysis_results']
+                logger.info(f"🔍 DEBUG - analysis_results keys: {list(analysis_results.keys())}")
+                logger.info(f"🔍 DEBUG - Has step_by_step_analysis in analysis_results: {'step_by_step_analysis' in analysis_results}")
+                if 'step_by_step_analysis' in analysis_results:
+                    step_analysis = analysis_results['step_by_step_analysis']
+                    logger.info(f"🔍 DEBUG - Step-by-step analysis length: {len(step_analysis)}")
+                    for i, step in enumerate(step_analysis):
+                        logger.info(f"🔍 DEBUG - Step {i+1}: {step.get('step_title', 'Unknown')} - keys: {list(step.keys()) if isinstance(step, dict) else 'Not a dict'}")
+                else:
+                    logger.warning(f"🔍 DEBUG - No step_by_step_analysis found in analysis_results")
+            else:
+                logger.warning(f"🔍 DEBUG - No analysis_results found in document")
+
             created_at = analysis_data.get('created_at', datetime.now())
             status = 'completed'  # analysis_results are always completed
-            
+
             # Handle timezone-aware datetime for display
             if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                 timestamp = created_at.replace(tzinfo=None)
             else:
                 timestamp = created_at
-            
+
             # Create status badge
             status_color = '🟢'  # Always completed for analysis_results
             
