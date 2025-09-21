@@ -1510,22 +1510,22 @@ def display_structured_soil_data(soil_data):
         # Find the data container
         data_container = None
         container_name = None
-        
+
         for key in ['Farm_3_Soil_Test_Data', 'SP_Lab_Test_Report', 'Farm_Soil_Test_Data']:
             if key in soil_data:
                 data_container = soil_data[key]
                 container_name = key
                 break
-        
+
         if not data_container:
             st.warning("No structured soil data found")
             return
-        
+
         st.info(f"📊 **Data Source**: {container_name}")
-        
+
         # Convert to DataFrame for display
         import pandas as pd
-        
+
         # Convert samples to list of dictionaries
         samples_list = []
         for sample_id, sample_data in data_container.items():
@@ -1533,14 +1533,20 @@ def display_structured_soil_data(soil_data):
                 sample_row = {'Sample ID': sample_id}
                 sample_row.update(sample_data)
                 samples_list.append(sample_row)
-        
+
         if samples_list:
-            df = pd.DataFrame(samples_list)
-            
+            # BULLETPROOF DataFrame creation
+            try:
+                df = pd.DataFrame(samples_list)
+            except Exception as df_error:
+                logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+                st.error("Unable to display soil samples table")
+                return
+
             # Reorder columns to put Sample ID first
             cols = ['Sample ID'] + [col for col in df.columns if col != 'Sample ID']
             df = df[cols]
-            
+
             st.dataframe(df, width='stretch')
             
             # Show summary statistics
@@ -1586,13 +1592,19 @@ def display_structured_soil_data(soil_data):
                                 'Max': f"{max_val:.2f}",
                                 'Samples': sample_count
                             })
-                
+
                 if summary_data:
-                    summary_df = pd.DataFrame(summary_data)
+                    # BULLETPROOF DataFrame creation
+                    try:
+                        summary_df = pd.DataFrame(summary_data)
+                    except Exception as df_error:
+                        logger.error(f"❌ Summary DataFrame creation failed: {str(df_error)}")
+                        st.error("Unable to display soil summary table")
+                        return
                     st.dataframe(summary_df, width='stretch')
         else:
             st.warning("No sample data found in structured format")
-            
+
     except Exception as e:
         st.error(f"Error displaying structured soil data: {str(e)}")
 
@@ -1602,22 +1614,22 @@ def display_structured_leaf_data(leaf_data):
         # Find the data container
         data_container = None
         container_name = None
-        
+
         for key in ['Farm_3_Leaf_Test_Data', 'Farm_Leaf_Test_Data']:
             if key in leaf_data:
                 data_container = leaf_data[key]
                 container_name = key
                 break
-        
+
         if not data_container:
             st.warning("No structured leaf data found")
             return
-        
+
         st.info(f"📊 **Data Source**: {container_name}")
-        
+
         # Convert to DataFrame for display
         import pandas as pd
-        
+
         # Convert samples to list of dictionaries
         samples_list = []
         for sample_id, sample_data in data_container.items():
@@ -1625,10 +1637,16 @@ def display_structured_leaf_data(leaf_data):
                 sample_row = {'Sample ID': sample_id}
                 sample_row.update(sample_data)
                 samples_list.append(sample_row)
-        
+
         if samples_list:
-            df = pd.DataFrame(samples_list)
-            
+            # BULLETPROOF DataFrame creation
+            try:
+                df = pd.DataFrame(samples_list)
+            except Exception as df_error:
+                logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+                st.error("Unable to display leaf samples table")
+                return
+
             # Reorder columns to put Sample ID first
             cols = ['Sample ID'] + [col for col in df.columns if col != 'Sample ID']
             df = df[cols]
@@ -1678,13 +1696,19 @@ def display_structured_leaf_data(leaf_data):
                                 'Max': f"{max_val:.2f}",
                                 'Samples': sample_count
                             })
-                
+
                 if summary_data:
-                    summary_df = pd.DataFrame(summary_data)
+                    # BULLETPROOF DataFrame creation
+                    try:
+                        summary_df = pd.DataFrame(summary_data)
+                    except Exception as df_error:
+                        logger.error(f"❌ Summary DataFrame creation failed: {str(df_error)}")
+                        st.error("Unable to display leaf summary table")
+                        return
                     st.dataframe(summary_df, width='stretch')
         else:
             st.warning("No sample data found in structured format")
-            
+
     except Exception as e:
         st.error(f"Error displaying structured leaf data: {str(e)}")
 
@@ -2018,10 +2042,10 @@ def display_raw_soil_data(soil_data):
     if not soil_data or not isinstance(soil_data, dict):
         st.warning("📋 No soil data available.")
         return
-    
+
     # Handle different data formats
     samples = []
-    
+
     # Format 1: Standard format with 'samples' key
     if 'samples' in soil_data:
         samples = soil_data['samples']
@@ -2032,14 +2056,14 @@ def display_raw_soil_data(soil_data):
     # Format 3: Direct sample format (sample IDs as keys)
     elif all(isinstance(v, dict) for v in soil_data.values() if isinstance(v, dict)):
         samples = convert_direct_samples_to_list(soil_data)
-    
+
     if not samples:
         st.warning("📋 No soil samples found.")
         return
-    
+
     # Create a DataFrame from the samples
     import pandas as pd
-    
+
     # Convert samples to DataFrame
     df_data = []
     for sample in samples:
@@ -2051,9 +2075,15 @@ def display_raw_soil_data(soil_data):
             if key not in ['Lab No.', 'sample_no', 'lab_no']:
                 row[key] = value
         df_data.append(row)
-    
+
     if df_data:
-        df = pd.DataFrame(df_data)
+        # BULLETPROOF DataFrame creation
+        try:
+            df = pd.DataFrame(df_data)
+        except Exception as df_error:
+            logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+            st.error("Unable to display soil data table")
+            return
         st.dataframe(df, width='stretch')
         
         # Show summary
@@ -2086,10 +2116,10 @@ def display_raw_leaf_data(leaf_data):
     if not leaf_data or not isinstance(leaf_data, dict):
         st.warning("📋 No leaf data available.")
         return
-    
+
     # Handle different data formats
     samples = []
-    
+
     # Format 1: Standard format with 'samples' key
     if 'samples' in leaf_data:
         samples = leaf_data['samples']
@@ -2100,14 +2130,14 @@ def display_raw_leaf_data(leaf_data):
     # Format 3: Direct sample format (sample IDs as keys)
     elif all(isinstance(v, dict) for v in leaf_data.values() if isinstance(v, dict)):
         samples = convert_direct_samples_to_list(leaf_data)
-    
+
     if not samples:
         st.warning("📋 No leaf samples found.")
         return
-    
+
     # Create a DataFrame from the samples
     import pandas as pd
-    
+
     # Convert samples to DataFrame
     df_data = []
     for sample in samples:
@@ -2119,9 +2149,15 @@ def display_raw_leaf_data(leaf_data):
             if key not in ['Lab No.', 'sample_no', 'lab_no']:
                 row[key] = value
         df_data.append(row)
-    
+
     if df_data:
-        df = pd.DataFrame(df_data)
+        # BULLETPROOF DataFrame creation
+        try:
+            df = pd.DataFrame(df_data)
+        except Exception as df_error:
+            logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+            st.error("Unable to display leaf data table")
+            return
         st.dataframe(df, width='stretch')
         
         # Show summary
@@ -2317,7 +2353,13 @@ def display_soil_data_table(soil_data):
         elif isinstance(extracted_data, list):
             # Handle list of parameter-value pairs
             if extracted_data:
-                df = pd.DataFrame(extracted_data)
+                # BULLETPROOF DataFrame creation
+                try:
+                    df = pd.DataFrame(extracted_data)
+                except Exception as df_error:
+                    logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+                    st.error("Unable to display soil extracted data table")
+                    return
                 apply_table_styling()
                 st.dataframe(df, width='stretch')
             else:
@@ -2497,7 +2539,13 @@ def display_leaf_data_table(leaf_data):
         elif isinstance(extracted_data, list):
             # Handle list of parameter-value pairs
             if extracted_data:
-                df = pd.DataFrame(extracted_data)
+                # BULLETPROOF DataFrame creation
+                try:
+                    df = pd.DataFrame(extracted_data)
+                except Exception as df_error:
+                    logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+                    st.error("Unable to display leaf extracted data table")
+                    return
                 apply_table_styling()
                 st.dataframe(df, width='stretch')
             else:
@@ -4204,7 +4252,28 @@ def display_table(table_data, title):
     try:
         if 'headers' in table_data and 'rows' in table_data:
             import pandas as pd
-            df = pd.DataFrame(table_data['rows'], columns=table_data['headers'])
+            
+            # Debug: Check data structure
+            logger.info(f"🔍 DEBUG - Table data for '{title}': headers={len(table_data['headers'])}, rows={len(table_data['rows'])}")
+            if table_data['rows']:
+                logger.info(f"🔍 DEBUG - First row type: {type(table_data['rows'][0])}")
+                logger.info(f"🔍 DEBUG - First row: {table_data['rows'][0]}")
+            
+            # CRITICAL FIX: Handle corrupted table data
+            if table_data['rows'] and isinstance(table_data['rows'][0], str):
+                logger.error(f"🔍 DEBUG - CRITICAL: Table '{title}' contains strings instead of lists!")
+                logger.error(f"🔍 DEBUG - Table rows content: {table_data['rows']}")
+                st.error(f"Data corruption detected in table '{title}' - cannot display")
+                return
+
+            # BULLETPROOF DataFrame creation
+            try:
+                df = pd.DataFrame(table_data['rows'], columns=table_data['headers'])
+            except Exception as df_error:
+                logger.error(f"❌ Table DataFrame creation failed: {str(df_error)}")
+                st.error(f"Unable to display table '{title}'")
+                return
+            logger.info(f"✅ Created table DataFrame for '{title}' with shape: {df.shape}")
             st.markdown(f"### {title}")
             st.dataframe(df, width='stretch')
             
@@ -4948,9 +5017,51 @@ def display_enhanced_step_result(step_result, step_number):
                 st.markdown(f"**{table['title']}**")
                 # Create a DataFrame for better display
                 import pandas as pd
-                df = pd.DataFrame(table['rows'], columns=table['headers'])
-                apply_table_styling()
-                st.dataframe(df, width='stretch')
+
+                # BULLETPROOF DataFrame creation with STRING-TO-LIST PARSING
+                try:
+                    # Parse string representations of lists in table rows
+                    parsed_rows = []
+                    for row in table['rows']:
+                        if isinstance(row, str) and row.startswith('[') and row.endswith(']'):
+                            # This is a string representation of a list - parse it
+                            try:
+                                import ast
+                                parsed_row = ast.literal_eval(row)
+                                if isinstance(parsed_row, list):
+                                    parsed_rows.append(parsed_row)
+                                    logger.info(f"✅ Parsed string list: {row[:50]}...")
+                                else:
+                                    logger.warning(f"❌ Failed to parse as list: {row}")
+                                    parsed_rows.append([str(row)])
+                            except (ValueError, SyntaxError) as e:
+                                logger.warning(f"❌ AST parsing failed for: {row[:50]}... Error: {e}")
+                                parsed_rows.append([str(row)])
+                        elif isinstance(row, list):
+                            # Already a proper list
+                            parsed_rows.append(row)
+                        elif isinstance(row, str):
+                            # Single string value - treat as single column
+                            logger.warning(f"⚠️ Single string row detected: {row}")
+                            parsed_rows.append([row])
+                        else:
+                            # Other data type - convert to string list
+                            parsed_rows.append([str(row)])
+                    
+                    # Create DataFrame with parsed data
+                    if parsed_rows:
+                        df = pd.DataFrame(parsed_rows, columns=table['headers'])
+                        logger.info(f"✅ Created table DataFrame for '{table['title']}' with shape: {df.shape}")
+                        apply_table_styling()
+                        st.dataframe(df, width='stretch')
+                    else:
+                        st.warning(f"No valid data found for table '{table['title']}'")
+                        
+                except Exception as df_error:
+                    logger.error(f"❌ Table DataFrame creation failed for '{table['title']}': {str(df_error)}")
+                    logger.error(f"🔍 Raw table data: {table['rows'][:2] if table['rows'] else 'Empty'}")
+                    st.error(f"Unable to display table '{table['title']}'")
+                    continue
                 st.markdown("")
     
     # 5. INTERPRETATIONS SECTION - Display detailed interpretations if available
@@ -5098,8 +5209,22 @@ def display_data_table(table_data, title):
         # Create a DataFrame for better display
         import pandas as pd
         
+        # Debug: Check data structure
+        logger.info(f"🔍 DEBUG - Data table '{title}': headers={len(headers)}, rows={len(rows)}")
+        if rows:
+            logger.info(f"🔍 DEBUG - First row type: {type(rows[0])}")
+            logger.info(f"🔍 DEBUG - First row: {rows[0]}")
+        
+        # CRITICAL FIX: Handle corrupted table data
+        if rows and isinstance(rows[0], str):
+            logger.error(f"🔍 DEBUG - CRITICAL: Data table '{title}' contains strings instead of lists!")
+            logger.error(f"🔍 DEBUG - Table rows content: {rows}")
+            st.error(f"Data corruption detected in data table '{title}' - cannot display")
+            return
+        
         # Convert rows to DataFrame
         df = pd.DataFrame(rows, columns=headers)
+        logger.info(f"✅ Created data table DataFrame for '{title}' with shape: {df.shape}")
         
         # Display the table
         st.markdown(f"### {title}")
@@ -8070,8 +8195,31 @@ def display_raw_sample_data_tables(analysis_data):
 
             soil_samples = soil_params['all_samples']
             if soil_samples:
-                # Create DataFrame from samples
-                soil_df = pd.DataFrame(soil_samples)
+                # Create DataFrame from samples with error handling
+                try:
+                    # Debug: Check data structure
+                    logger.info(f"🔍 DEBUG - soil_samples type: {type(soil_samples)}")
+                    logger.info(f"🔍 DEBUG - soil_samples length: {len(soil_samples) if isinstance(soil_samples, list) else 'Not a list'}")
+                    if isinstance(soil_samples, list) and soil_samples:
+                        logger.info(f"🔍 DEBUG - First soil sample: {soil_samples[0]}")
+                        logger.info(f"🔍 DEBUG - First soil sample type: {type(soil_samples[0])}")
+                    
+                    # CRITICAL FIX: Handle corrupted soil samples data
+                    if isinstance(soil_samples, list) and soil_samples and isinstance(soil_samples[0], str):
+                        logger.error("🔍 DEBUG - CRITICAL: soil_samples contains strings instead of dictionaries!")
+                        logger.error(f"🔍 DEBUG - soil_samples content: {soil_samples}")
+                        st.error("Data corruption detected in soil samples - cannot display table")
+                        return
+                    
+                    soil_df = pd.DataFrame(soil_samples)
+                    logger.info(f"✅ Created soil samples DataFrame with shape: {soil_df.shape}")
+                except Exception as e:
+                    logger.error(f"❌ Error creating soil samples DataFrame: {str(e)}")
+                    if "Shape of passed values" in str(e):
+                        logger.error("🔍 DEBUG - Detected pandas shape mismatch in soil samples")
+                        logger.error(f"🔍 DEBUG - soil_samples structure: {[type(item) for item in soil_samples] if isinstance(soil_samples, list) else 'Not a list'}")
+                    st.error(f"Error creating soil samples table: {str(e)}")
+                    return
 
                 # Display with enhanced styling
                 st.dataframe(
@@ -8096,8 +8244,31 @@ def display_raw_sample_data_tables(analysis_data):
 
             leaf_samples = leaf_params['all_samples']
             if leaf_samples:
-                # Create DataFrame from samples
-                leaf_df = pd.DataFrame(leaf_samples)
+                # Create DataFrame from samples with error handling
+                try:
+                    # Debug: Check data structure
+                    logger.info(f"🔍 DEBUG - leaf_samples type: {type(leaf_samples)}")
+                    logger.info(f"🔍 DEBUG - leaf_samples length: {len(leaf_samples) if isinstance(leaf_samples, list) else 'Not a list'}")
+                    if isinstance(leaf_samples, list) and leaf_samples:
+                        logger.info(f"🔍 DEBUG - First leaf sample: {leaf_samples[0]}")
+                        logger.info(f"🔍 DEBUG - First leaf sample type: {type(leaf_samples[0])}")
+                    
+                    # CRITICAL FIX: Handle corrupted leaf samples data
+                    if isinstance(leaf_samples, list) and leaf_samples and isinstance(leaf_samples[0], str):
+                        logger.error("🔍 DEBUG - CRITICAL: leaf_samples contains strings instead of dictionaries!")
+                        logger.error(f"🔍 DEBUG - leaf_samples content: {leaf_samples}")
+                        st.error("Data corruption detected in leaf samples - cannot display table")
+                        return
+                    
+                    leaf_df = pd.DataFrame(leaf_samples)
+                    logger.info(f"✅ Created leaf samples DataFrame with shape: {leaf_df.shape}")
+                except Exception as e:
+                    logger.error(f"❌ Error creating leaf samples DataFrame: {str(e)}")
+                    if "Shape of passed values" in str(e):
+                        logger.error("🔍 DEBUG - Detected pandas shape mismatch in leaf samples")
+                        logger.error(f"🔍 DEBUG - leaf_samples structure: {[type(item) for item in leaf_samples] if isinstance(leaf_samples, list) else 'Not a list'}")
+                    st.error(f"Error creating leaf samples table: {str(e)}")
+                    return
 
                 # Display with enhanced styling
                 st.dataframe(
@@ -8122,155 +8293,298 @@ def display_raw_sample_data_tables(analysis_data):
         st.error("Error displaying raw sample data tables")
 
 def display_comprehensive_data_tables(soil_params, leaf_params):
-    """Display comprehensive data tables with averages and statistics"""
+    """Display comprehensive data tables with averages and statistics - BULLETPROOF VERSION"""
     try:
         st.markdown("---")
         st.markdown("## 📊 Comprehensive Data Analysis Tables")
         
-        
-        
-        # Display soil data table
+        # Display soil data table - BULLETPROOF VERSION
         if soil_params and 'parameter_statistics' in soil_params:
             # Display averages prominently
             if 'averages' in soil_params:
                 st.markdown("### 🌱 Soil Parameter Averages")
                 avg_data = []
-                for param, avg_val in soil_params['averages'].items():
-                    avg_data.append({
-                        'Parameter': param,
-                        'Average Value': f"{avg_val:.3f}"
-                    })
-                df_avg = pd.DataFrame(avg_data)
-                st.dataframe(df_avg, width='stretch')
+                try:
+                    for param, avg_val in soil_params['averages'].items():
+                        avg_data.append({
+                            'Parameter': str(param),
+                            'Average Value': str(f"{avg_val:.3f}" if isinstance(avg_val, (int, float)) else 'N.D.')
+                        })
+                    
+                    # BULLETPROOF DataFrame creation
+                    if avg_data:
+                        # Final validation: ensure all items are valid dictionaries
+                        valid_avg_data = []
+                        for item in avg_data:
+                            if isinstance(item, dict) and len(item) == 2:
+                                valid_avg_data.append(item)
+                            else:
+                                logger.warning(f"Invalid soil average item: {item}")
+                        
+                        if valid_avg_data:
+                            try:
+                                df_avg = pd.DataFrame(valid_avg_data)
+                                logger.info(f"✅ Created soil averages DataFrame with shape: {df_avg.shape}")
+                                st.dataframe(df_avg, width='stretch')
+                            except Exception as df_error:
+                                logger.error(f"❌ Soil averages DataFrame creation failed: {str(df_error)}")
+                                st.error("Unable to display soil parameter averages table")
+                        else:
+                            st.warning("No valid soil average data available")
+                    else:
+                        st.warning("No soil average data available")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error processing soil averages: {str(e)}")
+                    st.error("Error processing soil parameter averages")
             
-            # Display all individual soil sample values
+            # Display all individual soil sample values - BULLETPROOF VERSION
             soil_samples_key = 'all_samples' if 'all_samples' in soil_params else 'samples'
             if soil_samples_key in soil_params and soil_params[soil_samples_key]:
                 st.markdown("#### 🌱 All Soil Sample Values")
                 soil_samples_data = []
-                for sample in soil_params[soil_samples_key]:
-                    # Create comprehensive sample row with both Sample ID and LabNo./SampleNo
-                    sample_row = {
-                        'Sample ID': sample.get('sample_no', 'Unknown'),
-                        'LabNo./SampleNo': sample.get('lab_no', sample.get('sample_no', 'Unknown'))
-                    }
-                    # Add all parameter values
-                    for param in soil_params['parameter_statistics'].keys():
-                        sample_row[param] = sample.get(param, 'N/A')
-                    soil_samples_data.append(sample_row)
-                
-                if soil_samples_data:
-                    df_soil_samples = pd.DataFrame(soil_samples_data)
-                    st.dataframe(df_soil_samples, width='stretch')
+                try:
+                    for sample in soil_params[soil_samples_key]:
+                        if isinstance(sample, dict):
+                            # Create comprehensive sample row with both Sample ID and LabNo./SampleNo
+                            sample_row = {
+                                'Sample ID': str(sample.get('sample_no', 'Unknown')),
+                                'LabNo./SampleNo': str(sample.get('lab_no', sample.get('sample_no', 'Unknown')))
+                            }
+                            # Add all parameter values
+                            for param in soil_params['parameter_statistics'].keys():
+                                sample_row[param] = str(sample.get(param, 'N/A'))
+                            soil_samples_data.append(sample_row)
+                        else:
+                            logger.warning(f"Invalid soil sample: {sample}")
+                    
+                    # BULLETPROOF DataFrame creation
+                    if soil_samples_data:
+                        # Final validation: ensure all items are valid dictionaries
+                        valid_samples_data = []
+                        for item in soil_samples_data:
+                            if isinstance(item, dict):
+                                valid_samples_data.append(item)
+                            else:
+                                logger.warning(f"Invalid soil sample item: {item}")
+                        
+                        if valid_samples_data:
+                            try:
+                                df_soil_samples = pd.DataFrame(valid_samples_data)
+                                logger.info(f"✅ Created soil samples DataFrame with shape: {df_soil_samples.shape}")
+                                st.dataframe(df_soil_samples, width='stretch')
+                            except Exception as df_error:
+                                logger.error(f"❌ Soil samples DataFrame creation failed: {str(df_error)}")
+                                st.error("Unable to display soil samples table")
+                        else:
+                            st.warning("No valid soil sample data available")
+                    else:
+                        st.warning("No soil sample data available")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error processing soil samples: {str(e)}")
+                    st.error("Error processing soil samples")
         
-        # Display leaf data table
+        # Display leaf data table - BULLETPROOF VERSION
         if leaf_params and 'parameter_statistics' in leaf_params:
             st.markdown("### 🍃 Leaf Analysis Summary")
             
             # Create leaf summary table with enhanced details
             leaf_data = []
-            for param, stats in leaf_params['parameter_statistics'].items():
-                # Handle missing values properly
-                avg_val = stats.get('average', 0)
-                min_val = stats.get('min', 0)
-                max_val = stats.get('max', 0)
-                std_val = stats.get('std_dev', 0)
+            try:
+                for param, stats in leaf_params['parameter_statistics'].items():
+                    if isinstance(stats, dict):
+                        # Handle missing values properly
+                        avg_val = stats.get('average', 0)
+                        min_val = stats.get('min', 0)
+                        max_val = stats.get('max', 0)
+                        std_val = stats.get('std_dev', 0)
+                        
+                        # Format values, showing N.D. only for truly missing values (not legitimate low values)
+                        avg_display = f"{avg_val:.3f}" if avg_val is not None and avg_val != 0.0 else 'N.D.'
+                        min_display = f"{min_val:.2f}" if min_val is not None and min_val != 0.0 else 'N.D.'
+                        max_display = f"{max_val:.2f}" if max_val is not None and max_val != 0.0 else 'N.D.'
+                        std_display = f"{std_val:.3f}" if std_val is not None and std_val != 0.0 else 'N.D.'
+                        
+                        leaf_data.append({
+                            'Parameter': str(param),
+                            'Average': str(avg_display),
+                            'Minimum': str(min_display),
+                            'Maximum': str(max_display),
+                            'Std Dev': str(std_display),
+                            'Samples': str(stats.get('count', 0)),
+                            'Missing': str(stats.get('missing_count', 0)),
+                            'Data Quality': 'Complete' if stats.get('missing_count', 0) == 0 else 'Partial'
+                        })
+                    else:
+                        logger.warning(f"Invalid leaf stats for {param}: {stats}")
                 
-                # Format values, showing N.D. only for truly missing values (not legitimate low values)
-                avg_display = f"{avg_val:.3f}" if avg_val is not None and avg_val != 0.0 else 'N.D.'
-                min_display = f"{min_val:.2f}" if min_val is not None and min_val != 0.0 else 'N.D.'
-                max_display = f"{max_val:.2f}" if max_val is not None and max_val != 0.0 else 'N.D.'
-                std_display = f"{std_val:.3f}" if std_val is not None and std_val != 0.0 else 'N.D.'
-                
-                leaf_data.append({
-                    'Parameter': param,
-                    'Average': avg_display,
-                    'Minimum': min_display,
-                    'Maximum': max_display,
-                    'Std Dev': std_display,
-                    'Samples': stats.get('count', 0),
-                    'Missing': stats.get('missing_count', 0),
-                    'Data Quality': 'Complete' if stats.get('missing_count', 0) == 0 else 'Partial'
-                })
+                # BULLETPROOF DataFrame creation
+                if leaf_data:
+                    # Final validation: ensure all items are valid dictionaries
+                    valid_leaf_data = []
+                    for item in leaf_data:
+                        if isinstance(item, dict) and len(item) == 8:
+                            valid_leaf_data.append(item)
+                        else:
+                            logger.warning(f"Invalid leaf data item: {item}")
+                    
+                    if valid_leaf_data:
+                        try:
+                            df_leaf = pd.DataFrame(valid_leaf_data)
+                            logger.info(f"✅ Created leaf data DataFrame with shape: {df_leaf.shape}")
+                            st.dataframe(df_leaf, width='stretch')
+                        except Exception as df_error:
+                            logger.error(f"❌ Leaf data DataFrame creation failed: {str(df_error)}")
+                            st.error("Unable to display leaf analysis summary table")
+                    else:
+                        st.warning("No valid leaf data available")
+                else:
+                    st.warning("No leaf data available")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error processing leaf data: {str(e)}")
+                st.error("Error processing leaf analysis summary")
             
-            if leaf_data:
-                df_leaf = pd.DataFrame(leaf_data)
-                st.dataframe(df_leaf, width='stretch')
-                
-                # Display averages prominently
-                if 'averages' in leaf_params:
-                    st.markdown("#### 🍃 Leaf Parameter Averages")
-                    avg_data = []
+            # Display leaf averages prominently - BULLETPROOF VERSION
+            if 'averages' in leaf_params:
+                st.markdown("#### 🍃 Leaf Parameter Averages")
+                avg_data = []
+                try:
                     for param, avg_val in leaf_params['averages'].items():
                         avg_data.append({
-                            'Parameter': param,
-                            'Average Value': f"{avg_val:.3f}"
+                            'Parameter': str(param),
+                            'Average Value': str(f"{avg_val:.3f}" if isinstance(avg_val, (int, float)) else 'N.D.')
                         })
-                    df_avg = pd.DataFrame(avg_data)
-                    st.dataframe(df_avg, width='stretch')
+                    
+                    # BULLETPROOF DataFrame creation
+                    if avg_data:
+                        # Final validation: ensure all items are valid dictionaries
+                        valid_avg_data = []
+                        for item in avg_data:
+                            if isinstance(item, dict) and len(item) == 2:
+                                valid_avg_data.append(item)
+                            else:
+                                logger.warning(f"Invalid leaf average item: {item}")
+                        
+                        if valid_avg_data:
+                            try:
+                                df_avg = pd.DataFrame(valid_avg_data)
+                                logger.info(f"✅ Created leaf averages DataFrame with shape: {df_avg.shape}")
+                                st.dataframe(df_avg, width='stretch')
+                            except Exception as df_error:
+                                logger.error(f"❌ Leaf averages DataFrame creation failed: {str(df_error)}")
+                                st.error("Unable to display leaf parameter averages table")
+                        else:
+                            st.warning("No valid leaf average data available")
+                    else:
+                        st.warning("No leaf average data available")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error processing leaf averages: {str(e)}")
+                    st.error("Error processing leaf parameter averages")
             
-            # Display all individual leaf sample values
+            # Display all individual leaf sample values - BULLETPROOF VERSION
             leaf_samples_key = 'all_samples' if 'all_samples' in leaf_params else 'samples'
             if leaf_samples_key in leaf_params and leaf_params[leaf_samples_key]:
                 st.markdown("#### 🍃 All Leaf Sample Values")
                 leaf_samples_data = []
-                for sample in leaf_params[leaf_samples_key]:
-                    # Create comprehensive sample row with both Sample ID and LabNo./SampleNo
-                    sample_row = {
-                        'Sample ID': sample.get('sample_no', 'Unknown'),
-                        'LabNo./SampleNo': sample.get('lab_no', sample.get('sample_no', 'Unknown'))
-                    }
-                    # Add all parameter values
-                    for param in leaf_params['parameter_statistics'].keys():
-                        sample_row[param] = sample.get(param, 'N/A')
-                    leaf_samples_data.append(sample_row)
-                
-                if leaf_samples_data:
-                    df_leaf_samples = pd.DataFrame(leaf_samples_data)
-                    st.dataframe(df_leaf_samples, width='stretch')
+                try:
+                    for sample in leaf_params[leaf_samples_key]:
+                        if isinstance(sample, dict):
+                            # Create comprehensive sample row with both Sample ID and LabNo./SampleNo
+                            sample_row = {
+                                'Sample ID': str(sample.get('sample_no', 'Unknown')),
+                                'LabNo./SampleNo': str(sample.get('lab_no', sample.get('sample_no', 'Unknown')))
+                            }
+                            # Add all parameter values
+                            for param in leaf_params['parameter_statistics'].keys():
+                                sample_row[param] = str(sample.get(param, 'N/A'))
+                            leaf_samples_data.append(sample_row)
+                        else:
+                            logger.warning(f"Invalid leaf sample: {sample}")
+                    
+                    # BULLETPROOF DataFrame creation
+                    if leaf_samples_data:
+                        # Final validation: ensure all items are valid dictionaries
+                        valid_samples_data = []
+                        for item in leaf_samples_data:
+                            if isinstance(item, dict):
+                                valid_samples_data.append(item)
+                            else:
+                                logger.warning(f"Invalid leaf sample item: {item}")
+                        
+                        if valid_samples_data:
+                            try:
+                                df_leaf_samples = pd.DataFrame(valid_samples_data)
+                                logger.info(f"✅ Created leaf samples DataFrame with shape: {df_leaf_samples.shape}")
+                                st.dataframe(df_leaf_samples, width='stretch')
+                            except Exception as df_error:
+                                logger.error(f"❌ Leaf samples DataFrame creation failed: {str(df_error)}")
+                                st.error("Unable to display leaf samples table")
+                        else:
+                            st.warning("No valid leaf sample data available")
+                    else:
+                        st.warning("No leaf sample data available")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error processing leaf samples: {str(e)}")
+                    st.error("Error processing leaf samples")
         
-        # Display combined summary
+        # Display combined summary - BULLETPROOF VERSION
         if soil_params and leaf_params:
             st.markdown("### 📈 Combined Analysis Summary")
             
-            # Get summary information
-            soil_summary = soil_params.get('summary', {})
-            leaf_summary = leaf_params.get('summary', {})
-            
-            # Get actual sample counts from all_samples if available
-            soil_sample_count = len(soil_params.get('all_samples', [])) if 'all_samples' in soil_params else soil_summary.get('total_samples', 0)
-            leaf_sample_count = len(leaf_params.get('all_samples', [])) if 'all_samples' in leaf_params else leaf_summary.get('total_samples', 0)
-            
-            summary_data = {
-                'Data Type': ['Soil', 'Leaf', 'Combined'],
-                'Total Samples': [
-                    soil_sample_count,
-                    leaf_sample_count,
-                    soil_sample_count + leaf_sample_count
-                ],
-                'Parameters Analyzed': [
-                    soil_summary.get('parameters_analyzed', 0),
-                    leaf_summary.get('parameters_analyzed', 0),
-                    soil_summary.get('parameters_analyzed', 0) + leaf_summary.get('parameters_analyzed', 0)
-                ],
-                'Missing Values Filled': [
-                    soil_summary.get('missing_values_filled', 0),
-                    leaf_summary.get('missing_values_filled', 0),
-                    soil_summary.get('missing_values_filled', 0) + leaf_summary.get('missing_values_filled', 0)
-                ],
-                'Data Quality': [
-                    soil_summary.get('data_quality', 'Unknown'),
-                    leaf_summary.get('data_quality', 'Unknown'),
-                    'High' if (soil_summary.get('missing_values_filled', 0) + leaf_summary.get('missing_values_filled', 0)) == 0 else 'Medium'
-                ]
-            }
-            
-            df_summary = pd.DataFrame(summary_data)
-            st.dataframe(df_summary, width='stretch')
+            try:
+                # Get summary information
+                soil_summary = soil_params.get('summary', {})
+                leaf_summary = leaf_params.get('summary', {})
+                
+                # Get actual sample counts from all_samples if available
+                soil_sample_count = len(soil_params.get('all_samples', [])) if 'all_samples' in soil_params else soil_summary.get('total_samples', 0)
+                leaf_sample_count = len(leaf_params.get('all_samples', [])) if 'all_samples' in leaf_params else leaf_summary.get('total_samples', 0)
+                
+                summary_data = {
+                    'Data Type': ['Soil', 'Leaf', 'Combined'],
+                    'Total Samples': [
+                        soil_sample_count,
+                        leaf_sample_count,
+                        soil_sample_count + leaf_sample_count
+                    ],
+                    'Parameters Analyzed': [
+                        soil_summary.get('parameters_analyzed', 0),
+                        leaf_summary.get('parameters_analyzed', 0),
+                        soil_summary.get('parameters_analyzed', 0) + leaf_summary.get('parameters_analyzed', 0)
+                    ],
+                    'Missing Values Filled': [
+                        soil_summary.get('missing_values_filled', 0),
+                        leaf_summary.get('missing_values_filled', 0),
+                        soil_summary.get('missing_values_filled', 0) + leaf_summary.get('missing_values_filled', 0)
+                    ],
+                    'Data Quality': [
+                        soil_summary.get('data_quality', 'Unknown'),
+                        leaf_summary.get('data_quality', 'Unknown'),
+                        'High' if (soil_summary.get('missing_values_filled', 0) + leaf_summary.get('missing_values_filled', 0)) == 0 else 'Medium'
+                    ]
+                }
+                
+                # BULLETPROOF DataFrame creation for summary data
+                try:
+                    df_summary = pd.DataFrame(summary_data)
+                    logger.info(f"✅ Created summary DataFrame with shape: {df_summary.shape}")
+                    st.dataframe(df_summary, width='stretch')
+                except Exception as df_error:
+                    logger.error(f"❌ Summary DataFrame creation failed: {str(df_error)}")
+                    logger.error(f"🔍 Summary data: {summary_data}")
+                    st.error("Unable to display combined analysis summary table")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error processing combined summary: {str(e)}")
+                st.error("Error processing combined analysis summary")
             
     except Exception as e:
-        logger.error(f"Error displaying comprehensive data tables: {e}")
-        st.error("Error displaying comprehensive data tables")
+        logger.error(f"❌ Critical error in display_comprehensive_data_tables: {str(e)}")
+        st.error("Critical error in comprehensive data tables display")
 
 def display_table(table_data):
     """Display a table with proper formatting and borders"""
@@ -8483,21 +8797,58 @@ def display_data_echo_table(analysis_data):
         logger.info(f"🔍 DEBUG - Data Echo Table sample data: {echo_data[0] if echo_data else 'None'}")
     
     if echo_data:
-        import pandas as pd
-        df = pd.DataFrame(echo_data)
-        
-        # Fix data type issues for PyArrow compatibility
-        if 'Samples' in df.columns:
-            df['Samples'] = pd.to_numeric(df['Samples'], errors='coerce').fillna(0).astype(int)
-        
-        # Apply consistent styling
-        apply_table_styling()
-        
-        st.dataframe(
-            df,
-            width='stretch',
-            hide_index=True
-        )
+        try:
+            import pandas as pd
+            
+            # Debug: Check data structure before creating DataFrame
+            logger.info(f"🔍 DEBUG - Echo data sample: {echo_data[0] if echo_data else 'None'}")
+            logger.info(f"🔍 DEBUG - Echo data length: {len(echo_data)}")
+            
+            # Ensure all dictionaries have the same keys
+            expected_keys = ['Parameter', 'Type', 'Average', 'Min', 'Max', 'Std Dev', 'Unit', 'Samples']
+            cleaned_echo_data = []
+            
+            for item in echo_data:
+                if isinstance(item, dict):
+                    # Ensure all expected keys are present
+                    cleaned_item = {}
+                    for key in expected_keys:
+                        cleaned_item[key] = item.get(key, 'N/A')
+                    cleaned_echo_data.append(cleaned_item)
+                else:
+                    logger.warning(f"🔍 DEBUG - Invalid echo data item: {item}")
+            
+            if cleaned_echo_data:
+                df = pd.DataFrame(cleaned_echo_data)
+                logger.info(f"✅ Created echo DataFrame with shape: {df.shape}")
+                
+                # Fix data type issues for PyArrow compatibility
+                if 'Samples' in df.columns:
+                    df['Samples'] = pd.to_numeric(df['Samples'], errors='coerce').fillna(0).astype(int)
+                
+                # Apply consistent styling
+                apply_table_styling()
+                
+                st.dataframe(
+                    df,
+                    width='stretch',
+                    hide_index=True
+                )
+            else:
+                logger.warning("❌ No valid echo data after cleaning")
+                st.warning("No valid parameter data available")
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating echo DataFrame: {str(e)}")
+            logger.error(f"🔍 DEBUG - Echo data: {echo_data}")
+            
+            # Check for specific pandas shape error
+            if "Shape of passed values" in str(e):
+                logger.error("🔍 DEBUG - Detected pandas shape mismatch error")
+                logger.error(f"🔍 DEBUG - Echo data structure: {[type(item) for item in echo_data]}")
+                logger.error(f"🔍 DEBUG - First item: {echo_data[0] if echo_data else 'None'}")
+            
+            st.error(f"Error creating data echo table: {str(e)}")
     else:
         st.info("📋 No parameter data available for Data Echo Table.")
         logger.info(f"🔍 DEBUG - Data Echo Table: soil_data={bool(soil_data)}, leaf_data={bool(leaf_data)}")
@@ -8507,247 +8858,276 @@ def display_data_echo_table(analysis_data):
             logger.info(f"🔍 DEBUG - leaf_data keys: {list(leaf_data.keys()) if isinstance(leaf_data, dict) else 'Not a dict'}")
 
 def display_nutrient_status_tables(analysis_data):
-    """Display Soil and Leaf Nutrient Status tables"""
-    # Get soil and leaf data from multiple possible locations
-    soil_params = None
-    leaf_params = None
-    
-    # Try to get soil and leaf parameters from various locations
-    if 'raw_data' in analysis_data:
-        soil_params = analysis_data['raw_data'].get('soil_parameters')
-        leaf_params = analysis_data['raw_data'].get('leaf_parameters')
-    
-    # Check analysis_results directly
-    if not soil_params and 'soil_parameters' in analysis_data:
-        soil_params = analysis_data['soil_parameters']
-    if not leaf_params and 'leaf_parameters' in analysis_data:
-        leaf_params = analysis_data['leaf_parameters']
-    
-    # Check if we have structured OCR data that needs conversion
-    if not soil_params and 'raw_ocr_data' in analysis_data:
-        raw_ocr_data = analysis_data['raw_ocr_data']
-        if 'soil_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['soil_data']:
+    """Display Soil and Leaf Nutrient Status tables - BULLETPROOF VERSION"""
+    try:
+        # Get soil and leaf data from multiple possible locations
+        soil_params = None
+        leaf_params = None
+        
+        # Try to get soil and leaf parameters from various locations
+        if 'raw_data' in analysis_data:
+            soil_params = analysis_data['raw_data'].get('soil_parameters')
+            leaf_params = analysis_data['raw_data'].get('leaf_parameters')
+        
+        # Check analysis_results directly
+        if not soil_params and 'soil_parameters' in analysis_data:
+            soil_params = analysis_data['soil_parameters']
+        if not leaf_params and 'leaf_parameters' in analysis_data:
+            leaf_params = analysis_data['leaf_parameters']
+        
+        # Check if we have structured OCR data that needs conversion
+        if not soil_params and 'raw_ocr_data' in analysis_data:
+            raw_ocr_data = analysis_data['raw_ocr_data']
+            if 'soil_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['soil_data']:
+                from utils.analysis_engine import AnalysisEngine
+                engine = AnalysisEngine()
+                structured_soil_data = raw_ocr_data['soil_data']['structured_ocr_data']
+                soil_params = engine._convert_structured_to_analysis_format(structured_soil_data, 'soil')
+            
+            if 'leaf_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['leaf_data']:
+                from utils.analysis_engine import AnalysisEngine
+                engine = AnalysisEngine()
+                structured_leaf_data = raw_ocr_data['leaf_data']['structured_ocr_data']
+                leaf_params = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
+        
+        # Check session state for structured data
+        if not soil_params and hasattr(st.session_state, 'structured_soil_data') and st.session_state.structured_soil_data:
             from utils.analysis_engine import AnalysisEngine
             engine = AnalysisEngine()
-            structured_soil_data = raw_ocr_data['soil_data']['structured_ocr_data']
-            soil_params = engine._convert_structured_to_analysis_format(structured_soil_data, 'soil')
+            soil_params = engine._convert_structured_to_analysis_format(st.session_state.structured_soil_data, 'soil')
         
-        if 'leaf_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['leaf_data']:
+        if not leaf_params and hasattr(st.session_state, 'structured_leaf_data') and st.session_state.structured_leaf_data:
             from utils.analysis_engine import AnalysisEngine
             engine = AnalysisEngine()
-            structured_leaf_data = raw_ocr_data['leaf_data']['structured_ocr_data']
-            leaf_params = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
-    
-    # Check session state for structured data
-    if not soil_params and hasattr(st.session_state, 'structured_soil_data') and st.session_state.structured_soil_data:
-        from utils.analysis_engine import AnalysisEngine
-        engine = AnalysisEngine()
-        soil_params = engine._convert_structured_to_analysis_format(st.session_state.structured_soil_data, 'soil')
-    
-    if not leaf_params and hasattr(st.session_state, 'structured_leaf_data') and st.session_state.structured_leaf_data:
-        from utils.analysis_engine import AnalysisEngine
-        engine = AnalysisEngine()
-        leaf_params = engine._convert_structured_to_analysis_format(st.session_state.structured_leaf_data, 'leaf')
+            leaf_params = engine._convert_structured_to_analysis_format(st.session_state.structured_leaf_data, 'leaf')
 
-    if not soil_params and not leaf_params:
-        st.info("📋 No soil or leaf data available for nutrient status analysis.")
-        return
-    
-    # Helper to compute status from average vs optimal
-    def compute_status(avg_val, optimal_val, parameter_name: str = "") -> str:
-        try:
-            if avg_val is None or optimal_val is None:
-                return "Missing"
-            # Avoid division by zero
-            if isinstance(optimal_val, (int, float)) and optimal_val == 0:
-                # If optimal is zero (rare), fall back to absolute thresholding
-                diff = abs(float(avg_val) - float(optimal_val))
-                if diff <= 0.05:
-                    return "Optimal"
-                elif diff <= 0.10:
-                    return "Slightly Off"
-                else:
-                    return "Outside Range"
-
-            avg = float(avg_val)
-            opt = float(optimal_val)
-            # Percent deviation from optimal
-            deviation_pct = abs((avg - opt) / opt) * 100.0
-
-            # Tighter thresholds for pH; general thresholds for others
-            if parameter_name.lower() == 'ph':
-                if deviation_pct <= 2.0:
-                    return "Optimal"
-                elif deviation_pct <= 5.0:
-                    return "Slightly Off"
-                else:
-                    return "Outside Range"
-            else:
-                if deviation_pct <= 10.0:
-                    return "Optimal"
-                elif deviation_pct <= 20.0:
-                    return "Slightly Off"
-                else:
-                    return "Outside Range"
-        except Exception:
-            return "Missing"
-
-    # Define MPOB optimal values for soil parameters (Exact Malaysian Oil Palm Values)
-    soil_mpob_standards = {
-        'pH': (5.0, 6.0),
-        'N (%)': (0.15, 0.25),
-        'Nitrogen (%)': (0.15, 0.25),
-        'Org. C (%)': (2.0, 4.0),
-        'Organic Carbon (%)': (2.0, 4.0),
-        'Total P (mg/kg)': (20, 50),
-        'Avail P (mg/kg)': (20, 50),
-        'Available P (mg/kg)': (20, 50),
-        'Exch. K (meq%)': (0.20, 0.50),
-        'Exch. Ca (meq%)': (3.0, 6.0),
-        'Exch. Mg (meq%)': (0.4, 0.8),
-        'CEC (meq%)': (12.0, 25.0),
-        'C.E.C (meq%)': (12.0, 25.0)
-    }
-    
-    # Define MPOB optimal values for leaf parameters (Exact Malaysian Oil Palm Values)
-    leaf_mpob_standards = {
-        'N (%)': (2.6, 3.2),
-        'P (%)': (0.16, 0.22),
-        'K (%)': (1.3, 1.7),
-        'Mg (%)': (0.28, 0.38),
-        'Ca (%)': (0.5, 0.7),
-        'B (mg/kg)': (18, 28),
-        'Cu (mg/kg)': (6.0, 10.0),
-        'Zn (mg/kg)': (15, 25)
-    }
-    
-    # Display Soil Nutrient Status table
-    if soil_params and 'parameter_statistics' in soil_params:
-        st.markdown("### 🌱 Soil Nutrient Status (Average vs. MPOB Standard)")
-        soil_data = []
+        if not soil_params and not leaf_params:
+            st.info("📋 No soil or leaf data available for nutrient status analysis.")
+            return
         
-        for param_name, param_stats in soil_params['parameter_statistics'].items():
-            avg_val = param_stats.get('average')
+        # EXACT MPOB standards from results page
+        soil_mpob_standards = {
+            'pH': (5.0, 6.0),
+            'N (%)': (0.15, 0.25),
+            'Nitrogen (%)': (0.15, 0.25),
+            'Org. C (%)': (2.0, 4.0),
+            'Organic Carbon (%)': (2.0, 4.0),
+            'Total P (mg/kg)': (20, 50),
+            'Avail P (mg/kg)': (20, 50),
+            'Available P (mg/kg)': (20, 50),
+            'Exch. K (meq%)': (0.2, 0.5),
+            'Exch. Ca (meq%)': (3.0, 6.0),
+            'Exch. Mg (meq%)': (0.4, 0.8),
+            'CEC (meq%)': (12.0, 25.0),
+            'C.E.C (meq%)': (12.0, 25.0)
+        }
+        
+        leaf_mpob_standards = {
+            'N (%)': (2.6, 3.2),
+            'P (%)': (0.16, 0.22),
+            'K (%)': (1.3, 1.7),
+            'Mg (%)': (0.28, 0.38),
+            'Ca (%)': (0.5, 0.7),
+            'B (mg/kg)': (18, 28),
+            'Cu (mg/kg)': (6.0, 10.0),
+            'Zn (mg/kg)': (15, 25)
+        }
+        
+        # Display Soil Nutrient Status table - BULLETPROOF VERSION
+        if soil_params and 'parameter_statistics' in soil_params:
+            st.markdown("### 🌱 Soil Nutrient Status (Average vs. MPOB Standard)")
             
-            # Get MPOB optimal range for this parameter
-            optimal_range = soil_mpob_standards.get(param_name)
-            if optimal_range:
-                opt_min, opt_max = optimal_range
-                opt_display = f"{opt_min}-{opt_max}"
-                
-                # Determine status based on average vs optimal range
-                if avg_val is not None and avg_val != 0:
-                    if opt_min <= avg_val <= opt_max:
-                        status = "Optimal"
-                    elif avg_val < opt_min:
-                        status = "Critical Low"
+            # Create soil data list with BULLETPROOF validation
+            soil_data = []
+            
+            try:
+                for param_name, param_stats in soil_params['parameter_statistics'].items():
+                    if not isinstance(param_stats, dict):
+                        continue
+                    
+                    avg_val = param_stats.get('average')
+                    
+                    # Get MPOB optimal range for this parameter
+                    optimal_range = soil_mpob_standards.get(param_name)
+                    if optimal_range:
+                        opt_min, opt_max = optimal_range
+                        opt_display = f"{opt_min}-{opt_max}"
+                        
+                        # Determine status based on average vs optimal range
+                        if avg_val is not None and avg_val != 0:
+                            if opt_min <= avg_val <= opt_max:
+                                status = "Optimal"
+                            elif avg_val < opt_min:
+                                status = "Critical Low"
+                            else:
+                                status = "Critical High"
+                        else:
+                            status = "N.D."
                     else:
-                        status = "Critical High"
-                else:
-                    status = "N.D."
-            else:
-                opt_display = "N.D."
-                status = "N.D."
-            
-            # Handle missing values properly
-            if avg_val is None or avg_val == 0.0:
-                avg_display = 'N.D.'
-            elif isinstance(avg_val, (int, float)):
-                avg_display = f"{avg_val:.2f}"
-            else:
-                avg_display = 'N.D.'
-            
-            # Determine unit
-            unit = ""
-            if 'mg/kg' in param_name:
-                unit = "mg/kg"
-            elif 'meq%' in param_name:
-                unit = "meq%"
-            elif '%' in param_name:
-                unit = "%"
-            
-            soil_data.append({
-                'Parameter': param_name,
-                'Average': avg_display,
-                'MPOB Optimal': opt_display,
-                'Status': status,
-                'Unit': unit
-            })
-        
-        if soil_data:
-            df_soil = pd.DataFrame(soil_data)
-            apply_table_styling()
-            st.dataframe(df_soil, width='stretch')
-    
-    # Display Leaf Nutrient Status table
-    if leaf_params and 'parameter_statistics' in leaf_params:
-        st.markdown("### 🍃 Leaf Nutrient Status (Average vs. MPOB Standard)")
-        leaf_data = []
-        
-        for param_name, param_stats in leaf_params['parameter_statistics'].items():
-            avg_val = param_stats.get('average')
-            
-            # Get MPOB optimal range for this parameter
-            optimal_range = leaf_mpob_standards.get(param_name)
-            if optimal_range:
-                opt_min, opt_max = optimal_range
-                opt_display = f"{opt_min}-{opt_max}"
-                
-                # Determine status based on average vs optimal range
-                if avg_val is not None and avg_val != 0:
-                    if opt_min <= avg_val <= opt_max:
-                        status = "Optimal"
-                    elif avg_val < opt_min:
-                        status = "Critical Low"
+                        opt_display = "N.D."
+                        status = "N.D."
+                    
+                    # Handle missing values properly
+                    if avg_val is None or avg_val == 0.0:
+                        avg_display = 'N.D.'
+                    elif isinstance(avg_val, (int, float)):
+                        avg_display = f"{avg_val:.2f}"
                     else:
-                        status = "Critical High"
+                        avg_display = 'N.D.'
+                    
+                    # Determine unit
+                    unit = ""
+                    if 'mg/kg' in param_name:
+                        unit = "mg/kg"
+                    elif 'meq%' in param_name:
+                        unit = "meq%"
+                    elif '%' in param_name:
+                        unit = "%"
+                    
+                    # Create the data dictionary with BULLETPROOF validation
+                    data_dict = {
+                        'Parameter': str(param_name),
+                        'Average': str(avg_display),
+                        'MPOB Optimal': str(opt_display),
+                        'Status': str(status),
+                        'Unit': str(unit)
+                    }
+                    
+                    # Validate the dictionary before adding
+                    if isinstance(data_dict, dict) and len(data_dict) == 5:
+                        soil_data.append(data_dict)
+                    else:
+                        logger.warning(f"Invalid data dict for {param_name}: {data_dict}")
+                
+                # BULLETPROOF DataFrame creation
+                if soil_data:
+                    # Final validation: ensure all items are valid dictionaries
+                    valid_soil_data = []
+                    for item in soil_data:
+                        if isinstance(item, dict) and len(item) == 5:
+                            valid_soil_data.append(item)
+                        else:
+                            logger.warning(f"Invalid soil data item: {item}")
+                    
+                    if valid_soil_data:
+                        # Create DataFrame with explicit error handling
+                        try:
+                            df_soil = pd.DataFrame(valid_soil_data)
+                            logger.info(f"✅ Created soil DataFrame with shape: {df_soil.shape}")
+                            apply_table_styling()
+                            st.dataframe(df_soil, width='stretch')
+                        except Exception as df_error:
+                            logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+                            logger.error(f"🔍 Data: {valid_soil_data}")
+                            st.error("Unable to display soil nutrient status table")
+                    else:
+                        st.warning("No valid soil data available")
                 else:
-                    status = "N.D."
-            else:
-                opt_display = "N.D."
-                status = "N.D."
-            
-            # Handle missing values properly
-            if avg_val is None or avg_val == 0.0:
-                avg_display = 'N.D.'
-            elif isinstance(avg_val, (int, float)):
-                avg_display = f"{avg_val:.2f}"
-            else:
-                avg_display = 'N.D.'
-            
-            # Determine unit
-            unit = ""
-            if 'mg/kg' in param_name:
-                unit = "mg/kg"
-            elif '%' in param_name:
-                unit = "%"
-            
-            leaf_data.append({
-                'Parameter': param_name,
-                'Average': avg_display,
-                'MPOB Optimal': opt_display,
-                'Status': status,
-                'Unit': unit
-            })
+                    st.warning("No soil data available")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error processing soil data: {str(e)}")
+                st.error("Error processing soil nutrient status table")
         
-        if leaf_data:
-            df_leaf = pd.DataFrame(leaf_data)
-            apply_table_styling()
-            st.dataframe(df_leaf, width='stretch')
-
-def display_data_analysis_content(analysis_data):
-    """Display Step 1: Data Analysis content"""
-    st.markdown("### 📊 Data Analysis Results")
-    
-    # Display nutrient comparisons
-    if 'nutrient_comparisons' in analysis_data:
-        st.markdown("#### Nutrient Level Comparisons")
-        for comparison in analysis_data['nutrient_comparisons']:
-            st.markdown(f"**{comparison.get('parameter', 'Unknown')}:**")
-            st.markdown(f"- Current: {comparison.get('current', 'N/A')}")
-            st.markdown(f"- Optimal: {comparison.get('optimal', 'N/A')}")
-            st.markdown(f"- Status: {comparison.get('status', 'Unknown')}")
-            st.markdown("---")
+        # Display Leaf Nutrient Status table - BULLETPROOF VERSION
+        if leaf_params and 'parameter_statistics' in leaf_params:
+            st.markdown("### 🍃 Leaf Nutrient Status (Average vs. MPOB Standard)")
+            
+            # Create leaf data list with BULLETPROOF validation
+            leaf_data = []
+            
+            try:
+                for param_name, param_stats in leaf_params['parameter_statistics'].items():
+                    if not isinstance(param_stats, dict):
+                        continue
+                    
+                    avg_val = param_stats.get('average')
+                    
+                    # Get MPOB optimal range for this parameter
+                    optimal_range = leaf_mpob_standards.get(param_name)
+                    if optimal_range:
+                        opt_min, opt_max = optimal_range
+                        opt_display = f"{opt_min}-{opt_max}"
+                        
+                        # Determine status based on average vs optimal range
+                        if avg_val is not None and avg_val != 0:
+                            if opt_min <= avg_val <= opt_max:
+                                status = "Optimal"
+                            elif avg_val < opt_min:
+                                status = "Critical Low"
+                            else:
+                                status = "Critical High"
+                        else:
+                            status = "N.D."
+                    else:
+                        opt_display = "N.D."
+                        status = "N.D."
+                    
+                    # Handle missing values properly
+                    if avg_val is None or avg_val == 0.0:
+                        avg_display = 'N.D.'
+                    elif isinstance(avg_val, (int, float)):
+                        avg_display = f"{avg_val:.2f}"
+                    else:
+                        avg_display = 'N.D.'
+                    
+                    # Determine unit
+                    unit = ""
+                    if 'mg/kg' in param_name:
+                        unit = "mg/kg"
+                    elif 'meq%' in param_name:
+                        unit = "meq%"
+                    elif '%' in param_name:
+                        unit = "%"
+                    
+                    # Create the data dictionary with BULLETPROOF validation
+                    data_dict = {
+                        'Parameter': str(param_name),
+                        'Average': str(avg_display),
+                        'MPOB Optimal': str(opt_display),
+                        'Status': str(status),
+                        'Unit': str(unit)
+                    }
+                    
+                    # Validate the dictionary before adding
+                    if isinstance(data_dict, dict) and len(data_dict) == 5:
+                        leaf_data.append(data_dict)
+                    else:
+                        logger.warning(f"Invalid data dict for {param_name}: {data_dict}")
+                
+                # BULLETPROOF DataFrame creation
+                if leaf_data:
+                    # Final validation: ensure all items are valid dictionaries
+                    valid_leaf_data = []
+                    for item in leaf_data:
+                        if isinstance(item, dict) and len(item) == 5:
+                            valid_leaf_data.append(item)
+                        else:
+                            logger.warning(f"Invalid leaf data item: {item}")
+                    
+                    if valid_leaf_data:
+                        # Create DataFrame with explicit error handling
+                        try:
+                            df_leaf = pd.DataFrame(valid_leaf_data)
+                            logger.info(f"✅ Created leaf DataFrame with shape: {df_leaf.shape}")
+                            apply_table_styling()
+                            st.dataframe(df_leaf, width='stretch')
+                        except Exception as df_error:
+                            logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
+                            logger.error(f"🔍 Data: {valid_leaf_data}")
+                            st.error("Unable to display leaf nutrient status table")
+                    else:
+                        st.warning("No valid leaf data available")
+                else:
+                    st.warning("No leaf data available")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error processing leaf data: {str(e)}")
+                st.error("Error processing leaf nutrient status table")
+                
+    except Exception as e:
+        logger.error(f"❌ Critical error in display_nutrient_status_tables: {str(e)}")
+        st.error("Critical error in nutrient status tables display")
 
 def display_issue_diagnosis_content(analysis_data):
     """Display Step 2: Issue Diagnosis content"""
@@ -11625,4 +12005,3 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
 # Main execution block
 if __name__ == "__main__":
     show_results_page()
-
