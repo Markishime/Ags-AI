@@ -6926,19 +6926,34 @@ class AnalysisEngine:
                 else:
                     self.logger.warning("Leaf visualization creation returned None")
 
-            # If no visualizations were created, provide fallback
+            # Generate individual parameter bar graphs from nutrient status tables
             if not visualizations:
-                # Create a comprehensive fallback visualization with actual data
-                fallback_viz = self._create_comprehensive_fallback_viz(soil_params, leaf_params)
-                if fallback_viz:
-                    visualizations.append(fallback_viz)
-                    self.logger.info("Created comprehensive fallback visualization")
+                self.logger.info("No visualizations found, generating individual parameter charts")
+                
+                # Generate soil parameter individual charts
+                if soil_params and 'parameter_statistics' in soil_params:
+                    self.logger.info(f"Generating soil charts from {len(soil_params['parameter_statistics'])} parameters")
+                    soil_charts = self._create_individual_soil_parameter_charts(soil_params['parameter_statistics'])
+                    self.logger.info(f"Generated {len(soil_charts)} soil charts")
+                    visualizations.extend(soil_charts)
                 else:
-                    # Ultimate fallback
-                    visualizations = [{
+                    self.logger.warning("No soil parameter statistics available for visualization")
+                
+                # Generate leaf parameter individual charts
+                if leaf_params and 'parameter_statistics' in leaf_params:
+                    self.logger.info(f"Generating leaf charts from {len(leaf_params['parameter_statistics'])} parameters")
+                    leaf_charts = self._create_individual_leaf_parameter_charts(leaf_params['parameter_statistics'])
+                    self.logger.info(f"Generated {len(leaf_charts)} leaf charts")
+                    visualizations.extend(leaf_charts)
+                else:
+                    self.logger.warning("No leaf parameter statistics available for visualization")
+                
+                # If still no visualizations, provide minimal fallback
+            if not visualizations:
+                visualizations = [{
                     'type': 'plotly_chart',
-                    'title': 'Parameter Analysis Overview',
-                    'subtitle': 'Data visualization will be available when parameter data is processed',
+                    'title': 'No Parameter Data Available',
+                    'subtitle': 'Please ensure soil and leaf data has been properly processed',
                     'data': {
                         'chart_type': 'bar',
                         'chart_data': {
@@ -6948,7 +6963,6 @@ class AnalysisEngine:
                         }
                     }
                 }]
-                self.logger.info("Created basic fallback visualization")
 
             self.logger.info(f"Built {len(visualizations)} visualizations for Step 1")
             return visualizations
@@ -6968,25 +6982,26 @@ class AnalysisEngine:
             self.logger.info(f"Creating soil visualization with keys: {list(soil_param_stats.keys())}")
             
             # Soil parameter mappings - using actual parameter keys from data
+            # Updated with accurate Malaysian oil palm optimal ranges
             param_mapping = {
-                'pH': ('pH', 5.0),
-                'N (%)': ('Nitrogen (%)', 0.125),
-                'Org. C (%)': ('Organic Carbon (%)', 2.0),
-                'Total P (mg/kg)': ('Total P (mg/kg)', 30),
-                'Avail P (mg/kg)': ('Available P (mg/kg)', 22),
-                'Exch. K (meq%)': ('Exch. K (meq%)', 0.20),
-                'Exch. Ca (meq%)': ('Exch. Ca (meq%)', 3.0),
-                'Exch. Mg (meq%)': ('Exch. Mg (meq%)', 1.15),
-                'CEC (meq%)': ('CEC (meq%)', 12.0),
+                'pH': ('pH', 5.25),  # Mid-point of 4.5-6.0 range
+                'N (%)': ('Nitrogen (%)', 0.16),  # Mid-point of 0.12-0.20 range
+                'Org. C (%)': ('Organic Carbon (%)', 1.6),  # Mid-point of 1.2-2.0 range
+                'Total P (mg/kg)': ('Total P (mg/kg)', 350),  # Mid-point of 200-500 range
+                'Avail P (mg/kg)': ('Available P (mg/kg)', 22.5),  # Mid-point of 15-30 range
+                'Exch. K (meq%)': ('Exch. K (meq%)', 0.375),  # Mid-point of 0.25-0.50 range
+                'Exch. Ca (meq%)': ('Exch. Ca (meq%)', 1.75),  # Mid-point of 1.0-2.5 range
+                'Exch. Mg (meq%)': ('Exch. Mg (meq%)', 0.35),  # Mid-point of 0.20-0.50 range
+                'CEC (meq%)': ('CEC (meq%)', 11.5),  # Mid-point of 8-15 range
                 # Alternative key formats
-                'Nitrogen_%': ('Nitrogen (%)', 0.125),
-                'Organic_Carbon_%': ('Organic Carbon (%)', 2.0),
-                'Total_P_mg_kg': ('Total P (mg/kg)', 30),
-                'Available_P_mg_kg': ('Available P (mg/kg)', 22),
-                'Exchangeable_K_meq%': ('Exch. K (meq%)', 0.20),
-                'Exchangeable_Ca_meq%': ('Exch. Ca (meq%)', 3.0),
-                'Exchangeable_Mg_meq%': ('Exch. Mg (meq%)', 1.15),
-                'CEC_meq%': ('CEC (meq%)', 12.0)
+                'Nitrogen_%': ('Nitrogen (%)', 0.16),
+                'Organic_Carbon_%': ('Organic Carbon (%)', 1.6),
+                'Total_P_mg_kg': ('Total P (mg/kg)', 350),
+                'Available_P_mg_kg': ('Available P (mg/kg)', 22.5),
+                'Exchangeable_K_meq%': ('Exch. K (meq%)', 0.375),
+                'Exchangeable_Ca_meq%': ('Exch. Ca (meq%)', 1.75),
+                'Exchangeable_Mg_meq%': ('Exch. Mg (meq%)', 0.35),
+                'CEC_meq%': ('CEC (meq%)', 11.5)
             }
             
             for param_key, (display_name, optimal_val) in param_mapping.items():
@@ -7044,24 +7059,25 @@ class AnalysisEngine:
             self.logger.info(f"Creating leaf visualization with keys: {list(leaf_param_stats.keys())}")
             
             # Leaf parameter mappings - using actual parameter keys from data
+            # Updated with accurate Malaysian oil palm optimal ranges
             param_mapping = {
-                'N (%)': ('N (%)', 2.6),
-                'P (%)': ('P (%)', 0.165),
-                'K (%)': ('K (%)', 1.05),
-                'Mg (%)': ('Mg (%)', 0.30),
-                'Ca (%)': ('Ca (%)', 0.60),
-                'B (mg/kg)': ('B (mg/kg)', 20),
-                'Cu (mg/kg)': ('Cu (mg/kg)', 7.5),
-                'Zn (mg/kg)': ('Zn (mg/kg)', 20),
+                'N (%)': ('N (%)', 2.605),  # Mid-point of 2.24-2.97 range
+                'P (%)': ('P (%)', 0.11),  # Mid-point of 0.08-0.14 range
+                'K (%)': ('K (%)', 0.845),  # Mid-point of 0.78-0.91 range
+                'Mg (%)': ('Mg (%)', 0.615),  # Mid-point of 0.25-0.98 range
+                'Ca (%)': ('Ca (%)', 1.135),  # Mid-point of 0.74-1.53 range
+                'B (mg/kg)': ('B (mg/kg)', 18.35),  # Mid-point of 5.7-31.0 range
+                'Cu (mg/kg)': ('Cu (mg/kg)', 10.15),  # Mid-point of 7.4-12.9 range
+                'Zn (mg/kg)': ('Zn (mg/kg)', 46.1),  # Mid-point of 33.6-58.6 range
                 # Alternative key formats
-                'N_%': ('N (%)', 2.6),
-                'P_%': ('P (%)', 0.165),
-                'K_%': ('K (%)', 1.05),
-                'Mg_%': ('Mg (%)', 0.30),
-                'Ca_%': ('Ca (%)', 0.60),
-                'B_mg_kg': ('B (mg/kg)', 20),
-                'Cu_mg_kg': ('Cu (mg/kg)', 7.5),
-                'Zn_mg_kg': ('Zn (mg/kg)', 20)
+                'N_%': ('N (%)', 2.605),
+                'P_%': ('P (%)', 0.11),
+                'K_%': ('K (%)', 0.845),
+                'Mg_%': ('Mg (%)', 0.615),
+                'Ca_%': ('Ca (%)', 1.135),
+                'B_mg_kg': ('B (mg/kg)', 18.35),
+                'Cu_mg_kg': ('Cu (mg/kg)', 10.15),
+                'Zn_mg_kg': ('Zn (mg/kg)', 46.1)
             }
             
             for param_key, (display_name, optimal_val) in param_mapping.items():
@@ -7107,6 +7123,107 @@ class AnalysisEngine:
         except Exception as e:
             self.logger.error(f"Error creating leaf MPOB comparison visualization: {e}")
             return None
+
+    def _create_individual_soil_parameter_charts(self, soil_param_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Create individual bar charts for each soil parameter comparing observed vs MPOB standard"""
+        try:
+            charts = []
+            
+            # Soil parameter mappings with MPOB standards - using original parameter names
+            # Updated with accurate Malaysian oil palm optimal ranges
+            param_mapping = {
+                'pH': ('pH', 5.25),  # Mid-point of 4.5-6.0 range
+                'N (%)': ('Nitrogen (%)', 0.16),  # Mid-point of 0.12-0.20 range
+                'Org. C (%)': ('Organic Carbon (%)', 1.6),  # Mid-point of 1.2-2.0 range
+                'Total P (mg/kg)': ('Total P (mg/kg)', 350),  # Mid-point of 200-500 range
+                'Avail P (mg/kg)': ('Available P (mg/kg)', 22.5),  # Mid-point of 15-30 range
+                'Exch. K (meq%)': ('Exch. K (meq%)', 0.375),  # Mid-point of 0.25-0.50 range
+                'Exch. Ca (meq%)': ('Exch. Ca (meq%)', 1.75),  # Mid-point of 1.0-2.5 range
+                'Exch. Mg (meq%)': ('Exch. Mg (meq%)', 0.35),  # Mid-point of 0.20-0.50 range
+                'CEC (meq%)': ('CEC (meq%)', 11.5)  # Mid-point of 8-15 range
+            }
+            
+            for param_key, (display_name, mpob_standard) in param_mapping.items():
+                if param_key in soil_param_stats:
+                    observed_val = soil_param_stats[param_key].get('average', 0)
+                    if observed_val > 0:
+                        chart = {
+                            'type': 'individual_parameter_bar',
+                            'title': f'🌱 {display_name} - Observed vs MPOB Standard',
+                            'subtitle': f'Current: {observed_val:.2f} | MPOB Standard: {mpob_standard}',
+                            'data': {
+                                'parameter': display_name,
+                                'observed_value': observed_val,
+                                'mpob_standard': mpob_standard,
+                                'parameter_type': 'soil'
+                            },
+                            'options': {
+                                'show_values': True,
+                                'show_target_line': True,
+                                'target_line_color': '#e74c3c',
+                                'observed_color': '#3498db',
+                                'standard_color': '#e74c3c'
+                            }
+                        }
+                        charts.append(chart)
+                        self.logger.info(f"Created individual chart for soil parameter: {display_name}")
+            
+            self.logger.info(f"Generated {len(charts)} individual soil parameter charts")
+            return charts
+            
+        except Exception as e:
+            self.logger.error(f"Error creating individual soil parameter charts: {str(e)}")
+            return []
+
+    def _create_individual_leaf_parameter_charts(self, leaf_param_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Create individual bar charts for each leaf parameter comparing observed vs MPOB standard"""
+        try:
+            charts = []
+            
+            # Leaf parameter mappings with MPOB standards - using original parameter names
+            # Updated with accurate Malaysian oil palm optimal ranges
+            param_mapping = {
+                'N (%)': ('N (%)', 2.605),  # Mid-point of 2.24-2.97 range
+                'P (%)': ('P (%)', 0.11),  # Mid-point of 0.08-0.14 range
+                'K (%)': ('K (%)', 0.845),  # Mid-point of 0.78-0.91 range
+                'Mg (%)': ('Mg (%)', 0.615),  # Mid-point of 0.25-0.98 range
+                'Ca (%)': ('Ca (%)', 1.135),  # Mid-point of 0.74-1.53 range
+                'B (mg/kg)': ('B (mg/kg)', 18.35),  # Mid-point of 5.7-31.0 range
+                'Cu (mg/kg)': ('Cu (mg/kg)', 10.15),  # Mid-point of 7.4-12.9 range
+                'Zn (mg/kg)': ('Zn (mg/kg)', 46.1)  # Mid-point of 33.6-58.6 range
+            }
+            
+            for param_key, (display_name, mpob_standard) in param_mapping.items():
+                if param_key in leaf_param_stats:
+                    observed_val = leaf_param_stats[param_key].get('average', 0)
+                    if observed_val > 0:
+                        chart = {
+                            'type': 'individual_parameter_bar',
+                            'title': f'🍃 {display_name} - Observed vs MPOB Standard',
+                            'subtitle': f'Current: {observed_val:.2f} | MPOB Standard: {mpob_standard}',
+                            'data': {
+                                'parameter': display_name,
+                                'observed_value': observed_val,
+                                'mpob_standard': mpob_standard,
+                                'parameter_type': 'leaf'
+                            },
+                            'options': {
+                                'show_values': True,
+                                'show_target_line': True,
+                                'target_line_color': '#e67e22',
+                                'observed_color': '#2ecc71',
+                                'standard_color': '#e67e22'
+                            }
+                        }
+                        charts.append(chart)
+                        self.logger.info(f"Created individual chart for leaf parameter: {display_name}")
+            
+            self.logger.info(f"Generated {len(charts)} individual leaf parameter charts")
+            return charts
+            
+        except Exception as e:
+            self.logger.error(f"Error creating individual leaf parameter charts: {str(e)}")
+            return []
 
     def _create_comprehensive_fallback_viz(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any]) -> Dict[str, Any]:
         """Create a comprehensive fallback visualization that works with any parameter data format"""
@@ -7364,52 +7481,52 @@ class AnalysisEngine:
                 else:
                     return 'Sub-optimal'
             elif 'organic' in param_name.lower() or 'carbon' in param_name.lower():
-                if value >= 2.0:
+                if 1.2 <= value <= 2.0:  # Optimal range: 1.2-2.0%
                     return 'Optimal'
-                elif value >= 1.0:
-                    return 'Low'
+                elif value >= 0.8 or value <= 2.5:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             elif 'nitrogen' in param_name.lower():
-                if value >= 0.15:
+                if 0.12 <= value <= 0.20:  # Optimal range: 0.12-0.20%
                     return 'Optimal'
-                elif value >= 0.10:
-                    return 'Low'
+                elif value >= 0.08 or value <= 0.25:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             elif 'phosphorus' in param_name.lower() or 'p' in param_name.lower():
-                if value >= 15:
+                if 15 <= value <= 30:  # Optimal range: 15-30 mg/kg
                     return 'Optimal'
-                elif value >= 5:
-                    return 'Low'
+                elif value >= 10 or value <= 40:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             elif 'potassium' in param_name.lower() or 'k' in param_name.lower():
-                if value >= 0.20:
+                if 0.25 <= value <= 0.50:  # Optimal range: 0.25-0.50 meq%
                     return 'Optimal'
-                elif value >= 0.10:
-                    return 'Low'
+                elif value >= 0.15 or value <= 0.60:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             elif 'calcium' in param_name.lower() or 'ca' in param_name.lower():
-                if value >= 0.50:
+                if 1.0 <= value <= 2.5:  # Optimal range: 1.0-2.5 meq%
                     return 'Optimal'
-                elif value >= 0.25:
-                    return 'Low'
+                elif value >= 0.5 or value <= 3.0:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             elif 'magnesium' in param_name.lower() or 'mg' in param_name.lower():
-                if value >= 0.25:
+                if 0.20 <= value <= 0.50:  # Optimal range: 0.20-0.50 meq%
                     return 'Optimal'
-                elif value >= 0.15:
-                    return 'Low'
+                elif value >= 0.10 or value <= 0.60:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             elif 'cec' in param_name.lower():
-                if value >= 8.0:
+                if 8.0 <= value <= 15.0:  # Optimal range: 8-15 meq%
                     return 'Optimal'
-                elif value >= 5.0:
-                    return 'Low'
+                elif value >= 5.0 or value <= 18.0:  # Sub-optimal range
+                    return 'Sub-optimal'
                 else:
                     return 'Critical'
             else:
@@ -7420,63 +7537,63 @@ class AnalysisEngine:
     def _determine_leaf_issue_severity(self, param_name: str, value: float) -> str:
         """Determine leaf issue severity based on MPOB standards"""
         try:
-            # MPOB leaf standards
+            # MPOB leaf standards - Updated with accurate Malaysian oil palm optimal ranges
             if 'n' in param_name.lower() and '%' in param_name:
-                if 2.4 <= value <= 2.8:
+                if 2.24 <= value <= 2.97:  # Optimal range: 2.24-2.97%
                     return 'Optimal'
-                elif value < 2.0 or value > 3.0:
-                    return 'Critical'
-                else:
+                elif value < 2.0 or value > 3.2:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'p' in param_name.lower() and '%' in param_name:
-                if 0.15 <= value <= 0.18:
+                if 0.08 <= value <= 0.14:  # Optimal range: 0.08-0.14%
                     return 'Optimal'
-                elif value < 0.10 or value > 0.25:
-                    return 'Critical'
-                else:
+                elif value < 0.05 or value > 0.18:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'k' in param_name.lower() and '%' in param_name:
-                if 0.9 <= value <= 1.2:
+                if 0.78 <= value <= 0.91:  # Optimal range: 0.78-0.91%
                     return 'Optimal'
-                elif value < 0.7 or value > 1.5:
-                    return 'Critical'
-                else:
+                elif value < 0.6 or value > 1.1:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'mg' in param_name.lower() and '%' in param_name:
-                if 0.25 <= value <= 0.35:
+                if 0.25 <= value <= 0.98:  # Optimal range: 0.25-0.98%
                     return 'Optimal'
-                elif value < 0.15 or value > 0.45:
-                    return 'Critical'
-                else:
+                elif value < 0.15 or value > 1.2:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'ca' in param_name.lower() and '%' in param_name:
-                if 0.5 <= value <= 0.7:
+                if 0.74 <= value <= 1.53:  # Optimal range: 0.74-1.53%
                     return 'Optimal'
-                elif value < 0.3 or value > 0.9:
-                    return 'Critical'
-                else:
+                elif value < 0.5 or value > 1.8:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'b' in param_name.lower() and 'mg' in param_name.lower():
-                if 15 <= value <= 25:
+                if 5.7 <= value <= 31.0:  # Optimal range: 5.7-31.0 mg/kg
                     return 'Optimal'
-                elif value < 10 or value > 35:
-                    return 'Critical'
-                else:
+                elif value < 3.0 or value > 40.0:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'cu' in param_name.lower() and 'mg' in param_name.lower():
-                if 5 <= value <= 10:
+                if 7.4 <= value <= 12.9:  # Optimal range: 7.4-12.9 mg/kg
                     return 'Optimal'
-                elif value < 3 or value > 15:
-                    return 'Critical'
-                else:
+                elif value < 5.0 or value > 16.0:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             elif 'zn' in param_name.lower() and 'mg' in param_name.lower():
-                if 15 <= value <= 25:
+                if 33.6 <= value <= 58.6:  # Optimal range: 33.6-58.6 mg/kg
                     return 'Optimal'
-                elif value < 10 or value > 35:
-                    return 'Critical'
-                else:
+                elif value < 20.0 or value > 70.0:  # Sub-optimal range
                     return 'Sub-optimal'
+                else:
+                    return 'Critical'
             else:
                 return 'Unknown'
         except Exception:

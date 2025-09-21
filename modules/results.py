@@ -5023,6 +5023,8 @@ def display_visualization(viz_data, viz_number, step_number=None):
             display_heatmap(data, title, options)
         elif viz_type == 'plotly_chart':
             display_plotly_chart(data, title, options)
+        elif viz_type == 'individual_parameter_bar':
+            display_individual_parameter_bar(data, title, options)
         else:
             st.info(f"Visualization type '{viz_type}' not yet implemented")
     except Exception as e:
@@ -10224,6 +10226,89 @@ def display_plotly_chart(data, title, options=None):
         st.warning("Plotly library is required for advanced chart display. Please install plotly.")
     except Exception as e:
         logger.error(f"Error displaying plotly chart: {str(e)}")
+        st.error(f"Error displaying chart: {str(e)}")
+
+def display_individual_parameter_bar(data, title, options=None):
+    """Display individual parameter bar chart comparing observed vs MPOB standard"""
+    try:
+        import plotly.graph_objects as go
+        
+        # Extract data
+        parameter = data.get('parameter', 'Parameter')
+        observed_value = data.get('observed_value', 0)
+        mpob_standard = data.get('mpob_standard', 0)
+        parameter_type = data.get('parameter_type', 'soil')
+        
+        # Set colors based on parameter type
+        if parameter_type == 'soil':
+            observed_color = options.get('observed_color', '#3498db')
+            standard_color = options.get('standard_color', '#e74c3c')
+        else:  # leaf
+            observed_color = options.get('observed_color', '#2ecc71')
+            standard_color = options.get('standard_color', '#e67e22')
+        
+        # Create bar chart
+        fig = go.Figure()
+        
+        # Add observed value bar
+        fig.add_trace(go.Bar(
+            x=['Observed'],
+            y=[observed_value],
+            name='Observed Value',
+            marker_color=observed_color,
+            text=[f'{observed_value:.2f}'],
+            textposition='auto',
+            showlegend=True
+        ))
+        
+        # Add MPOB standard bar
+        fig.add_trace(go.Bar(
+            x=['MPOB Standard'],
+            y=[mpob_standard],
+            name='MPOB Standard',
+            marker_color=standard_color,
+            text=[f'{mpob_standard:.2f}'],
+            textposition='auto',
+            showlegend=True
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            title=dict(
+                text=title,
+                x=0.5,
+                font=dict(size=14, color='#2E7D32')
+            ),
+            xaxis=dict(
+                title='Parameter',
+                showgrid=True,
+                gridcolor='#E0E0E0'
+            ),
+            yaxis=dict(
+                title='Value',
+                showgrid=True,
+                gridcolor='#E0E0E0'
+            ),
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=50, r=50, t=80, b=50)
+        )
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except ImportError:
+        st.warning("Plotly library is required for chart display. Please install plotly.")
+    except Exception as e:
+        logger.error(f"Error displaying individual parameter bar chart: {str(e)}")
         st.error(f"Error displaying chart: {str(e)}")
 
 def display_feedback_section(results_data):
