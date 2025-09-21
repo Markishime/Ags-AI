@@ -283,21 +283,18 @@ class PDFReportGenerator:
                 story.append(Paragraph("Step-by-step analysis could not be generated due to technical issues.", self.styles['Normal']))
 
             # 6. Data Visualizations - ALL GRAPHS AND CHARTS
+            # Only add visualizations section if we have proper data, otherwise skip it entirely
             if options.get('include_charts', True):
                 try:
                     viz_section = self._create_comprehensive_visualizations_section(analysis_data)
-                    if viz_section:
+                    if viz_section and len(viz_section) > 2:  # More than just header
                         story.extend(viz_section)
+                        logger.info("✅ Added comprehensive visualizations section")
                     else:
-                        logger.warning("Visualizations section returned empty")
-                        story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
-                        story.append(Spacer(1, 12))
-                        story.append(Paragraph("No visualizations available for this analysis.", self.styles['Normal']))
+                        logger.info("⏭️ Skipping visualizations section - no data available")
                 except Exception as e:
                     logger.error(f"Error creating visualizations section: {str(e)}")
-                    story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
-                    story.append(Spacer(1, 12))
-                    story.append(Paragraph("Visualizations could not be generated due to technical issues.", self.styles['Normal']))
+                    # Don't add failed visualizations section to avoid "Chart generation failed" messages
 
             # 7. Economic Forecast Tables (always included for step-by-step)
             story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
@@ -372,7 +369,7 @@ class PDFReportGenerator:
 
             pdf_bytes = buffer.getvalue()
             buffer.close()
-        
+
             if not pdf_bytes:
                 logger.error("PDF generation resulted in empty buffer")
                 raise ValueError("PDF generation failed - empty buffer")
@@ -1433,19 +1430,50 @@ class PDFReportGenerator:
         story.append(Spacer(1, 12))
         
         # Handle data structure - analysis_data might be the analysis_results content directly
+        logger.info(f"🔍 DEBUG - _create_comprehensive_step_by_step_analysis called with analysis_data keys: {list(analysis_data.keys())}")
+        logger.info(f"🔍 DEBUG - analysis_data content: {analysis_data}")
+
         if 'analysis_results' in analysis_data:
             # Full structure: analysis_data contains analysis_results
             analysis_results = analysis_data.get('analysis_results', {})
+            logger.info(f"🔍 DEBUG - Found analysis_results in analysis_data")
         else:
             # Direct structure: analysis_data IS the analysis_results content
             analysis_results = analysis_data
-        
-        step_results = analysis_results.get('step_by_step_analysis', [])
-        
+            logger.info(f"🔍 DEBUG - analysis_data IS analysis_results")
+
+        logger.info(f"🔍 DEBUG - analysis_results keys: {list(analysis_results.keys())}")
+        logger.info(f"🔍 DEBUG - analysis_results content: {analysis_results}")
+
+        # Check for step_by_step_analysis in multiple locations
+        step_results = []
+        if 'step_by_step_analysis' in analysis_data:
+            # Top level: analysis_data contains step_by_step_analysis directly
+            step_results = analysis_data.get('step_by_step_analysis', [])
+            logger.info(f"🔍 DEBUG - Found step_by_step_analysis at top level")
+        elif 'step_by_step_analysis' in analysis_results:
+            # Nested: step_by_step_analysis is in analysis_results
+            step_results = analysis_results.get('step_by_step_analysis', [])
+            logger.info(f"🔍 DEBUG - Found step_by_step_analysis in analysis_results")
+        else:
+            logger.warning(f"🔍 DEBUG - step_by_step_analysis not found anywhere")
+
+        logger.info(f"🔍 DEBUG - Found {len(step_results)} steps in step_by_step_analysis")
+        logger.info(f"🔍 DEBUG - step_results: {step_results}")
+
         for step in step_results:
             step_number = step.get('step_number', 'Unknown')
             step_title = step.get('step_title', 'Unknown Step')
-            
+
+            # Handle both integer and string step numbers
+            if isinstance(step_number, str):
+                try:
+                    step_number = int(step_number)
+                except ValueError:
+                    step_number = 0
+
+            logger.info(f"🔍 DEBUG - Processing step: number={step_number}, title={step_title}")
+
             # Step header
             story.append(Paragraph(f"Step {step_number}: {step_title}", self.styles['Heading2']))
             story.append(Spacer(1, 8))
@@ -1474,6 +1502,15 @@ class PDFReportGenerator:
                 story.append(Paragraph("Data Tables:", self.styles['Heading3']))
                 for table in step['tables']:
                     if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                        # Skip unwanted tables as requested by user
+                        unwanted_tables = [
+                            'Soil Parameters Summary',
+                            'Leaf Parameters Summary', 
+                            'Land and Yield Summary'
+                        ]
+                        if table['title'] in unwanted_tables:
+                            logger.info(f"⏭️ Skipping unwanted table: {table['title']}")
+                            continue
                         story.append(Paragraph(f"<b>{table['title']}</b>", self.styles['CustomBody']))
                         
                         # Parse table rows - handle string representations of lists
@@ -1583,8 +1620,8 @@ class PDFReportGenerator:
             
             # Step-specific tables and content
             if step_number == 1:
-                # Step 1: Data Analysis - Add data tables AND bar graphs
-                story.extend(self._create_step1_data_tables(step, analysis_data))
+                # Step 1: Data Analysis - Add bar graphs only (data tables removed)
+                # Data tables removed as requested by user
                 # Add Step 1 visualizations (bar graphs)
                 story.extend(self._create_step1_bar_graphs(analysis_data))
             elif step_number == 2:
@@ -1602,73 +1639,82 @@ class PDFReportGenerator:
                 # Add economic forecast tables only (no yield forecast graph)
                 story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
             elif step_number == 6:
-                # Step 6: Yield Forecast - Add forecast graph only (no tables)
-                story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
+                # Step 6: Yield Forecast - Add ONLY the forecast chart
+                logger.info("🎯 Processing Step 6 - Forecast Graph only")
+                logger.info(f"🔍 DEBUG Step 6 - analysis_data keys: {list(analysis_data.keys())}")
+
+                # Handle data structure - analysis_data might be the analysis_results content directly
+                if 'analysis_results' in analysis_data:
+                    # Full structure: analysis_data contains analysis_results
+                    analysis_results = analysis_data.get('analysis_results', {})
+                else:
+                    # Direct structure: analysis_data IS the analysis_results content
+                    analysis_results = analysis_data
+
+                # Create forecast chart with proper data extraction
+                try:
+                    logger.info("🔍 DEBUG Step 6 - Calling forecast chart method with analysis_results")
+                    logger.info(f"🔍 DEBUG Step 6 - analysis_results keys: {list(analysis_results.keys())}")
+                    logger.info(f"🔍 DEBUG Step 6 - analysis_results content: {analysis_results}")
+                    yield_chart = self._create_accurate_yield_forecast_chart_for_pdf(analysis_results)
+                    logger.info(f"🔍 DEBUG Step 6 - Chart method returned: {type(yield_chart)}")
+
+                    if yield_chart is not None:
+                        logger.info("🔍 DEBUG Step 6 - Adding chart to story")
+                        story.append(Paragraph("📈 STEP 6 — Forecast Graph: 5-Year Yield Forecast & Projections", self.styles['Heading3']))
+                        story.append(Spacer(1, 8))
+                        story.append(yield_chart)
+                        story.append(Spacer(1, 12))
+                        logger.info("✅ Added accurate yield forecast chart to Step 6 - ONLY forecast graph")
+                    else:
+                        logger.warning("❌ Step 6: Yield forecast chart is None")
+                        logger.info("🔍 DEBUG Step 6 - Chart is None, adding failure message")
+                        story.append(Paragraph("📈 STEP 6 — Forecast Graph: 5-Year Yield Forecast & Projections", self.styles['Heading3']))
+                        story.append(Spacer(1, 8))
+                        story.append(Paragraph("5-Year Yield Forecast (t/ha) - Chart generation failed", self.styles['Normal']))
+
+                except Exception as e:
+                    logger.error(f"❌ Step 6: Error adding yield forecast chart: {str(e)}")
+                    import traceback
+                    logger.error(f"Step 6 Full traceback: {traceback.format_exc()}")
+                    story.append(Paragraph("📈 STEP 6 — Forecast Graph: 5-Year Yield Forecast & Projections", self.styles['Heading3']))
+                    story.append(Spacer(1, 8))
+                    story.append(Paragraph("5-Year Yield Forecast (t/ha) - Chart generation error", self.styles['Normal']))
             
-            # Visualizations and Charts - ENHANCED with soil/leaf nutrient status charts
-            if step_number != 3 and ('visualizations' in step and step['visualizations']):
+            # Visualizations and Charts - ONLY for Step 1 (soil/leaf nutrient status charts)
+            if step_number == 1:
                 story.append(Paragraph("📊 Charts & Visualizations", self.styles['Heading3']))
                 story.append(Spacer(1, 8))
                 
-                # Always add soil and leaf nutrient status charts for steps 1 and 2
-                if step_number in [1, 2]:
-                    try:
-                        # Add soil nutrient status chart
-                        soil_chart = self._create_soil_nutrient_status_chart_for_pdf(analysis_data)
-                        if soil_chart:
-                            story.append(Paragraph("🌱 Soil Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading4']))
-                            story.append(Spacer(1, 6))
-                            story.append(soil_chart)
-                            story.append(Spacer(1, 12))
-                            logger.info("✅ Added soil nutrient status chart to step analysis")
-                        
-                        # Add leaf nutrient status chart
-                        leaf_chart = self._create_leaf_nutrient_status_chart_for_pdf(analysis_data)
-                        if leaf_chart:
-                            story.append(Paragraph("🍃 Leaf Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading4']))
-                            story.append(Spacer(1, 6))
-                            story.append(leaf_chart)
-                            story.append(Spacer(1, 12))
-                            logger.info("✅ Added leaf nutrient status chart to step analysis")
-                            
-                    except Exception as e:
-                        logger.error(f"Error adding nutrient status charts to step {step_number}: {str(e)}")
-                
-                # Add other visualizations from step data
-                for viz in step['visualizations']:
-                    if isinstance(viz, dict) and 'type' in viz:
-                        viz_title = viz.get('title', 'Chart')
-                        story.append(Paragraph(f"<b>{viz_title}</b>", self.styles['CustomBody']))
-                        
-                        # Try to create actual chart image
-                        try:
-                            chart_bytes = self._create_chart_image(viz)
-                            if chart_bytes:
-                                img_buffer = io.BytesIO(chart_bytes)
-                                chart_image = Image(img_buffer, width=6*inch, height=4*inch)
-                                story.append(chart_image)
-                                story.append(Spacer(1, 8))
-                                logger.info(f"✅ Added chart to PDF: {viz_title}")
-                            else:
-                                # Fallback to description
-                                if 'description' in viz:
-                                    story.append(Paragraph(viz['description'], self.styles['CustomBody']))
-                                else:
-                                    story.append(Paragraph(f"Chart: {viz_title}", self.styles['CustomBody']))
-                        except Exception as e:
-                            logger.warning(f"Could not create chart {viz_title}: {str(e)}")
-                            # Fallback to description
-                            if 'description' in viz:
-                                story.append(Paragraph(viz['description'], self.styles['CustomBody']))
-                            else:
-                                story.append(Paragraph(f"Chart: {viz_title}", self.styles['CustomBody']))
-                        
+                # Only add soil and leaf nutrient status charts for Step 1
+                try:
+                    # Add soil nutrient status chart
+                    soil_chart = self._create_soil_nutrient_status_chart_for_pdf(analysis_data)
+                    if soil_chart:
+                        story.append(Paragraph("🌱 Soil Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading4']))
                         story.append(Spacer(1, 6))
+                        story.append(soil_chart)
+                        story.append(Spacer(1, 12))
+                        logger.info("✅ Added soil nutrient status chart to Step 1")
+                    
+                    # Add leaf nutrient status chart
+                    leaf_chart = self._create_leaf_nutrient_status_chart_for_pdf(analysis_data)
+                    if leaf_chart:
+                        story.append(Paragraph("🍃 Leaf Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading4']))
+                        story.append(Spacer(1, 6))
+                        story.append(leaf_chart)
+                        story.append(Spacer(1, 12))
+                        logger.info("✅ Added leaf nutrient status chart to Step 1")
+                        
+                except Exception as e:
+                    logger.error(f"Error adding nutrient status charts to Step 1: {str(e)}")
+                
                 story.append(Spacer(1, 8))
             
+            
             # Generate contextual visualizations for all steps
-            # Omit visualizations for Step 3 entirely
-            if step_number != 3:
+            # Omit visualizations for Step 3 and Step 6 entirely
+            if step_number != 3 and step_number != 6:
                 story.extend(self._create_step_visualizations(step, step_number))
                 story.extend(self._create_contextual_visualizations(step, step_number, analysis_data))
             
@@ -1679,6 +1725,10 @@ class PDFReportGenerator:
     def _create_step_visualizations(self, step: Dict[str, Any], step_number: int) -> List:
         """Create visualizations for each step with enhanced contextual support"""
         story = []
+        
+        # Skip Step 6 - yield forecast chart is handled separately
+        if step_number == 6:
+            return story
         
         # Check for charts and visualizations in the step data
         if 'charts' in step and step['charts']:
@@ -2687,15 +2737,8 @@ class PDFReportGenerator:
                 pass
             
             elif step_number == 6:  # Yield Forecast
-                # Create yield projection chart
-                yield_data = analysis_data.get('yield_forecast', {})
-                if yield_data:
-                    chart_image = self._create_yield_projection_chart(yield_data)
-                    if chart_image:
-                        story.append(Paragraph("Yield Projection Visualization:", self.styles['Heading3']))
-                        img_buffer = io.BytesIO(chart_image)
-                        story.append(Image(img_buffer, width=6*inch, height=4*inch))
-                        story.append(Spacer(1, 8))
+                # Yield projection chart removed - using accurate yield forecast chart instead
+                pass
         
         except Exception as e:
             logger.warning(f"Could not create contextual visualizations: {str(e)}")
@@ -3231,6 +3274,13 @@ class PDFReportGenerator:
         for step in step_results:
             step_number = step.get('step_number', 'Unknown')
             step_title = step.get('step_title', 'Unknown Step')
+
+            # Handle both integer and string step numbers
+            if isinstance(step_number, str):
+                try:
+                    step_number = int(step_number)
+                except ValueError:
+                    step_number = 0
             
             # Step header
             story.append(Paragraph(f"Step {step_number}: {step_title}", self.styles['Heading2']))
@@ -3512,8 +3562,8 @@ class PDFReportGenerator:
                 story.append(Image(img_buffer, width=6*inch, height=4*inch))
                 story.append(Spacer(1, 12))
             
-            # Create yield projections table
-            story.extend(self._create_yield_projections_table(yield_forecast))
+            # Create yield projections table - REMOVED as requested by user
+            # story.extend(self._create_yield_projections_table(yield_forecast))
         
         return story
     
@@ -3614,55 +3664,9 @@ class PDFReportGenerator:
             return None
     
     def _create_yield_projections_table(self, yield_forecast: Dict[str, Any]) -> List:
-        """Create yield projections table"""
+        """Create yield projections table - REMOVED as requested by user"""
         story = []
-        
-        story.append(Paragraph("Yield Projections by Investment Level", self.styles['Heading2']))
-        story.append(Spacer(1, 8))
-        
-        years = [0, 1, 2, 3, 4, 5]
-        year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
-        
-        table_data = [['Investment Level'] + year_labels]
-        
-        # Add rows for each investment level - handle both old array format and new range format
-        for investment_type in ['high_investment', 'medium_investment', 'low_investment']:
-            if investment_type in yield_forecast:
-                investment_data = yield_forecast[investment_type]
-                investment_name = investment_type.replace('_', ' ').title()
-                row = [investment_name]
-                
-                if isinstance(investment_data, list) and len(investment_data) >= 6:
-                    # Old array format
-                    for i in range(6):
-                        row.append(f"{investment_data[i]:.1f}")
-                elif isinstance(investment_data, dict):
-                    # New range format
-                    row.append("Current")  # Baseline
-                    for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
-                        if year in investment_data:
-                            row.append(investment_data[year])  # Keep the range format
-                        else:
-                            row.append("N/A")
-                
-                table_data.append(row)
-        
-        if len(table_data) > 1:
-            # Define optimal column widths for 7-column yield table
-            col_widths = [
-                self.content_width * 0.20,  # Investment Level
-                self.content_width * 0.13,  # Current
-                self.content_width * 0.13,  # Year 1
-                self.content_width * 0.13,  # Year 2
-                self.content_width * 0.13,  # Year 3
-                self.content_width * 0.13,  # Year 4
-                self.content_width * 0.15   # Year 5
-            ]
-            
-            table = self._create_table_with_proper_layout(table_data, col_widths, font_size=9)
-            story.append(table)
-            story.append(Spacer(1, 12))
-        
+        # Land and Yield Summary table removed as requested by user
         return story
     
     def _create_investment_scenarios_section(self, analysis_data: Dict[str, Any]) -> List:
@@ -4421,47 +4425,9 @@ class PDFReportGenerator:
         return story
 
     def _create_comprehensive_data_tables_section(self, analysis_data: Dict[str, Any]) -> List:
-        """Create comprehensive data tables section with WORLD-CLASS robust mapping"""
+        """Create comprehensive data tables section - REMOVED as requested by user"""
         story = []
-
-        try:
-            # Section header
-            story.append(Paragraph("📊 Comprehensive Data Analysis Tables", self.styles['Heading2']))
-            story.append(Spacer(1, 12))
-
-            # Extract real data for tables
-            real_data = self._extract_real_data_for_tables(analysis_data)
-            
-            logger.info(f"🎯 PDF Real data extraction results: {list(real_data.keys())}")
-
-            # Soil Parameters Table with real data
-            if 'soil_parameters' in real_data and real_data['soil_parameters']:
-                story.extend(self._create_soil_parameters_pdf_table(real_data['soil_parameters']))
-                logger.info(f"✅ Created soil parameters table with {len(real_data['soil_parameters'])} parameters")
-            else:
-                logger.warning("❌ No soil parameter statistics found for PDF table")
-
-            # Leaf Parameters Table with real data
-            if 'leaf_parameters' in real_data and real_data['leaf_parameters']:
-                story.extend(self._create_leaf_parameters_pdf_table(real_data['leaf_parameters']))
-                logger.info(f"✅ Created leaf parameters table with {len(real_data['leaf_parameters'])} parameters")
-            else:
-                logger.warning("❌ No leaf parameter statistics found for PDF table")
-
-            # Yield Forecast Table with real data
-            if 'yield_forecast' in real_data and real_data['yield_forecast']:
-                story.extend(self._create_yield_projections_table(real_data['yield_forecast']))
-                logger.info(f"✅ Created yield forecast table")
-
-            # Economic Forecast Table with real data
-            if 'economic_forecast' in real_data and real_data['economic_forecast']:
-                story.extend(self._create_enhanced_economic_forecast_table(real_data))
-                logger.info(f"✅ Created economic forecast table")
-
-        except Exception as e:
-            logger.error(f"❌ Error creating comprehensive data tables section: {str(e)}")
-            story.append(Paragraph("Error generating data tables section", self.styles['Normal']))
-
+        # Data tables removed as requested by user
         return story
 
     def _extract_soil_data_with_robust_mapping_pdf(self, analysis_data):
@@ -4816,15 +4782,17 @@ class PDFReportGenerator:
     def _create_comprehensive_visualizations_section(self, analysis_data: Dict[str, Any]) -> List:
         """Create comprehensive visualizations section with all charts and graphs"""
         story = []
-        
+
         try:
             # Section header
             story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
             story.append(Spacer(1, 12))
-            
-            # Always create soil and leaf nutrient status charts (copied from results page)
+
+            # Create soil and leaf nutrient status charts only if we have proper data
+            charts_added = False
+
+            # Create soil nutrient status chart
             try:
-                # Create soil nutrient status chart
                 soil_chart = self._create_soil_nutrient_status_chart_for_pdf(analysis_data)
                 if soil_chart:
                     story.append(Paragraph("🌱 Soil Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading3']))
@@ -4832,10 +4800,12 @@ class PDFReportGenerator:
                     story.append(soil_chart)
                     story.append(Spacer(1, 12))
                     logger.info("✅ Added soil nutrient status chart to PDF")
-                else:
-                    story.append(Paragraph("🌱 Soil Nutrient Status - Chart generation failed", self.styles['Normal']))
-                
-                # Create leaf nutrient status chart
+                    charts_added = True
+            except Exception as e:
+                logger.warning(f"Could not create soil nutrient status chart: {str(e)}")
+
+            # Create leaf nutrient status chart
+            try:
                 leaf_chart = self._create_leaf_nutrient_status_chart_for_pdf(analysis_data)
                 if leaf_chart:
                     story.append(Paragraph("🍃 Leaf Nutrient Status (Average vs. MPOB Standard)", self.styles['Heading3']))
@@ -4843,14 +4813,17 @@ class PDFReportGenerator:
                     story.append(leaf_chart)
                     story.append(Spacer(1, 12))
                     logger.info("✅ Added leaf nutrient status chart to PDF")
-                else:
-                    story.append(Paragraph("🍃 Leaf Nutrient Status - Chart generation failed", self.styles['Normal']))
-                    
+                    charts_added = True
             except Exception as e:
-                logger.error(f"Error creating nutrient status charts: {str(e)}")
-                story.append(Paragraph("Error creating nutrient status charts", self.styles['Normal']))
+                logger.warning(f"Could not create leaf nutrient status chart: {str(e)}")
+
+            # If no charts were added, remove the header and return empty
+            if not charts_added:
+                story = []
+                logger.info("⏭️ No visualizations available - returning empty section")
             
-            # Extract and add other visualizations from step-by-step analysis
+            # 5-Year Yield Forecast chart moved to Step 6 section only
+            # Extract and add other visualizations from step-by-step analysis (excluding bar graphs and Step 6)
             visualizations = self._extract_visualizations_from_analysis(analysis_data)
             
             if visualizations:
@@ -4860,6 +4833,25 @@ class PDFReportGenerator:
                         
                     viz_type = viz_data.get('type', 'unknown')
                     title = viz_data.get('title', 'Visualization')
+
+                    # Skip bar graphs, unwanted visualizations, and Step 6 yield forecast
+                    unwanted_viz_types = ['bar_chart', 'bar', 'histogram']
+                    unwanted_titles = [
+                        'Soil Nutrient Status',
+                        'Leaf Nutrient Status', 
+                        'Nutrient Gap',
+                        'Soil Parameters',
+                        'Leaf Parameters',
+                        '5-Year Yield Forecast',
+                        'Yield Forecast',
+                        'Yield Projection'
+                    ]
+                    
+                    # Check if this is an unwanted visualization
+                    if (viz_type.lower() in unwanted_viz_types or 
+                        any(unwanted in title for unwanted in unwanted_titles)):
+                        logger.info(f"⏭️ Skipping unwanted visualization: {title} (type: {viz_type})")
+                        continue
 
                     # Create chart image for PDF
                     try:
@@ -4968,8 +4960,304 @@ class PDFReportGenerator:
             logger.error(f"Error creating chart image for PDF: {str(e)}")
             return None
 
+    def _create_accurate_yield_forecast_chart_for_pdf(self, analysis_data: Dict[str, Any]) -> Optional[Image]:
+        """Create accurate 5-Year Yield Forecast chart for PDF - EXACT COPY OF RESULTS PAGE LOGIC"""
+        try:
+            # EXACT SAME LOGIC AS RESULTS PAGE - Check for yield forecast data in multiple possible locations
+            forecast = None
+            if 'yield_forecast' in analysis_data:
+                forecast = analysis_data['yield_forecast']
+                logger.info(f"🔍 DEBUG - Found yield_forecast directly in analysis_data")
+            elif 'analysis' in analysis_data and 'yield_forecast' in analysis_data['analysis']:
+                forecast = analysis_data['analysis']['yield_forecast']
+                logger.info(f"🔍 DEBUG - Found yield_forecast in analysis_data['analysis']")
+            elif 'analysis_results' in analysis_data and 'yield_forecast' in analysis_data['analysis_results']:
+                forecast = analysis_data['analysis_results']['yield_forecast']
+                logger.info(f"🔍 DEBUG - Found yield_forecast in analysis_data['analysis_results']")
+            else:
+                # Check if yield_forecast is within step_by_step_analysis
+                logger.info(f"🔍 DEBUG - Checking step_by_step_analysis for yield_forecast data")
+                if 'step_by_step_analysis' in analysis_data:
+                    step_results = analysis_data.get('step_by_step_analysis', [])
+                    for step in step_results:
+                        if isinstance(step, dict) and step.get('step_number') == 6:
+                            # Check if yield_forecast is in the step data
+                            if 'yield_forecast' in step:
+                                forecast = step['yield_forecast']
+                                logger.info(f"🔍 DEBUG - Found yield_forecast in step 6 data")
+                            elif 'data' in step and isinstance(step['data'], dict) and 'yield_forecast' in step['data']:
+                                forecast = step['data']['yield_forecast']
+                                logger.info(f"🔍 DEBUG - Found yield_forecast in step 6 data['yield_forecast']")
+                            elif 'analysis' in step and isinstance(step['analysis'], dict) and 'yield_forecast' in step['analysis']:
+                                forecast = step['analysis']['yield_forecast']
+                                logger.info(f"🔍 DEBUG - Found yield_forecast in step 6 analysis['yield_forecast']")
+                            break
+                elif 'analysis_results' in analysis_data and 'step_by_step_analysis' in analysis_data['analysis_results']:
+                    step_results = analysis_data['analysis_results'].get('step_by_step_analysis', [])
+                    for step in step_results:
+                        if isinstance(step, dict) and step.get('step_number') == 6:
+                            # Check if yield_forecast is in the step data
+                            if 'yield_forecast' in step:
+                                forecast = step['yield_forecast']
+                                logger.info(f"🔍 DEBUG - Found yield_forecast in step 6 within analysis_results")
+                            elif 'data' in step and isinstance(step['data'], dict) and 'yield_forecast' in step['data']:
+                                forecast = step['data']['yield_forecast']
+                                logger.info(f"🔍 DEBUG - Found yield_forecast in step 6 data['yield_forecast'] within analysis_results")
+                            elif 'analysis' in step and isinstance(step['analysis'], dict) and 'yield_forecast' in step['analysis']:
+                                forecast = step['analysis']['yield_forecast']
+                                logger.info(f"🔍 DEBUG - Found yield_forecast in step 6 analysis['yield_forecast'] within analysis_results")
+                            break
+
+            logger.info(f"🔍 DEBUG - Looking for yield forecast data in analysis_data")
+            logger.info(f"🔍 DEBUG - analysis_data keys: {list(analysis_data.keys())}")
+            if forecast:
+                logger.info(f"🔍 DEBUG - Found yield_forecast in analysis_data")
+
+            if not forecast:
+                logger.warning("No yield forecast data available")
+                return None
+            
+            # EXACT SAME BASELINE EXTRACTION AS RESULTS PAGE
+            try:
+                raw_baseline = forecast.get('baseline_yield')
+                baseline_yield = self._extract_first_float(raw_baseline, 0.0)
+                logger.info(f"🔍 DEBUG - Extracted baseline from forecast.baseline_yield: {baseline_yield}")
+
+                # If still zero/empty, try to infer from user's economic forecast - EXACT SAME LOGIC
+                if not baseline_yield:
+                    logger.info(f"🔍 DEBUG - No baseline found, checking economic forecast...")
+                    econ_paths = [
+                        ('economic_forecast', 'current_yield_tonnes_per_ha'),
+                        ('economic_forecast', 'current_yield'),
+                    ]
+                    # nested under analysis
+                    if 'analysis' in analysis_data and isinstance(analysis_data['analysis'], dict):
+                        analysis_econ = analysis_data['analysis'].get('economic_forecast', {})
+                        if analysis_econ:
+                            baseline_yield = self._extract_first_float(
+                                analysis_econ.get('current_yield_tonnes_per_ha') or analysis_econ.get('current_yield'),
+                                0.0,
+                            )
+                            logger.info(f"🔍 DEBUG - Extracted baseline from analysis.economic_forecast: {baseline_yield}")
+                    if not baseline_yield and 'economic_forecast' in analysis_data:
+                        econ = analysis_data.get('economic_forecast', {})
+                        baseline_yield = self._extract_first_float(
+                            econ.get('current_yield_tonnes_per_ha') or econ.get('current_yield'),
+                            0.0,
+                        )
+                        logger.info(f"🔍 DEBUG - Extracted baseline from economic_forecast: {baseline_yield}")
+
+                # As a final fallback, attempt to use the first point of any numeric series - EXACT SAME LOGIC
+                if not baseline_yield:
+                    logger.info(f"🔍 DEBUG - Still no baseline found, checking investment scenarios...")
+                    for key in ['medium_investment', 'high_investment', 'low_investment']:
+                        series = forecast.get(key)
+                        if isinstance(series, list) and len(series) > 0:
+                            baseline_yield = self._extract_first_float(series[0], 0.0)
+                            if baseline_yield:
+                                logger.info(f"🔍 DEBUG - Extracted baseline from {key}: {baseline_yield}")
+                                break
+
+                # If still no baseline, use default
+                if not baseline_yield:
+                    baseline_yield = 22.0  # Default fallback
+                    logger.info(f"🔍 DEBUG - Using default baseline: {baseline_yield}")
+
+                logger.info(f"🎯 PDF Using dynamic baseline yield: {baseline_yield:.1f} tonnes/hectare")
+            except Exception as e:
+                logger.error(f"❌ Error extracting baseline yield: {str(e)}")
+                baseline_yield = 22.0  # Default fallback
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Years including baseline (0-5) - EXACT SAME AS RESULTS PAGE
+            years = list(range(0, 6))
+            year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
+            
+            # Add baseline reference line - EXACT SAME AS RESULTS PAGE
+            if baseline_yield > 0:
+                ax.axhline(y=baseline_yield, color='gray', linestyle='--', alpha=0.7, linewidth=2)
+                # Add annotation text for baseline - position it at top right
+                ax.text(1.02, baseline_yield, f'Current Baseline: {baseline_yield:.1f} t/ha',
+                       transform=ax.get_yaxis_transform(), fontsize=10, color='gray',
+                       verticalalignment='center', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+            # Add lines for different investment approaches - EXACT SAME LOGIC AS RESULTS PAGE
+            # Always add all three investment lines, even if data is missing
+            investment_scenarios = [
+                ('high_investment', 'High Investment', '#e74c3c'),      # Red
+                ('medium_investment', 'Medium Investment', '#f39c12'),  # Orange
+                ('low_investment', 'Low Investment', '#27ae60')         # Green
+            ]
+
+            for scenario_key, scenario_name, color in investment_scenarios:
+                scenario_values = [baseline_yield]  # Start with baseline
+
+                if scenario_key in forecast:
+                    scenario_data = forecast[scenario_key]
+
+                    if isinstance(scenario_data, list) and len(scenario_data) >= 6:
+                        # Old array format - EXACT SAME LOGIC
+                        if len(scenario_data) >= 1 and isinstance(scenario_data[0], (int, float)) and baseline_yield and scenario_data[0] != baseline_yield:
+                            scenario_data = [baseline_yield] + scenario_data[1:]
+                        scenario_values = scenario_data[:6]  # Ensure we have exactly 6 values
+                    elif isinstance(scenario_data, dict):
+                        # New range or string-with-units format → parse robustly - EXACT SAME LOGIC
+                        for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                            if year in scenario_data:
+                                parsed = self._extract_first_float(scenario_data[year], baseline_yield)
+                                scenario_values.append(parsed if parsed else baseline_yield)
+                            else:
+                                scenario_values.append(baseline_yield)
+                    else:
+                        # Invalid data format, generate fallback - EXACT SAME LOGIC
+                        scenario_values = self._generate_fallback_values(baseline_yield, scenario_key)
+                else:
+                    # Generate fallback data if scenario is missing - EXACT SAME LOGIC
+                    scenario_values = self._generate_fallback_values(baseline_yield, scenario_key)
+
+                # Ensure we have exactly 6 values - EXACT SAME LOGIC
+                while len(scenario_values) < 6:
+                    scenario_values.append(scenario_values[-1] if scenario_values else baseline_yield)
+                scenario_values = scenario_values[:6]
+
+                # If a series is still flat (all equal), apply minimal offsets to ensure visibility - EXACT SAME LOGIC
+                if all(abs(v - scenario_values[0]) < 1e-6 for v in scenario_values):
+                    fallback = self._generate_fallback_values(baseline_yield, scenario_key)
+                    scenario_values = fallback[:6]
+
+                # Plot the line - EXACT SAME STYLING AS RESULTS PAGE
+                ax.plot(years, scenario_values, 'o-', label=scenario_name,
+                       linewidth=3, markersize=8, color=color, alpha=0.9)
+
+            # Set chart properties - IMPROVED TO MATCH RESULTS PAGE
+            ax.set_xlabel('Years', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Yield (tons/ha)', fontsize=12, fontweight='bold')
+            ax.set_title('5-Year Yield Projection from Current Baseline', fontsize=14, fontweight='bold', pad=20)
+
+            # Position legend at top right - EXACT SAME AS RESULTS PAGE
+            ax.legend(loc='upper right', bbox_to_anchor=(1.0, 1.0), framealpha=0.8)
+
+            # Add grid with proper styling
+            ax.grid(True, alpha=0.3, linestyle='-', color='gray')
+
+            # Calculate proper Y-axis range - IMPROVED LOGIC
+            all_values = [baseline_yield]
+            for scenario_key in ['high_investment', 'medium_investment', 'low_investment']:
+                if scenario_key in forecast:
+                    scenario_data = forecast[scenario_key]
+                    if isinstance(scenario_data, list):
+                        all_values.extend(scenario_data[:5])
+                    elif isinstance(scenario_data, dict):
+                        for year in ['year_1', 'year_2', 'year_3', 'year_4', 'year_5']:
+                            if year in scenario_data:
+                                parsed = self._extract_first_float(scenario_data[year], baseline_yield)
+                                all_values.append(parsed if parsed else baseline_yield)
+
+            if all_values:
+                data_min = min(all_values)
+                data_max = max(all_values)
+
+                # Calculate range with proper padding to show all lines clearly
+                if data_min == data_max:
+                    # If all values are the same, add some padding
+                    data_min *= 0.95
+                    data_max *= 1.05
+                else:
+                    # Add 10% padding on each side
+                    data_range = data_max - data_min
+                    data_min = data_min - data_range * 0.1
+                    data_max = data_max + data_range * 0.1
+
+                # Ensure minimum range of at least 5 units for visibility
+                if data_max - data_min < 5:
+                    mid_point = (data_min + data_max) / 2
+                    data_min = mid_point - 2.5
+                    data_max = mid_point + 2.5
+
+                ax.set_ylim(data_min, data_max)
+                logger.info(f"🔍 DEBUG - Set Y-axis range: {data_min:.1f} to {data_max:.1f}")
+
+            # Set x-axis labels - EXACT SAME AS RESULTS PAGE
+            ax.set_xticks(years)
+            ax.set_xticklabels(year_labels)
+            
+            plt.tight_layout()
+
+            # Save to buffer with error handling
+            try:
+                from io import BytesIO
+                buffer = BytesIO()
+                fig.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+                plt.close(fig)
+
+                # Validate buffer data
+                buffer_data = buffer.getvalue()
+                if not buffer_data or len(buffer_data) == 0:
+                    logger.error("❌ Buffer is empty after saving chart")
+                    return None
+
+                # Create reportlab Image with error handling
+                image_buffer = BytesIO(buffer_data)
+                chart_image = Image(image_buffer, width=6*inch, height=4*inch)
+
+                logger.info(f"✅ Successfully created dynamic yield forecast chart for PDF with baseline: {baseline_yield:.1f}")
+                return chart_image
+
+            except Exception as e:
+                logger.error(f"❌ Error saving chart to buffer: {str(e)}")
+                plt.close(fig)
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Error creating dynamic yield forecast chart for PDF: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return None
+
+    def _extract_first_float(self, value, default=0.0):
+        """Extract first float value from various data formats - EXACT COPY FROM RESULTS PAGE"""
+        if value is None:
+            return default
+        
+        if isinstance(value, (int, float)):
+            return float(value)
+        
+        if isinstance(value, str):
+            # Try to extract first number from string
+            import re
+            numbers = re.findall(r'-?\d+\.?\d*', value)
+            if numbers:
+                try:
+                    return float(numbers[0])
+                except (ValueError, TypeError):
+                    pass
+        
+        if isinstance(value, list) and value:
+            return self._extract_first_float(value[0], default)
+        
+        return default
+
+    def _generate_fallback_values(self, baseline_yield, scenario_key):
+        """Generate fallback values for investment scenarios - EXACT COPY FROM RESULTS PAGE"""
+        fallback_values = [baseline_yield]
+        for i in range(1, 6):
+            if scenario_key == 'high_investment':
+                # High investment: 20-30% total improvement over 5 years
+                improvement = 0.20 + (0.10 * i / 5)  # 20% to 30% over 5 years
+                fallback_values.append(baseline_yield * (1 + improvement))
+            elif scenario_key == 'medium_investment':
+                # Medium investment: 15-22% total improvement over 5 years
+                improvement = 0.15 + (0.07 * i / 5)  # 15% to 22% over 5 years
+                fallback_values.append(baseline_yield * (1 + improvement))
+            else:  # low_investment
+                # Low investment: 8-15% total improvement over 5 years
+                improvement = 0.08 + (0.07 * i / 5)  # 8% to 15% over 5 years
+                fallback_values.append(baseline_yield * (1 + improvement))
+        return fallback_values
+
     def _create_yield_forecast_chart_for_pdf(self, viz_data: Dict[str, Any], title: str) -> Optional[Image]:
-        """Create yield forecast chart for PDF"""
+        """Create yield forecast chart for PDF (legacy method)"""
         try:
             # Extract yield forecast data from analysis_data
             yield_forecast = viz_data.get('yield_forecast', {})
@@ -5079,7 +5367,7 @@ class PDFReportGenerator:
             return None
 
     def _create_soil_nutrient_status_chart_for_pdf(self, analysis_data: Dict[str, Any]) -> Optional[Image]:
-        """Create soil nutrient status chart for PDF - copied from results page"""
+        """Create soil nutrient status chart for PDF - individual bar charts for each parameter"""
         try:
             # Extract soil data using the same logic as results page
             actual_soil_data = {}
@@ -5110,19 +5398,10 @@ class PDFReportGenerator:
                     if avg_val is not None and avg_val != 0:
                         actual_soil_data[param_name] = avg_val
             
-            # If no real data found, use fallback values (same as results page)
+            # If no real data found, don't create chart (no fallback values)
             if not actual_soil_data:
-                actual_soil_data = {
-                    'pH': 4.15,
-                    'N (%)': 0.09,
-                    'Org. C (%)': 0.62,
-                    'Total P (mg/kg)': 111.80,
-                    'Avail P (mg/kg)': 2.30,
-                    'Exch. K (meq%)': 0.10,
-                    'Exch. Ca (meq%)': 0.30,
-                    'Exch. Mg (meq%)': 0.16,
-                    'CEC (meq%)': 6.16
-                }
+                logger.info("⏭️ No real soil data available - skipping chart creation")
+                return None
             
             # EXACT MPOB standards from results page
             soil_mpob_standards = {
@@ -5136,57 +5415,53 @@ class PDFReportGenerator:
                 'Exch. Mg (meq%)': (0.4, 0.8),
                 'CEC (meq%)': (12.0, 25.0)
             }
-
-            categories = []
-            observed_values = []
-            recommended_values = []
-
-            # Process ALL soil parameters in the exact order from results page
-            for param_name in actual_soil_data.keys():
-                categories.append(param_name)
+            
+            # Create individual bar charts for each parameter - 3x3 grid layout
+            fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+            fig.suptitle('🌱 Soil Nutrient Status (Average vs. MPOB Standard)', fontsize=16, fontweight='bold')
+            
+            # Flatten axes for easier indexing
+            axes_flat = axes.flatten()
+            
+            # Process each parameter individually
+            for i, (param_name, observed_val) in enumerate(actual_soil_data.items()):
+                if i >= 9:  # Limit to 9 parameters for 3x3 grid
+                    break
+                    
+                ax = axes_flat[i]
                 
-                # Observed value = EXACT average from user's data
-                observed_val = actual_soil_data[param_name]
-                observed_values.append(observed_val)
-                
-                # Recommended value = MPOB optimal midpoint
+                # Get MPOB optimal range
                 if param_name in soil_mpob_standards:
                     opt_min, opt_max = soil_mpob_standards[param_name]
-                    recommended_midpoint = (opt_min + opt_max) / 2
-                    recommended_values.append(recommended_midpoint)
+                    recommended_val = (opt_min + opt_max) / 2
                 else:
-                    recommended_values.append(0)
-
-            # Create the chart
-            fig, ax = plt.subplots(figsize=(12, 8))
+                    recommended_val = 0
+                
+                # Create individual bar chart
+                categories = ['Observed', 'Recommended']
+                values = [observed_val, recommended_val]
+                colors = ['#3498db', '#e74c3c']  # Blue for observed, red for recommended
+                
+                bars = ax.bar(categories, values, color=colors, alpha=0.8)
+                
+                # Add value labels on bars
+                for bar, value in zip(bars, values):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + max(values) * 0.02,
+                           f'{value:.1f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+                
+                # Customize individual chart
+                ax.set_title(param_name, fontsize=12, fontweight='bold')
+                ax.set_ylabel('Value', fontsize=10)
+                ax.grid(True, alpha=0.3)
+                
+                # Set y-axis limits for better visualization
+                max_val = max(values)
+                ax.set_ylim(0, max_val * 1.2)
             
-            x = range(len(categories))
-            width = 0.35
-            
-            # Create bars
-            bars1 = ax.bar([i - width/2 for i in x], observed_values, width, 
-                          label='Observed (Average)', color='#3498db', alpha=0.8)
-            bars2 = ax.bar([i + width/2 for i in x], recommended_values, width,
-                          label='Recommended (MPOB)', color='#e74c3c', alpha=0.8)
-            
-            # Add value labels on bars
-            for bar in bars1:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                       f'{height:.2f}', ha='center', va='bottom', fontsize=8)
-            
-            for bar in bars2:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                       f'{height:.2f}', ha='center', va='bottom', fontsize=8)
-            
-            ax.set_xlabel('Soil Parameters', fontsize=12)
-            ax.set_ylabel('Values', fontsize=12)
-            ax.set_title('🌱 Soil Nutrient Status (Average vs. MPOB Standard)', fontsize=14, fontweight='bold')
-            ax.set_xticks(x)
-            ax.set_xticklabels(categories, rotation=45, ha='right')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            # Hide unused subplots
+            for i in range(len(actual_soil_data), 9):
+                axes_flat[i].set_visible(False)
             
             plt.tight_layout()
             
@@ -5199,9 +5474,9 @@ class PDFReportGenerator:
             # Create reportlab Image
             buffer_data = buffer.getvalue()
             image_buffer = BytesIO(buffer_data)
-            chart_image = Image(image_buffer, width=6*inch, height=4*inch)
+            chart_image = Image(image_buffer, width=7*inch, height=5.5*inch)
             
-            logger.info(f"Successfully created soil nutrient status chart for PDF")
+            logger.info(f"Successfully created individual soil nutrient status charts for PDF")
             return chart_image
             
         except Exception as e:
@@ -5209,7 +5484,7 @@ class PDFReportGenerator:
             return None
 
     def _create_leaf_nutrient_status_chart_for_pdf(self, analysis_data: Dict[str, Any]) -> Optional[Image]:
-        """Create leaf nutrient status chart for PDF - copied from results page"""
+        """Create leaf nutrient status chart for PDF - individual bar charts for each parameter"""
         try:
             # Extract leaf data using the same logic as results page
             actual_leaf_data = {}
@@ -5240,18 +5515,10 @@ class PDFReportGenerator:
                     if avg_val is not None and avg_val != 0:
                         actual_leaf_data[param_name] = avg_val
             
-            # If no real data found, use fallback values (same as results page)
+            # If no real data found, don't create chart (no fallback values)
             if not actual_leaf_data:
-                actual_leaf_data = {
-                    'N (%)': 2.11,
-                    'P (%)': 0.13,
-                    'K (%)': 0.70,
-                    'Mg (%)': 0.25,
-                    'Ca (%)': 0.68,
-                    'B (mg/kg)': 17.30,
-                    'Cu (mg/kg)': 1.10,
-                    'Zn (mg/kg)': 10.50
-                }
+                logger.info("⏭️ No real leaf data available - skipping chart creation")
+                return None
             
             # EXACT MPOB standards from results page
             leaf_mpob_standards = {
@@ -5264,57 +5531,53 @@ class PDFReportGenerator:
                 'Cu (mg/kg)': (6.0, 10.0),
                 'Zn (mg/kg)': (15, 25)
             }
-
-            categories = []
-            observed_values = []
-            recommended_values = []
-
-            # Process ALL leaf parameters in the exact order from results page
-            for param_name in actual_leaf_data.keys():
-                categories.append(param_name)
+            
+            # Create individual bar charts for each parameter - 2x4 grid layout (8 parameters)
+            fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+            fig.suptitle('🍃 Leaf Nutrient Status (Average vs. MPOB Standard)', fontsize=16, fontweight='bold')
+            
+            # Flatten axes for easier indexing
+            axes_flat = axes.flatten()
+            
+            # Process each parameter individually
+            for i, (param_name, observed_val) in enumerate(actual_leaf_data.items()):
+                if i >= 8:  # Limit to 8 parameters for 2x4 grid
+                    break
+                    
+                ax = axes_flat[i]
                 
-                # Observed value = EXACT average from user's data
-                observed_val = actual_leaf_data[param_name]
-                observed_values.append(observed_val)
-                
-                # Recommended value = MPOB optimal midpoint
+                # Get MPOB optimal range
                 if param_name in leaf_mpob_standards:
                     opt_min, opt_max = leaf_mpob_standards[param_name]
-                    recommended_midpoint = (opt_min + opt_max) / 2
-                    recommended_values.append(recommended_midpoint)
+                    recommended_val = (opt_min + opt_max) / 2
                 else:
-                    recommended_values.append(0)
-
-            # Create the chart
-            fig, ax = plt.subplots(figsize=(12, 8))
+                    recommended_val = 0
+                
+                # Create individual bar chart
+                categories = ['Observed', 'Recommended']
+                values = [observed_val, recommended_val]
+                colors = ['#2ecc71', '#e67e22']  # Green for observed, orange for recommended
+                
+                bars = ax.bar(categories, values, color=colors, alpha=0.8)
+                
+                # Add value labels on bars
+                for bar, value in zip(bars, values):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + max(values) * 0.02,
+                           f'{value:.1f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+                
+                # Customize individual chart
+                ax.set_title(param_name, fontsize=12, fontweight='bold')
+                ax.set_ylabel('Value', fontsize=10)
+                ax.grid(True, alpha=0.3)
+                
+                # Set y-axis limits for better visualization
+                max_val = max(values)
+                ax.set_ylim(0, max_val * 1.2)
             
-            x = range(len(categories))
-            width = 0.35
-            
-            # Create bars
-            bars1 = ax.bar([i - width/2 for i in x], observed_values, width, 
-                          label='Observed (Average)', color='#2ecc71', alpha=0.8)
-            bars2 = ax.bar([i + width/2 for i in x], recommended_values, width,
-                          label='Recommended (MPOB)', color='#e67e22', alpha=0.8)
-            
-            # Add value labels on bars
-            for bar in bars1:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                       f'{height:.2f}', ha='center', va='bottom', fontsize=8)
-            
-            for bar in bars2:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                       f'{height:.2f}', ha='center', va='bottom', fontsize=8)
-            
-            ax.set_xlabel('Leaf Parameters', fontsize=12)
-            ax.set_ylabel('Values', fontsize=12)
-            ax.set_title('🍃 Leaf Nutrient Status (Average vs. MPOB Standard)', fontsize=14, fontweight='bold')
-            ax.set_xticks(x)
-            ax.set_xticklabels(categories, rotation=45, ha='right')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            # Hide unused subplots
+            for i in range(len(actual_leaf_data), 8):
+                axes_flat[i].set_visible(False)
             
             plt.tight_layout()
             
@@ -5327,9 +5590,9 @@ class PDFReportGenerator:
             # Create reportlab Image
             buffer_data = buffer.getvalue()
             image_buffer = BytesIO(buffer_data)
-            chart_image = Image(image_buffer, width=6*inch, height=4*inch)
+            chart_image = Image(image_buffer, width=7*inch, height=3.5*inch)
             
-            logger.info(f"Successfully created leaf nutrient status chart for PDF")
+            logger.info(f"Successfully created individual leaf nutrient status charts for PDF")
             return chart_image
             
         except Exception as e:
@@ -5353,22 +5616,27 @@ class PDFReportGenerator:
                     cleaned = ''.join(parts[:-1]) + '.' + parts[-1]
                 if not cleaned or cleaned in ['.', '-', '-.']:
                     return default
-            else:
-                cleaned = str(value)
+                else:
+                    cleaned = str(value)
 
             # Convert to float and format
             numeric_value = float(cleaned)
+            
+            # Handle zero values - show as 0.00 instead of 0.00 for better readability
+            if numeric_value == 0:
+                return "0.00"
+            
             return f"{numeric_value:.2f}"
         except (ValueError, TypeError):
             return default
 
     def _extract_real_data_for_tables(self, analysis_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract real data for tables from analysis_data"""
+        """Extract real data for tables from analysis_data - EXACT SAME LOGIC AS RESULTS PAGE"""
         try:
-            # Try to get data from multiple sources
+            # Try to get data from multiple sources - EXACT SAME LOGIC AS RESULTS PAGE
             real_data = {}
             
-            # Check for soil data
+            # Check for soil data - EXACT SAME LOGIC AS RESULTS PAGE
             soil_data = None
             if 'soil_data' in analysis_data:
                 soil_data = analysis_data['soil_data']
@@ -5378,6 +5646,15 @@ class PDFReportGenerator:
                 if 'soil_parameters' in analysis_data['analysis_results']['raw_data']:
                     soil_data = analysis_data['analysis_results']['raw_data']['soil_parameters']
             
+            # Check if we have structured OCR data that needs conversion - EXACT SAME LOGIC AS RESULTS PAGE
+            if not soil_data and 'raw_ocr_data' in analysis_data:
+                raw_ocr_data = analysis_data['raw_ocr_data']
+                if 'soil_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['soil_data']:
+                    from utils.analysis_engine import AnalysisEngine
+                    engine = AnalysisEngine()
+                    structured_soil_data = raw_ocr_data['soil_data']['structured_ocr_data']
+                    soil_data = engine._convert_structured_to_analysis_format(structured_soil_data, 'soil')
+            
             if soil_data and isinstance(soil_data, dict):
                 if 'parameter_statistics' in soil_data:
                     real_data['soil_parameters'] = soil_data['parameter_statistics']
@@ -5386,7 +5663,7 @@ class PDFReportGenerator:
                 else:
                     real_data['soil_parameters'] = soil_data
             
-            # Check for leaf data
+            # Check for leaf data - EXACT SAME LOGIC AS RESULTS PAGE
             leaf_data = None
             if 'leaf_data' in analysis_data:
                 leaf_data = analysis_data['leaf_data']
@@ -5395,6 +5672,15 @@ class PDFReportGenerator:
             elif 'analysis_results' in analysis_data and 'raw_data' in analysis_data['analysis_results']:
                 if 'leaf_parameters' in analysis_data['analysis_results']['raw_data']:
                     leaf_data = analysis_data['analysis_results']['raw_data']['leaf_parameters']
+            
+            # Check if we have structured OCR data that needs conversion - EXACT SAME LOGIC AS RESULTS PAGE
+            if not leaf_data and 'raw_ocr_data' in analysis_data:
+                raw_ocr_data = analysis_data['raw_ocr_data']
+                if 'leaf_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['leaf_data']:
+                    from utils.analysis_engine import AnalysisEngine
+                    engine = AnalysisEngine()
+                    structured_leaf_data = raw_ocr_data['leaf_data']['structured_ocr_data']
+                    leaf_data = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
             
             if leaf_data and isinstance(leaf_data, dict):
                 if 'parameter_statistics' in leaf_data:
@@ -5416,7 +5702,11 @@ class PDFReportGenerator:
             elif 'analysis_results' in analysis_data and 'economic_forecast' in analysis_data['analysis_results']:
                 real_data['economic_forecast'] = analysis_data['analysis_results']['economic_forecast']
             
-            logger.info(f"🎯 Extracted real data for tables: {list(real_data.keys())}")
+            logger.info(f"🎯 PDF Extracted real data for tables: {list(real_data.keys())}")
+            if 'soil_parameters' in real_data:
+                logger.info(f"🎯 PDF Soil parameters count: {len(real_data['soil_parameters'])}")
+            if 'leaf_parameters' in real_data:
+                logger.info(f"🎯 PDF Leaf parameters count: {len(real_data['leaf_parameters'])}")
             return real_data
             
         except Exception as e:
@@ -5424,214 +5714,15 @@ class PDFReportGenerator:
             return {}
 
     def _create_soil_parameters_pdf_table(self, soil_stats: Dict[str, Any]) -> List:
-        """Create soil parameters PDF table with actual values from results page"""
+        """Create soil parameters PDF table - REMOVED as requested by user"""
         story = []
-        
-        try:
-            story.append(Paragraph("🌱 Soil Parameters Summary", self.styles['Heading3']))
-            story.append(Spacer(1, 8))
-            
-            # Create table data
-            table_data = [['Parameter', 'Average', 'Min', 'Max', 'Std Dev', 'MPOB Optimal', 'Status']]
-            
-            # Use the exact same MPOB standards as the results page
-            soil_mpob_standards = {
-                'pH': (5.0, 6.0),
-                'N (%)': (0.15, 0.25),
-                'Org. C (%)': (2.0, 4.0),
-                'Total P (mg/kg)': (20, 50),
-                'Avail P (mg/kg)': (20, 50),
-                'Exch. K (meq%)': (0.2, 0.5),
-                'Exch. Ca (meq%)': (3.0, 6.0),
-                'Exch. Mg (meq%)': (0.4, 0.8),
-                'CEC (meq%)': (12.0, 25.0)
-            }
-            
-            for param_name, param_data in soil_stats.items():
-                # Handle different data formats
-                if isinstance(param_data, dict):
-                    avg_val = param_data.get('average', 0)
-                    min_val = param_data.get('min', 0)
-                    max_val = param_data.get('max', 0)
-                    std_dev = param_data.get('std_dev', 0)
-                elif isinstance(param_data, (int, float)):
-                    avg_val = param_data
-                    min_val = param_data
-                    max_val = param_data
-                    std_dev = 0
-                else:
-                    avg_val = 0
-                    min_val = 0
-                    max_val = 0
-                    std_dev = 0
-                
-                logger.info(f"PDF Soil param {param_name}: avg={avg_val}, min={min_val}, max={max_val}")
-
-                # Clean all numeric values using the new cleaning function
-                avg_display = self._clean_numeric_value_for_pdf(avg_val)
-                min_display = self._clean_numeric_value_for_pdf(min_val)
-                max_display = self._clean_numeric_value_for_pdf(max_val)
-                std_dev_display = self._clean_numeric_value_for_pdf(std_dev)
-                
-                # Get MPOB optimal range
-                optimal_range = soil_mpob_standards.get(param_name)
-                if optimal_range:
-                    opt_min, opt_max = optimal_range
-                    opt_display = f"{opt_min}-{opt_max}"
-                    
-                    # Determine status using cleaned average value
-                    try:
-                        avg_numeric = float(avg_display) if avg_display != "0.00" else 0
-                        if avg_numeric != 0:
-                            if opt_min <= avg_numeric <= opt_max:
-                                status = "Optimal"
-                            elif avg_numeric < opt_min:
-                                status = "Critical Low"
-                        else:
-                            status = "Critical High"
-                    except (ValueError, TypeError):
-                        status = "No Data"
-                else:
-                    opt_display = "N/A"
-                    status = "No Standard"
-                
-                table_data.append([
-                    param_name,
-                    avg_display,
-                    min_display,
-                    max_display,
-                    std_dev_display,
-                    opt_display,
-                    status
-                ])
-            
-            # Create table
-            table = Table(table_data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ]))
-            
-            story.append(table)
-            story.append(Spacer(1, 12))
-            
-        except Exception as e:
-            logger.error(f"Error creating soil parameters PDF table: {str(e)}")
-            story.append(Paragraph("Error generating soil parameters table", self.styles['Normal']))
-        
+        # Soil Parameters Summary table removed as requested by user
         return story
 
     def _create_leaf_parameters_pdf_table(self, leaf_stats: Dict[str, Any]) -> List:
-        """Create leaf parameters PDF table with actual values from results page"""
+        """Create leaf parameters PDF table - REMOVED as requested by user"""
         story = []
-        
-        try:
-            story.append(Paragraph("🍃 Leaf Parameters Summary", self.styles['Heading3']))
-            story.append(Spacer(1, 8))
-            
-            # Create table data
-            table_data = [['Parameter', 'Average', 'Min', 'Max', 'Std Dev', 'MPOB Optimal', 'Status']]
-            
-            # Use the exact same MPOB standards as the results page
-            leaf_mpob_standards = {
-                'N (%)': (2.6, 3.2),
-                'P (%)': (0.16, 0.22),
-                'K (%)': (1.3, 1.7),
-                'Mg (%)': (0.28, 0.38),
-                'Ca (%)': (0.5, 0.7),
-                'B (mg/kg)': (18, 28),
-                'Cu (mg/kg)': (6.0, 10.0),
-                'Zn (mg/kg)': (15, 25)
-            }
-            
-            for param_name, param_data in leaf_stats.items():
-                # Handle different data formats
-                if isinstance(param_data, dict):
-                    avg_val = param_data.get('average', 0)
-                    min_val = param_data.get('min', 0)
-                    max_val = param_data.get('max', 0)
-                    std_dev = param_data.get('std_dev', 0)
-                elif isinstance(param_data, (int, float)):
-                    avg_val = param_data
-                    min_val = param_data
-                    max_val = param_data
-                    std_dev = 0
-                else:
-                    avg_val = 0
-                    min_val = 0
-                    max_val = 0
-                    std_dev = 0
-                
-                logger.info(f"PDF Leaf param {param_name}: avg={avg_val}, min={min_val}, max={max_val}")
-
-                # Clean all numeric values using the new cleaning function
-                avg_display = self._clean_numeric_value_for_pdf(avg_val)
-                min_display = self._clean_numeric_value_for_pdf(min_val)
-                max_display = self._clean_numeric_value_for_pdf(max_val)
-                std_dev_display = self._clean_numeric_value_for_pdf(std_dev)
-                
-                # Get MPOB optimal range
-                optimal_range = leaf_mpob_standards.get(param_name)
-                if optimal_range:
-                    opt_min, opt_max = optimal_range
-                    opt_display = f"{opt_min}-{opt_max}"
-                    
-                    # Determine status using cleaned average value
-                    try:
-                        avg_numeric = float(avg_display) if avg_display != "0.00" else 0
-                        if avg_numeric != 0:
-                            if opt_min <= avg_numeric <= opt_max:
-                                status = "Optimal"
-                            elif avg_numeric < opt_min:
-                                status = "Critical Low"
-                        else:
-                            status = "Critical High"
-                    except (ValueError, TypeError):
-                        status = "No Data"
-                else:
-                    opt_display = "N/A"
-                    status = "No Standard"
-                
-                table_data.append([
-                    param_name,
-                    avg_display,
-                    min_display,
-                    max_display,
-                    std_dev_display,
-                    opt_display,
-                    status
-                ])
-            
-            # Create table
-            table = Table(table_data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ]))
-            
-            story.append(table)
-            story.append(Spacer(1, 12))
-            
-        except Exception as e:
-            logger.error(f"Error creating leaf parameters PDF table: {str(e)}")
-            story.append(Paragraph("Error generating leaf parameters table", self.styles['Normal']))
-        
+        # Leaf Parameters Summary table removed as requested by user
         return story
 
     def _create_raw_samples_pdf_table(self, raw_samples: List[Dict], sample_type: str) -> List:

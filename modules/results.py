@@ -1247,17 +1247,36 @@ def get_analysis_results_from_data(results_data):
         return {}
     
     analysis_results = results_data.get('analysis_results', {})
+    logger.info(f"🔍 DEBUG - Initial analysis_results from results_data: {type(analysis_results)} - keys: {list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'Not a dict'}")
     
     # If analysis_results is empty, try to get it from session state
-    if not analysis_results and 'stored_analysis_results' in st.session_state:
+    if not analysis_results and 'stored_analysis_results' in st.session_state and st.session_state.stored_analysis_results:
         result_id = results_data.get('id')
+        logger.info(f"🔍 DEBUG - Looking for result_id: {result_id} in stored_analysis_results")
+        
         if result_id and result_id in st.session_state.stored_analysis_results:
             analysis_results = st.session_state.stored_analysis_results[result_id]
+            logger.info(f"🔍 DEBUG - Found stored analysis_results for {result_id}: {type(analysis_results)} - keys: {list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'Not a dict'}")
+        else:
+            # If no specific result_id, get the latest one
+            latest_id = max(st.session_state.stored_analysis_results.keys())
+            analysis_results = st.session_state.stored_analysis_results[latest_id]
+            logger.info(f"🔍 DEBUG - Using latest stored analysis_results {latest_id}: {type(analysis_results)} - keys: {list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'Not a dict'}")
+    
+    # If still empty, check if the entire results_data is actually the analysis results
+    if not analysis_results and 'step_by_step_analysis' in results_data:
+        logger.info("🔍 DEBUG - Found step_by_step_analysis directly in results_data")
+        analysis_results = results_data
     
     # Ensure analysis_results is a dictionary
     if not isinstance(analysis_results, dict):
         logger.warning(f"analysis_results is not a dict: {type(analysis_results)}")
         return {}
+    
+    logger.info(f"🔍 DEBUG - Final analysis_results: {type(analysis_results)} - keys: {list(analysis_results.keys())}")
+    if 'step_by_step_analysis' in analysis_results:
+        step_count = len(analysis_results['step_by_step_analysis']) if isinstance(analysis_results['step_by_step_analysis'], list) else 0
+        logger.info(f"🔍 DEBUG - step_by_step_analysis found with {step_count} steps")
     
     return analysis_results
 
@@ -3923,6 +3942,21 @@ def display_step_by_step_results(results_data):
     step_results = analysis_results.get('step_by_step_analysis', []) if isinstance(analysis_results, dict) else []
     total_steps = len(step_results)
     
+    # Enhanced debugging for step-by-step analysis
+    logger.info(f"🔍 DEBUG - step_results type: {type(step_results)}")
+    logger.info(f"🔍 DEBUG - step_results length: {len(step_results) if isinstance(step_results, list) else 'Not a list'}")
+    if isinstance(step_results, list) and step_results:
+        logger.info(f"🔍 DEBUG - first step keys: {list(step_results[0].keys()) if isinstance(step_results[0], dict) else 'Not a dict'}")
+    
+    # Also check if there are step results in session state that aren't being captured
+    if hasattr(st.session_state, 'stored_analysis_results') and st.session_state.stored_analysis_results:
+        logger.info(f"🔍 DEBUG - stored_analysis_results keys: {list(st.session_state.stored_analysis_results.keys())}")
+        latest_id = max(st.session_state.stored_analysis_results.keys())
+        latest_analysis = st.session_state.stored_analysis_results[latest_id]
+        if 'step_by_step_analysis' in latest_analysis:
+            stored_steps = latest_analysis['step_by_step_analysis']
+            logger.info(f"🔍 DEBUG - stored step_by_step_analysis length: {len(stored_steps) if isinstance(stored_steps, list) else 'Not a list'}")
+    
     # Remove quota exceeded banner to allow seamless analysis up to daily limit
     
     # Display header with enhanced step information
@@ -3936,6 +3970,26 @@ def display_step_by_step_results(results_data):
         # Add analysis metadata
     else:
         st.warning("⚠️ No step-by-step analysis results found. This may indicate an issue with the analysis process.")
+        
+        # Enhanced debugging display for user
+        if st.button("🔍 Debug Analysis Data"):
+            st.markdown("**Debug Information:**")
+            st.markdown(f"- Analysis results type: {type(analysis_results)}")
+            st.markdown(f"- Analysis results keys: {list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'Not a dict'}")
+            st.markdown(f"- Step results type: {type(step_results)}")
+            st.markdown(f"- Step results length: {len(step_results) if isinstance(step_results, list) else 'Not a list'}")
+            
+            # Check session state for analysis data
+            if hasattr(st.session_state, 'stored_analysis_results') and st.session_state.stored_analysis_results:
+                st.markdown(f"- Stored analysis results found: {len(st.session_state.stored_analysis_results)} items")
+                latest_id = max(st.session_state.stored_analysis_results.keys())
+                latest_analysis = st.session_state.stored_analysis_results[latest_id]
+                st.markdown(f"- Latest analysis keys: {list(latest_analysis.keys()) if isinstance(latest_analysis, dict) else 'Not a dict'}")
+                if 'step_by_step_analysis' in latest_analysis:
+                    stored_steps = latest_analysis['step_by_step_analysis']
+                    st.markdown(f"- Stored step analysis length: {len(stored_steps) if isinstance(stored_steps, list) else 'Not a list'}")
+            else:
+                st.markdown("- No stored analysis results in session state")
     
     if not step_results:
         # Also display other analysis components if available
@@ -4802,63 +4856,6 @@ def display_references_section(results_data):
                 st.error(f"❌ Failed to generate PDF: {str(e)}")
                 st.info("Please try again or contact support if the issue persists.")
 
-def display_step_by_step_results(results_data):
-    """Display step-by-step analysis results with enhanced LLM response clarity"""
-    st.markdown("---")
-    
-    # Get step results from analysis results using helper function with type checking
-    analysis_results = get_analysis_results_from_data(results_data)
-    
-    # Ensure analysis_results is a dictionary
-    if not isinstance(analysis_results, dict):
-        st.error("❌ Analysis results data format error")
-        return
-    
-    step_results = analysis_results.get('step_by_step_analysis', []) if isinstance(analysis_results, dict) else []
-    total_steps = len(step_results)
-    
-    # Remove quota exceeded banner to allow seamless analysis up to daily limit
-    
-    # Display header with enhanced step information
-    st.markdown(f"## 🔬 **Step-by-Step Analysis** ({total_steps} Steps)")
-    st.markdown("---")
-
-    
-    if total_steps > 0:
-        # Show analysis progress with visual indicator
-        progress_bar = st.progress(1.0)
-        
-        # Add analysis metadata
-    else:
-        st.warning("⚠️ No step-by-step analysis results found. This may indicate an issue with the analysis process.")
-    
-    if not step_results:
-        # Also display other analysis components if available
-        display_analysis_components(analysis_results)
-        return
-    
-    # Display each step in organized blocks instead of tabs
-    if len(step_results) > 0:
-        # Display each step as a separate block with clear visual separation
-        for i, step_result in enumerate(step_results):
-            # Ensure step_result is a dictionary
-            if not isinstance(step_result, dict):
-                logger.error(f"Step {i+1} step_result is not a dictionary: {type(step_result)}")
-                st.error(f"❌ Error: Step {i+1} data is not in the expected format")
-                continue
-            
-            step_number = step_result.get('step_number', i+1)
-            step_title = step_result.get('step_title', f'Step {step_number}')
-            
-            # Create a visual separator between steps
-            if i > 0:
-                st.markdown("---")
-            
-            # Display the step result in a block format
-            display_step_block(step_result, step_number, step_title)
-    
-    # Display additional analysis components (Economic Forecast removed as requested)
-    # display_analysis_components(analysis_results)
 
 def display_analysis_components(analysis_results):
     """Display comprehensive analysis components like economic forecasts"""
@@ -8967,9 +8964,11 @@ def display_nutrient_status_tables(analysis_data):
                         opt_display = "N.D."
                         status = "N.D."
                     
-                    # Handle missing values properly
-                    if avg_val is None or avg_val == 0.0:
+                    # Handle missing values properly - show 0.00 for actual zero values
+                    if avg_val is None:
                         avg_display = 'N.D.'
+                    elif avg_val == 0.0:
+                        avg_display = '0.00'  # Show actual zero values as 0.00
                     elif isinstance(avg_val, (int, float)):
                         avg_display = f"{avg_val:.2f}"
                     else:
@@ -9063,9 +9062,11 @@ def display_nutrient_status_tables(analysis_data):
                         opt_display = "N.D."
                         status = "N.D."
                     
-                    # Handle missing values properly
-                    if avg_val is None or avg_val == 0.0:
+                    # Handle missing values properly - show 0.00 for actual zero values
+                    if avg_val is None:
                         avg_display = 'N.D.'
+                    elif avg_val == 0.0:
+                        avg_display = '0.00'  # Show actual zero values as 0.00
                     elif isinstance(avg_val, (int, float)):
                         avg_display = f"{avg_val:.2f}"
                     else:
