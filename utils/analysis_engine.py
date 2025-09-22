@@ -6817,8 +6817,11 @@ class AnalysisEngine:
             }
 
     def _finalize_analysis_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        """Finalize and validate analysis results"""
+        """Finalize and validate analysis results, ensuring no nested arrays"""
         try:
+            # Flatten nested arrays to prevent Firestore storage issues
+            results = self._flatten_analysis_results(results)
+
             # Add final validation checks
             results['final_validation'] = {
                 'timestamp': datetime.now().isoformat(),
@@ -6842,6 +6845,89 @@ class AnalysisEngine:
         except Exception as e:
             self.logger.error(f"Error finalizing analysis results: {str(e)}")
             return results
+
+    def _flatten_analysis_results(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Flatten nested arrays in analysis results to prevent Firestore storage issues"""
+        try:
+            flattened = {}
+
+            for key, value in data.items():
+                if isinstance(value, datetime):
+                    # Convert datetime to ISO string
+                    flattened[key] = value.isoformat()
+                elif key == 'step_by_step_analysis' and isinstance(value, list):
+                    # Special handling for step_by_step_analysis: preserve list but flatten contents
+                    self.logger.info(f"🔧 Flattening step_by_step_analysis with {len(value)} steps")
+                    flattened_steps = []
+                    for step in value:
+                        if isinstance(step, dict):
+                            flattened_step = self._flatten_step_content(step)
+                            flattened_steps.append(flattened_step)
+                        else:
+                            flattened_steps.append(step)
+                    flattened[key] = flattened_steps
+                elif isinstance(value, list):
+                    # Convert lists to maps with string keys to avoid nested arrays
+                    if value:  # Only if list is not empty
+                        flattened[key] = {f"item_{i}": self._flatten_single_item(item) for i, item in enumerate(value)}
+                    else:
+                        flattened[key] = {}
+                elif isinstance(value, dict):
+                    # Recursively flatten nested dictionaries
+                    flattened[key] = self._flatten_analysis_results(value)
+                else:
+                    flattened[key] = value
+
+            return flattened
+        except Exception as e:
+            self.logger.error(f"Error flattening analysis results: {e}")
+            return data
+
+    def _flatten_step_content(self, step: Dict[str, Any]) -> Dict[str, Any]:
+        """Flatten the content of a single analysis step"""
+        try:
+            flattened_step = {}
+
+            for key, value in step.items():
+                if isinstance(value, datetime):
+                    flattened_step[key] = value.isoformat()
+                elif isinstance(value, list):
+                    # Convert step lists (like visualizations, tables) to maps
+                    if value and isinstance(value[0], dict):
+                        # If list contains dictionaries, convert to map
+                        flattened_step[key] = {f"item_{i}": self._flatten_single_item(item) for i, item in enumerate(value)}
+                    else:
+                        # If list contains simple values, keep as simple list (Firestore allows simple lists)
+                        flattened_step[key] = value
+                elif isinstance(value, dict):
+                    # Recursively flatten nested dictionaries
+                    flattened_step[key] = self._flatten_analysis_results(value)
+                else:
+                    flattened_step[key] = value
+
+            return flattened_step
+        except Exception as e:
+            self.logger.error(f"Error flattening step content: {e}")
+            return step
+
+    def _flatten_single_item(self, item: Any) -> Any:
+        """Flatten a single item, converting complex structures to strings if needed"""
+        try:
+            if isinstance(item, datetime):
+                return item.isoformat()
+            elif isinstance(item, dict):
+                # For dictionaries in lists, convert to JSON string to avoid nested structures
+                import json
+                return json.dumps(item, default=str)
+            elif isinstance(item, list):
+                # For nested lists, convert to JSON string
+                import json
+                return json.dumps(item, default=str)
+            else:
+                return item
+        except Exception as e:
+            self.logger.error(f"Error flattening single item: {e}")
+            return str(item)
 
     def _validate_result_integrity(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Validate the integrity of analysis results"""

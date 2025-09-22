@@ -133,8 +133,20 @@ def display_history_statistics():
         timestamps = []
         for doc in user_analyses:
             created_at = doc.to_dict().get('created_at', datetime.now())
-            # Convert timezone-aware datetime to naive for comparison
-            if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
+            # Handle timezone-aware datetime or ISO string from Firestore
+            if isinstance(created_at, str):
+                try:
+                    # Parse ISO string back to datetime
+                    created_at_parsed = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    # Remove timezone info for comparison
+                    if hasattr(created_at_parsed, 'replace') and hasattr(created_at_parsed, 'tzinfo') and created_at_parsed.tzinfo is not None:
+                        created_at_naive = created_at_parsed.replace(tzinfo=None)
+                    else:
+                        created_at_naive = created_at_parsed
+                except (ValueError, AttributeError):
+                    # If parsing fails, use current time
+                    created_at_naive = datetime.now()
+            elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                 created_at_naive = created_at.replace(tzinfo=None)
             else:
                 created_at_naive = created_at
@@ -286,13 +298,26 @@ def display_analysis_history():
             if search_term:
                 search_lower = search_term.lower()
                 created_at = analysis_data.get('created_at', datetime.now())
-                
+
                 # Handle timezone-aware datetime for string formatting
-                if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
+                # created_at might be a string (ISO format) from Firestore storage
+                if isinstance(created_at, str):
+                    try:
+                        # Parse ISO string back to datetime
+                        created_at_parsed = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        # Remove timezone info for display
+                        if hasattr(created_at_parsed, 'replace') and hasattr(created_at_parsed, 'tzinfo') and created_at_parsed.tzinfo is not None:
+                            created_at_naive = created_at_parsed.replace(tzinfo=None)
+                        else:
+                            created_at_naive = created_at_parsed
+                    except (ValueError, AttributeError):
+                        # If parsing fails, use current time
+                        created_at_naive = datetime.now()
+                elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                     created_at_naive = created_at.replace(tzinfo=None)
                 else:
                     created_at_naive = created_at
-                    
+
                 timestamp_str = created_at_naive.strftime('%Y-%m-%d %H:%M').lower()
                 status_str = 'completed'  # analysis_results are always completed
                 
@@ -382,7 +407,18 @@ def display_analysis_history():
             status = 'completed'  # analysis_results are always completed
 
             # Handle timezone-aware datetime for display
-            if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
+            # created_at might be a string (ISO format) from Firestore storage
+            if isinstance(created_at, str):
+                try:
+                    # Parse ISO string back to datetime
+                    timestamp = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    # Remove timezone info for display
+                    if hasattr(timestamp, 'replace') and hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is not None:
+                        timestamp = timestamp.replace(tzinfo=None)
+                except (ValueError, AttributeError):
+                    # If parsing fails, use current time
+                    timestamp = datetime.now()
+            elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                 timestamp = created_at.replace(tzinfo=None)
             else:
                 timestamp = created_at
