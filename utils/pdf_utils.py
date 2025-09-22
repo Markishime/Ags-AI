@@ -243,18 +243,18 @@ class PDFReportGenerator:
         
         # Check if this is step-by-step analysis format
         is_step_by_step = 'step_by_step_analysis' in analysis_data
-
+        
         if is_step_by_step:
             # Comprehensive PDF format with step-by-step analysis and visualizations
             # Include ALL sections from results page to match exactly what user sees
-
+            
             try:
                 # 1. Results Header (metadata)
                 story.extend(self._create_results_header_section(analysis_data, metadata))
             except Exception as e:
                 logger.error(f"Error creating results header: {str(e)}")
                 story.append(Paragraph("Analysis Results", self.styles['Heading1']))
-
+            
             try:
                 # 2. Executive Summary (if enabled) - COPY EXACTLY FROM RESULTS PAGE
                 if options.get('include_summary', True):
@@ -263,7 +263,7 @@ class PDFReportGenerator:
                 logger.error(f"Error creating executive summary: {str(e)}")
                 story.append(Paragraph("Executive Summary", self.styles['Heading2']))
                 story.append(Paragraph("Summary could not be generated due to technical issues.", self.styles['Normal']))
-
+            
             try:
                 # 4. Key Findings - COPY FROM RESULTS PAGE
                 if options.get('include_key_findings', True):
@@ -272,7 +272,7 @@ class PDFReportGenerator:
                 logger.error(f"Error creating key findings: {str(e)}")
                 story.append(Paragraph("Key Findings", self.styles['Heading2']))
                 story.append(Paragraph("Key findings could not be generated due to technical issues.", self.styles['Normal']))
-
+            
             try:
                 # 5. Step-by-Step Analysis (if enabled)
                 if options.get('include_step_analysis', True):
@@ -281,7 +281,7 @@ class PDFReportGenerator:
                 logger.error(f"Error creating step-by-step analysis: {str(e)}")
                 story.append(Paragraph("Step-by-Step Analysis", self.styles['Heading2']))
                 story.append(Paragraph("Step-by-step analysis could not be generated due to technical issues.", self.styles['Normal']))
-
+            
             # 6. Data Visualizations - ALL GRAPHS AND CHARTS
             # Only add visualizations section if we have proper data, otherwise skip it entirely
             if options.get('include_charts', True):
@@ -298,7 +298,7 @@ class PDFReportGenerator:
 
             # 7. Economic Forecast Tables (always included for step-by-step)
             story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
-
+            
             # 8. References (if enabled)
             if options.get('include_references', True):
                 story.extend(self._create_references_section(analysis_data))
@@ -306,27 +306,26 @@ class PDFReportGenerator:
             # 7. Conclusion (always included)
             story.extend(self._create_enhanced_conclusion(analysis_data))
         elif 'summary_metrics' in analysis_data and 'health_indicators' in analysis_data:
-            # Comprehensive analysis format
-            story.extend(self._create_comprehensive_executive_summary(analysis_data))
-            story.extend(self._create_health_indicators_section(analysis_data))
-            story.extend(self._create_detailed_analysis_section(analysis_data))
-            story.extend(self._create_comprehensive_recommendations_section(analysis_data))
-            
+            # Comprehensive analysis format - using existing methods
+            # Note: Some methods (_create_comprehensive_executive_summary, _create_health_indicators_section,
+            # _create_detailed_analysis_section, _create_comprehensive_recommendations_section,
+            # _create_comprehensive_economic_section, _create_comprehensive_forecast_section,
+            # _create_data_quality_section) are not implemented yet
+
+            # Using available methods instead
+            story.extend(self._create_enhanced_executive_summary(analysis_data))
+
             # Economic analysis (always included for comprehensive)
             if 'economic_analysis' in analysis_data:
-                story.extend(self._create_comprehensive_economic_section(analysis_data['economic_analysis']))
-            
+                story.extend(self._create_comprehensive_economic_analysis(analysis_data))
+
             # Economic forecast tables and charts (always included for comprehensive)
             story.extend(self._create_enhanced_economic_forecast_table(analysis_data))
             story.extend(self._create_enhanced_yield_forecast_graph(analysis_data))
-            
+
             # Yield forecast (always included for comprehensive)
             if 'yield_forecast' in analysis_data:
-                story.extend(self._create_comprehensive_forecast_section(analysis_data['yield_forecast']))
-            
-            # Data quality section
-            if 'data_quality' in analysis_data:
-                story.extend(self._create_data_quality_section(analysis_data['data_quality']))
+                story.extend(self._create_yield_projections_section(analysis_data))
             
             # Charts section (if enabled)
             if options.get('include_charts', True):
@@ -463,7 +462,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 20))
         
         return story
-    
+        
     def _create_parameters_section(self, analysis_data: Dict[str, Any]) -> List:
         """Create parameters section for legacy format"""
         story = []
@@ -1460,7 +1459,7 @@ class PDFReportGenerator:
 
         logger.info(f"🔍 DEBUG - Found {len(step_results)} steps in step_by_step_analysis")
         logger.info(f"🔍 DEBUG - step_results: {step_results}")
-
+        
         for step in step_results:
             step_number = step.get('step_number', 'Unknown')
             step_title = step.get('step_title', 'Unknown Step')
@@ -1473,7 +1472,7 @@ class PDFReportGenerator:
                     step_number = 0
 
             logger.info(f"🔍 DEBUG - Processing step: number={step_number}, title={step_title}")
-
+            
             # Step header
             story.append(Paragraph(f"Step {step_number}: {step_title}", self.styles['Heading2']))
             story.append(Spacer(1, 8))
@@ -4619,8 +4618,8 @@ class PDFReportGenerator:
             
             if not leaf_data:
                 logger.warning("❌ No leaf data found in any location")
-                return None
-                
+            return None
+        
             # Extract parameter statistics with robust mapping
             param_stats = None
             if isinstance(leaf_data, dict):
@@ -4772,7 +4771,7 @@ class PDFReportGenerator:
                 story.append(Paragraph("🌱 Consolidated Findings", self.styles['Heading2']))
                 story.append(Spacer(1, 12))
                 story.append(Paragraph("No consolidated findings available.", self.styles['Normal']))
-                
+        
         except Exception as e:
             logger.error(f"Error creating consolidated key findings section: {str(e)}")
             story.append(Paragraph("Error generating key findings section", self.styles['Normal']))
@@ -4782,12 +4781,12 @@ class PDFReportGenerator:
     def _create_comprehensive_visualizations_section(self, analysis_data: Dict[str, Any]) -> List:
         """Create comprehensive visualizations section with all charts and graphs"""
         story = []
-
+        
         try:
             # Section header
             story.append(Paragraph("📊 Data Visualizations", self.styles['Heading2']))
             story.append(Spacer(1, 12))
-
+            
             # Create soil and leaf nutrient status charts only if we have proper data
             charts_added = False
 
@@ -5264,7 +5263,7 @@ class PDFReportGenerator:
             if not yield_forecast:
                 logger.warning("No yield forecast data available")
                 return None
-            
+
             fig, ax = plt.subplots(figsize=(10, 6))
             
             years = list(range(1, 6))  # Year 1 to Year 5
@@ -5292,23 +5291,23 @@ class PDFReportGenerator:
                                         values.append(avg_value)
                                     except (ValueError, TypeError):
                                         values.append(0)
-                                else:
-                                    try:
-                                        values.append(float(value_str))
-                                    except (ValueError, TypeError):
-                                        values.append(0)
-                            else:
-                                values.append(0)
-                        
-                        if len(values) == 5:
-                            ax.plot(years, values, style, label=investment_name, linewidth=2, markersize=6)
+            else:
+                try:
+                    values.append(float(value_str))
+                except (ValueError, TypeError):
+                    values.append(0)
+                else:
+                    values.append(0)
+
+                    if len(values) == 5:
+                        ax.plot(years, values, style, label=investment_name, linewidth=2, markersize=6)
             
             ax.set_xlabel('Year')
             ax.set_ylabel('Yield (tonnes/hectare)')
             ax.set_title('5-Year Yield Forecast (t/ha)')
             ax.legend()
             ax.grid(True, alpha=0.3)
-            
+
             # Save to buffer
             from io import BytesIO
             buffer = BytesIO()
@@ -5326,7 +5325,7 @@ class PDFReportGenerator:
         except Exception as e:
             logger.error(f"Error creating yield forecast chart for PDF: {str(e)}")
             return None
-
+            
     def _create_nutrient_gap_chart_for_pdf(self, viz_data: Dict[str, Any], title: str) -> Optional[Image]:
         """Create nutrient gap chart for PDF"""
         try:
@@ -5361,11 +5360,11 @@ class PDFReportGenerator:
             
             logger.info(f"Successfully created nutrient gap chart for PDF")
             return chart_image
-            
+        
         except Exception as e:
             logger.error(f"Error creating nutrient gap chart for PDF: {str(e)}")
             return None
-
+        
     def _create_soil_nutrient_status_chart_for_pdf(self, analysis_data: Dict[str, Any]) -> Optional[Image]:
         """Create soil nutrient status chart for PDF - individual bar charts for each parameter"""
         try:
@@ -5545,8 +5544,8 @@ class PDFReportGenerator:
                     break
                     
                 ax = axes_flat[i]
-                
-                # Get MPOB optimal range
+            
+            # Get MPOB optimal range
                 if param_name in leaf_mpob_standards:
                     opt_min, opt_max = leaf_mpob_standards[param_name]
                     recommended_val = (opt_min + opt_max) / 2
@@ -5687,7 +5686,7 @@ class PDFReportGenerator:
                     real_data['leaf_parameters'] = leaf_data['parameter_statistics']
                 elif 'statistics' in leaf_data:
                     real_data['leaf_parameters'] = leaf_data['statistics']
-                else:
+            else:
                     real_data['leaf_parameters'] = leaf_data
             
             # Check for yield forecast data
@@ -5773,7 +5772,7 @@ class PDFReportGenerator:
             
             story.append(table)
             story.append(Spacer(1, 12))
-            
+        
         except Exception as e:
             logger.error(f"Error creating raw samples PDF table: {str(e)}")
             story.append(Paragraph(f"Error generating {sample_type.lower()} samples table", self.styles['Normal']))
