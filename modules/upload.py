@@ -384,8 +384,12 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                             structured_data = {'samples': samples}
                             if detected_type == 'soil':
                                 display_structured_soil_data(structured_data)
+                                # Store structured data in session state for analysis (same as raw text fallback)
+                                st.session_state.structured_soil_data = structured_data
                             elif detected_type == 'leaf':
                                 display_structured_leaf_data(structured_data)
+                                # Store structured data in session state for analysis (same as raw text fallback)
+                                st.session_state.structured_leaf_data = structured_data
 
                         else:
                             st.warning("No valid samples found in structured data, falling back to raw text parsing...")
