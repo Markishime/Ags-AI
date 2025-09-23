@@ -3732,83 +3732,158 @@ def generate_consolidated_key_findings(analysis_results, step_results):
             'leaf_b': {'values': [], 'optimal': '>15 mg/kg'}
         }
 
+        # Step-by-step findings collection with consistent logic
+        step_findings = {
+            'soil_analysis': [],
+            'leaf_analysis': [],
+            'recommendations': [],
+            'economic_impact': [],
+            'yield_projections': [],
+            'general': []
+        }
+
         # Collect findings from all steps with enhanced detail extraction
         for step in step_results:
             if isinstance(step, dict):
-                logger.info(f"🔍 Processing step: {step.get('step_name', 'Unknown')}")
+                step_name = step.get('step_name', step.get('title', 'Unknown Step'))
+                logger.info(f"🔍 Processing step: {step_name}")
 
                 # Extract detailed nutrient data from step results - multiple sources
                 detailed_text = None
 
                 # Try different possible fields for detailed analysis
-                for field in ['detailed_analysis', 'analysis_text', 'content', 'description']:
-                    if field in step and isinstance(step[field], str) and len(step[field]) > 50:
+                for field in ['detailed_analysis', 'analysis_text', 'content', 'description', 'result']:
+                    if field in step and isinstance(step[field], str) and len(step[field]) > 20:
                         detailed_text = step[field]
                         logger.info(f"📝 Found detailed text in field '{field}': {len(detailed_text)} chars")
                         break
 
+                # Extract nutrient values and findings based on step type
+                import re
+
                 if detailed_text:
-                    # Extract nutrient values using multiple regex patterns
-                    import re
+                    step_lower = step_name.lower()
 
-                    # More comprehensive regex patterns for different text formats
-                    patterns = {
-                        'soil_ph': [
-                            r'pH[^0-9]*([0-9.]+)',
-                            r'acidity[^0-9]*([0-9.]+)',
-                            r'soil pH[^0-9]*([0-9.]+)'
-                        ],
-                        'soil_p': [
-                            r'Available P[^0-9]*([0-9.]+)',
-                            r'Phosphorus[^0-9]*([0-9.]+)',
-                            r'P[^0-9]*([0-9.]+)\s*mg/kg',
-                            r'phosphate[^0-9]*([0-9.]+)'
-                        ],
-                        'leaf_n': [
-                            r'Leaf N[^0-9]*([0-9.]+)%',
-                            r'Nitrogen[^0-9]*([0-9.]+)%',
-                            r'leaf nitrogen[^0-9]*([0-9.]+)%'
-                        ],
-                        'leaf_k': [
-                            r'Leaf K[^0-9]*([0-9.]+)%',
-                            r'Potassium[^0-9]*([0-9.]+)%',
-                            r'leaf potassium[^0-9]*([0-9.]+)%'
-                        ],
-                        'leaf_cu': [
-                            r'Leaf Cu[^0-9]*([0-9.]+)',
-                            r'Copper[^0-9]*([0-9.]+)',
-                            r'leaf copper[^0-9]*([0-9.]+)'
-                        ],
-                        'leaf_zn': [
-                            r'Leaf Zn[^0-9]*([0-9.]+)',
-                            r'Zinc[^0-9]*([0-9.]+)',
-                            r'leaf zinc[^0-9]*([0-9.]+)'
-                        ]
-                    }
+                    # Step-specific nutrient extraction patterns
+                    if 'soil' in step_lower or 'ph' in step_lower:
+                        # Soil analysis step
+                        soil_patterns = {
+                            'pH': r'pH[^0-9]*([0-9.]+)',
+                            'phosphorus': r'(?:Available P|Phosphorus|P)[^0-9]*([0-9.]+)',
+                            'potassium': r'(?:Exchangeable K|K)[^0-9]*([0-9.]+)',
+                            'calcium': r'(?:Exchangeable Ca|Ca)[^0-9]*([0-9.]+)',
+                            'magnesium': r'(?:Exchangeable Mg|Mg)[^0-9]*([0-9.]+)',
+                            'cec': r'(?:CEC|C\.E\.C)[^0-9]*([0-9.]+)'
+                        }
 
-                    # Extract values using all patterns
-                    for nutrient, pattern_list in patterns.items():
-                        for pattern in pattern_list:
+                        for nutrient, pattern in soil_patterns.items():
                             matches = re.findall(pattern, detailed_text, re.IGNORECASE)
                             if matches:
                                 for match in matches:
                                     try:
                                         value = float(match)
-                                        nutrient_data[nutrient]['values'].append(value)
-                                        logger.info(f"📊 Extracted {nutrient}: {value}")
+                                        if nutrient == 'pH':
+                                            nutrient_data['soil_ph']['values'].append(value)
+                                        elif nutrient == 'phosphorus':
+                                            nutrient_data['soil_p']['values'].append(value)
+                                        elif nutrient == 'potassium':
+                                            nutrient_data['soil_k']['values'].append(value)
+                                        logger.info(f"🌱 Soil {nutrient}: {value}")
                                     except (ValueError, TypeError):
                                         continue
 
+                        # Extract soil-specific findings
+                        if 'deficient' in detailed_text.lower() or 'low' in detailed_text.lower():
+                            step_findings['soil_analysis'].append(f"Soil analysis indicates: {detailed_text[:200]}...")
+
+                    elif 'leaf' in step_lower or 'nutrient' in step_lower:
+                        # Leaf analysis step
+                        leaf_patterns = {
+                            'nitrogen': r'(?:Leaf N|N)[^0-9]*([0-9.]+)%',
+                            'phosphorus': r'(?:Leaf P|P)[^0-9]*([0-9.]+)%',
+                            'potassium': r'(?:Leaf K|K)[^0-9]*([0-9.]+)%',
+                            'copper': r'(?:Leaf Cu|Cu)[^0-9]*([0-9.]+)',
+                            'zinc': r'(?:Leaf Zn|Zn)[^0-9]*([0-9.]+)'
+                        }
+
+                        for nutrient, pattern in leaf_patterns.items():
+                            matches = re.findall(pattern, detailed_text, re.IGNORECASE)
+                            if matches:
+                                for match in matches:
+                                    try:
+                                        value = float(match)
+                                        if nutrient == 'nitrogen':
+                                            nutrient_data['leaf_n']['values'].append(value)
+                                        elif nutrient == 'potassium':
+                                            nutrient_data['leaf_k']['values'].append(value)
+                                        elif nutrient == 'copper':
+                                            nutrient_data['leaf_cu']['values'].append(value)
+                                        elif nutrient == 'zinc':
+                                            nutrient_data['leaf_zn']['values'].append(value)
+                                        logger.info(f"🍃 Leaf {nutrient}: {value}")
+                                    except (ValueError, TypeError):
+                                        continue
+
+                        # Extract leaf-specific findings
+                        if 'deficient' in detailed_text.lower() or 'low' in detailed_text.lower():
+                            step_findings['leaf_analysis'].append(f"Leaf analysis indicates: {detailed_text[:200]}...")
+
+                    elif 'recommendation' in step_lower or 'treatment' in step_lower:
+                        # Extract recommendation findings
+                        if 'recommend' in detailed_text.lower() or 'apply' in detailed_text.lower():
+                            step_findings['recommendations'].append(f"Treatment recommendation: {detailed_text[:200]}...")
+
+                    elif 'economic' in step_lower or 'cost' in step_lower:
+                        # Extract economic findings
+                        if 'cost' in detailed_text.lower() or 'economic' in detailed_text.lower():
+                            step_findings['economic_impact'].append(f"Economic analysis: {detailed_text[:200]}...")
+
+                    elif 'yield' in step_lower or 'projection' in step_lower:
+                        # Extract yield findings
+                        if 'yield' in detailed_text.lower() or 'projection' in detailed_text.lower():
+                            step_findings['yield_projections'].append(f"Yield projection: {detailed_text[:200]}...")
+
                 # Look for key findings in various possible locations
-                for field in ['key_findings', 'findings', 'recommendations', 'conclusions']:
+                for field in ['key_findings', 'findings', 'recommendations', 'conclusions', 'summary']:
                     if field in step:
                         findings = step[field]
                         if isinstance(findings, list):
+                            # Categorize findings by content
+                            for finding in findings:
+                                if isinstance(finding, str):
+                                    finding_lower = finding.lower()
+                                    if any(word in finding_lower for word in ['soil', 'ph', 'phosphorus', 'potassium']):
+                                        step_findings['soil_analysis'].append(finding)
+                                    elif any(word in finding_lower for word in ['leaf', 'nitrogen', 'copper', 'zinc']):
+                                        step_findings['leaf_analysis'].append(finding)
+                                    elif any(word in finding_lower for word in ['recommend', 'apply', 'fertilizer', 'treatment']):
+                                        step_findings['recommendations'].append(finding)
+                                    elif any(word in finding_lower for word in ['cost', 'economic', 'price', 'investment']):
+                                        step_findings['economic_impact'].append(finding)
+                                    elif any(word in finding_lower for word in ['yield', 'projection', 'forecast', 'increase']):
+                                        step_findings['yield_projections'].append(finding)
+                                    else:
+                                        step_findings['general'].append(finding)
+
                             all_findings.extend(findings)
-                            logger.info(f"📋 Found {len(findings)} findings in {field}")
+                            logger.info(f"📋 Categorized {len(findings)} findings from {field}")
                         elif isinstance(findings, str):
                             all_findings.append(findings)
-                            logger.info(f"📋 Found string finding in {field}")
+                            # Categorize single finding
+                            finding_lower = findings.lower()
+                            if any(word in finding_lower for word in ['soil', 'ph', 'phosphorus', 'potassium']):
+                                step_findings['soil_analysis'].append(findings)
+                            elif any(word in finding_lower for word in ['leaf', 'nitrogen', 'copper', 'zinc']):
+                                step_findings['leaf_analysis'].append(findings)
+                            elif any(word in finding_lower for word in ['recommend', 'apply', 'fertilizer', 'treatment']):
+                                step_findings['recommendations'].append(findings)
+                            elif any(word in finding_lower for word in ['cost', 'economic', 'price', 'investment']):
+                                step_findings['economic_impact'].append(findings)
+                            elif any(word in finding_lower for word in ['yield', 'projection', 'forecast', 'increase']):
+                                step_findings['yield_projections'].append(findings)
+                            else:
+                                step_findings['general'].append(findings)
+                            logger.info(f"📋 Categorized string finding from {field}")
 
         # Try to extract data from analysis_results as fallback
         if isinstance(analysis_results, dict):
@@ -3853,9 +3928,9 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                             logger.info(f"📈 Added {param_name} average {avg_value} to {nutrient_key}")
 
         logger.info(f"📊 Final nutrient data summary: { {k: len(v['values']) for k, v in nutrient_data.items()} }")
-        logger.info(f"📋 Total findings collected: {len(all_findings)}")
+        logger.info(f"📋 Step findings summary: { {k: len(v) for k, v in step_findings.items()} }")
 
-        # Create comprehensive consolidated findings with multiple fallback strategies
+        # Create comprehensive consolidated findings compiled from all step results
         consolidated_findings = []
 
         # Calculate nutrient statistics
@@ -3871,144 +3946,165 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
         logger.info(f"📈 Nutrient statistics calculated: {nutrient_stats}")
 
-        # Strategy 1: Use actual nutrient data if available
-        if nutrient_stats:
-            logger.info("✅ Using actual nutrient data for findings")
+        # Strategy 1: Compile findings from actual step results with consistent logic
+        if step_findings and any(step_findings.values()):
+            logger.info("✅ Compiling findings from step results")
 
-            # 1. Critical Soil Nutrient Deficiencies
-            soil_findings = []
+            # 1. Soil Health Analysis - Compiled from soil analysis steps
+            soil_compiled = []
+            if step_findings['soil_analysis']:
+                soil_compiled.extend(step_findings['soil_analysis'][:3])  # Take top 3 soil findings
+
+            # Add nutrient-based soil findings
             if 'soil_p' in nutrient_stats:
                 avg_p = nutrient_stats['soil_p']['average']
                 if avg_p < 15:
                     deficiency_percent = ((15 - avg_p) / 15) * 100
-                    soil_findings.append(f"Critical phosphorus deficiency: average {avg_p:.1f} mg/kg ({deficiency_percent:.0f}% below minimum 15 mg/kg requirement)")
+                    soil_compiled.append(f"Critical phosphorus deficiency identified: average {avg_p:.1f} mg/kg ({deficiency_percent:.0f}% below the minimum 15 mg/kg requirement for optimal palm growth)")
 
             if 'soil_ph' in nutrient_stats:
                 avg_ph = nutrient_stats['soil_ph']['average']
                 if avg_ph < 5.5 or avg_ph > 6.5:
-                    soil_findings.append(f"Soil pH of {avg_ph:.1f} is {'too acidic' if avg_ph < 5.5 else 'too alkaline'} (optimal range: 5.5-6.5)")
+                    soil_compiled.append(f"Soil pH analysis shows {avg_ph:.1f}, which is {'too acidic and requires liming' if avg_ph < 5.5 else 'too alkaline and needs amendment'} (optimal range: 5.5-6.5 for oil palm)")
 
-            if soil_findings:
+            if soil_compiled:
                 consolidated_findings.append({
-                    'title': 'Critical Soil Nutrient Deficiencies',
-                    'description': '. '.join(soil_findings) + '. These deficiencies severely impact root development, nutrient uptake, and overall palm health. Immediate corrective action is required to restore soil fertility and prevent yield losses.',
+                    'title': 'Comprehensive Soil Health Analysis',
+                    'description': '. '.join(soil_compiled) + '. The soil analysis reveals critical constraints that are limiting palm productivity and require immediate attention to restore soil fertility and optimize nutrient availability.',
                     'category': 'soil_health'
                 })
 
-            # 2. Critical Leaf Nutrient Deficiencies
-            leaf_findings = []
+            # 2. Leaf Nutrient Status - Compiled from leaf analysis steps
+            leaf_compiled = []
+            if step_findings['leaf_analysis']:
+                leaf_compiled.extend(step_findings['leaf_analysis'][:3])  # Take top 3 leaf findings
+
+            # Add nutrient-based leaf findings
+            micronutrient_issues = []
             if 'leaf_cu' in nutrient_stats:
                 avg_cu = nutrient_stats['leaf_cu']['average']
                 if avg_cu < 5:
-                    leaf_findings.append(f"Severe copper deficiency: {avg_cu:.2f} mg/kg vs. >5 mg/kg optimum")
+                    micronutrient_issues.append(f"copper at {avg_cu:.2f} mg/kg (severely deficient, optimum >5 mg/kg)")
 
             if 'leaf_zn' in nutrient_stats:
                 avg_zn = nutrient_stats['leaf_zn']['average']
                 if avg_zn < 12:
-                    leaf_findings.append(f"Severe zinc deficiency: {avg_zn:.2f} mg/kg vs. >12 mg/kg optimum")
+                    micronutrient_issues.append(f"zinc at {avg_zn:.2f} mg/kg (critically low, optimum >12 mg/kg)")
 
+            if micronutrient_issues:
+                leaf_compiled.append(f"Critical micronutrient deficiencies detected: {', '.join(micronutrient_issues)}. These deficiencies severely impair enzyme function and photosynthetic efficiency.")
+
+            # Check macronutrients
             if 'leaf_n' in nutrient_stats:
                 avg_n = nutrient_stats['leaf_n']['average']
                 if avg_n < 2.1:
-                    leaf_findings.append(f"Nitrogen deficiency: {avg_n:.2f}% vs. 2.1-2.5% optimum range")
+                    leaf_compiled.append(f"Nitrogen status is deficient at {avg_n:.2f}% (needs 2.1-2.5% for optimal growth), indicating potential limitations in protein synthesis and canopy development.")
 
             if 'leaf_k' in nutrient_stats:
                 avg_k = nutrient_stats['leaf_k']['average']
                 if avg_k < 0.8:
                     deficiency_percent = ((0.8 - avg_k) / 0.8) * 100
-                    leaf_findings.append(f"Severe potassium deficiency: {avg_k:.2f}% ({deficiency_percent:.0f}% below minimum) affecting fruit development")
+                    leaf_compiled.append(f"Potassium levels are critically low at {avg_k:.2f}% ({deficiency_percent:.0f}% below optimum), severely impacting fruit development and oil synthesis processes.")
 
-            if leaf_findings:
+            if leaf_compiled:
                 consolidated_findings.append({
-                    'title': 'Critical Leaf Nutrient Deficiencies',
-                    'description': '. '.join(leaf_findings) + '. These deficiencies are directly impacting canopy development, enzyme function, and fruit production. Immediate corrective fertilization is essential to restore palm productivity.',
+                    'title': 'Detailed Leaf Nutrient Analysis',
+                    'description': '. '.join(leaf_compiled) + '. The leaf tissue analysis provides direct evidence of palm nutritional status and guides precise fertilizer applications to correct identified deficiencies.',
                     'category': 'nutrient_deficiencies'
                 })
 
-            # 3. Comprehensive Fertilizer Recommendations
-            recommendations = []
+            # 3. Integrated Treatment Recommendations - Compiled from recommendation steps
+            recommendation_compiled = []
+            if step_findings['recommendations']:
+                recommendation_compiled.extend(step_findings['recommendations'][:4])  # Take top 4 recommendations
+
+            # Add specific fertilizer recommendations based on deficiencies
+            fertilizer_recs = []
 
             # Phosphorus recommendations
-            if 'soil_p' in nutrient_stats:
-                avg_p = nutrient_stats['soil_p']['average']
-                if avg_p < 15:
-                    p_deficit = 15 - avg_p
-                    recommendations.append(f"Apply {p_deficit*2:.0f} kg/ha of rock phosphate or triple superphosphate to correct phosphorus deficiency")
+            if 'soil_p' in nutrient_stats and nutrient_stats['soil_p']['average'] < 15:
+                p_deficit = 15 - nutrient_stats['soil_p']['average']
+                fertilizer_recs.append(f"Immediate phosphorus correction: Apply {p_deficit*2:.0f} kg/ha of rock phosphate or triple superphosphate during the next rainy season to rebuild soil phosphorus reserves")
 
-            # Copper and Zinc recommendations
-            cu_needed = zn_needed = False
-            if 'leaf_cu' in nutrient_stats:
-                avg_cu = nutrient_stats['leaf_cu']['average']
-                if avg_cu < 5:
-                    cu_needed = True
+            # Micronutrient recommendations
+            micronutrient_recs = []
+            if 'leaf_cu' in nutrient_stats and nutrient_stats['leaf_cu']['average'] < 5:
+                micronutrient_recs.append("copper sulfate at 2-3 kg/ha")
 
-            if 'leaf_zn' in nutrient_stats:
-                avg_zn = nutrient_stats['leaf_zn']['average']
-                if avg_zn < 12:
-                    zn_needed = True
+            if 'leaf_zn' in nutrient_stats and nutrient_stats['leaf_zn']['average'] < 12:
+                micronutrient_recs.append("zinc sulfate at 5-7 kg/ha")
 
-            if cu_needed or zn_needed:
-                rec_parts = []
-                if cu_needed:
-                    rec_parts.append("copper sulfate (2-3 kg/ha)")
-                if zn_needed:
-                    rec_parts.append("zinc sulfate (5-7 kg/ha)")
-                recommendations.append(f"Apply {' and '.join(rec_parts)} as foliar spray or soil application")
+            if micronutrient_recs:
+                fertilizer_recs.append(f"Foliar micronutrient application: {' and '.join(micronutrient_recs)} as corrective treatment, repeated every 3-4 months until deficiency is resolved")
 
             # Potassium recommendations
-            if 'leaf_k' in nutrient_stats:
-                avg_k = nutrient_stats['leaf_k']['average']
-                if avg_k < 0.8:
-                    recommendations.append("Apply 200-300 kg/ha of potassium chloride (MOP) to correct severe potassium deficiency and support fruit development")
+            if 'leaf_k' in nutrient_stats and nutrient_stats['leaf_k']['average'] < 0.8:
+                fertilizer_recs.append("Potassium supplementation: Apply 200-300 kg/ha of MOP (potassium chloride) to support fruit bunch development and prevent further yield losses")
 
-            if recommendations:
+            if fertilizer_recs:
+                recommendation_compiled.extend(fertilizer_recs)
+
+            if recommendation_compiled:
                 consolidated_findings.append({
-                    'title': 'Comprehensive Fertilizer Recommendations',
-                    'description': '. '.join(recommendations) + '. Timing is critical - apply phosphorus and potassium during rainy season, micronutrients as foliar sprays every 3-4 months. Monitor soil and leaf levels annually to maintain optimal nutrition.',
+                    'title': 'Integrated Fertilizer Treatment Plan',
+                    'description': '. '.join(recommendation_compiled) + '. This comprehensive treatment plan addresses all identified deficiencies with specific products, application rates, and timing to maximize effectiveness and minimize costs.',
                     'category': 'recommendations'
                 })
 
-            # 4. Economic Impact and Yield Projections
-            economic_findings = []
+            # 4. Economic Analysis and ROI Projections - Compiled from economic steps
+            economic_compiled = []
+            if step_findings['economic_impact']:
+                economic_compiled.extend(step_findings['economic_impact'][:3])
 
-            # Calculate potential yield impact
-            if 'soil_p' in nutrient_stats and 'leaf_k' in nutrient_stats:
-                avg_p = nutrient_stats['soil_p']['average']
-                avg_k = nutrient_stats['leaf_k']['average']
+            # Calculate economic impact based on nutrient deficiencies
+            economic_impacts = []
+            deficiency_count = 0
 
-                if avg_p < 15 and avg_k < 0.8:
-                    economic_findings.append("Combined phosphorus and potassium deficiencies could reduce yield by 30-50%, representing significant economic losses")
-                    economic_findings.append("Corrective fertilization program could increase yield by 20-40% within 12-18 months")
+            # Count severe deficiencies
+            if 'soil_p' in nutrient_stats and nutrient_stats['soil_p']['average'] < 15:
+                deficiency_count += 1
+            if 'leaf_k' in nutrient_stats and nutrient_stats['leaf_k']['average'] < 0.8:
+                deficiency_count += 1
+            if 'leaf_cu' in nutrient_stats and nutrient_stats['leaf_cu']['average'] < 5:
+                deficiency_count += 1
+            if 'leaf_zn' in nutrient_stats and nutrient_stats['leaf_zn']['average'] < 12:
+                deficiency_count += 1
 
-            if 'leaf_cu' in nutrient_stats and 'leaf_zn' in nutrient_stats:
-                avg_cu = nutrient_stats['leaf_cu']['average']
-                avg_zn = nutrient_stats['leaf_zn']['average']
+            if deficiency_count >= 2:
+                economic_impacts.append(f"Multiple nutrient deficiencies ({deficiency_count} identified) are likely causing 30-50% yield reduction, representing substantial economic losses")
+                economic_impacts.append("Corrective fertilization program could restore 20-40% of lost productivity within 12-18 months, providing excellent return on investment")
+            elif deficiency_count == 1:
+                economic_impacts.append("Single nutrient deficiency detected - timely correction can prevent further yield losses and maintain economic viability")
+            else:
+                economic_impacts.append("No critical deficiencies detected - current nutrient management is maintaining productive levels")
 
-                if avg_cu < 5 or avg_zn < 12:
-                    economic_findings.append("Micronutrient deficiencies reduce fruit set and bunch weight, potentially decreasing revenue by 15-25%")
+            if economic_impacts:
+                economic_compiled.extend(economic_impacts)
 
-            if economic_findings:
+            if economic_compiled:
                 consolidated_findings.append({
-                    'title': 'Economic Impact and Yield Projections',
-                    'description': '. '.join(economic_findings) + '. Implementing recommended corrective measures could improve ROI significantly. Regular soil and leaf monitoring (quarterly) is essential for maintaining optimal productivity.',
+                    'title': 'Economic Impact Assessment and ROI Analysis',
+                    'description': '. '.join(economic_compiled) + '. Investment in proper nutrient management provides excellent returns through improved yields and palm health, far exceeding the cost of corrective treatments.',
                     'category': 'economic_impact'
                 })
 
-            # 5. Long-term Soil Health Strategy
-            health_findings = []
+            # 5. Long-term Management Strategy - General health and monitoring
+            strategy_compiled = []
+            strategy_compiled.append("Implement comprehensive soil and leaf monitoring program with quarterly sampling to track nutrient trends and treatment effectiveness")
+            strategy_compiled.append("Maintain soil pH within optimal range (5.5-6.5) through regular liming when needed and avoid over-application of chemical fertilizers")
+
             if 'soil_ph' in nutrient_stats:
                 avg_ph = nutrient_stats['soil_ph']['average']
                 if avg_ph < 5.5:
-                    health_findings.append("Acidic soil conditions require liming program to raise pH and improve nutrient availability")
+                    strategy_compiled.append("Acidic soil management: Apply agricultural lime at 2-3 tonnes/ha every 2-3 years to gradually raise pH and improve nutrient availability")
                 elif avg_ph > 6.5:
-                    health_findings.append("Alkaline soil may benefit from soil amendments to optimize nutrient uptake")
+                    strategy_compiled.append("Alkaline soil management: Use soil amendments and organic matter to optimize nutrient uptake in high pH conditions")
 
-            health_findings.append("Implement regular soil testing (every 6 months) and maintain organic matter levels above 2%")
-            health_findings.append("Consider integrated nutrient management combining organic and inorganic fertilizers")
+            strategy_compiled.append("Adopt integrated nutrient management combining organic matter additions, proper irrigation, and balanced fertilization for sustainable palm production")
 
             consolidated_findings.append({
-                'title': 'Long-term Soil Health Strategy',
-                'description': '. '.join(health_findings) + '. Sustainable palm production requires maintaining soil fertility through balanced nutrition and proper management practices.',
+                'title': 'Long-term Palm Nutrition and Management Strategy',
+                'description': '. '.join(strategy_compiled) + '. Sustainable oil palm production requires ongoing attention to soil health, nutrient management, and monitoring to ensure consistent productivity and economic viability.',
                 'category': 'soil_health'
             })
 
