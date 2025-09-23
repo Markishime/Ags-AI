@@ -2647,13 +2647,13 @@ class PromptAnalyzer:
             
             TABLE DETECTION:
             - If the step description contains the word "table" or "tables", you MUST generate detailed, accurate tables with actual sample data
-            - Tables must include all available samples with their actual values and calculated statistics
+            - Tables must include ALL STANDARD PARAMETERS, even those marked as "Not Detected" with "N/A" values
+            - For soil analysis tables, you MUST include ALL 9 standard parameters: pH, Nitrogen, Organic Carbon, Total P, Available P, Exchangeable K, Exchangeable Ca, Exchangeable Mg, CEC
             - Do not use placeholder data - use the real values from the uploaded samples
             - CRITICAL: Table titles MUST be descriptive and specific, NOT generic like "Table 1" or "Table 2"
             - For soil parameter tables, use titles like "Soil Parameters Summary", "Soil Analysis Results", or "Soil Nutrient Status"
-            - For leaf parameter tables, use titles like "Leaf Nutrient Analysis", "Plant Nutrient Parameters", or "Foliar Analysis Results"
-            - For comparison tables, use titles like "MPOB Standards Comparison", "Nutrient Status vs Standards", or "Parameter Comparison Analysis"
-            - For format comparison tables, use titles like "SP Lab vs Farm Data Comparison" or "Format-Specific Parameter Analysis"
+            - For comparison tables, use titles like "Soil Analysis: Plantation Average vs. MPOB Standards" or "Parameter Comparison Analysis"
+            - CRITICAL: Comparison tables MUST show all parameters, including those with "N/A" values for missing data
             
             FORECAST DETECTION:
             - If the step title or description contains words like "forecast", "projection", "5-year", "yield forecast", "graph", or "chart", you MUST include yield_forecast data
@@ -2728,9 +2728,11 @@ class PromptAnalyzer:
             - ALWAYS include ALL standard oil palm soil parameters in analysis, even if not detected in data:
               * pH, Nitrogen (N), Organic Carbon, Total Phosphorus (P), Available Phosphorus (P)
               * Exchangeable Potassium (K), Exchangeable Calcium (Ca), Exchangeable Magnesium (Mg), CEC
-            - For parameters marked as "Not Detected", provide analysis of why they might be missing and recommend testing
+            - For parameters marked as "Not Detected", you MUST still include them in ALL tables with "N/A" values
+            - Generate tables that show ALL 9 standard parameters regardless of data availability
             - Include comprehensive assessment of nutrient deficiencies based on complete parameter set
-            - Generate tables that show ALL standard parameters with appropriate status indicators
+            - When creating comparison tables, always show all parameters with appropriate status indicators
+            - CRITICAL: Tables must include every standard parameter, even if marked as "Not Detected"
                 
                 You must provide a detailed analysis in JSON format with the following structure:
                 {{
@@ -3410,8 +3412,20 @@ class PromptAnalyzer:
 
         # Add summary statistics - include ALL standard parameters
         formatted.append("SOIL PARAMETER STATISTICS (All Samples):")
-        formatted.append("Note: Parameters marked as 'Not Detected' were not found in the uploaded data but are standard for oil palm soil analysis.")
+        formatted.append("Note: ALL standard oil palm soil parameters are listed below. Parameters marked as 'Not Detected' were not found in the uploaded data but MUST be included in analysis tables.")
 
+        # Always list ALL standard parameters for the LLM to use in table generation
+        formatted.append("COMPLETE LIST OF STANDARD PARAMETERS FOR ANALYSIS:")
+        for display_name, param_key in standard_soil_params.items():
+            if param_key in soil_params.get('parameter_statistics', {}):
+                stats = soil_params['parameter_statistics'][param_key]
+                formatted.append(f"- {display_name}: Average = {stats['average']:.3f}, Status = Detected")
+            else:
+                formatted.append(f"- {display_name}: Status = Not Detected (include in tables with N/A)")
+        formatted.append("")
+
+        # Detailed statistics for detected parameters
+        formatted.append("DETAILED STATISTICS FOR DETECTED PARAMETERS:")
         for display_name, param_key in standard_soil_params.items():
             if param_key in soil_params.get('parameter_statistics', {}):
                 stats = soil_params['parameter_statistics'][param_key]
@@ -3419,9 +3433,6 @@ class PromptAnalyzer:
                 formatted.append(f"  Average: {stats['average']:.3f}")
                 formatted.append(f"  Range: {stats['min']:.3f} - {stats['max']:.3f}")
                 formatted.append(f"  Samples: {stats['count']}")
-                formatted.append("")
-            else:
-                formatted.append(f"- {display_name}: Not Detected in uploaded data")
                 formatted.append("")
 
         # Add individual sample data
