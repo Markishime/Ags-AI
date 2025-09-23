@@ -90,6 +90,11 @@ def display_history_statistics():
         
         for doc in user_analyses:
             analysis_data = doc.to_dict()
+
+            # Reconstruct data from Firestore format
+            from modules.results import reconstruct_firestore_data
+            analysis_data = reconstruct_firestore_data(analysis_data)
+
             logger.info(f"🔍 DEBUG - Statistics processing document {doc.id}")
             logger.info(f"🔍 DEBUG - Document keys: {list(analysis_data.keys())}")
 
@@ -132,24 +137,47 @@ def display_history_statistics():
         # Get date range with proper datetime handling
         timestamps = []
         for doc in user_analyses:
-            created_at = doc.to_dict().get('created_at', datetime.now())
-            # Handle timezone-aware datetime or ISO string from Firestore
+            analysis_data = doc.to_dict()
+
+            # Reconstruct data from Firestore format
+            from modules.results import reconstruct_firestore_data
+            analysis_data = reconstruct_firestore_data(analysis_data)
+
+            created_at = analysis_data.get('created_at', datetime.now())
+
+            # Robust timestamp parsing
             if isinstance(created_at, str):
                 try:
                     # Parse ISO string back to datetime
-                    created_at_parsed = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    created_at_naive = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                     # Remove timezone info for comparison
-                    if hasattr(created_at_parsed, 'replace') and hasattr(created_at_parsed, 'tzinfo') and created_at_parsed.tzinfo is not None:
-                        created_at_naive = created_at_parsed.replace(tzinfo=None)
-                    else:
-                        created_at_naive = created_at_parsed
+                    if hasattr(created_at_naive, 'replace') and hasattr(created_at_naive, 'tzinfo') and created_at_naive.tzinfo is not None:
+                        created_at_naive = created_at_naive.replace(tzinfo=None)
                 except (ValueError, AttributeError):
-                    # If parsing fails, use current time
-                    created_at_naive = datetime.now()
+                    # Try parsing as Unix timestamp
+                    try:
+                        created_at_naive = datetime.fromtimestamp(float(created_at))
+                    except (ValueError, TypeError, OSError):
+                        # If all parsing fails, use current time
+                        logger.warning(f"Could not parse timestamp: {created_at}, using current time")
+                        created_at_naive = datetime.now()
             elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                 created_at_naive = created_at.replace(tzinfo=None)
-            else:
+            elif isinstance(created_at, (int, float)):
+                # Handle Unix timestamp
+                created_at_naive = datetime.fromtimestamp(created_at)
+            elif isinstance(created_at, datetime):
                 created_at_naive = created_at
+            else:
+                # Fallback to current time for any other type
+                logger.warning(f"Unexpected timestamp type: {type(created_at)}, value: {created_at}, using current time")
+                created_at_naive = datetime.now()
+
+            # Ensure timestamp is always a datetime object
+            if not isinstance(created_at_naive, datetime):
+                logger.error(f"Timestamp is still not a datetime object: {type(created_at_naive)}, value: {created_at_naive}")
+                created_at_naive = datetime.now()
+
             timestamps.append(created_at_naive)
         
         if timestamps:
@@ -289,7 +317,11 @@ def display_analysis_history():
         filtered_analyses = []
         for doc in user_analyses:
             analysis_data = doc.to_dict()
-            
+
+            # Reconstruct data from Firestore format
+            from modules.results import reconstruct_firestore_data
+            analysis_data = reconstruct_firestore_data(analysis_data)
+
             # Apply status filter (analysis_results are always completed)
             if status_filter != "All" and status_filter != "completed":
                 continue
@@ -416,12 +448,30 @@ def display_analysis_history():
                     if hasattr(timestamp, 'replace') and hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is not None:
                         timestamp = timestamp.replace(tzinfo=None)
                 except (ValueError, AttributeError):
-                    # If parsing fails, use current time
-                    timestamp = datetime.now()
+                    # If parsing fails, try alternative parsing methods
+                    try:
+                        # Try parsing as timestamp
+                        timestamp = datetime.fromtimestamp(float(created_at))
+                    except (ValueError, TypeError, OSError):
+                        # If all parsing fails, use current time
+                        logger.warning(f"Could not parse timestamp: {created_at}, using current time")
+                        timestamp = datetime.now()
             elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                 timestamp = created_at.replace(tzinfo=None)
-            else:
+            elif isinstance(created_at, (int, float)):
+                # Handle Unix timestamp
+                timestamp = datetime.fromtimestamp(created_at)
+            elif isinstance(created_at, datetime):
                 timestamp = created_at
+            else:
+                # Fallback to current time for any other type
+                logger.warning(f"Unexpected timestamp type: {type(created_at)}, value: {created_at}, using current time")
+                timestamp = datetime.now()
+
+            # Ensure timestamp is always a datetime object
+            if not isinstance(timestamp, datetime):
+                logger.error(f"Timestamp is still not a datetime object: {type(timestamp)}, value: {timestamp}")
+                timestamp = datetime.now()
 
             # Create status badge
             status_color = '🟢'  # Always completed for analysis_results

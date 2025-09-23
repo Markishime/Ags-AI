@@ -2723,6 +2723,14 @@ class PromptAnalyzer:
             - Generate visualizations using AVERAGE VALUES and actual sample data
             - Provide recommendations based on AVERAGE VALUES and the specific step requirements
             - CRITICAL: All LLM responses must be based on the calculated AVERAGE VALUES provided in the context
+
+            STANDARD PARAMETER REQUIREMENTS:
+            - ALWAYS include ALL standard oil palm soil parameters in analysis, even if not detected in data:
+              * pH, Nitrogen (N), Organic Carbon, Total Phosphorus (P), Available Phosphorus (P)
+              * Exchangeable Potassium (K), Exchangeable Calcium (Ca), Exchangeable Magnesium (Mg), CEC
+            - For parameters marked as "Not Detected", provide analysis of why they might be missing and recommend testing
+            - Include comprehensive assessment of nutrient deficiencies based on complete parameter set
+            - Generate tables that show ALL standard parameters with appropriate status indicators
                 
                 You must provide a detailed analysis in JSON format with the following structure:
                 {{
@@ -3381,22 +3389,41 @@ class PromptAnalyzer:
             return self._get_default_step_result(step)
     
     def _format_soil_data_for_llm(self, soil_params: Dict[str, Any]) -> str:
-        """Format soil data for LLM consumption - ALL SAMPLES"""
+        """Format soil data for LLM consumption - ALL SAMPLES including missing standard parameters"""
         if not soil_params:
             return "No soil data available"
-        
+
         formatted = []
-        
-        # Add summary statistics
-        if 'parameter_statistics' in soil_params:
-            formatted.append("SOIL PARAMETER STATISTICS (All Samples):")
-            for param, stats in soil_params['parameter_statistics'].items():
-                formatted.append(f"- {param}:")
+
+        # Standard oil palm soil parameters that should be included in analysis
+        standard_soil_params = {
+            'pH': 'pH',
+            'Nitrogen (%)': 'Nitrogen_%',
+            'Organic Carbon (%)': 'Organic_Carbon_%',
+            'Total P (mg/kg)': 'Total_P_mg_kg',
+            'Available P (mg/kg)': 'Available_P_mg_kg',
+            'Exchangeable K (meq%)': 'Exchangeable_K_meq%',
+            'Exchangeable Ca (meq%)': 'Exchangeable_Ca_meq%',
+            'Exchangeable Mg (meq%)': 'Exchangeable_Mg_meq%',
+            'CEC (meq%)': 'CEC_meq%'
+        }
+
+        # Add summary statistics - include ALL standard parameters
+        formatted.append("SOIL PARAMETER STATISTICS (All Samples):")
+        formatted.append("Note: Parameters marked as 'Not Detected' were not found in the uploaded data but are standard for oil palm soil analysis.")
+
+        for display_name, param_key in standard_soil_params.items():
+            if param_key in soil_params.get('parameter_statistics', {}):
+                stats = soil_params['parameter_statistics'][param_key]
+                formatted.append(f"- {display_name}:")
                 formatted.append(f"  Average: {stats['average']:.3f}")
                 formatted.append(f"  Range: {stats['min']:.3f} - {stats['max']:.3f}")
                 formatted.append(f"  Samples: {stats['count']}")
                 formatted.append("")
-        
+            else:
+                formatted.append(f"- {display_name}: Not Detected in uploaded data")
+                formatted.append("")
+
         # Add individual sample data
         if 'all_samples' in soil_params:
             formatted.append("INDIVIDUAL SOIL SAMPLE DATA:")
@@ -3408,7 +3435,7 @@ class PromptAnalyzer:
                     if param not in ['sample_no', 'lab_no'] and value is not None:
                         formatted.append(f"  {param}: {value}")
                 formatted.append("")
-        
+
         return "\n".join(formatted) if formatted else "No soil parameters available"
     
     def _format_leaf_data_for_llm(self, leaf_params: Dict[str, Any]) -> str:

@@ -685,70 +685,114 @@ def store_analysis_to_firestore(analysis_results, result_id):
 
 
 def flatten_nested_arrays_for_firestore(data, preserve_keys=None):
-    """Completely flatten nested arrays and complex structures to make it Firestore-compatible"""
+    """
+    Intelligently prepare data for Firestore storage.
+    Firestore supports nested arrays and objects, so we only need to handle:
+    1. datetime objects (convert to ISO strings)
+    2. Ensure no circular references
+    3. Handle unsupported types
+    """
     if preserve_keys is None:
         preserve_keys = ['step_by_step_analysis']
 
     try:
-        logger.info(f"🔍 DEBUG - Flattening data with keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+        logger.info("🔄 Preparing data for Firestore storage")
 
-        if isinstance(data, dict):
-            flattened = {}
-            for key, value in data.items():
-                # Convert datetime objects to ISO strings
-                if isinstance(value, datetime):
-                    flattened[key] = value.isoformat()
-                elif key in preserve_keys:
-                    # Preserve certain keys entirely - don't flatten their structure
-                    logger.info(f"🔍 DEBUG - Preserving key: {key}")
-                    flattened[key] = value
-                elif isinstance(value, list):
-                    # For lists, check if they contain complex nested structures
-                    flattened_list = []
-                    for item in value:
-                        if isinstance(item, (list, dict)):
-                            # Convert complex nested structures to JSON strings
-                            try:
-                                import json
-                                flattened_list.append(json.dumps(item, default=str))
-                            except:
-                                flattened_list.append(str(item))
-                        else:
-                            flattened_list.append(item)
-                    flattened[key] = flattened_list
-                elif isinstance(value, dict):
-                    # Recursively flatten nested dictionaries
-                    flattened[key] = flatten_nested_arrays_for_firestore(value, preserve_keys)
+        def _prepare_for_firestore(obj, visited=None):
+            """Recursively prepare data for Firestore storage"""
+            if visited is None:
+                visited = set()
+
+            # Prevent infinite recursion with circular references
+            obj_id = id(obj)
+            if obj_id in visited:
+                return "<circular_reference>"
+            visited.add(obj_id)
+
+            try:
+                if isinstance(obj, datetime):
+                    # Convert datetime to ISO string
+                    return obj.isoformat()
+                elif isinstance(obj, (int, float, str, bool)):
+                    # Primitive types are fine
+                    return obj
+                elif isinstance(obj, dict):
+                    # Process dictionaries
+                    prepared_dict = {}
+                    for key, value in obj.items():
+                        prepared_dict[key] = _prepare_for_firestore(value, visited.copy())
+                    return prepared_dict
+                elif isinstance(obj, list):
+                    # Process lists - Firestore supports nested arrays
+                    prepared_list = []
+                    for item in obj:
+                        prepared_list.append(_prepare_for_firestore(item, visited.copy()))
+                    return prepared_list
+                elif obj is None:
+                    # None is acceptable
+                    return None
                 else:
-                    flattened[key] = value
-            return flattened
-        elif isinstance(data, list):
-            # For lists at any level, convert to strings if they contain nested structures
-            flattened_list = []
-            for item in data:
-                if isinstance(item, (list, dict)):
-                    # Convert nested structures to JSON strings
+                    # For any other object type, convert to string representation
+                    # This handles custom objects, sets, etc.
                     try:
-                        import json
-                        flattened_list.append(json.dumps(item, default=str))
+                        # Try to get a meaningful string representation
+                        if hasattr(obj, '__dict__'):
+                            # For custom objects, try to serialize their __dict__
+                            return _prepare_for_firestore(obj.__dict__, visited.copy())
+                        else:
+                            return str(obj)
                     except:
-                        flattened_list.append(str(item))
-                else:
-                    flattened_list.append(item)
-            return flattened_list
-        elif isinstance(data, datetime):
-            # Convert datetime objects to ISO strings
-            return data.isoformat()
-        else:
-            return data
+                        return str(obj)
+            finally:
+                visited.discard(obj_id)
+
+        result = _prepare_for_firestore(data)
+        logger.info("✅ Data preparation for Firestore completed successfully")
+        return result
+
     except Exception as e:
-        logger.error(f"Error flattening nested arrays: {e}")
-        # If flattening fails, try to convert to string representation
-        try:
-            import json
-            return json.dumps(data, default=str)
-        except:
-            return str(data)
+        logger.error(f"❌ Error preparing data for Firestore: {e}")
+        # Return a safe fallback structure
+        return {
+            "error": "Data preparation failed",
+            "original_type": str(type(data)),
+            "timestamp": datetime.now().isoformat(),
+            "error_details": str(e)
+        }
+
+
+def reconstruct_firestore_data(data):
+    """
+    Reconstruct data retrieved from Firestore back to its original form.
+    This handles converting ISO datetime strings back to datetime objects.
+    """
+    try:
+        def _reconstruct(obj):
+            if isinstance(obj, str):
+                # Try to convert ISO datetime strings back to datetime objects
+                try:
+                    # Check if it's an ISO datetime string
+                    if 'T' in obj and ('Z' in obj or '+' in obj or '-' in obj[-6:]):
+                        return datetime.fromisoformat(obj.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    pass
+                return obj
+            elif isinstance(obj, dict):
+                reconstructed_dict = {}
+                for key, value in obj.items():
+                    reconstructed_dict[key] = _reconstruct(value)
+                return reconstructed_dict
+            elif isinstance(obj, list):
+                return [_reconstruct(item) for item in obj]
+            else:
+                return obj
+
+        result = _reconstruct(data)
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Error reconstructing Firestore data: {e}")
+        return data
 
 def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate=None, step_indicator=None, working_indicator=None):
     """Process new analysis data from uploaded files"""
