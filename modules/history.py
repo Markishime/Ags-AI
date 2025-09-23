@@ -438,6 +438,9 @@ def display_analysis_history():
             created_at = analysis_data.get('created_at', datetime.now())
             status = 'completed'  # analysis_results are always completed
 
+            # Debug logging for timestamp issues
+            logger.info(f"🔍 DEBUG - Raw created_at value: {created_at} (type: {type(created_at)})")
+
             # Handle timezone-aware datetime for display
             # created_at might be a string (ISO format) from Firestore storage
             if isinstance(created_at, str):
@@ -447,22 +450,29 @@ def display_analysis_history():
                     # Remove timezone info for display
                     if hasattr(timestamp, 'replace') and hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is not None:
                         timestamp = timestamp.replace(tzinfo=None)
-                except (ValueError, AttributeError):
+                    logger.info(f"✅ DEBUG - Successfully parsed ISO timestamp: {timestamp}")
+                except (ValueError, AttributeError) as e:
+                    logger.warning(f"❌ DEBUG - ISO parsing failed for {created_at}: {e}")
                     # If parsing fails, try alternative parsing methods
                     try:
                         # Try parsing as timestamp
                         timestamp = datetime.fromtimestamp(float(created_at))
-                    except (ValueError, TypeError, OSError):
+                        logger.info(f"✅ DEBUG - Successfully parsed as Unix timestamp: {timestamp}")
+                    except (ValueError, TypeError, OSError) as e2:
+                        logger.error(f"❌ DEBUG - Unix timestamp parsing also failed for {created_at}: {e2}")
                         # If all parsing fails, use current time
                         logger.warning(f"Could not parse timestamp: {created_at}, using current time")
                         timestamp = datetime.now()
             elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                 timestamp = created_at.replace(tzinfo=None)
+                logger.info(f"✅ DEBUG - Removed timezone from datetime: {timestamp}")
             elif isinstance(created_at, (int, float)):
                 # Handle Unix timestamp
                 timestamp = datetime.fromtimestamp(created_at)
+                logger.info(f"✅ DEBUG - Converted Unix timestamp: {timestamp}")
             elif isinstance(created_at, datetime):
                 timestamp = created_at
+                logger.info(f"✅ DEBUG - Already a datetime object: {timestamp}")
             else:
                 # Fallback to current time for any other type
                 logger.warning(f"Unexpected timestamp type: {type(created_at)}, value: {created_at}, using current time")
@@ -472,11 +482,22 @@ def display_analysis_history():
             if not isinstance(timestamp, datetime):
                 logger.error(f"Timestamp is still not a datetime object: {type(timestamp)}, value: {timestamp}")
                 timestamp = datetime.now()
+            else:
+                logger.info(f"✅ DEBUG - Final timestamp for display: {timestamp} (type: {type(timestamp)})")
 
             # Create status badge
             status_color = '🟢'  # Always completed for analysis_results
 
-            with st.expander(f"{status_color} **{timestamp.strftime('%Y-%m-%d %H:%M')}** - {status.title()}", expanded=False):
+            # Safe strftime call with additional error checking
+            try:
+                timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M')
+            except AttributeError as e:
+                logger.error(f"❌ CRITICAL - strftime failed on timestamp: {timestamp} (type: {type(timestamp)}) - Error: {e}")
+                # Emergency fallback
+                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M')
+                logger.warning(f"⚠️ Used emergency timestamp: {timestamp_str}")
+
+            with st.expander(f"{status_color} **{timestamp_str}** - {status.title()}", expanded=False):
                 # Main info columns
                 col1, col2, col3, col4 = st.columns(4)
 
@@ -510,7 +531,11 @@ def display_analysis_history():
                     st.markdown("**📊 Analysis Info**")
                     st.write(f"**Status:** {status.title()}")
                     st.write(f"**Report Type:** Step-by-Step Analysis")
-                    st.write(f"**Created:** {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+                    try:
+                        created_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    except AttributeError:
+                        created_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    st.write(f"**Created:** {created_str}")
                     st.write(f"**Steps Found:** {len(step_analysis)}")
 
                 with col2:

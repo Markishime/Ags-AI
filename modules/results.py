@@ -769,11 +769,17 @@ def reconstruct_firestore_data(data):
     try:
         def _reconstruct(obj):
             if isinstance(obj, str):
-                # Try to convert ISO datetime strings back to datetime objects
+                # Try to convert various datetime string formats back to datetime objects
                 try:
-                    # Check if it's an ISO datetime string
+                    # Check if it's an ISO datetime string (with T and timezone indicators)
                     if 'T' in obj and ('Z' in obj or '+' in obj or '-' in obj[-6:]):
                         return datetime.fromisoformat(obj.replace('Z', '+00:00'))
+                    # Check if it's a simple date-time string like "2024-01-01 12:00:00"
+                    elif len(obj) >= 19 and obj[4] == '-' and obj[7] == '-' and obj[10] == ' ' and obj[13] == ':' and obj[16] == ':':
+                        return datetime.strptime(obj, '%Y-%m-%d %H:%M:%S')
+                    # Check if it's just a date string
+                    elif len(obj) == 10 and obj[4] == '-' and obj[7] == '-':
+                        return datetime.strptime(obj, '%Y-%m-%d')
                 except (ValueError, TypeError):
                     pass
                 return obj
