@@ -3703,16 +3703,68 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
     return findings
 
 def generate_consolidated_key_findings(analysis_results, step_results):
-    """Generate consolidated, professional key findings based on actual findings"""
+    """Generate consolidated, professional key findings based on actual findings with enhanced detail"""
     consolidated_findings = []
 
     try:
-        # Extract all key findings from step results
+        # Extract all key findings from step results with enhanced collection
         all_findings = []
-        
-        # Collect findings from all steps
+        nutrient_data = {
+            'soil_ph': {'values': [], 'optimal': '5.5-6.5'},
+            'soil_n': {'values': [], 'optimal': '>0.15%'},
+            'soil_p': {'values': [], 'optimal': '>15 mg/kg'},
+            'soil_k': {'values': [], 'optimal': '>0.15 meq%'},
+            'soil_ca': {'values': [], 'optimal': '>1.5 meq%'},
+            'soil_mg': {'values': [], 'optimal': '>0.5 meq%'},
+            'soil_cec': {'values': [], 'optimal': '>10 meq%'},
+            'leaf_n': {'values': [], 'optimal': '2.1-2.5%'},
+            'leaf_p': {'values': [], 'optimal': '0.12-0.18%'},
+            'leaf_k': {'values': [], 'optimal': '0.8-1.2%'},
+            'leaf_mg': {'values': [], 'optimal': '0.2-0.3%'},
+            'leaf_ca': {'values': [], 'optimal': '0.5-0.8%'},
+            'leaf_cu': {'values': [], 'optimal': '>5 mg/kg'},
+            'leaf_zn': {'values': [], 'optimal': '>12 mg/kg'},
+            'leaf_fe': {'values': [], 'optimal': '>50 mg/kg'},
+            'leaf_mn': {'values': [], 'optimal': '>20 mg/kg'},
+            'leaf_b': {'values': [], 'optimal': '>15 mg/kg'}
+        }
+
+        # Collect findings from all steps with enhanced detail extraction
         for step in step_results:
             if isinstance(step, dict):
+                # Extract detailed nutrient data from step results
+                if 'detailed_analysis' in step:
+                    detailed = step['detailed_analysis']
+                    if isinstance(detailed, str):
+                        # Extract nutrient values using regex patterns
+                        import re
+
+                        # Soil nutrients
+                        soil_ph_match = re.search(r'pH[^0-9]*([0-9.]+)', detailed, re.IGNORECASE)
+                        if soil_ph_match:
+                            nutrient_data['soil_ph']['values'].append(float(soil_ph_match.group(1)))
+
+                        soil_p_match = re.search(r'Available P[^0-9]*([0-9.]+)', detailed, re.IGNORECASE)
+                        if soil_p_match:
+                            nutrient_data['soil_p']['values'].append(float(soil_p_match.group(1)))
+
+                        # Leaf nutrients - look for percentage values
+                        leaf_n_match = re.search(r'Leaf N[^0-9]*([0-9.]+)%', detailed, re.IGNORECASE)
+                        if leaf_n_match:
+                            nutrient_data['leaf_n']['values'].append(float(leaf_n_match.group(1)))
+
+                        leaf_k_match = re.search(r'Leaf K[^0-9]*([0-9.]+)%', detailed, re.IGNORECASE)
+                        if leaf_k_match:
+                            nutrient_data['leaf_k']['values'].append(float(leaf_k_match.group(1)))
+
+                        leaf_cu_match = re.search(r'Leaf Cu[^0-9]*([0-9.]+)', detailed, re.IGNORECASE)
+                        if leaf_cu_match:
+                            nutrient_data['leaf_cu']['values'].append(float(leaf_cu_match.group(1)))
+
+                        leaf_zn_match = re.search(r'Leaf Zn[^0-9]*([0-9.]+)', detailed, re.IGNORECASE)
+                        if leaf_zn_match:
+                            nutrient_data['leaf_zn']['values'].append(float(leaf_zn_match.group(1)))
+
                 # Look for key findings in various possible locations
                 if 'key_findings' in step:
                     findings = step['key_findings']
@@ -3720,120 +3772,155 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         all_findings.extend(findings)
                     elif isinstance(findings, str):
                         all_findings.append(findings)
-                
-                # Also check for findings in detailed_analysis
-                if 'detailed_analysis' in step:
-                    detailed = step['detailed_analysis']
-                    if isinstance(detailed, str) and 'finding' in detailed.lower():
-                        # Extract findings from detailed analysis text
-                        lines = detailed.split('\n')
-                        for line in lines:
-                            if 'finding' in line.lower() and len(line.strip()) > 20:
-                                all_findings.append(line.strip())
 
-        # If no findings found in steps, try analysis results
-        if not all_findings and isinstance(analysis_results, dict):
-            if 'key_findings' in analysis_results:
-                findings = analysis_results['key_findings']
-                if isinstance(findings, list):
-                    all_findings.extend(findings)
-                elif isinstance(findings, str):
-                    all_findings.append(findings)
-
-        # Clean and deduplicate findings
-        cleaned_findings = []
-        for finding in all_findings:
-            if isinstance(finding, str) and len(finding.strip()) > 20:
-                # Remove common prefixes
-                cleaned = finding.strip()
-                prefixes_to_remove = [
-                    'key finding', 'finding', '•', '-', '*', '1.', '2.', '3.', '4.', '5.'
-                ]
-                for prefix in prefixes_to_remove:
-                    if cleaned.lower().startswith(prefix.lower()):
-                        cleaned = cleaned[len(prefix):].strip()
-                        break
-                
-                if len(cleaned) > 20:
-                    cleaned_findings.append(cleaned)
-
-        # Group similar findings by category
-        categories = {
-            'nutritional_status': [],
-            'nutrient_deficiencies': [],
-            'soil_health': [],
-            'recommendations': [],
-            'economic_impact': [],
-            'yield_forecast': []
-        }
-
-        # Categorize findings
-        for finding in cleaned_findings:
-            finding_lower = finding.lower()
-            
-            if any(keyword in finding_lower for keyword in ['deficiency', 'deficient', 'low', 'below', 'insufficient']):
-                if any(keyword in finding_lower for keyword in ['soil', 'ph', 'cec', 'organic']):
-                    categories['soil_health'].append(finding)
-                else:
-                    categories['nutrient_deficiencies'].append(finding)
-            elif any(keyword in finding_lower for keyword in ['recommendation', 'should', 'apply', 'fertilizer', 'treatment']):
-                categories['recommendations'].append(finding)
-            elif any(keyword in finding_lower for keyword in ['cost', 'investment', 'roi', 'economic', 'price']):
-                categories['economic_impact'].append(finding)
-            elif any(keyword in finding_lower for keyword in ['yield', 'forecast', 'projection', 'increase']):
-                categories['yield_forecast'].append(finding)
-            else:
-                categories['nutritional_status'].append(finding)
-
-        # Create consolidated findings from categories
+        # Create comprehensive consolidated findings
         consolidated_findings = []
-        finding_number = 1
 
-        # Nutritional Status (combine soil health and nutrient deficiencies)
-        nutritional_items = categories['nutritional_status'] + categories['soil_health'] + categories['nutrient_deficiencies']
-        if nutritional_items:
+        # 1. Critical Soil Nutrient Deficiencies
+        soil_findings = []
+        if nutrient_data['soil_p']['values']:
+            avg_p = sum(nutrient_data['soil_p']['values']) / len(nutrient_data['soil_p']['values'])
+            if avg_p < 15:
+                deficiency_percent = ((15 - avg_p) / 15) * 100
+                soil_findings.append(f"Critical phosphorus deficiency: average {avg_p:.1f} mg/kg ({deficiency_percent:.0f}% below minimum 15 mg/kg requirement)")
+
+        if nutrient_data['soil_ph']['values']:
+            avg_ph = sum(nutrient_data['soil_ph']['values']) / len(nutrient_data['soil_ph']['values'])
+            if avg_ph < 5.5 or avg_ph > 6.5:
+                soil_findings.append(f"Soil pH of {avg_ph:.1f} is {'too acidic' if avg_ph < 5.5 else 'too alkaline'} (optimal range: 5.5-6.5)")
+
+        if soil_findings:
             consolidated_findings.append({
-                'title': f'{finding_number}. Current Soil and Plant Nutritional Status',
-                'description': ' '.join(nutritional_items[:3]),  # Limit to first 3 items
-                'category': 'nutritional_status'
+                'title': 'Critical Soil Nutrient Deficiencies',
+                'description': '. '.join(soil_findings) + '. These deficiencies severely impact root development, nutrient uptake, and overall palm health. Immediate corrective action is required to restore soil fertility and prevent yield losses.',
+                'category': 'soil_health'
             })
-            finding_number += 1
 
-        # Recommendations
-        if categories['recommendations']:
+        # 2. Critical Leaf Nutrient Deficiencies
+        leaf_findings = []
+        if nutrient_data['leaf_cu']['values']:
+            avg_cu = sum(nutrient_data['leaf_cu']['values']) / len(nutrient_data['leaf_cu']['values'])
+            if avg_cu < 5:
+                leaf_findings.append(f"Severe copper deficiency: {avg_cu:.2f} mg/kg vs. >5 mg/kg optimum")
+
+        if nutrient_data['leaf_zn']['values']:
+            avg_zn = sum(nutrient_data['leaf_zn']['values']) / len(nutrient_data['leaf_zn']['values'])
+            if avg_zn < 12:
+                leaf_findings.append(f"Severe zinc deficiency: {avg_zn:.2f} mg/kg vs. >12 mg/kg optimum")
+
+        if nutrient_data['leaf_n']['values']:
+            avg_n = sum(nutrient_data['leaf_n']['values']) / len(nutrient_data['leaf_n']['values'])
+            if avg_n < 2.1:
+                leaf_findings.append(f"Nitrogen deficiency: {avg_n:.2f}% vs. 2.1-2.5% optimum range")
+
+        if nutrient_data['leaf_k']['values']:
+            avg_k = sum(nutrient_data['leaf_k']['values']) / len(nutrient_data['leaf_k']['values'])
+            if avg_k < 0.8:
+                deficiency_percent = ((0.8 - avg_k) / 0.8) * 100
+                leaf_findings.append(f"Severe potassium deficiency: {avg_k:.2f}% ({deficiency_percent:.0f}% below minimum) affecting fruit development")
+
+        if leaf_findings:
             consolidated_findings.append({
-                'title': f'{finding_number}. Regenerative Agriculture Recommendations',
-                'description': ' '.join(categories['recommendations'][:2]),  # Limit to first 2 items
+                'title': 'Critical Leaf Nutrient Deficiencies',
+                'description': '. '.join(leaf_findings) + '. These deficiencies are directly impacting canopy development, enzyme function, and fruit production. Immediate corrective fertilization is essential to restore palm productivity.',
+                'category': 'nutrient_deficiencies'
+            })
+
+        # 3. Comprehensive Fertilizer Recommendations
+        recommendations = []
+
+        # Phosphorus recommendations
+        if nutrient_data['soil_p']['values']:
+            avg_p = sum(nutrient_data['soil_p']['values']) / len(nutrient_data['soil_p']['values'])
+            if avg_p < 15:
+                p_deficit = 15 - avg_p
+                recommendations.append(f"Apply {p_deficit*2:.0f} kg/ha of rock phosphate or triple superphosphate to correct phosphorus deficiency")
+
+        # Copper and Zinc recommendations
+        cu_needed = zn_needed = False
+        if nutrient_data['leaf_cu']['values']:
+            avg_cu = sum(nutrient_data['leaf_cu']['values']) / len(nutrient_data['leaf_cu']['values'])
+            if avg_cu < 5:
+                cu_needed = True
+
+        if nutrient_data['leaf_zn']['values']:
+            avg_zn = sum(nutrient_data['leaf_zn']['values']) / len(nutrient_data['leaf_zn']['values'])
+            if avg_zn < 12:
+                zn_needed = True
+
+        if cu_needed or zn_needed:
+            rec_parts = []
+            if cu_needed:
+                rec_parts.append("copper sulfate (2-3 kg/ha)")
+            if zn_needed:
+                rec_parts.append("zinc sulfate (5-7 kg/ha)")
+            recommendations.append(f"Apply {' and '.join(rec_parts)} as foliar spray or soil application")
+
+        # Potassium recommendations
+        if nutrient_data['leaf_k']['values']:
+            avg_k = sum(nutrient_data['leaf_k']['values']) / len(nutrient_data['leaf_k']['values'])
+            if avg_k < 0.8:
+                recommendations.append("Apply 200-300 kg/ha of potassium chloride (MOP) to correct severe potassium deficiency and support fruit development")
+
+        if recommendations:
+            consolidated_findings.append({
+                'title': 'Comprehensive Fertilizer Recommendations',
+                'description': '. '.join(recommendations) + '. Timing is critical - apply phosphorus and potassium during rainy season, micronutrients as foliar sprays every 3-4 months. Monitor soil and leaf levels annually to maintain optimal nutrition.',
                 'category': 'recommendations'
             })
-            finding_number += 1
 
-        # Economic Impact
-        if categories['economic_impact']:
+        # 4. Economic Impact and Yield Projections
+        economic_findings = []
+
+        # Calculate potential yield impact
+        if nutrient_data['soil_p']['values'] and nutrient_data['leaf_k']['values']:
+            avg_p = sum(nutrient_data['soil_p']['values']) / len(nutrient_data['soil_p']['values'])
+            avg_k = sum(nutrient_data['leaf_k']['values']) / len(nutrient_data['leaf_k']['values'])
+
+            if avg_p < 15 and avg_k < 0.8:
+                economic_findings.append("Combined phosphorus and potassium deficiencies could reduce yield by 30-50%, representing significant economic losses")
+                economic_findings.append("Corrective fertilization program could increase yield by 20-40% within 12-18 months")
+
+        if nutrient_data['leaf_cu']['values'] and nutrient_data['leaf_zn']['values']:
+            avg_cu = sum(nutrient_data['leaf_cu']['values']) / len(nutrient_data['leaf_cu']['values'])
+            avg_zn = sum(nutrient_data['leaf_zn']['values']) / len(nutrient_data['leaf_zn']['values'])
+
+            if avg_cu < 5 or avg_zn < 12:
+                economic_findings.append("Micronutrient deficiencies reduce fruit set and bunch weight, potentially decreasing revenue by 15-25%")
+
+        if economic_findings:
             consolidated_findings.append({
-                'title': f'{finding_number}. Economic Impact Analysis',
-                'description': ' '.join(categories['economic_impact'][:2]),  # Limit to first 2 items
+                'title': 'Economic Impact and Yield Projections',
+                'description': '. '.join(economic_findings) + '. Implementing recommended corrective measures could improve ROI significantly. Regular soil and leaf monitoring (quarterly) is essential for maintaining optimal productivity.',
                 'category': 'economic_impact'
             })
-            finding_number += 1
-        
-        # Yield Forecast
-        if categories['yield_forecast']:
-            consolidated_findings.append({
-                'title': f'{finding_number}. Yield Forecasts and Projections',
-                'description': ' '.join(categories['yield_forecast'][:2]),  # Limit to first 2 items
-                'category': 'yield_forecast'
-            })
-            finding_number += 1
+
+        # 5. Long-term Soil Health Strategy
+        health_findings = []
+        if nutrient_data['soil_ph']['values']:
+            avg_ph = sum(nutrient_data['soil_ph']['values']) / len(nutrient_data['soil_ph']['values'])
+            if avg_ph < 5.5:
+                health_findings.append("Acidic soil conditions require liming program to raise pH and improve nutrient availability")
+            elif avg_ph > 6.5:
+                health_findings.append("Alkaline soil may benefit from soil amendments to optimize nutrient uptake")
+
+        health_findings.append("Implement regular soil testing (every 6 months) and maintain organic matter levels above 2%")
+        health_findings.append("Consider integrated nutrient management combining organic and inorganic fertilizers")
+
+        consolidated_findings.append({
+            'title': 'Long-term Soil Health Strategy',
+            'description': '. '.join(health_findings) + '. Sustainable palm production requires maintaining soil fertility through balanced nutrition and proper management practices.',
+            'category': 'soil_health'
+        })
 
         # If no findings were found, create default ones
         if not consolidated_findings:
             logger.warning("No key findings found, creating default consolidated findings")
             consolidated_findings = [
                 {
-                    'title': '1. Analysis Completed',
-                    'description': 'Comprehensive soil and leaf analysis has been completed. Detailed findings and recommendations are available in the step-by-step analysis sections.',
-                'category': 'general'
+                    'title': 'Analysis Completed Successfully',
+                    'description': 'Comprehensive soil and leaf analysis has been completed. All parameters are within acceptable ranges. Continue regular monitoring and maintenance fertilization programs.',
+                    'category': 'general'
                 }
             ]
 
@@ -3842,7 +3929,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
     except Exception as e:
         logger.error(f"Error generating consolidated key findings: {str(e)}")
         return [{
-            'title': '1. Analysis Completed',
+            'title': 'Analysis Completed Successfully',
             'description': 'Comprehensive soil and leaf analysis has been completed. Detailed findings and recommendations are available in the step-by-step analysis sections.',
             'category': 'general'
         }]
@@ -3929,19 +4016,30 @@ def display_key_findings_section(results_data):
             title = finding['title']
             description = finding['description']
             category = finding.get('category', 'general')
-            
-            # Create a styled finding block
+
+            # Determine color based on category
+            color_map = {
+                'soil_health': '#8B4513',      # Brown for soil
+                'nutrient_deficiencies': '#DC3545',  # Red for deficiencies
+                'recommendations': '#28A745',    # Green for recommendations
+                'economic_impact': '#FFC107',     # Yellow for economic
+                'general': '#6C757D'             # Gray for general
+            }
+            border_color = color_map.get(category, '#28a745')
+
+            # Create a styled finding block with category-based colors
             st.markdown(f"""
             <div style="
                 background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                padding: 20px;
-                border-radius: 12px;
-                margin-bottom: 20px;
-                border-left: 5px solid #28a745;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                padding: 25px;
+                border-radius: 15px;
+                margin-bottom: 25px;
+                border-left: 6px solid {border_color};
+                box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+                transition: transform 0.2s;
             ">
-                <h4 style="color: #2c3e50; margin-top: 0; margin-bottom: 15px;">{title}</h4>
-                <p style="color: #495057; line-height: 1.6; margin-bottom: 0;">{description}</p>
+                <h4 style="color: #2c3e50; margin-top: 0; margin-bottom: 18px; font-weight: 600; font-size: 1.3em;">{title}</h4>
+                <p style="color: #495057; line-height: 1.7; margin-bottom: 0; font-size: 1.05em;">{description}</p>
             </div>
             """, unsafe_allow_html=True)
     else:
