@@ -754,6 +754,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
     """Process new analysis data from uploaded files"""
     try:
         import time
+        from utils.analysis_engine import AnalysisEngine
         
         # Optimized progress tracking (reduced steps for faster processing)
         total_steps = 5
@@ -882,18 +883,37 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             logger.info("🔄 Falling back to OCR extraction for soil data")
             status_text.text("🌱 **Step 2/5:** Extracting soil data via OCR... 🔄")
 
-            # Convert uploaded file to PIL Image for OCR processing
-            from PIL import Image
-            import tempfile
+            # Check file type and process accordingly
             import os
+            file_ext = os.path.splitext(soil_file.name)[1].lower()
+            is_image = file_ext in ['.png', '.jpg', '.jpeg']
 
             try:
-                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                    soil_image = Image.open(soil_file)
-                    soil_image.save(tmp_file.name)
-                    soil_data = extract_data_from_image(tmp_file.name)
+                if is_image:
+                    # Convert uploaded file to PIL Image for OCR processing
+                    from PIL import Image
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                        soil_image = Image.open(soil_file)
+                        soil_image.save(tmp_file.name)
+                        soil_data = extract_data_from_image(tmp_file.name)
+                        try:
+                            os.unlink(tmp_file.name)
+                        except (PermissionError, FileNotFoundError):
+                            pass
+                else:
+                    # For non-image files (Excel, CSV, etc.), pass directly to extraction
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                        tmp_file.write(soil_file.getvalue())
+                        tmp_file_path = tmp_file.name
+
+                    soil_data = extract_data_from_image(tmp_file_path)
+
                     try:
-                        os.unlink(tmp_file.name)
+                        os.unlink(tmp_file_path)
                     except (PermissionError, FileNotFoundError):
                         pass
             except Exception as e:
@@ -904,18 +924,37 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             logger.info("🔄 Falling back to OCR extraction for leaf data")
             status_text.text("🌿 **Step 2/5:** Extracting leaf data via OCR... 🔄")
 
-            # Convert uploaded file to PIL Image for OCR processing
-            from PIL import Image
-            import tempfile
+            # Check file type and process accordingly
             import os
+            file_ext = os.path.splitext(leaf_file.name)[1].lower()
+            is_image = file_ext in ['.png', '.jpg', '.jpeg']
 
             try:
-                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                    leaf_image = Image.open(leaf_file)
-                    leaf_image.save(tmp_file.name)
-                    leaf_data = extract_data_from_image(tmp_file.name)
+                if is_image:
+                    # Convert uploaded file to PIL Image for OCR processing
+                    from PIL import Image
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                        leaf_image = Image.open(leaf_file)
+                        leaf_image.save(tmp_file.name)
+                        leaf_data = extract_data_from_image(tmp_file.name)
+                        try:
+                            os.unlink(tmp_file.name)
+                        except (PermissionError, FileNotFoundError):
+                            pass
+                else:
+                    # For non-image files (Excel, CSV, etc.), pass directly to extraction
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                        tmp_file.write(leaf_file.getvalue())
+                        tmp_file_path = tmp_file.name
+
+                    leaf_data = extract_data_from_image(tmp_file_path)
+
                     try:
-                        os.unlink(tmp_file.name)
+                        os.unlink(tmp_file_path)
                     except (PermissionError, FileNotFoundError):
                         pass
             except Exception as e:
