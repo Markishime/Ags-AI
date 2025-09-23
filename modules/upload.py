@@ -360,53 +360,80 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                         else:
                             st.session_state.raw_leaf_text = raw_text
 
-                        if samples and not samples_are_empty:
-                            # Validate data
-                            if detected_type == 'soil':
-                                validation = validate_soil_data(samples)
-                            elif detected_type == 'leaf':
-                                validation = validate_leaf_data(samples)
-                            else:
-                                validation = {'is_valid': True, 'issues': []}
+                        st.info("🔄 Processing data through OCR text analysis for consistent results...")
 
-                            # Show validation issues if any
-                            if not validation.get('is_valid', True):
-                                with st.expander("⚠️ Data Validation Issues", expanded=False):
-                                    for issue in validation.get('issues', []):
-                                        st.warning(issue)
+                        # For Excel files, we need to generate raw text from the extracted samples
+                        # to ensure same processing as images/PDFs
+                        file_ext = os.path.splitext(file.name)[1].lower()
+                        if file_ext in ['.xlsx', '.xls']:
+                            if samples and not samples_are_empty:
+                                # Generate raw text from samples for Excel files to match OCR processing
+                                # Format: "S001: pH: 5.26 N (%): 0.07 Org. C (%): 0.58 ..."
+                                raw_text_lines = []
+                                for i, sample in enumerate(samples, 1):
+                                    sample_id = sample.get('sample_id', sample.get('Sample No.', sample.get('Lab No.', f'S{i:03d}')))
+                                    # Ensure sample_id is a string
+                                    sample_id = str(sample_id) if sample_id is not None else f'S{i:03d}'
 
-                                    if validation.get('recommendations'):
-                                        st.markdown("**Recommendations:**")
-                                        for rec in validation['recommendations']:
-                                            st.info(f"💡 {rec}")
+                                    # For leaf data, use 'L' prefix instead of 'S'
+                                    if container_type == 'leaf':
+                                        # Remove 'L' or 'P' prefix if it exists and ensure 3-digit format
+                                        if sample_id.startswith(('L', 'P')) and sample_id[1:].isdigit():
+                                            sample_num = int(sample_id[1:])
+                                            sample_id = f'L{sample_num:03d}'
+                                        elif sample_id.isdigit():
+                                            sample_id = f'L{int(sample_id):03d}'
+                                        else:
+                                            sample_id = f'L{i:03d}'
+                                    else:
+                                        # For soil data, use 'S' prefix
+                                        if sample_id.startswith('S') and sample_id[1:].isdigit():
+                                            sample_num = int(sample_id[1:])
+                                            sample_id = f'S{sample_num:03d}'
+                                        elif sample_id.isdigit():
+                                            sample_id = f'S{int(sample_id):03d}'
+                                        else:
+                                            sample_id = f'S{i:03d}'
 
-                            # Display the structured data
-                            structured_data = {'samples': samples}
-                            if detected_type == 'soil':
-                                display_structured_soil_data(structured_data)
-                                # Store structured data in session state for analysis (same as raw text fallback)
-                                st.session_state.structured_soil_data = structured_data
-                            elif detected_type == 'leaf':
-                                display_structured_leaf_data(structured_data)
-                                # Store structured data in session state for analysis (same as raw text fallback)
-                                st.session_state.structured_leaf_data = structured_data
+                                    param_values = []
+                                    for key, value in sample.items():
+                                        if key not in ['sample_id', 'Sample No.', 'Lab No.'] and value is not None:
+                                            # Format value as string
+                                            if isinstance(value, (int, float)):
+                                                param_values.append(str(value))
+                                            else:
+                                                param_values.append(str(value))
 
-                        else:
-                            st.warning("No valid samples found in structured data, falling back to raw text parsing...")
+                                    if param_values:
+                                        # Join all parameter values with spaces to match OCR format
+                                        values_text = ' '.join(param_values)
+                                        raw_text_lines.append(f"{sample_id}: {values_text}")
 
-                            # Fallback to raw text parsing
-                            if not raw_text and ocr_result.get('text'):
-                                raw_text = ocr_result['text']
-
-                            if raw_text:
-                                # Store raw text in session state for fallback analysis
-                                if container_type == 'soil':
-                                    st.session_state.raw_soil_text = raw_text
+                                if raw_text_lines:
+                                    raw_text = "\n".join(raw_text_lines)
+                                    # Update session state with generated raw text
+                                    if container_type == 'soil':
+                                        st.session_state.raw_soil_text = raw_text
+                                    else:
+                                        st.session_state.raw_leaf_text = raw_text
                                 else:
-                                    st.session_state.raw_leaf_text = raw_text
-                                _show_raw_text_as_json(raw_text, container_type, ocr_result)
+                                    st.warning(f"No parameter data found in {container_type} Excel file samples")
                             else:
-                                st.error("No data could be extracted from the uploaded file")
+                                st.warning(f"No valid samples found in {container_type} Excel file (samples: {len(samples) if samples else 0}, empty: {samples_are_empty if 'samples_are_empty' in locals() else 'unknown'})")
+
+                        # Fallback to raw text parsing (same path as images/PDFs)
+                        if not raw_text and ocr_result.get('text'):
+                            raw_text = ocr_result['text']
+
+                        if raw_text:
+                            # Store raw text in session state for analysis
+                            if container_type == 'soil':
+                                st.session_state.raw_soil_text = raw_text
+                            else:
+                                st.session_state.raw_leaf_text = raw_text
+                            _show_raw_text_as_json(raw_text, container_type, ocr_result)
+                        else:
+                            st.error("No data could be extracted from the uploaded file")
 
                     else:
                         st.error(f"**Content Type Mismatch Detected!**")
@@ -417,6 +444,53 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                         raw_text = ocr_result.get('raw_data', {}).get('text', '')
                         if not raw_text and ocr_result.get('text'):
                             raw_text = ocr_result['text']
+
+                        # For Excel files with type mismatch, generate raw text from samples
+                        file_ext = os.path.splitext(file.name)[1].lower()
+                        if (file_ext in ['.xlsx', '.xls'] and 'samples' in locals() and samples and
+                            'samples_are_empty' in locals() and not samples_are_empty and not raw_text):
+                            raw_text_lines = []
+                            for i, sample in enumerate(samples, 1):
+                                sample_id = sample.get('sample_id', sample.get('Sample No.', sample.get('Lab No.', f'S{i:03d}')))
+                                # Ensure sample_id is a string
+                                sample_id = str(sample_id) if sample_id is not None else f'S{i:03d}'
+
+                                # For leaf data, use 'L' prefix instead of 'S'
+                                if container_type == 'leaf':
+                                    # Remove 'L' or 'P' prefix if it exists and ensure 3-digit format
+                                    if sample_id.startswith(('L', 'P')) and sample_id[1:].isdigit():
+                                        sample_num = int(sample_id[1:])
+                                        sample_id = f'L{sample_num:03d}'
+                                    elif sample_id.isdigit():
+                                        sample_id = f'L{int(sample_id):03d}'
+                                    else:
+                                        sample_id = f'L{i:03d}'
+                                else:
+                                    # For soil data, use 'S' prefix
+                                    if sample_id.startswith('S') and sample_id[1:].isdigit():
+                                        sample_num = int(sample_id[1:])
+                                        sample_id = f'S{sample_num:03d}'
+                                    elif sample_id.isdigit():
+                                        sample_id = f'S{int(sample_id):03d}'
+                                    else:
+                                        sample_id = f'S{i:03d}'
+
+                                param_values = []
+                                for key, value in sample.items():
+                                    if key not in ['sample_id', 'Sample No.', 'Lab No.'] and value is not None:
+                                        # Format value as string
+                                        if isinstance(value, (int, float)):
+                                            param_values.append(str(value))
+                                        else:
+                                            param_values.append(str(value))
+
+                                if param_values:
+                                    # Join all parameter values with spaces to match OCR format
+                                    values_text = ' '.join(param_values)
+                                    raw_text_lines.append(f"{sample_id}: {values_text}")
+
+                            if raw_text_lines:
+                                raw_text = "\n".join(raw_text_lines)
 
                         if raw_text:
                             # Store raw text in session state for fallback analysis
@@ -450,12 +524,21 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                     else:
                         st.error("No data could be extracted from the uploaded file")
         except Exception as e:
-            error_msg = ocr_result.get('error', 'Unknown error') if 'ocr_result' in locals() else str(e)
+            # Provide better error messages
+            if 'ocr_result' in locals() and ocr_result:
+                error_msg = ocr_result.get('error', str(e)) if ocr_result.get('error') else str(e)
+            else:
+                error_msg = str(e)
+
+            # Add context about what went wrong
+            if not error_msg or error_msg == 'None':
+                error_msg = f"Processing failed for {file_ext.upper()} file. Check file format and try again."
+
             st.error(f"**OCR Error:** {error_msg}")
 
             # Show error details
             with st.expander("❌ Error Details", expanded=False):
-                st.code(error_msg, language="text")
+                st.code(f"Exception: {str(e)}\nError Message: {error_msg}\nFile: {file.name}\nContainer: {container_type}", language="text")
 
 def upload_section():
     """Handle file upload and preview with enhanced OCR processing"""
