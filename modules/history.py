@@ -62,16 +62,22 @@ def display_history_statistics():
     """Display statistics dashboard for analysis history"""
     try:
         user_id = st.session_state.get('user_id')
-        if not user_id:
+        user_email = st.session_state.get('user_email')
+
+        if not user_id and not user_email:
             return
-        
+
+        # Use user_id if available, otherwise fall back to user_email
+        query_field = 'user_id' if user_id else 'user_email'
+        query_value = user_id if user_id else user_email
+
         db = get_firestore_client()
         if not db:
             return
-        
+
         # Get all user analyses for statistics from analysis_results collection
         analyses_ref = db.collection('analysis_results')
-        user_analyses = analyses_ref.where(filter=FieldFilter('user_id', '==', user_id)).get()
+        user_analyses = analyses_ref.where(filter=FieldFilter(query_field, '==', query_value)).get()
         
 
         
@@ -258,7 +264,12 @@ def display_history_statistics():
             now = datetime.now()
             recent_analyses = 0
             for doc in user_analyses:
-                created_at = doc.to_dict().get('created_at', now)
+                doc_data = doc.to_dict()
+                # Reconstruct data from Firestore format
+                from modules.results import reconstruct_firestore_data
+                doc_data = reconstruct_firestore_data(doc_data)
+
+                created_at = doc_data.get('created_at', now)
                 # Convert timezone-aware datetime to naive for comparison
                 if hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
                     created_at_naive = created_at.replace(tzinfo=None)
@@ -284,9 +295,17 @@ def display_analysis_history():
     
     # Check if user info is available
     user_id = st.session_state.get('user_id')
-    if not user_id:
+    user_email = st.session_state.get('user_email')
+
+    if not user_id and not user_email:
         st.error("User information not available. Please log in again.")
         return
+
+    # Use user_id if available, otherwise fall back to user_email
+    query_field = 'user_id' if user_id else 'user_email'
+    query_value = user_id if user_id else user_email
+
+    logger.info(f"🔍 DEBUG - Using query field: {query_field}, value: {query_value}")
     
     try:
         db = get_firestore_client()
@@ -305,10 +324,12 @@ def display_analysis_history():
         
         # Get user's analyses from analysis_results collection using correct field
         analyses_ref = db.collection('analysis_results')
-        query = analyses_ref.where(filter=FieldFilter('user_id', '==', user_id)).order_by('created_at', direction=Query.DESCENDING).limit(limit)
+        query = analyses_ref.where(filter=FieldFilter(query_field, '==', query_value)).order_by('created_at', direction=Query.DESCENDING).limit(limit)
         
         user_analyses = query.get()
-        
+
+        logger.info(f"🔍 DEBUG - Retrieved {len(user_analyses)} documents from Firestore")
+
         if not user_analyses:
             st.info("📋 No analysis history found. Upload your first report to get started!")
             return
@@ -318,9 +339,27 @@ def display_analysis_history():
         for doc in user_analyses:
             analysis_data = doc.to_dict()
 
+            # Debug: Log document structure
+            logger.info(f"🔍 DEBUG - Document ID: {doc.id}")
+            logger.info(f"🔍 DEBUG - Document keys: {list(analysis_data.keys())}")
+
+            # Debug: Check created_at type before reconstruction
+            created_at_before = analysis_data.get('created_at')
+            logger.info(f"🔍 DEBUG - created_at before reconstruction: {created_at_before} (type: {type(created_at_before)})")
+
             # Reconstruct data from Firestore format
-            from modules.results import reconstruct_firestore_data
-            analysis_data = reconstruct_firestore_data(analysis_data)
+            try:
+                from modules.results import reconstruct_firestore_data
+                analysis_data = reconstruct_firestore_data(analysis_data)
+                logger.info("✅ DEBUG - Reconstruction completed successfully")
+            except Exception as e:
+                logger.error(f"❌ DEBUG - Reconstruction failed: {e}")
+                # Continue with original data if reconstruction fails
+                pass
+
+            # Debug: Check created_at type after reconstruction
+            created_at_after = analysis_data.get('created_at')
+            logger.info(f"🔍 DEBUG - created_at after reconstruction: {created_at_after} (type: {type(created_at_after)})")
 
             # Apply status filter (analysis_results are always completed)
             if status_filter != "All" and status_filter != "completed":

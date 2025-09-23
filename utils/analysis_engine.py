@@ -2739,12 +2739,12 @@ class PromptAnalyzer:
                 "summary": "Comprehensive summary based on the specific step requirements and actual data analysis",
                 "detailed_analysis": "Detailed analysis following the exact step instructions with statistical insights across all samples. This should be a comprehensive explanation of the analysis results in clear, non-technical language. Include ALL aspects mentioned in the step instructions.",
                     "key_findings": [
-                    "Key finding 1: Most critical insight based on step requirements with specific values and data points",
-                    "Key finding 2: Important trend or pattern identified across samples with quantified results",
-                    "Key finding 3: Significant finding with quantified impact and specific recommendations",
-                    "Key finding 4: Additional insight based on step requirements with actionable information",
-                    "Key finding 5: Additional detailed insight addressing all step requirements",
-                    "Key finding 6: Comprehensive finding covering all aspects of the step instructions"
+                    "Most critical insight based on step requirements with specific values and data points",
+                    "Important trend or pattern identified across samples with quantified results",
+                    "Significant finding with quantified impact and specific recommendations",
+                    "Additional insight based on step requirements with actionable information",
+                    "Additional detailed insight addressing all step requirements",
+                    "Comprehensive finding covering all aspects of the step instructions"
                 ],
                 "formatted_analysis": "Formatted analysis text following the step requirements with proper structure and formatting. Include tables, interpretations, and all requested analysis components.",
                 "specific_recommendations": [

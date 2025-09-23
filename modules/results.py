@@ -774,13 +774,22 @@ def reconstruct_firestore_data(data):
                     # Check if it's an ISO datetime string (with T and timezone indicators)
                     if 'T' in obj and ('Z' in obj or '+' in obj or '-' in obj[-6:]):
                         return datetime.fromisoformat(obj.replace('Z', '+00:00'))
+                    # Check if it's an ISO datetime string without timezone (like from isoformat())
+                    elif 'T' in obj and len(obj) >= 19:
+                        # Try to parse ISO format without timezone
+                        try:
+                            return datetime.fromisoformat(obj)
+                        except ValueError:
+                            # Try with timezone if parsing fails
+                            return datetime.fromisoformat(obj + '+00:00')
                     # Check if it's a simple date-time string like "2024-01-01 12:00:00"
                     elif len(obj) >= 19 and obj[4] == '-' and obj[7] == '-' and obj[10] == ' ' and obj[13] == ':' and obj[16] == ':':
                         return datetime.strptime(obj, '%Y-%m-%d %H:%M:%S')
                     # Check if it's just a date string
                     elif len(obj) == 10 and obj[4] == '-' and obj[7] == '-':
                         return datetime.strptime(obj, '%Y-%m-%d')
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse datetime string '{obj}': {e}")
                     pass
                 return obj
             elif isinstance(obj, dict):
@@ -2923,23 +2932,31 @@ def calculate_parameter_statistics(samples):
     return param_stats
 
 def clean_finding_text(text):
-    """Clean finding text by removing duplicate 'Key Finding' words and normalizing"""
+    """Clean finding text by removing all 'Key Finding' prefixes and normalizing"""
     import re
-    
-    # Remove duplicate "Key Finding" patterns
-    # Pattern 1: "Key Finding X: Key finding Y:" -> "Key Finding X:"
-    text = re.sub(r'Key Finding \d+:\s*Key finding \d+:\s*', 'Key Finding ', text)
-    
-    # Pattern 2: "Key finding X:" -> remove (lowercase version)
-    text = re.sub(r'Key finding \d+:\s*', '', text)
-    
-    # Pattern 3: Multiple "Key Finding" at the start
-    text = re.sub(r'^(Key Finding \d+:\s*)+', 'Key Finding ', text)
-    
-    # Clean up extra spaces
+
+    # Remove all variations of "Key finding X:" and "Key Finding X:" prefixes
+    # Pattern 1: "Key finding X:" (lowercase)
+    text = re.sub(r'^Key finding \d+:\s*', '', text, flags=re.MULTILINE | re.IGNORECASE)
+
+    # Pattern 2: "Key Finding X:" (title case)
+    text = re.sub(r'^Key Finding \d+:\s*', '', text, flags=re.MULTILINE | re.IGNORECASE)
+
+    # Pattern 3: Remove any remaining "Key finding" or "Key Finding" at start of lines
+    text = re.sub(r'^(Key finding|Key Finding)\s*\d*:\s*', '', text, flags=re.MULTILINE | re.IGNORECASE)
+
+    # Pattern 4: Remove duplicate "Key Finding" patterns that might remain
+    text = re.sub(r'Key Finding \d+:\s*Key finding \d+:\s*', '', text)
+    text = re.sub(r'^(Key Finding \d+:\s*)+', '', text)
+
+    # Clean up extra spaces and normalize
     text = re.sub(r'\s+', ' ', text).strip()
-    
-    return text
+
+    # Remove leading/trailing punctuation that might remain
+    text = re.sub(r'^[^\w]*', '', text)
+    text = re.sub(r'[^\w]*$', '', text)
+
+    return text.strip()
 
 def is_same_issue(finding1, finding2):
     """Check if two findings are about the same agricultural issue"""
@@ -3901,38 +3918,44 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                             # Categorize findings by content
                             for finding in findings:
                                 if isinstance(finding, str):
-                                    finding_lower = finding.lower()
+                                    # Clean the finding text to remove "Key finding X:" prefixes
+                                    cleaned_finding = clean_finding_text(finding)
+
+                                    finding_lower = cleaned_finding.lower()
                                     if any(word in finding_lower for word in ['soil', 'ph', 'phosphorus', 'potassium']):
-                                        step_findings['soil_analysis'].append(finding)
+                                        step_findings['soil_analysis'].append(cleaned_finding)
                                     elif any(word in finding_lower for word in ['leaf', 'nitrogen', 'copper', 'zinc']):
-                                        step_findings['leaf_analysis'].append(finding)
+                                        step_findings['leaf_analysis'].append(cleaned_finding)
                                     elif any(word in finding_lower for word in ['recommend', 'apply', 'fertilizer', 'treatment']):
-                                        step_findings['recommendations'].append(finding)
+                                        step_findings['recommendations'].append(cleaned_finding)
                                     elif any(word in finding_lower for word in ['cost', 'economic', 'price', 'investment']):
-                                        step_findings['economic_impact'].append(finding)
+                                        step_findings['economic_impact'].append(cleaned_finding)
                                     elif any(word in finding_lower for word in ['yield', 'projection', 'forecast', 'increase']):
-                                        step_findings['yield_projections'].append(finding)
+                                        step_findings['yield_projections'].append(cleaned_finding)
                                     else:
-                                        step_findings['general'].append(finding)
+                                        step_findings['general'].append(cleaned_finding)
 
                             all_findings.extend(findings)
                             logger.info(f"📋 Categorized {len(findings)} findings from {field}")
                         elif isinstance(findings, str):
-                            all_findings.append(findings)
+                            # Clean the finding text to remove "Key finding X:" prefixes
+                            cleaned_findings = clean_finding_text(findings)
+
+                            all_findings.append(cleaned_findings)
                             # Categorize single finding
-                            finding_lower = findings.lower()
+                            finding_lower = cleaned_findings.lower()
                             if any(word in finding_lower for word in ['soil', 'ph', 'phosphorus', 'potassium']):
-                                step_findings['soil_analysis'].append(findings)
+                                step_findings['soil_analysis'].append(cleaned_findings)
                             elif any(word in finding_lower for word in ['leaf', 'nitrogen', 'copper', 'zinc']):
-                                step_findings['leaf_analysis'].append(findings)
+                                step_findings['leaf_analysis'].append(cleaned_findings)
                             elif any(word in finding_lower for word in ['recommend', 'apply', 'fertilizer', 'treatment']):
-                                step_findings['recommendations'].append(findings)
+                                step_findings['recommendations'].append(cleaned_findings)
                             elif any(word in finding_lower for word in ['cost', 'economic', 'price', 'investment']):
-                                step_findings['economic_impact'].append(findings)
+                                step_findings['economic_impact'].append(cleaned_findings)
                             elif any(word in finding_lower for word in ['yield', 'projection', 'forecast', 'increase']):
-                                step_findings['yield_projections'].append(findings)
+                                step_findings['yield_projections'].append(cleaned_findings)
                             else:
-                                step_findings['general'].append(findings)
+                                step_findings['general'].append(cleaned_findings)
                             logger.info(f"📋 Categorized string finding from {field}")
 
         # Try to extract data from analysis_results as fallback
@@ -4360,6 +4383,10 @@ def display_key_findings_section(results_data):
         for finding in consolidated_findings:
             title = finding['title']
             description = finding['description']
+
+            # Clean the description to remove any "Key finding X:" prefixes
+            description = clean_finding_text(description)
+
             category = finding.get('category', 'general')
 
             # Determine color based on category
