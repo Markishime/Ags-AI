@@ -220,10 +220,15 @@ def display_history_statistics():
             )
         
         with col4:
+            try:
+                delta_text = f"Since {earliest.strftime('%Y-%m-%d')}" if isinstance(earliest, datetime) and timestamps else None
+            except (AttributeError, TypeError):
+                delta_text = None
+
             st.metric(
                 label="📅 Analysis Period",
                 value=f"{days_span} days",
-                delta=f"Since {earliest.strftime('%Y-%m-%d')}" if timestamps else None
+                delta=delta_text
             )
         
         # Additional metrics row
@@ -288,6 +293,30 @@ def display_history_statistics():
         
     except Exception as e:
         st.error(f"Error loading statistics: {str(e)}")
+
+def _safe_datetime_conversion(timestamp):
+    """Safely convert various timestamp formats to datetime object"""
+    if isinstance(timestamp, datetime):
+        return timestamp
+    elif isinstance(timestamp, str):
+        try:
+            # Try ISO format first
+            return datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            try:
+                # Try parsing as Unix timestamp string
+                return datetime.fromtimestamp(float(timestamp))
+            except (ValueError, TypeError, OSError):
+                # If all parsing fails, return current time
+                return datetime.now()
+    elif isinstance(timestamp, (int, float)):
+        try:
+            return datetime.fromtimestamp(timestamp)
+        except (ValueError, TypeError, OSError):
+            return datetime.now()
+    else:
+        # For any other type, return current time
+        return datetime.now()
 
 def display_analysis_history():
     """Display user's analysis history with enhanced features"""
@@ -370,30 +399,20 @@ def display_analysis_history():
                 search_lower = search_term.lower()
                 created_at = analysis_data.get('created_at', datetime.now())
 
-                # Handle timezone-aware datetime for string formatting
-                # created_at might be a string (ISO format) from Firestore storage
-                if isinstance(created_at, str):
-                    try:
-                        # Parse ISO string back to datetime
-                        created_at_parsed = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                        # Remove timezone info for display
-                        if hasattr(created_at_parsed, 'replace') and hasattr(created_at_parsed, 'tzinfo') and created_at_parsed.tzinfo is not None:
-                            created_at_naive = created_at_parsed.replace(tzinfo=None)
-                        else:
-                            created_at_naive = created_at_parsed
-                    except (ValueError, AttributeError):
-                        # If parsing fails, use current time
-                        created_at_naive = datetime.now()
-                elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
-                    created_at_naive = created_at.replace(tzinfo=None)
-                else:
-                    created_at_naive = created_at
+                # Use safe datetime conversion for search
+                created_at_naive = _safe_datetime_conversion(created_at)
+                # Remove timezone info if present
+                if hasattr(created_at_naive, 'replace') and hasattr(created_at_naive, 'tzinfo') and created_at_naive.tzinfo is not None:
+                    created_at_naive = created_at_naive.replace(tzinfo=None)
 
-                timestamp_str = created_at_naive.strftime('%Y-%m-%d %H:%M').lower()
+                try:
+                    timestamp_str = created_at_naive.strftime('%Y-%m-%d %H:%M').lower()
+                except (AttributeError, TypeError):
+                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M').lower()
                 status_str = 'completed'  # analysis_results are always completed
-                
+
                 # Search in timestamp, status, and analysis content
-                if (search_lower not in timestamp_str and 
+                if (search_lower not in timestamp_str and
                     search_lower not in status_str and
                     not _search_in_analysis_content(analysis_data, search_lower)):
                     continue
@@ -480,57 +499,26 @@ def display_analysis_history():
             # Debug logging for timestamp issues
             logger.info(f"🔍 DEBUG - Raw created_at value: {created_at} (type: {type(created_at)})")
 
-            # Handle timezone-aware datetime for display
-            # created_at might be a string (ISO format) from Firestore storage
-            if isinstance(created_at, str):
-                try:
-                    # Parse ISO string back to datetime
-                    timestamp = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    # Remove timezone info for display
-                    if hasattr(timestamp, 'replace') and hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is not None:
-                        timestamp = timestamp.replace(tzinfo=None)
-                    logger.info(f"✅ DEBUG - Successfully parsed ISO timestamp: {timestamp}")
-                except (ValueError, AttributeError) as e:
-                    logger.warning(f"❌ DEBUG - ISO parsing failed for {created_at}: {e}")
-                    # If parsing fails, try alternative parsing methods
-                    try:
-                        # Try parsing as timestamp
-                        timestamp = datetime.fromtimestamp(float(created_at))
-                        logger.info(f"✅ DEBUG - Successfully parsed as Unix timestamp: {timestamp}")
-                    except (ValueError, TypeError, OSError) as e2:
-                        logger.error(f"❌ DEBUG - Unix timestamp parsing also failed for {created_at}: {e2}")
-                        # If all parsing fails, use current time
-                        logger.warning(f"Could not parse timestamp: {created_at}, using current time")
-                        timestamp = datetime.now()
-            elif hasattr(created_at, 'replace') and hasattr(created_at, 'tzinfo') and created_at.tzinfo is not None:
-                timestamp = created_at.replace(tzinfo=None)
-                logger.info(f"✅ DEBUG - Removed timezone from datetime: {timestamp}")
-            elif isinstance(created_at, (int, float)):
-                # Handle Unix timestamp
-                timestamp = datetime.fromtimestamp(created_at)
-                logger.info(f"✅ DEBUG - Converted Unix timestamp: {timestamp}")
-            elif isinstance(created_at, datetime):
-                timestamp = created_at
-                logger.info(f"✅ DEBUG - Already a datetime object: {timestamp}")
-            else:
-                # Fallback to current time for any other type
-                logger.warning(f"Unexpected timestamp type: {type(created_at)}, value: {created_at}, using current time")
-                timestamp = datetime.now()
+            # Use safe datetime conversion
+            timestamp = _safe_datetime_conversion(created_at)
+            # Remove timezone info if present
+            if hasattr(timestamp, 'replace') and hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is not None:
+                timestamp = timestamp.replace(tzinfo=None)
 
-            # Ensure timestamp is always a datetime object
-            if not isinstance(timestamp, datetime):
-                logger.error(f"Timestamp is still not a datetime object: {type(timestamp)}, value: {timestamp}")
-                timestamp = datetime.now()
-            else:
-                logger.info(f"✅ DEBUG - Final timestamp for display: {timestamp} (type: {type(timestamp)})")
+            logger.info(f"✅ DEBUG - Final timestamp for display: {timestamp} (type: {type(timestamp)})")
 
             # Create status badge
             status_color = '🟢'  # Always completed for analysis_results
 
             # Safe strftime call with additional error checking
             try:
+                # Final safety check - ensure timestamp is datetime
+                if not isinstance(timestamp, datetime):
+                    logger.error(f"❌ CRITICAL - timestamp is not datetime object: {timestamp} (type: {type(timestamp)})")
+                    timestamp = datetime.now()
+
                 timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M')
-            except AttributeError as e:
+            except (AttributeError, TypeError) as e:
                 logger.error(f"❌ CRITICAL - strftime failed on timestamp: {timestamp} (type: {type(timestamp)}) - Error: {e}")
                 # Emergency fallback
                 timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -571,8 +559,12 @@ def display_analysis_history():
                     st.write(f"**Status:** {status.title()}")
                     st.write(f"**Report Type:** Step-by-Step Analysis")
                     try:
+                        # Final safety check for created_str timestamp
+                        if not isinstance(timestamp, datetime):
+                            logger.error(f"❌ CRITICAL - timestamp for created_str is not datetime: {timestamp} (type: {type(timestamp)})")
+                            timestamp = datetime.now()
                         created_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-                    except AttributeError:
+                    except (AttributeError, TypeError):
                         created_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     st.write(f"**Created:** {created_str}")
                     st.write(f"**Steps Found:** {len(step_analysis)}")

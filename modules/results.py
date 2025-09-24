@@ -1064,7 +1064,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         # Step 3: Data Validation (optimized)
         current_step = 3
         progress_bar.progress(50)
-        status_text.text("✅ **Step 3/5:** Validating extracted data quality...")
+        status_text.text("✅ **Step 3/5:** Processing extracted data...")
         if time_estimate:
             time_estimate.text("⏱️ Estimated time remaining: ~60 seconds")
         if step_indicator:
@@ -4023,10 +4023,17 @@ def generate_consolidated_key_findings(analysis_results, step_results):
         if step_findings and any(step_findings.values()):
             logger.info("✅ Compiling findings from step results")
 
-            # 1. Soil Health Analysis - Compiled from soil analysis steps
+            # 1. Soil Health Analysis - Compiled from soil analysis steps (SOIL-ONLY)
             soil_compiled = []
             if step_findings['soil_analysis']:
-                soil_compiled.extend(step_findings['soil_analysis'][:3])  # Take top 3 soil findings
+                # Filter out any soil findings that mention leaf-related terms
+                soil_only_findings = []
+                for finding in step_findings['soil_analysis']:
+                    finding_lower = finding.lower()
+                    # Exclude findings that mention leaf, nitrogen, copper, zinc (leaf nutrients)
+                    if not any(leaf_term in finding_lower for leaf_term in ['leaf', 'nitrogen', 'copper', 'zinc', 'n%', 'cu', 'zn']):
+                        soil_only_findings.append(finding)
+                soil_compiled.extend(soil_only_findings[:3])  # Take top 3 soil-only findings
 
             # Add nutrient-based soil findings
             if 'soil_p' in nutrient_stats:
@@ -4719,9 +4726,105 @@ def display_enhanced_step_result(step_result, step_number):
             parse_and_display_json_analysis(detailed_text)
         else:
             st.info("📋 No detailed analysis available for this step.")
-    
-    # 4. VISUALIZATIONS SECTION - Show if available
-    if step_number != 2:
+
+    # 3.5. DETAILED DATA TABLES SECTION - Always try to display tables
+    tables_displayed = False
+
+    # First priority: Try to display raw tables data if tables exist
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("### 📊 Detailed Data Tables")
+        tables = analysis_data['tables']
+        if isinstance(tables, list):
+            for i, table_data in enumerate(tables, 1):
+                if table_data and isinstance(table_data, dict):
+                    display_table(table_data, f"Table {i}")
+                    tables_displayed = True
+        elif isinstance(tables, dict):
+            # Handle the case where tables is a dict with items (may be JSON strings)
+            for key, table_data in tables.items():
+                if isinstance(table_data, str):
+                    # Try to parse JSON string
+                    try:
+                        import json
+                        parsed_table = json.loads(table_data)
+                        if isinstance(parsed_table, dict) and 'title' in parsed_table:
+                            st.markdown(f"#### {parsed_table['title']}")
+                            display_table(parsed_table, key)
+                            tables_displayed = True
+                    except json.JSONDecodeError:
+                        # If not valid JSON, try to display as raw text
+                        st.markdown(f"#### Table {key}")
+                        st.code(table_data[:500] + "..." if len(table_data) > 500 else table_data)
+                        tables_displayed = True
+                elif isinstance(table_data, dict) and 'title' in table_data:
+                    st.markdown(f"#### {table_data['title']}")
+                    display_table(table_data, key)
+                    tables_displayed = True
+
+    # Second priority: Extract from formatted_analysis if tables weren't found above
+    if not tables_displayed and 'formatted_analysis' in analysis_data and analysis_data['formatted_analysis']:
+        formatted_text = analysis_data['formatted_analysis']
+
+        # Ensure formatted_text is a string
+        if isinstance(formatted_text, str) and formatted_text.strip():
+            # First, filter out ALL prohibited sections from the entire formatted analysis
+            import re
+
+            # Remove all prohibited sections
+            prohibited_patterns = [
+                r'Specific Recommendations:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Tables:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Interpretations:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Visualizations:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Yield Forecast:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Data Quality:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Sample Analysis:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Format Analysis:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'Data Format Recommendations:.*?(?=##|\n\n##|\n\n\n##|$)',
+                r'data quality.*?(?=\n\n|$)',
+                r'sample adequacy.*?(?=\n\n|$)',
+                r'sample representativeness.*?(?=\n\n|$)'
+            ]
+
+            filtered_text = formatted_text
+            for pattern in prohibited_patterns:
+                filtered_text = re.sub(pattern, '', filtered_text, flags=re.DOTALL | re.MULTILINE)
+
+            # Clean up extra whitespace
+            filtered_text = re.sub(r'\n\n\n+', '\n\n', filtered_text)
+
+            # Now extract the Detailed Data Tables section from the filtered text
+            tables_match = re.search(r'## 📊 Detailed Data Tables\n(.*?)(?=##|\n\n##|$)', filtered_text, re.DOTALL | re.MULTILINE)
+
+            if tables_match:
+                tables_content = tables_match.group(1).strip()
+
+                # Additional filtering for Step 3
+                if step_number == 3:
+                    # Remove specific sections that contain the unwanted content within the tables section
+                    step3_patterns = [
+                        r'### Annual Fertilizer Recommendation Program.*?(?=###|\n\n###|$)',
+                        r'### Summary of Recommended Regenerative Practices.*?(?=###|\n\n###|$)',
+                        r'### Estimated Annual Nutrient Contribution.*?(?=###|\n\n###|$)',
+                    ]
+
+                    for pattern in step3_patterns:
+                        tables_content = re.sub(pattern, '', tables_content, flags=re.DOTALL | re.MULTILINE)
+
+                    # Clean up extra whitespace again
+                    tables_content = re.sub(r'\n\n\n+', '\n\n', tables_content)
+
+                if tables_content.strip():
+                    st.markdown("### 📊 Detailed Data Tables")
+                    st.markdown(tables_content)
+                    tables_displayed = True
+
+    # If no tables were displayed, show a message
+    if not tables_displayed:
+        st.info("📊 No detailed data tables available for this step.")
+
+    # 4. VISUALIZATIONS SECTION - Show if available (skip for Step 3)
+    if step_number != 2 and step_number != 3:
         # Display visualizations for other steps only if step instructions contain visualization keywords
         # Skip visualizations for economic forecast steps
         if should_show_visualizations(step_result) and not should_show_forecast_graph(step_result):
@@ -4751,44 +4854,52 @@ def display_enhanced_step_result(step_result, step_number):
                         if viz_data and isinstance(viz_data, dict):
                             display_visualization(viz_data, i, step_number)
     
-    # 5. TABLES SECTION - Show if available
-    if 'tables' in analysis_data and analysis_data['tables']:
+    # 5. TABLES SECTION - Show if available (skip for Step 3)
+    if step_number != 3 and 'tables' in analysis_data and analysis_data['tables']:
         st.markdown("### 📊 Data Tables")
         tables = analysis_data['tables']
         if isinstance(tables, list):
             for i, table_data in enumerate(tables, 1):
                 if table_data and isinstance(table_data, dict):
                     display_table(table_data, f"Table {i}")
-    
-    # 6. ADDITIONAL DATA SECTION - Show any other structured data
-    additional_keys = ['recommendations', 'solutions', 'strategies', 'forecasts', 'projections']
-    for key in additional_keys:
-        if key in analysis_data and analysis_data[key]:
-            st.markdown(f"### 📋 {key.replace('_', ' ').title()}")
-            value = analysis_data[key]
-            
-            if isinstance(value, dict) and value:
-                st.markdown(f"**{key.replace('_', ' ').title()}:**")
-                for sub_k, sub_v in value.items():
-                    if sub_v is not None and sub_v != "":
-                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
-            elif isinstance(value, list) and value:
-                st.markdown(f"**{key.replace('_', ' ').title()}:**")
-                for idx, item in enumerate(value, 1):
-                    if isinstance(item, dict):
-                        st.markdown(f"- **Item {idx}:**")
-                        for k, v in item.items():
-                            if isinstance(v, (dict, list)):
-                                st.markdown(f"  - **{k.replace('_',' ').title()}:** {str(v)[:100]}{'...' if len(str(v)) > 100 else ''}")
-                            else:
-                                st.markdown(f"  - **{k.replace('_',' ').title()}:** {v}")
-                    elif isinstance(item, list):
-                        st.markdown(f"- **Item {idx}:** {', '.join(map(str, item))}")
-                    else:
-                        st.markdown(f"- {item}")
-            elif isinstance(value, str) and value.strip():
-                st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
-            st.markdown("")
+
+    # 6. ADDITIONAL DATA SECTION - Show any other structured data (skip for Step 3 and prohibited sections)
+    if step_number != 3:
+        # Filter out prohibited sections
+        prohibited_keys = [
+            'specific_recommendations', 'interpretations', 'visualizations',
+            'yield_forecast', 'data_quality', 'sample_analysis',
+            'format_analysis', 'data_format_recommendations'
+        ]
+
+        additional_keys = ['recommendations', 'solutions', 'strategies', 'forecasts', 'projections']
+        for key in additional_keys:
+            if key in analysis_data and analysis_data[key] and key not in prohibited_keys:
+                st.markdown(f"### 📋 {key.replace('_', ' ').title()}")
+                value = analysis_data[key]
+
+                if isinstance(value, dict) and value:
+                    st.markdown(f"**{key.replace('_', ' ').title()}:**")
+                    for sub_k, sub_v in value.items():
+                        if sub_v is not None and sub_v != "":
+                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                elif isinstance(value, list) and value:
+                    st.markdown(f"**{key.replace('_', ' ').title()}:**")
+                    for idx, item in enumerate(value, 1):
+                        if isinstance(item, dict):
+                            st.markdown(f"- **Item {idx}:**")
+                            for k, v in item.items():
+                                if isinstance(v, (dict, list)):
+                                    st.markdown(f"  - **{k.replace('_',' ').title()}:** {str(v)[:100]}{'...' if len(str(v)) > 100 else ''}")
+                                else:
+                                    st.markdown(f"  - **{k.replace('_',' ').title()}:** {v}")
+                        elif isinstance(item, list):
+                            st.markdown(f"- **Item {idx}:** {', '.join(map(str, item))}")
+                        else:
+                            st.markdown(f"- {item}")
+                elif isinstance(value, str) and value.strip():
+                    st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+                st.markdown("")
     
     # Display visualizations for all steps except Step 2 (which shows no visualizations or tables)
     if step_number != 2:
@@ -6680,7 +6791,7 @@ def display_bar_chart(data, title):
                 
                 # Validate that we have meaningful data
                 if all(v == 0 for v in numeric_values):
-                    st.warning("⚠️ All chart values are zero. This may indicate data quality issues.")
+                    st.warning("⚠️ All chart values are zero. Please check your input data.")
                     return
                 
                 # Check for reasonable data ranges
@@ -7531,7 +7642,7 @@ def display_deviation_chart(data, title, options=None):
 
 
 def display_gauge_chart(data, title, options=None):
-    """Display gauge chart for data quality and confidence indicators"""
+    """Display gauge chart for confidence indicators"""
     try:
         import plotly.graph_objects as go
         
@@ -10777,13 +10888,35 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                     fallback = _generate_fallback_values(baseline_yield, scenario_key)
                     scenario_values = fallback[:6]
                 
+                # Create hover text showing ranges where available
+                hover_texts = []
+                for i, year in enumerate(years):
+                    if i == 0:  # Current year
+                        hover_texts.append(f"Year: Current<br>Yield: {scenario_values[i]:.1f} t/ha<br>Scenario: {scenario_name}")
+                    else:
+                        # Try to get the original range data for hover
+                        year_key = f'year_{i}'
+                        if isinstance(scenario_data, dict) and year_key in scenario_data:
+                            original_value = scenario_data[year_key]
+                            if isinstance(original_value, str) and '-' in original_value:
+                                # This is a range, show it in hover
+                                hover_texts.append(f"Year: {year_labels[i]}<br>Yield Range: {original_value}<br>Scenario: {scenario_name}")
+                            else:
+                                # Single value
+                                hover_texts.append(f"Year: {year_labels[i]}<br>Yield: {scenario_values[i]:.1f} t/ha<br>Scenario: {scenario_name}")
+                        else:
+                            # Fallback
+                            hover_texts.append(f"Year: {year_labels[i]}<br>Yield: {scenario_values[i]:.1f} t/ha<br>Scenario: {scenario_name}")
+
                 fig.add_trace(go.Scatter(
                     x=years,
                     y=scenario_values,
                     mode='lines+markers',
                     name=scenario_name,
                     line=dict(color=color, width=3),
-                    marker=dict(size=8)
+                    marker=dict(size=8),
+                    text=hover_texts,
+                    hovertemplate='%{text}<extra></extra>'
                 ))
             
             fig.update_layout(

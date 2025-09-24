@@ -166,8 +166,8 @@ class DataProcessor:
             combined_data = self._combine_file_data_enhanced(processed_data)
             processed_data['combined_data'] = combined_data
 
-            # Calculate overall data quality
-            processed_data['metadata']['data_quality'] = self._assess_overall_data_quality(processed_data)
+            # Calculate overall data assessment
+            processed_data['metadata']['data_assessment'] = self._assess_overall_data_quality(processed_data)
 
             self.logger.info(f"Processing completed: {processed_data['metadata']['files_processed']} files processed, "
                            f"{len(processed_data['soil_files'])} soil files, {len(processed_data['leaf_files'])} leaf files, "
@@ -1303,7 +1303,7 @@ class DataProcessor:
             return quality_score, confidence_level
 
         except Exception as e:
-            self.logger.error(f"Error validating data quality: {str(e)}")
+            self.logger.error(f"Error validating data: {str(e)}")
             return 0.0, "Error"
 
     def _perform_enhanced_validation(self, soil_params: Dict[str, Any], leaf_params: Dict[str, Any],
@@ -2605,14 +2605,15 @@ class PromptAnalyzer:
             
 
             # This ensures the LLM follows the exact steps configured by the user
-            system_prompt = f"""You are an expert agronomist specializing in oil palm cultivation in Malaysia with 20+ years of experience. 
+            system_prompt = f"""You are an expert agronomist specializing in oil palm cultivation in Malaysia with 20+ years of experience.
             You must analyze the provided data according to the SPECIFIC step instructions from the active prompt configuration and provide detailed, accurate results.
-            
+
             ANALYSIS CONTEXT:
             - This is Step {step['number']} of a {total_step_count} step analysis process
             - Step Title: {step['title']}
             - Total Steps in Analysis: {total_step_count}
-            
+            - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
+
             STEP {step['number']} INSTRUCTIONS FROM ACTIVE PROMPT:
             {step['description']}
 
@@ -2686,12 +2687,13 @@ class PromptAnalyzer:
             24. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
             25. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
             26. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
-            27. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
-            28. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
-            29. MANDATORY: Compare data quality between formats when both are available, highlighting strengths and limitations
-            30. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
-            31. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
-            32. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            27. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
+            28. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
+            29. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
+            30. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
+            31. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
+            32. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
+            33. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
@@ -2850,24 +2852,6 @@ class PromptAnalyzer:
                         "year_5": "29.5-31.25 t/ha"
                     }}
                 }},
-                "statistical_analysis": {{
-                    "sample_count": 10,
-                    "mean_values": {{
-                        "soil_ph": 4.57,
-                        "soil_cec": 3.5,
-                        "leaf_n": 2.06,
-                        "leaf_p": 0.123
-                    }},
-                    "standard_deviations": {{
-                        "soil_ph": 0.23,
-                        "soil_cec": 1.2,
-                        "leaf_n": 0.18,
-                        "leaf_p": 0.012
-                    }},
-                    "outliers": "No significant outliers detected in the 10 samples analyzed"
-                }},
-                "data_quality": "High quality data from 10 soil and 10 leaf samples",
-                "sample_analysis": "Comprehensive analysis of all uploaded sample data",
                 "format_analysis": {{
                     "detected_formats": ["SP_Lab_Test_Report", "Farm_Soil_Test_Data"],
                     "format_comparison": {{
@@ -2901,8 +2885,8 @@ class PromptAnalyzer:
             # Format references for inclusion in prompt
             reference_summary = reference_search_engine.get_reference_summary(references)
             
-            # Check if step description contains "table" keyword
-            table_required = "table" in step['description'].lower()
+            # Check if step description contains "table" keyword OR if it's steps 2-6 (which should always have tables)
+            table_required = "table" in step['description'].lower() or step['number'] in [2, 3, 4, 5, 6]
             table_instruction = ""
             if table_required:
                 table_instruction = """
@@ -3062,14 +3046,19 @@ class PromptAnalyzer:
             self.logger.error(f"Error generating step analysis for Step {step['number']}: {error_msg}")
             
             # Enhanced error handling for different failure modes
-            if ("429" in error_msg or "quota" in error_msg.lower() or 
+            if ("429" in error_msg or "quota" in error_msg.lower() or
                 "insufficient_quota" in error_msg or "quota_exceeded" in error_msg.lower() or
                 "resource_exhausted" in error_msg.lower()):
                 self.logger.warning(f"API quota issue for Step {step['number']}. Using silent fallback analysis.")
                 return self._get_default_step_result(step)
-            elif ("safety" in error_msg.lower() or "finish_reason" in error_msg.lower() or 
+            elif ("safety" in error_msg.lower() or "finish_reason" in error_msg.lower() or
                   "content policy" in error_msg.lower() or "blocked" in error_msg.lower()):
                 self.logger.warning(f"Content safety issue for Step {step['number']}. Using fallback analysis with basic soil/leaf averages.")
+                return self._create_fallback_step_result(step, e)
+            elif ("failed to connect" in error_msg.lower() or "socket is null" in error_msg.lower() or
+                  "503" in error_msg or "connection" in error_msg.lower() or
+                  "network" in error_msg.lower() or "timeout" in error_msg.lower()):
+                self.logger.warning(f"Network connectivity issue for Step {step['number']}. This may be due to IPv6 connectivity or temporary service issues. Using fallback analysis.")
                 return self._create_fallback_step_result(step, e)
             else:
                 self.logger.warning(f"General error for Step {step['number']}. Using fallback analysis.")
@@ -3313,7 +3302,6 @@ class PromptAnalyzer:
                     'summary': parsed_data.get('summary', 'Analysis completed'),
                     'detailed_analysis': parsed_data.get('detailed_analysis', 'Detailed analysis not available'),
                     'key_findings': parsed_data.get('key_findings', []),
-                    'data_quality': parsed_data.get('data_quality', 'Unknown'),
                     'analysis': parsed_data  # Store the full parsed data for display
                 }
                 
@@ -3378,7 +3366,6 @@ class PromptAnalyzer:
                 'step_title': step['title'],
                 'summary': 'Analysis completed',
                 'detailed_analysis': response[:500] + "..." if len(response) > 500 else response,
-                'data_quality': 'Unknown',
                 'confidence_level': 'Medium',
                 'analysis': {'raw_response': response}
             }
@@ -3584,7 +3571,6 @@ class PromptAnalyzer:
             'summary': fallback['summary'],
             'detailed_analysis': fallback['detailed_analysis'],
             'key_findings': fallback['key_findings'],
-            'data_quality': 'Standard',
             'confidence_level': 'Medium',
             'analysis': {'status': 'fallback_mode', 'api_error': 'Google API quota exceeded'}
         }
@@ -3689,7 +3675,6 @@ class PromptAnalyzer:
                     'Overall soil health requires improvement for optimal palm growth'
                 ],
                 'identified_issues': issues,
-                'data_quality': 'Standard',
                 'confidence_level': 'Medium',
                 'analysis': {
                     'status': 'fallback_mode',
@@ -3717,8 +3702,7 @@ class PromptAnalyzer:
                     'step_title': f'Step {step_number}',
                     'summary': 'Analysis completed',
                     'detailed_analysis': str(result) if result else 'No analysis available',
-                    'key_findings': [],
-                    'data_quality': 'Unknown'
+                    'key_findings': []
                 }
             
             # Start with the base result
@@ -4178,6 +4162,40 @@ class PromptAnalyzer:
 
         text_parts.append("\n**Notes:** Costs reflect the High-Investment scenario for corrective actions.\n")
 
+        # 📊 Detailed Data Tables
+        if 'tables' in result and result['tables']:
+            text_parts.append("## 📊 Detailed Data Tables\n")
+            for table in result['tables']:
+                if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                    # Skip unwanted tables
+                    unwanted_tables = [
+                        'Soil Parameters Summary',
+                        'Leaf Parameters Summary',
+                        'Land and Yield Summary'
+                    ]
+                    if table['title'] in unwanted_tables:
+                        continue
+
+                    text_parts.append(f"### {table['title']}\n")
+
+                    # Create markdown table
+                    if table['headers'] and table['rows']:
+                        # Headers
+                        header_row = "| " + " | ".join(str(h) for h in table['headers']) + " |"
+                        text_parts.append(header_row)
+
+                        # Separator
+                        separator_row = "|" + "|".join("---" for _ in table['headers']) + "|"
+                        text_parts.append(separator_row)
+
+                        # Data rows
+                        for row in table['rows']:
+                            if isinstance(row, list):
+                                row_str = "| " + " | ".join(str(cell) if cell != 0 else "N/A" for cell in row) + " |"
+                                text_parts.append(row_str)
+
+                    text_parts.append("")
+
         return "\n".join(text_parts)
     
     def _format_step3_text(self, result: Dict[str, Any]) -> str:
@@ -4362,6 +4380,53 @@ class PromptAnalyzer:
         text_parts.append("## MPOB Compliance\n")
         text_parts.append("The estate is non-compliant with MPOB guidelines for pH, CEC, N, P, K, Mg, Cu, and Zn. The High-Investment plan targets full compliance within 24 months, ensuring sustainable productivity.\n")
 
+        # 📊 Detailed Data Tables - Filter out LLM-generated content for Step 3
+        if 'tables' in result and result['tables']:
+            text_parts.append("## 📊 Detailed Data Tables\n")
+            for table in result['tables']:
+                if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                    # Skip unwanted tables and LLM-generated content
+                    unwanted_tables = [
+                        'Soil Parameters Summary',
+                        'Leaf Parameters Summary',
+                        'Land and Yield Summary',
+                        'Annual Fertilizer Recommendation Program (Per Hectare)'  # Skip LLM-generated fertilizer table
+                    ]
+                    if table['title'] in unwanted_tables:
+                        continue
+
+                    text_parts.append(f"### {table['title']}\n")
+
+                    # Create markdown table
+                    if table['headers'] and table['rows']:
+                        # Headers
+                        header_row = "| " + " | ".join(str(h) for h in table['headers']) + " |"
+                        text_parts.append(header_row)
+
+                        # Separator
+                        separator_row = "|" + "|".join("---" for _ in table['headers']) + "|"
+                        text_parts.append(separator_row)
+
+                        # Data rows
+                        for row in table['rows']:
+                            if isinstance(row, list):
+                                row_str = "| " + " | ".join(str(cell) if cell != 0 else "N/A" for cell in row) + " |"
+                                text_parts.append(row_str)
+
+                    text_parts.append("")
+
+        # Filter out unwanted LLM-generated sections from Step 3 display
+        # These sections should not appear in the formatted output
+        unwanted_sections = [
+            'specific_recommendations', 'interpretations', 'visualizations',
+            'yield_forecast', 'data_quality', 'sample_analysis',
+            'format_analysis', 'data_format_recommendations'
+        ]
+        for section in unwanted_sections:
+            if section in result:
+                # These are filtered out and won't be processed by the results page
+                pass
+
         return "\n".join(text_parts)
     
     def _format_step4_text(self, result: Dict[str, Any]) -> str:
@@ -4394,7 +4459,41 @@ class PromptAnalyzer:
                 if practice.get('quantified_benefits'):
                     text_parts.append(f"- Quantified Benefits: {practice['quantified_benefits']}")
                 text_parts.append("")
-        
+
+        # 📊 Detailed Data Tables
+        if 'tables' in result and result['tables']:
+            text_parts.append("## 📊 Detailed Data Tables\n")
+            for table in result['tables']:
+                if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                    # Skip unwanted tables
+                    unwanted_tables = [
+                        'Soil Parameters Summary',
+                        'Leaf Parameters Summary',
+                        'Land and Yield Summary'
+                    ]
+                    if table['title'] in unwanted_tables:
+                        continue
+
+                    text_parts.append(f"### {table['title']}\n")
+
+                    # Create markdown table
+                    if table['headers'] and table['rows']:
+                        # Headers
+                        header_row = "| " + " | ".join(str(h) for h in table['headers']) + " |"
+                        text_parts.append(header_row)
+
+                        # Separator
+                        separator_row = "|" + "|".join("---" for _ in table['headers']) + "|"
+                        text_parts.append(separator_row)
+
+                        # Data rows
+                        for row in table['rows']:
+                            if isinstance(row, list):
+                                row_str = "| " + " | ".join(str(cell) if cell != 0 else "N/A" for cell in row) + " |"
+                                text_parts.append(row_str)
+
+                    text_parts.append("")
+
         return "\n".join(text_parts)
     
     def _format_step5_text(self, result: Dict[str, Any]) -> str:
@@ -4507,7 +4606,41 @@ class PromptAnalyzer:
                 text_parts.append("")
                 text_parts.append("**Note:** RM values are approximate and represent recent historical price and cost ranges.")
                 text_parts.append("")
-        
+
+        # 📊 Detailed Data Tables
+        if 'tables' in result and result['tables']:
+            text_parts.append("## 📊 Detailed Data Tables\n")
+            for table in result['tables']:
+                if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                    # Skip unwanted tables
+                    unwanted_tables = [
+                        'Soil Parameters Summary',
+                        'Leaf Parameters Summary',
+                        'Land and Yield Summary'
+                    ]
+                    if table['title'] in unwanted_tables:
+                        continue
+
+                    text_parts.append(f"### {table['title']}\n")
+
+                    # Create markdown table
+                    if table['headers'] and table['rows']:
+                        # Headers
+                        header_row = "| " + " | ".join(str(h) for h in table['headers']) + " |"
+                        text_parts.append(header_row)
+
+                        # Separator
+                        separator_row = "|" + "|".join("---" for _ in table['headers']) + "|"
+                        text_parts.append(separator_row)
+
+                        # Data rows
+                        for row in table['rows']:
+                            if isinstance(row, list):
+                                row_str = "| " + " | ".join(str(cell) if cell != 0 else "N/A" for cell in row) + " |"
+                                text_parts.append(row_str)
+
+                    text_parts.append("")
+
         return "\n".join(text_parts)
     
     def _format_step6_text(self, result: Dict[str, Any]) -> str:
@@ -4718,6 +4851,40 @@ class PromptAnalyzer:
             text_parts.append("- Environmental factors and market conditions may affect actual results")
             text_parts.append("- Regular monitoring and adjustment recommended for optimal outcomes")
             text_parts.append("")
+
+        # 📊 Detailed Data Tables
+        if 'tables' in result and result['tables']:
+            text_parts.append("## 📊 Detailed Data Tables\n")
+            for table in result['tables']:
+                if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
+                    # Skip unwanted tables
+                    unwanted_tables = [
+                        'Soil Parameters Summary',
+                        'Leaf Parameters Summary',
+                        'Land and Yield Summary'
+                    ]
+                    if table['title'] in unwanted_tables:
+                        continue
+
+                    text_parts.append(f"### {table['title']}\n")
+
+                    # Create markdown table
+                    if table['headers'] and table['rows']:
+                        # Headers
+                        header_row = "| " + " | ".join(str(h) for h in table['headers']) + " |"
+                        text_parts.append(header_row)
+
+                        # Separator
+                        separator_row = "|" + "|".join("---" for _ in table['headers']) + "|"
+                        text_parts.append(separator_row)
+
+                        # Data rows
+                        for row in table['rows']:
+                            if isinstance(row, list):
+                                row_str = "| " + " | ".join(str(cell) if cell != 0 else "N/A" for cell in row) + " |"
+                                text_parts.append(row_str)
+
+                    text_parts.append("")
 
         return "\n".join(text_parts)
 
@@ -5558,20 +5725,20 @@ class ResultsGenerator:
             
             scenarios = {}
             for investment_level in ['high', 'medium', 'low']:
-                # Cost per hectare ranges
+                # Cost per hectare ranges (including micronutrients)
                 if investment_level == 'high':
-                    cost_per_ha_low = 700
-                    cost_per_ha_high = 900
+                    cost_per_ha_low = 800  # Increased to include micronutrients (Boron, Copper, Zinc, etc.)
+                    cost_per_ha_high = 1000
                     yield_increase_low = 0.20  # 20% increase
                     yield_increase_high = 0.30  # 30% increase
                 elif investment_level == 'medium':
-                    cost_per_ha_low = 400
-                    cost_per_ha_high = 600
+                    cost_per_ha_low = 500  # Increased to include key micronutrients
+                    cost_per_ha_high = 700
                     yield_increase_low = 0.15  # 15% increase
                     yield_increase_high = 0.22  # 22% increase
                 else:  # low
-                    cost_per_ha_low = 250
-                    cost_per_ha_high = 350
+                    cost_per_ha_low = 300  # Basic micronutrient supplementation
+                    cost_per_ha_high = 450
                     yield_increase_low = 0.08  # 8% increase
                     yield_increase_high = 0.15  # 15% increase
                 
@@ -5589,9 +5756,17 @@ class ResultsGenerator:
                 additional_revenue_low = additional_yield_low * ffb_price_low * land_size_ha
                 additional_revenue_high = additional_yield_high * ffb_price_high * land_size_ha
                 
-                # ROI calculations (range)
+                # ROI calculations (range) - CAP AT 60% FOR REALISM
                 roi_low = ((additional_revenue_low - total_cost_high) / total_cost_high * 100) if total_cost_high > 0 else 0
                 roi_high = ((additional_revenue_high - total_cost_low) / total_cost_low * 100) if total_cost_low > 0 else 0
+
+                # Cap ROI at 60% for realism
+                roi_capped_note = ""
+                if roi_high > 60:
+                    roi_high = 60
+                    roi_capped_note = " (Capped for realism)"
+                if roi_low > 60:
+                    roi_low = 60
                 
                 # Payback calculations (range)
                 payback_low = (total_cost_low / (additional_revenue_high / 12)) if additional_revenue_high > 0 else 0
@@ -5605,7 +5780,7 @@ class ResultsGenerator:
                     'new_yield_range': f"{new_yield_low:.1f}-{new_yield_high:.1f} t/ha",
                     'additional_yield_range': f"{additional_yield_low:.1f}-{additional_yield_high:.1f} t/ha",
                     'additional_revenue_range': f"RM {additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}",
-                    'roi_percentage_range': f"{roi_low:.0f}-{roi_high:.0f}%",
+                    'roi_percentage_range': f"{roi_low:.0f}-{roi_high:.0f}%{roi_capped_note}",
                     'payback_months_range': f"{payback_low:.1f}-{payback_high:.1f} months"
                 }
             
@@ -5620,8 +5795,8 @@ class ResultsGenerator:
                     'Yield improvements based on addressing identified nutrient issues',
                     f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (current market range)',
                     f'Palm density: {palm_density} palms per hectare',
-                    'Costs include fertilizer, application, and labor',
-                    'ROI calculated over 12-month period',
+                    'Costs include fertilizer, micronutrients (B, Cu, Zn), application, and labor',
+                    'ROI calculated over 12-month period and capped at 60% for realism',
                     'All financial values are approximate and represent recent historical price and cost ranges'
                 ]
             }
