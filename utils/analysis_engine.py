@@ -1032,14 +1032,32 @@ class DataProcessor:
             if not samples:
                 return {}
             
+            # Calculate RAW averages from original samples BEFORE any processing
+            parameter_names = ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)',
+                             'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)']
+
+            # Calculate raw averages from original unprocessed samples
+            raw_averages = {}
+            for param in parameter_names:
+                raw_values = []
+                for sample in samples:
+                    if isinstance(sample, dict) and param in sample:
+                        val = sample[param]
+                        if val is not None and isinstance(val, (int, float)) and val > 0:
+                            raw_values.append(val)
+
+                if raw_values:
+                    raw_avg = sum(raw_values) / len(raw_values)
+                    raw_averages[param] = raw_avg
+                else:
+                    raw_averages[param] = 0.0
+
             # Standardize and fill missing values using parameter standardizer
             all_samples_data = self._standardize_and_fill_missing_values(samples, 'soil')
-            
+
             # Calculate statistics for each parameter across all samples with enhanced statistics
             parameter_stats = {}
-            parameter_names = ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)', 
-                             'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)']
-            
+
             for param in parameter_names:
                 values = [sample[param] for sample in all_samples_data if sample[param] is not None]
                 if values:
@@ -1047,7 +1065,7 @@ class DataProcessor:
                     avg_val = sum(values) / len(values)
                     min_val = min(values)
                     max_val = max(values)
-                    
+
                     # Calculate enhanced standard deviation using sample standard deviation (n-1)
                     if len(values) > 1:
                         variance = sum((x - avg_val) ** 2 for x in values) / (len(values) - 1)
@@ -1055,7 +1073,7 @@ class DataProcessor:
                     else:
                         variance = 0
                         std_dev = 0
-                    
+
                     parameter_stats[param] = {
                         'values': values,
                         'average': avg_val,
@@ -1064,17 +1082,17 @@ class DataProcessor:
                         'std_dev': std_dev,
                         'count': len(values),
                         'missing_count': int(len(samples) - len(values)),
-                        'samples': [{'sample_no': sample.get('sample_no', 'N/A'), 'lab_no': sample.get('lab_no', 'N/A'), 'value': sample[param]} 
+                        'samples': [{'sample_no': sample.get('sample_no', 'N/A'), 'lab_no': sample.get('lab_no', 'N/A'), 'value': sample[param]}
                                   for sample in all_samples_data if sample[param] is not None]
                     }
-            
+
             # Also include the raw samples data for LLM analysis with comprehensive summary
             extracted_params = {
                 'parameter_statistics': parameter_stats,
                 'all_samples': all_samples_data,
                 'total_samples': len(samples),
                 'extracted_parameters': len(parameter_stats),
-                'averages': {param: stats['average'] for param, stats in parameter_stats.items()},
+                'averages': raw_averages,  # Use RAW averages, not processed ones
                 'summary': {
                     'total_samples': len(samples),
                     'parameters_analyzed': len(parameter_stats),
@@ -1112,14 +1130,32 @@ class DataProcessor:
             
             if not samples:
                 return {}
-            
+
+            # Calculate RAW averages from original samples BEFORE any processing
+            parameter_names = ['N (%)', 'P (%)', 'K (%)', 'Mg (%)', 'Ca (%)', 'B (mg/kg)', 'Cu (mg/kg)', 'Zn (mg/kg)']
+
+            # Calculate raw averages from original unprocessed samples
+            raw_averages = {}
+            for param in parameter_names:
+                raw_values = []
+                for sample in samples:
+                    if isinstance(sample, dict) and param in sample:
+                        val = sample[param]
+                        if val is not None and isinstance(val, (int, float)) and val > 0:
+                            raw_values.append(val)
+
+                if raw_values:
+                    raw_avg = sum(raw_values) / len(raw_values)
+                    raw_averages[param] = raw_avg
+                else:
+                    raw_averages[param] = 0.0
+
             # Standardize and fill missing values using parameter standardizer
             all_samples_data = self._standardize_and_fill_missing_values(samples, 'leaf')
-            
+
             # Calculate statistics for each parameter across all samples with enhanced statistics
             parameter_stats = {}
-            parameter_names = ['N (%)', 'P (%)', 'K (%)', 'Mg (%)', 'Ca (%)', 'B (mg/kg)', 'Cu (mg/kg)', 'Zn (mg/kg)']
-            
+
             for param in parameter_names:
                 values = [sample[param] for sample in all_samples_data if sample[param] is not None]
                 if values:
@@ -1127,7 +1163,7 @@ class DataProcessor:
                     avg_val = sum(values) / len(values)
                     min_val = min(values)
                     max_val = max(values)
-                    
+
                     # Calculate enhanced standard deviation using sample standard deviation (n-1)
                     if len(values) > 1:
                         variance = sum((x - avg_val) ** 2 for x in values) / (len(values) - 1)
@@ -1135,7 +1171,7 @@ class DataProcessor:
                     else:
                         variance = 0
                         std_dev = 0
-                    
+
                     parameter_stats[param] = {
                         'values': values,
                         'average': avg_val,
@@ -1144,17 +1180,17 @@ class DataProcessor:
                         'std_dev': std_dev,
                         'count': len(values),
                         'missing_count': int(len(samples) - len(values)),
-                        'samples': [{'sample_no': sample.get('sample_no', 'N/A'), 'lab_no': sample.get('lab_no', 'N/A'), 'value': sample[param]} 
+                        'samples': [{'sample_no': sample.get('sample_no', 'N/A'), 'lab_no': sample.get('lab_no', 'N/A'), 'value': sample[param]}
                                   for sample in all_samples_data if sample[param] is not None]
                     }
-            
+
             # Also include the raw samples data for LLM analysis with comprehensive summary
             extracted_params = {
                 'parameter_statistics': parameter_stats,
                 'all_samples': all_samples_data,
                 'total_samples': len(samples),
                 'extracted_parameters': len(parameter_stats),
-                'averages': {param: stats['average'] for param, stats in parameter_stats.items()},
+                'averages': raw_averages,  # Use RAW averages, not processed ones
                 'summary': {
                     'total_samples': len(samples),
                     'parameters_analyzed': len(parameter_stats),
@@ -3076,50 +3112,17 @@ class PromptAnalyzer:
             soil_entries = []
 
             # Extract and include SOIL PARAMETER AVERAGES prominently for LLM issue detection
-            # Calculate averages directly from raw sample data for accuracy
-            context_parts.append("SOIL PARAMETER AVERAGES (calculated from raw sample data for accurate issue detection):")
+            # Use the 'averages' field which now contains raw averages calculated from original samples
+            context_parts.append("SOIL PARAMETER AVERAGES (from raw sample data for accurate issue detection):")
             soil_avg_entries = []
             soil_param_count = 0
 
-            # Calculate averages directly from all_samples data to ensure accuracy
-            if 'all_samples' in soil_params and soil_params['all_samples']:
-                samples = soil_params['all_samples']
-                if isinstance(samples, list) and samples:
-                    # Get all parameter names from the first sample
-                    sample_params = set()
-                    for sample in samples[:1]:  # Just check first sample
-                        if isinstance(sample, dict):
-                            sample_params.update(sample.keys())
-
-                    # Calculate averages for each parameter
-                    for param in sorted(sample_params):
-                        if param not in ['sample_no', 'lab_no']:  # Skip metadata fields
-                            values = []
-                            for sample in samples:
-                                if isinstance(sample, dict) and param in sample:
-                                    val = sample[param]
-                                    if val is not None and isinstance(val, (int, float)) and val > 0:
-                                        values.append(val)
-
-                            if values:
-                                avg_val = sum(values) / len(values)
-                                soil_avg_entries.append(f"{param}: {avg_val:.3f}")
-                                soil_param_count += 1
-
-            # Fallback: Use processed averages if raw calculation fails
-            if not soil_avg_entries:
-                if 'averages' in soil_params and soil_params['averages']:
-                    for param, avg_val in soil_params['averages'].items():
-                        if avg_val and avg_val > 0:  # Only include valid averages
-                            soil_avg_entries.append(f"{param}: {avg_val:.3f}")
-                            soil_param_count += 1
-                elif 'parameter_statistics' in soil_params:
-                    for param, stats in soil_params['parameter_statistics'].items():
-                        if isinstance(stats, dict) and 'average' in stats:
-                            avg_val = stats['average']
-                            if avg_val > 0:  # Only include valid averages
-                                soil_avg_entries.append(f"{param}: {avg_val:.3f}")
-                                soil_param_count += 1
+            # Use the 'averages' field which contains raw averages calculated from original samples
+            if 'averages' in soil_params and soil_params['averages']:
+                for param, avg_val in soil_params['averages'].items():
+                    if avg_val and avg_val > 0:  # Only include valid averages
+                        soil_avg_entries.append(f"{param}: {avg_val:.3f}")
+                        soil_param_count += 1
 
             if soil_avg_entries:
                 context_parts.append(" | ".join(soil_avg_entries))
@@ -3141,50 +3144,17 @@ class PromptAnalyzer:
             leaf_entries = []
 
             # Extract and include LEAF PARAMETER AVERAGES prominently for LLM issue detection
-            # Calculate averages directly from raw sample data for accuracy
-            context_parts.append("LEAF PARAMETER AVERAGES (calculated from raw sample data for accurate issue detection):")
+            # Use the 'averages' field which now contains raw averages calculated from original samples
+            context_parts.append("LEAF PARAMETER AVERAGES (from raw sample data for accurate issue detection):")
             leaf_avg_entries = []
             leaf_param_count = 0
 
-            # Calculate averages directly from all_samples data to ensure accuracy
-            if 'all_samples' in leaf_params and leaf_params['all_samples']:
-                samples = leaf_params['all_samples']
-                if isinstance(samples, list) and samples:
-                    # Get all parameter names from the first sample
-                    sample_params = set()
-                    for sample in samples[:1]:  # Just check first sample
-                        if isinstance(sample, dict):
-                            sample_params.update(sample.keys())
-
-                    # Calculate averages for each parameter
-                    for param in sorted(sample_params):
-                        if param not in ['sample_no', 'lab_no']:  # Skip metadata fields
-                            values = []
-                            for sample in samples:
-                                if isinstance(sample, dict) and param in sample:
-                                    val = sample[param]
-                                    if val is not None and isinstance(val, (int, float)) and val > 0:
-                                        values.append(val)
-
-                            if values:
-                                avg_val = sum(values) / len(values)
-                                leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
-                                leaf_param_count += 1
-
-            # Fallback: Use processed averages if raw calculation fails
-            if not leaf_avg_entries:
-                if 'averages' in leaf_params and leaf_params['averages']:
-                    for param, avg_val in leaf_params['averages'].items():
-                        if avg_val and avg_val > 0:  # Only include valid averages
-                            leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
-                            leaf_param_count += 1
-                elif 'parameter_statistics' in leaf_params:
-                    for param, stats in leaf_params['parameter_statistics'].items():
-                        if isinstance(stats, dict) and 'average' in stats:
-                            avg_val = stats['average']
-                            if avg_val > 0:  # Only include valid averages
-                                leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
-                                leaf_param_count += 1
+            # Use the 'averages' field which contains raw averages calculated from original samples
+            if 'averages' in leaf_params and leaf_params['averages']:
+                for param, avg_val in leaf_params['averages'].items():
+                    if avg_val and avg_val > 0:  # Only include valid averages
+                        leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
+                        leaf_param_count += 1
 
             if leaf_avg_entries:
                 context_parts.append(" | ".join(leaf_avg_entries))

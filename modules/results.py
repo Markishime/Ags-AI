@@ -5180,7 +5180,7 @@ def display_bar_chart(data, title):
             height=500
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
     except ImportError:
         st.info("Plotly not available for chart display")
@@ -5232,7 +5232,7 @@ def display_pie_chart(data, title):
             height=500
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
     except ImportError:
         st.info("Plotly not available for chart display")
@@ -5284,7 +5284,7 @@ def display_line_chart(data, title):
             height=500
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
     except ImportError:
         st.info("Plotly not available for chart display")
@@ -6595,7 +6595,7 @@ def display_bar_chart(data, title):
                         )
                     )
                     
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, use_container_width=True)
                     return
             else:
                 # Single series format - convert to values
@@ -6667,7 +6667,7 @@ def display_bar_chart(data, title):
                 showlegend=False
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
             return
         
         # Fallback: if we have categories but no values, try to create dummy values
@@ -6760,7 +6760,7 @@ def display_bar_chart(data, title):
                 
                 # Add data accuracy note
                 st.info(f"📊 Chart displays {len(categories)} data points. Range: {min_val:.2f} - {max_val:.2f}")
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
                 
             except (ValueError, TypeError) as e:
                 st.error(f"❌ Error processing chart data: {str(e)}")
@@ -6849,7 +6849,7 @@ def display_pie_chart(data, title):
                 font=dict(size=12)
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Pie chart data format not recognized")
     except ImportError:
@@ -6927,7 +6927,7 @@ def display_line_chart(data, title):
                         hovermode='x unified'
                     )
                     
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, use_container_width=True)
                     return
                 else:
                     # Single series
@@ -6989,7 +6989,7 @@ def display_line_chart(data, title):
                 hovermode='x unified'
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info(f"Line chart data format not recognized. Available keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
     except ImportError:
@@ -7044,7 +7044,7 @@ def display_scatter_plot(data, title):
                 height=400
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Scatter plot data format not recognized")
     except ImportError:
@@ -7199,7 +7199,7 @@ def display_actual_vs_optimal_bar(data, title, options):
             margin=dict(l=60, r=60, t=100, b=60)
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying actual vs optimal bar chart: {e}")
@@ -7323,7 +7323,7 @@ def display_enhanced_bar_chart(data, title, options=None):
                         )
                     )
                     
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, use_container_width=True)
                     return
             else:
                 # Single series or different format - use original logic
@@ -7392,7 +7392,7 @@ def display_enhanced_bar_chart(data, title, options=None):
             )
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
     except ImportError:
         st.info("Plotly not available for chart display")
 
@@ -7484,7 +7484,7 @@ def display_range_chart(data, title, options=None):
                 height=500
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Range chart data format not recognized")
     except ImportError:
@@ -7538,7 +7538,7 @@ def display_deviation_chart(data, title, options=None):
                 height=500
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Deviation chart data format not recognized")
     except ImportError:
@@ -7585,7 +7585,7 @@ def display_gauge_chart(data, title, options=None):
                 height=400
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Gauge chart data format not recognized")
     except ImportError:
@@ -10844,7 +10844,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 )
             )
             
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
             
             # Add assumptions note as specified in the step instructions
             st.info("📝 **Assumptions:** Projections require yearly follow-up and adaptive adjustments based on actual field conditions and market changes.")
@@ -10989,7 +10989,7 @@ def display_economic_forecast(economic_forecast):
             height=400
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
     
     # Display investment scenarios
     investment_scenarios = economic_forecast.get('investment_scenarios', {})
@@ -11171,7 +11171,7 @@ def display_forecast_visualization(analysis_data):
         height=500
     )
     
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, use_container_width=True)
     
     # Display forecast table
     if forecast_data:
@@ -11256,7 +11256,7 @@ def display_multi_axis_chart(data, title, options):
         fig.update_yaxes(title_text=options.get('left_axis_title', 'Left Axis'), secondary_y=False)
         fig.update_yaxes(title_text=options.get('right_axis_title', 'Right Axis'), secondary_y=True)
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
     except ImportError:
         st.info("Plotly not available for chart display")
@@ -11317,7 +11317,7 @@ def display_heatmap(data, title, options):
             height=400
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
     except ImportError:
         st.info("Plotly not available for chart display")
@@ -11444,7 +11444,7 @@ def display_plotly_chart(data, title, options=None):
         fig.update_layout(**layout_update)
 
         # Display the chart
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     except ImportError:
         st.warning("Plotly library is required for advanced chart display. Please install plotly.")
@@ -12528,7 +12528,7 @@ def display_nutrient_ratio_diagram(data, title, options=None):
             margin=dict(l=50, r=50, t=80, b=50)
         )
         
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
         
         # Add interpretation text
         st.markdown("""
