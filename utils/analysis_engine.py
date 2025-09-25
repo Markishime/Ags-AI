@@ -3076,25 +3076,50 @@ class PromptAnalyzer:
             soil_entries = []
 
             # Extract and include SOIL PARAMETER AVERAGES prominently for LLM issue detection
-            # Use the 'averages' field which matches what users see in the tables
-            context_parts.append("SOIL PARAMETER AVERAGES (from displayed tables for accurate issue detection):")
+            # Calculate averages directly from raw sample data for accuracy
+            context_parts.append("SOIL PARAMETER AVERAGES (calculated from raw sample data for accurate issue detection):")
             soil_avg_entries = []
             soil_param_count = 0
 
-            # Priority: Use 'averages' field first (matches user-displayed tables)
-            if 'averages' in soil_params and soil_params['averages']:
-                for param, avg_val in soil_params['averages'].items():
-                    if avg_val and avg_val > 0:  # Only include valid averages
-                        soil_avg_entries.append(f"{param}: {avg_val:.3f}")
-                        soil_param_count += 1
-            # Fallback: Use parameter_statistics if averages not available
-            elif 'parameter_statistics' in soil_params:
-                for param, stats in soil_params['parameter_statistics'].items():
-                    if isinstance(stats, dict) and 'average' in stats:
-                        avg_val = stats['average']
-                        if avg_val > 0:  # Only include valid averages
+            # Calculate averages directly from all_samples data to ensure accuracy
+            if 'all_samples' in soil_params and soil_params['all_samples']:
+                samples = soil_params['all_samples']
+                if isinstance(samples, list) and samples:
+                    # Get all parameter names from the first sample
+                    sample_params = set()
+                    for sample in samples[:1]:  # Just check first sample
+                        if isinstance(sample, dict):
+                            sample_params.update(sample.keys())
+
+                    # Calculate averages for each parameter
+                    for param in sorted(sample_params):
+                        if param not in ['sample_no', 'lab_no']:  # Skip metadata fields
+                            values = []
+                            for sample in samples:
+                                if isinstance(sample, dict) and param in sample:
+                                    val = sample[param]
+                                    if val is not None and isinstance(val, (int, float)) and val > 0:
+                                        values.append(val)
+
+                            if values:
+                                avg_val = sum(values) / len(values)
+                                soil_avg_entries.append(f"{param}: {avg_val:.3f}")
+                                soil_param_count += 1
+
+            # Fallback: Use processed averages if raw calculation fails
+            if not soil_avg_entries:
+                if 'averages' in soil_params and soil_params['averages']:
+                    for param, avg_val in soil_params['averages'].items():
+                        if avg_val and avg_val > 0:  # Only include valid averages
                             soil_avg_entries.append(f"{param}: {avg_val:.3f}")
                             soil_param_count += 1
+                elif 'parameter_statistics' in soil_params:
+                    for param, stats in soil_params['parameter_statistics'].items():
+                        if isinstance(stats, dict) and 'average' in stats:
+                            avg_val = stats['average']
+                            if avg_val > 0:  # Only include valid averages
+                                soil_avg_entries.append(f"{param}: {avg_val:.3f}")
+                                soil_param_count += 1
 
             if soil_avg_entries:
                 context_parts.append(" | ".join(soil_avg_entries))
@@ -3116,25 +3141,50 @@ class PromptAnalyzer:
             leaf_entries = []
 
             # Extract and include LEAF PARAMETER AVERAGES prominently for LLM issue detection
-            # Use the 'averages' field which matches what users see in the tables
-            context_parts.append("LEAF PARAMETER AVERAGES (from displayed tables for accurate issue detection):")
+            # Calculate averages directly from raw sample data for accuracy
+            context_parts.append("LEAF PARAMETER AVERAGES (calculated from raw sample data for accurate issue detection):")
             leaf_avg_entries = []
             leaf_param_count = 0
 
-            # Priority: Use 'averages' field first (matches user-displayed tables)
-            if 'averages' in leaf_params and leaf_params['averages']:
-                for param, avg_val in leaf_params['averages'].items():
-                    if avg_val and avg_val > 0:  # Only include valid averages
-                        leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
-                        leaf_param_count += 1
-            # Fallback: Use parameter_statistics if averages not available
-            elif 'parameter_statistics' in leaf_params:
-                for param, stats in leaf_params['parameter_statistics'].items():
-                    if isinstance(stats, dict) and 'average' in stats:
-                        avg_val = stats['average']
-                        if avg_val > 0:  # Only include valid averages
+            # Calculate averages directly from all_samples data to ensure accuracy
+            if 'all_samples' in leaf_params and leaf_params['all_samples']:
+                samples = leaf_params['all_samples']
+                if isinstance(samples, list) and samples:
+                    # Get all parameter names from the first sample
+                    sample_params = set()
+                    for sample in samples[:1]:  # Just check first sample
+                        if isinstance(sample, dict):
+                            sample_params.update(sample.keys())
+
+                    # Calculate averages for each parameter
+                    for param in sorted(sample_params):
+                        if param not in ['sample_no', 'lab_no']:  # Skip metadata fields
+                            values = []
+                            for sample in samples:
+                                if isinstance(sample, dict) and param in sample:
+                                    val = sample[param]
+                                    if val is not None and isinstance(val, (int, float)) and val > 0:
+                                        values.append(val)
+
+                            if values:
+                                avg_val = sum(values) / len(values)
+                                leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
+                                leaf_param_count += 1
+
+            # Fallback: Use processed averages if raw calculation fails
+            if not leaf_avg_entries:
+                if 'averages' in leaf_params and leaf_params['averages']:
+                    for param, avg_val in leaf_params['averages'].items():
+                        if avg_val and avg_val > 0:  # Only include valid averages
                             leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
                             leaf_param_count += 1
+                elif 'parameter_statistics' in leaf_params:
+                    for param, stats in leaf_params['parameter_statistics'].items():
+                        if isinstance(stats, dict) and 'average' in stats:
+                            avg_val = stats['average']
+                            if avg_val > 0:  # Only include valid averages
+                                leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
+                                leaf_param_count += 1
 
             if leaf_avg_entries:
                 context_parts.append(" | ".join(leaf_avg_entries))
