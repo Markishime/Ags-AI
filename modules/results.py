@@ -4727,102 +4727,7 @@ def display_enhanced_step_result(step_result, step_number):
         else:
             st.info("📋 No detailed analysis available for this step.")
 
-    # 3.5. DETAILED DATA TABLES SECTION - Always try to display tables
-    tables_displayed = False
-
-    # First priority: Try to display raw tables data if tables exist
-    if 'tables' in analysis_data and analysis_data['tables']:
-        st.markdown("### 📊 Detailed Data Tables")
-        tables = analysis_data['tables']
-        if isinstance(tables, list):
-            for i, table_data in enumerate(tables, 1):
-                if table_data and isinstance(table_data, dict):
-                    display_table(table_data, f"Table {i}")
-                    tables_displayed = True
-        elif isinstance(tables, dict):
-            # Handle the case where tables is a dict with items (may be JSON strings)
-            for key, table_data in tables.items():
-                if isinstance(table_data, str):
-                    # Try to parse JSON string
-                    try:
-                        import json
-                        parsed_table = json.loads(table_data)
-                        if isinstance(parsed_table, dict) and 'title' in parsed_table:
-                            st.markdown(f"#### {parsed_table['title']}")
-                            display_table(parsed_table, key)
-                            tables_displayed = True
-                    except json.JSONDecodeError:
-                        # If not valid JSON, try to display as raw text
-                        st.markdown(f"#### Table {key}")
-                        st.code(table_data[:500] + "..." if len(table_data) > 500 else table_data)
-                        tables_displayed = True
-                elif isinstance(table_data, dict) and 'title' in table_data:
-                    st.markdown(f"#### {table_data['title']}")
-                    display_table(table_data, key)
-                    tables_displayed = True
-
-    # Second priority: Extract from formatted_analysis if tables weren't found above
-    if not tables_displayed and 'formatted_analysis' in analysis_data and analysis_data['formatted_analysis']:
-        formatted_text = analysis_data['formatted_analysis']
-
-        # Ensure formatted_text is a string
-        if isinstance(formatted_text, str) and formatted_text.strip():
-            # First, filter out ALL prohibited sections from the entire formatted analysis
-            import re
-
-            # Remove all prohibited sections
-            prohibited_patterns = [
-                r'Specific Recommendations:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Tables:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Interpretations:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Visualizations:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Yield Forecast:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Data Quality:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Sample Analysis:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Format Analysis:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'Data Format Recommendations:.*?(?=##|\n\n##|\n\n\n##|$)',
-                r'data quality.*?(?=\n\n|$)',
-                r'sample adequacy.*?(?=\n\n|$)',
-                r'sample representativeness.*?(?=\n\n|$)'
-            ]
-
-            filtered_text = formatted_text
-            for pattern in prohibited_patterns:
-                filtered_text = re.sub(pattern, '', filtered_text, flags=re.DOTALL | re.MULTILINE)
-
-            # Clean up extra whitespace
-            filtered_text = re.sub(r'\n\n\n+', '\n\n', filtered_text)
-
-            # Now extract the Detailed Data Tables section from the filtered text
-            tables_match = re.search(r'## 📊 Detailed Data Tables\n(.*?)(?=##|\n\n##|$)', filtered_text, re.DOTALL | re.MULTILINE)
-
-            if tables_match:
-                tables_content = tables_match.group(1).strip()
-
-                # Additional filtering for Step 3
-                if step_number == 3:
-                    # Remove specific sections that contain the unwanted content within the tables section
-                    step3_patterns = [
-                        r'### Annual Fertilizer Recommendation Program.*?(?=###|\n\n###|$)',
-                        r'### Summary of Recommended Regenerative Practices.*?(?=###|\n\n###|$)',
-                        r'### Estimated Annual Nutrient Contribution.*?(?=###|\n\n###|$)',
-                    ]
-
-                    for pattern in step3_patterns:
-                        tables_content = re.sub(pattern, '', tables_content, flags=re.DOTALL | re.MULTILINE)
-
-                    # Clean up extra whitespace again
-                    tables_content = re.sub(r'\n\n\n+', '\n\n', tables_content)
-
-                if tables_content.strip():
-                    st.markdown("### 📊 Detailed Data Tables")
-                    st.markdown(tables_content)
-                    tables_displayed = True
-
-    # If no tables were displayed, show a message
-    if not tables_displayed:
-        st.info("📊 No detailed data tables available for this step.")
-
+    # Detailed Data Tables section removed as requested
     # 4. VISUALIZATIONS SECTION - Show if available (skip for Step 3)
     if step_number != 2 and step_number != 3:
         # Display visualizations for other steps only if step instructions contain visualization keywords
@@ -5700,7 +5605,7 @@ def display_enhanced_step_result(step_result, step_number):
     
     # 4. TABLES SECTION - Display detailed tables if available
     if 'tables' in analysis_data and analysis_data['tables']:
-        st.markdown("### 📊 Detailed Data Tables")
+        # st.markdown("### 📊 Detailed Data Tables")  # REMOVED
         for table in analysis_data['tables']:
             if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
                 st.markdown(f"**{table['title']}**")
@@ -10415,7 +10320,7 @@ def display_step3_solution_recommendations(analysis_data):
     
     # 3. TABLES SECTION - Display detailed tables if available
     if 'tables' in analysis_data and analysis_data['tables']:
-        st.markdown("### 📊 Detailed Data Tables")
+        # st.markdown("### 📊 Detailed Data Tables")  # REMOVED
         for table in analysis_data['tables']:
             if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
                 st.markdown(f"**{table['title']}**")

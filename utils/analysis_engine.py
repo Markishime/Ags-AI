@@ -3071,45 +3071,84 @@ class PromptAnalyzer:
         context_parts = []
         
         # Add soil data with comprehensive statistics and averages
-        if soil_params and 'parameter_statistics' in soil_params:
+        if soil_params and ('averages' in soil_params or 'parameter_statistics' in soil_params):
             context_parts.append("SOIL DATA ANALYSIS:")
             soil_entries = []
-            
-            # Include averages prominently
-            if 'averages' in soil_params:
-                context_parts.append("SOIL PARAMETER AVERAGES:")
-                avg_entries = []
+
+            # Extract and include SOIL PARAMETER AVERAGES prominently for LLM issue detection
+            # Use the 'averages' field which matches what users see in the tables
+            context_parts.append("SOIL PARAMETER AVERAGES (from displayed tables for accurate issue detection):")
+            soil_avg_entries = []
+            soil_param_count = 0
+
+            # Priority: Use 'averages' field first (matches user-displayed tables)
+            if 'averages' in soil_params and soil_params['averages']:
                 for param, avg_val in soil_params['averages'].items():
-                    avg_entries.append(f"{param}: {avg_val:.3f}")
-                context_parts.append(" | ".join(avg_entries))
-                context_parts.append("")
-            
-            # Add detailed statistics
-            for param, stats in soil_params['parameter_statistics'].items():
-                soil_entries.append(f"{param}: avg={stats['average']:.3f} (range {stats['min']:.2f}-{stats['max']:.2f}, std={stats.get('std_dev', 0):.3f}, n={stats['count']})")
-            context_parts.append("DETAILED SOIL STATISTICS:")
-            context_parts.append("; ".join(soil_entries))
+                    if avg_val and avg_val > 0:  # Only include valid averages
+                        soil_avg_entries.append(f"{param}: {avg_val:.3f}")
+                        soil_param_count += 1
+            # Fallback: Use parameter_statistics if averages not available
+            elif 'parameter_statistics' in soil_params:
+                for param, stats in soil_params['parameter_statistics'].items():
+                    if isinstance(stats, dict) and 'average' in stats:
+                        avg_val = stats['average']
+                        if avg_val > 0:  # Only include valid averages
+                            soil_avg_entries.append(f"{param}: {avg_val:.3f}")
+                            soil_param_count += 1
+
+            if soil_avg_entries:
+                context_parts.append(" | ".join(soil_avg_entries))
+                context_parts.append(f"Total soil parameters analyzed: {soil_param_count}")
             context_parts.append("")
-        
+
+            # Add detailed statistics from parameter_statistics for additional context
+            if 'parameter_statistics' in soil_params:
+                context_parts.append("DETAILED SOIL STATISTICS:")
+                for param, stats in soil_params['parameter_statistics'].items():
+                    if isinstance(stats, dict) and 'average' in stats:
+                        soil_entries.append(f"{param}: avg={stats['average']:.3f} (range {stats.get('min', 0):.2f}-{stats.get('max', 0):.2f}, n={stats.get('count', 0)})")
+                context_parts.append("; ".join(soil_entries))
+                context_parts.append("")
+
         # Add leaf data with comprehensive statistics and averages
-        if leaf_params and 'parameter_statistics' in leaf_params:
+        if leaf_params and ('averages' in leaf_params or 'parameter_statistics' in leaf_params):
             context_parts.append("LEAF DATA ANALYSIS:")
             leaf_entries = []
-            
-            # Include averages prominently
-            if 'averages' in leaf_params:
-                context_parts.append("LEAF PARAMETER AVERAGES:")
-                avg_entries = []
+
+            # Extract and include LEAF PARAMETER AVERAGES prominently for LLM issue detection
+            # Use the 'averages' field which matches what users see in the tables
+            context_parts.append("LEAF PARAMETER AVERAGES (from displayed tables for accurate issue detection):")
+            leaf_avg_entries = []
+            leaf_param_count = 0
+
+            # Priority: Use 'averages' field first (matches user-displayed tables)
+            if 'averages' in leaf_params and leaf_params['averages']:
                 for param, avg_val in leaf_params['averages'].items():
-                    avg_entries.append(f"{param}: {avg_val:.3f}")
-                context_parts.append(" | ".join(avg_entries))
-                context_parts.append("")
-            
-            # Add detailed statistics
-            for param, stats in leaf_params['parameter_statistics'].items():
-                leaf_entries.append(f"{param}: avg={stats['average']:.3f} (range {stats['min']:.2f}-{stats['max']:.2f}, std={stats.get('std_dev', 0):.3f}, n={stats['count']})")
-            context_parts.append("; ".join(leaf_entries))
+                    if avg_val and avg_val > 0:  # Only include valid averages
+                        leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
+                        leaf_param_count += 1
+            # Fallback: Use parameter_statistics if averages not available
+            elif 'parameter_statistics' in leaf_params:
+                for param, stats in leaf_params['parameter_statistics'].items():
+                    if isinstance(stats, dict) and 'average' in stats:
+                        avg_val = stats['average']
+                        if avg_val > 0:  # Only include valid averages
+                            leaf_avg_entries.append(f"{param}: {avg_val:.3f}")
+                            leaf_param_count += 1
+
+            if leaf_avg_entries:
+                context_parts.append(" | ".join(leaf_avg_entries))
+                context_parts.append(f"Total leaf parameters analyzed: {leaf_param_count}")
             context_parts.append("")
+
+            # Add detailed statistics from parameter_statistics for additional context
+            if 'parameter_statistics' in leaf_params:
+                context_parts.append("DETAILED LEAF STATISTICS:")
+                for param, stats in leaf_params['parameter_statistics'].items():
+                    if isinstance(stats, dict) and 'average' in stats:
+                        leaf_entries.append(f"{param}: avg={stats['average']:.3f} (range {stats.get('min', 0):.2f}-{stats.get('max', 0):.2f}, n={stats.get('count', 0)})")
+                context_parts.append("; ".join(leaf_entries))
+                context_parts.append("")
         
         # Add land and yield data
         if land_yield_data:
