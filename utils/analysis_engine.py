@@ -2618,7 +2618,8 @@ class PromptAnalyzer:
     
     def generate_step_analysis(self, step: Dict[str, str], soil_params: Dict[str, Any], 
                              leaf_params: Dict[str, Any], land_yield_data: Dict[str, Any],
-                             previous_results: List[Dict[str, Any]] = None, total_steps: int = None) -> Dict[str, Any]:
+                             previous_results: List[Dict[str, Any]] = None, total_steps: int = None, 
+                             runtime_ctx: Dict[str, Any] = None) -> Dict[str, Any]:
         """Generate analysis for a specific step using LLM"""
         try:
             # Ensure LLM is available before proceeding
