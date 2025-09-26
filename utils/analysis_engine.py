@@ -1043,14 +1043,24 @@ class DataProcessor:
                 for sample in samples:
                     if isinstance(sample, dict) and param in sample:
                         val = sample[param]
-                        if val is not None and isinstance(val, (int, float)) and val > 0:
-                            raw_values.append(val)
+                        # Special handling for pH - pH can be < 7 (acidic) and still be valid
+                        if param.lower() == 'ph':
+                            if val is not None and isinstance(val, (int, float)) and 0 <= val <= 14:
+                                raw_values.append(val)
+                        else:
+                            # For other parameters, exclude zero and negative values
+                            if val is not None and isinstance(val, (int, float)) and val > 0:
+                                raw_values.append(val)
 
                 if raw_values:
                     raw_avg = sum(raw_values) / len(raw_values)
                     raw_averages[param] = raw_avg
                 else:
-                    raw_averages[param] = 0.0
+                    # For pH, use a reasonable default if no valid values found
+                    if param.lower() == 'ph':
+                        raw_averages[param] = 4.5  # Default acidic pH for oil palm
+                    else:
+                        raw_averages[param] = 0.0
 
             # Standardize and fill missing values using parameter standardizer
             all_samples_data = self._standardize_and_fill_missing_values(samples, 'soil')
@@ -6194,6 +6204,131 @@ class AnalysisEngine:
         self.feedback_system = FeedbackLearningSystem()
         self.preprocessor = DataPreprocessor()
 
+    # ---------- Real-time context and normalization helpers ----------
+    def _get_runtime_context(self) -> Dict[str, Any]:
+        try:
+            now = datetime.now()
+            current_month = now.month
+            month_names = [
+                "January","February","March","April","May","June",
+                "July","August","September","October","November","December"
+            ]
+            month_name = month_names[current_month - 1]
+            if current_month in [11, 12, 1, 2]:
+                season = "Rainy/Monsoon"
+            elif current_month in [5, 6, 7, 8, 9]:
+                season = "Mixed/Inter-monsoon"
+            else:
+                season = "Transitional"
+            return {
+                'month': current_month,
+                'month_name': month_name,
+                'season': season,
+                'weather_hint': "Plan field ops around rainfall events"
+            }
+        except Exception:
+            return {'month': None, 'month_name': 'Unknown', 'season': 'Unknown', 'weather_hint': ''}
+
+    def _parse_itemized_json_dict(self, possibly_itemized: Any) -> Any:
+        try:
+            import json as _json
+        except Exception:
+            _json = None
+        if not isinstance(possibly_itemized, dict):
+            return possibly_itemized
+        keys = list(possibly_itemized.keys())
+        if not keys:
+            return []
+        is_itemized = all(k.startswith('item_') for k in keys)
+        if not is_itemized:
+            return possibly_itemized
+        def _key_index(k: str) -> int:
+            try:
+                return int(k.split('_', 1)[1])
+            except Exception:
+                return 0
+        normalized = []
+        for k in sorted(keys, key=_key_index):
+            v = possibly_itemized[k]
+            if isinstance(v, str) and _json:
+                try:
+                    v = _json.loads(v)
+                except Exception:
+                    pass
+            normalized.append(v)
+        return normalized
+
+    def _normalize_tables(self, tables_value: Any) -> List[Dict[str, Any]]:
+        try:
+            import json as _json
+        except Exception:
+            _json = None
+        if isinstance(tables_value, dict):
+            if {'title','headers','rows'}.issubset(set(tables_value.keys())):
+                return [tables_value]
+            tables_value = self._parse_itemized_json_dict(tables_value)
+        result: List[Dict[str, Any]] = []
+        if isinstance(tables_value, list):
+            for t in tables_value:
+                if isinstance(t, str) and _json:
+                    try:
+                        t = _json.loads(t)
+                    except Exception:
+                        t = None
+                if isinstance(t, dict) and {'title','headers','rows'}.issubset(set(t.keys())):
+                    result.append(t)
+        return result
+
+    def _normalize_recommendations(self, recs_value: Any) -> List[Dict[str, Any]]:
+        recs = self._parse_itemized_json_dict(recs_value)
+        if isinstance(recs, dict):
+            recs = [recs]
+        return recs if isinstance(recs, list) else []
+
+    def _normalize_interpretations(self, interp_value: Any) -> List[str]:
+        if isinstance(interp_value, dict):
+            values = self._parse_itemized_json_dict(interp_value)
+            if isinstance(values, list):
+                return [v.get('text', v) if isinstance(v, dict) else v for v in values]
+            return [str(v) for v in interp_value.values()]
+        if isinstance(interp_value, list):
+            return [v.get('text', v) if isinstance(v, dict) else v for v in interp_value]
+        if isinstance(interp_value, str):
+            return [interp_value]
+        return []
+
+    def _normalize_step_result(self, sr: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            # Alias mapping
+            alias_map = {
+                'Specific Recommendations': 'specific_recommendations',
+                'Tables': 'tables',
+                'Interpretations': 'interpretations',
+                'Visualizations': 'visualizations',
+                'Yield Forecast': 'yield_forecast',
+                'Format Analysis': 'format_analysis',
+                'Data Format Recommendations': 'data_format_recommendations',
+            }
+            for k in list(sr.keys()):
+                if k in alias_map and alias_map[k] not in sr:
+                    sr[alias_map[k]] = sr[k]
+
+            # Normalize sections
+            if 'tables' in sr and sr['tables']:
+                sr['tables'] = self._normalize_tables(sr['tables'])
+            if 'specific_recommendations' in sr and sr['specific_recommendations']:
+                sr['specific_recommendations'] = self._normalize_recommendations(sr['specific_recommendations'])
+            if 'interpretations' in sr and sr['interpretations']:
+                sr['interpretations'] = self._normalize_interpretations(sr['interpretations'])
+
+            # Remove raw llm dumps
+            for raw_key in ['raw_llm_output', 'raw_output', 'raw_llm']:
+                if raw_key in sr:
+                    del sr[raw_key]
+            return sr
+        except Exception:
+            return sr
+
     def process_uploaded_files_and_analyze(self, uploaded_files: List[Dict[str, Any]],
                                          land_yield_data: Dict[str, Any],
                                          prompt_text: str) -> Dict[str, Any]:
@@ -6843,14 +6978,20 @@ class AnalysisEngine:
             # Process steps with enhanced error handling
             for step in steps:
                 try:
+                    # Inject runtime context for real-time, seasonal adjustments
+                    runtime_ctx = self._get_runtime_context()
                     step_result = self.prompt_analyzer.generate_step_analysis(
-                        step, soil_params, leaf_params, land_yield_data, step_results, len(steps)
+                        step, soil_params, leaf_params, land_yield_data, step_results, len(steps), runtime_ctx
                     )
+                    # Normalize structure (remove item_0 keys, parse inner JSON, drop raw dumps)
+                    step_result = self._normalize_step_result(step_result)
                     step_results.append(step_result)
                 except Exception as step_error:
                     self.logger.error(f"Error processing step {step.get('number', 'unknown')}: {str(step_error)}")
                     # Add fallback step result
-                    step_results.append(self._create_fallback_step_result(step, step_error))
+                    fallback = self._create_fallback_step_result(step, step_error)
+                    fallback = self._normalize_step_result(fallback)
+                    step_results.append(fallback)
 
             # Enhanced Step 1 processing with real data visualizations
             try:

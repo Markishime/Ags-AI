@@ -481,6 +481,38 @@ def show_results_page():
             if soil_params or leaf_params:
                 display_comprehensive_data_tables(soil_params, leaf_params)
         
+        # Compute runtime seasonal context and store for downstream steps
+        try:
+            import datetime
+            now = datetime.datetime.now()
+            current_month = now.month
+            month_names = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+            month_name = month_names[current_month-1]
+            # Simple Malaysia-like monsoon approximation; fallback generic if locale unknown
+            # Nov–Feb: Northeast monsoon (wetter), May–Sep: Southwest monsoon (moderately wet/dry windows)
+            if current_month in [11,12,1,2]:
+                season = "Rainy/Monsoon"
+            elif current_month in [5,6,7,8,9]:
+                season = "Mixed/Inter-monsoon"
+            else:
+                season = "Transitional"
+            # Default weather hint; allow external injection later
+            weather_hint = "Likely showers; plan around rainfall events"
+            st.session_state["runtime_context"] = {
+                "month": current_month,
+                "month_name": month_name,
+                "season": season,
+                "weather_hint": weather_hint,
+            }
+        except Exception:
+            if "runtime_context" not in st.session_state:
+                st.session_state["runtime_context"] = {
+                    "month": None,
+                    "month_name": "Unknown",
+                    "season": "Unknown",
+                    "weather_hint": "",
+                }
+
         display_summary_section(results_data)
         display_key_findings_section(results_data)  # Key Findings below Executive Summary
         display_step_by_step_results(results_data)
@@ -1779,7 +1811,7 @@ def display_structured_leaf_data(leaf_data):
         data_container = None
         container_name = None
 
-        for key in ['Farm_3_Leaf_Test_Data', 'Farm_Leaf_Test_Data']:
+        for key in ['Farm_3_Leaf_Test_Data', 'Farm_Leaf_Test_Data', 'SP_Lab_Test_Report']:
             if key in leaf_data:
                 data_container = leaf_data[key]
                 container_name = key
@@ -2829,9 +2861,7 @@ def display_summary_section(results_data):
                 summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% indicates insufficient structural support, potentially weakening cell walls and reducing palm vigor.")
                 nutrient_sentences_added += 1
 
-    # If no nutrient issues found, add one positive summary sentence
-    if nutrient_sentences_added == 0:
-        summary_sentences.append("Key soil nutrients including phosphorus, potassium, and calcium are within adequate ranges for supporting healthy oil palm growth and development.")
+    # If no nutrient issues were specifically detected, avoid generic adequacy claims
 
     # 12-15: Leaf tissue nutrient status (only add if there are issues)
     leaf_sentences_added = 0
@@ -2854,27 +2884,30 @@ def display_summary_section(results_data):
                 summary_sentences.append(f"Magnesium deficiency at {mg_avg:.3f}% threatens chlorophyll integrity, potentially causing chlorosis and reduced photosynthetic capacity in oil palm fronds.")
                 leaf_sentences_added += 1
 
-    # If no leaf issues found, add one positive summary sentence
-    if leaf_sentences_added == 0:
-        summary_sentences.append("Leaf tissue analysis shows adequate levels of key nutrients including nitrogen and magnesium for maintaining optimal oil palm photosynthetic capacity and health.")
+    # If no leaf issues were specifically detected, avoid generic adequacy claims
 
-    # 16-18: Yield and economic implications (fix 0 values)
-    current_yield = land_yield_data.get('current_yield', 22.0)  # Fix 0 value with default
-    land_size = land_yield_data.get('land_size', 23)  # Fix 0 value with default
+    # 16-18: Yield and economic implications (use canonical values from uploaded report/Step 1)
+    current_yield = land_yield_data.get('current_yield')
+    land_size = land_yield_data.get('land_size')
 
     # Ensure current_yield is numeric
     try:
-        current_yield = float(current_yield) if current_yield is not None else 22.0
+        current_yield = float(current_yield) if current_yield is not None else None
     except (ValueError, TypeError):
-        current_yield = 22.0
+        current_yield = None
 
     # Ensure land_size is numeric
     try:
-        land_size = float(land_size) if land_size is not None else 23
+        land_size = float(land_size) if land_size is not None else None
     except (ValueError, TypeError):
-        land_size = 23
+        land_size = None
 
-    summary_sentences.append(f"Current yield performance of {current_yield:.1f} tonnes per hectare across {land_size:.0f} hectares exceeds industry benchmarks, with nutritional corrections potentially maintaining production by 15-25%.")
+    if current_yield is not None and land_size is not None:
+        summary_sentences.append(f"Current yield performance is {current_yield:.1f} t/ha over {land_size:.0f} ha based on the uploaded report.")
+    elif current_yield is not None:
+        summary_sentences.append(f"Current yield performance is {current_yield:.1f} t/ha based on the uploaded report.")
+    elif land_size is not None:
+        summary_sentences.append(f"Recorded land size is {land_size:.0f} ha based on the uploaded report.")
     summary_sentences.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production.")
     summary_sentences.append("pH deficiency correction alone can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms.")
 
@@ -4607,6 +4640,198 @@ def display_step_by_step_results(results_data):
     # Display additional analysis components (Economic Forecast removed as requested)
     # display_analysis_components(analysis_results)
 
+def display_formatted_scenario(scenario_key, scenario_data):
+    """Display a single investment scenario in a formatted, user-friendly way"""
+    if not isinstance(scenario_data, dict):
+        return
+
+    # Extract key information
+    investment_level = scenario_data.get('investment_level', scenario_key.title())
+    cost_per_hectare = scenario_data.get('cost_per_hectare_range', 'N/A')
+    total_cost = scenario_data.get('total_cost_range', 'N/A')
+    current_yield = scenario_data.get('current_yield', 'N/A')
+    new_yield = scenario_data.get('new_yield_range', 'N/A')
+    additional_yield = scenario_data.get('additional_yield_range', 'N/A')
+    additional_revenue = scenario_data.get('additional_revenue_range', 'N/A')
+    roi = scenario_data.get('roi_percentage_range', 'N/A')
+    payback = scenario_data.get('payback_months_range', 'N/A')
+
+    # Determine color based on investment level
+    if 'high' in scenario_key.lower():
+        color = '#dc3545'
+        icon = '🔴'
+        bg_color = '#f8d7da'
+    elif 'medium' in scenario_key.lower():
+        color = '#ffc107'
+        icon = '🟡'
+        bg_color = '#fff3cd'
+    elif 'low' in scenario_key.lower():
+        color = '#28a745'
+        icon = '🟢'
+        bg_color = '#d4edda'
+    else:
+        color = '#6c757d'
+        icon = '⚪'
+        bg_color = '#f8f9fa'
+
+    # Create the formatted display
+    st.markdown(f"""
+    <div style="
+        background: {bg_color};
+        border: 2px solid {color};
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    ">
+        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <span style="font-size: 24px; margin-right: 10px;">{icon}</span>
+            <h3 style="margin: 0; color: {color}; font-size: 20px; font-weight: 600;">
+                {investment_level} Investment Scenario
+            </h3>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <strong style="color: #495057;">Cost per Hectare:</strong><br>
+                <span style="font-size: 16px; font-weight: 600; color: {color};">{cost_per_hectare}</span>
+            </div>
+            <div>
+                <strong style="color: #495057;">Total Investment:</strong><br>
+                <span style="font-size: 16px; font-weight: 600; color: {color};">{total_cost}</span>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #495057;">Yield Projections:</strong><br>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 5px;">
+                <div>
+                    <span style="font-size: 12px; color: #6c757d;">Current:</span><br>
+                    <span style="font-weight: 600;">{current_yield} t/ha</span>
+                </div>
+                <div>
+                    <span style="font-size: 12px; color: #6c757d;">New Range:</span><br>
+                    <span style="font-weight: 600; color: #28a745;">{new_yield}</span>
+                </div>
+                <div>
+                    <span style="font-size: 12px; color: #6c757d;">Additional:</span><br>
+                    <span style="font-weight: 600; color: #28a745;">{additional_yield}</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #495057;">Financial Returns:</strong><br>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 5px;">
+                <div>
+                    <span style="font-size: 14px; color: #6c757d;">Additional Revenue:</span><br>
+                    <span style="font-weight: 600; color: #28a745;">{additional_revenue}</span>
+                </div>
+                <div>
+                    <span style="font-size: 14px; color: #6c757d;">ROI:</span><br>
+                    <span style="font-weight: 600; color: #28a745;">{roi}</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #495057;">Payback Period:</strong><br>
+            <span style="font-size: 16px; font-weight: 600; color: {color};">{payback}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def display_formatted_soil_issue(issue, issue_number):
+    """Display a single soil issue in a formatted, user-friendly way"""
+    if not isinstance(issue, dict):
+        return
+    
+    # Extract key information
+    parameter = issue.get('parameter', 'Unknown Parameter')
+    current_value = issue.get('current_value', 'N/A')
+    optimal_range = issue.get('optimal_range', 'N/A')
+    status = issue.get('status', 'Unknown')
+    severity = issue.get('severity', 'Unknown')
+    impact = issue.get('impact', 'No impact information available')
+    causes = issue.get('causes', 'No cause information available')
+    critical = issue.get('critical', False)
+    category = issue.get('category', 'Unknown Category')
+    unit = issue.get('unit', '')
+    source = issue.get('source', 'Unknown Source')
+    issue_description = issue.get('issue_description', '')
+    
+    # Determine severity color and icon
+    severity_config = {
+        'Critical': {'color': '#dc3545', 'icon': '🔴', 'bg': '#f8d7da'},
+        'High': {'color': '#fd7e14', 'icon': '🟠', 'bg': '#fff3cd'},
+        'Medium': {'color': '#ffc107', 'icon': '🟡', 'bg': '#fff3cd'},
+        'Low': {'color': '#28a745', 'icon': '🟢', 'bg': '#d4edda'},
+        'Deficient': {'color': '#dc3545', 'icon': '🔴', 'bg': '#f8d7da'},
+        'Excessive': {'color': '#dc3545', 'icon': '🔴', 'bg': '#f8d7da'},
+        'Optimal': {'color': '#28a745', 'icon': '✅', 'bg': '#d4edda'}
+    }
+    
+    config = severity_config.get(severity, {'color': '#6c757d', 'icon': '⚪', 'bg': '#f8f9fa'})
+    
+    # Format current value with unit
+    if current_value != 'N/A' and unit:
+        current_display = f"{current_value} {unit}"
+    else:
+        current_display = str(current_value)
+    
+    # Create the formatted display
+    st.markdown(f"""
+    <div style="
+        background: {config['bg']};
+        border: 2px solid {config['color']};
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    ">
+        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <span style="font-size: 24px; margin-right: 10px;">{config['icon']}</span>
+            <h3 style="margin: 0; color: {config['color']}; font-size: 20px; font-weight: 600;">
+                {parameter} - {severity} Issue
+            </h3>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <strong style="color: #495057;">Current Value:</strong><br>
+                <span style="font-size: 18px; font-weight: 600; color: {config['color']};">{current_display}</span>
+            </div>
+            <div>
+                <strong style="color: #495057;">Optimal Range:</strong><br>
+                <span style="font-size: 16px; color: #28a745;">{optimal_range}</span>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #495057;">Status:</strong> 
+            <span style="color: {config['color']}; font-weight: 600;">{status}</span>
+            {f'<span style="margin-left: 10px; background: {config["color"]}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">CRITICAL</span>' if critical else ''}
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #495057;">Impact:</strong><br>
+            <span style="color: #2c3e50; line-height: 1.5;">{impact}</span>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #495057;">Likely Causes:</strong><br>
+            <span style="color: #2c3e50; line-height: 1.5;">{causes}</span>
+        </div>
+        
+        {f'<div style="margin-bottom: 15px;"><strong style="color: #495057;">Description:</strong><br><span style="color: #2c3e50; line-height: 1.5;">{issue_description}</span></div>' if issue_description else ''}
+        
+        <div style="font-size: 12px; color: #6c757d; margin-top: 10px;">
+            Category: {category} | Source: {source}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 def display_analysis_components(analysis_results):
     """Display additional analysis components"""
     # Check for economic forecast data
@@ -4672,6 +4897,50 @@ def display_enhanced_step_result(step_result, step_number):
         return
     
     analysis_data = step_result
+
+    # Normalize aliases and common mis-cased keys for all steps
+    try:
+        alias_map = {
+            'Key Findings': 'key_findings',
+            'Specific Recommendations': 'specific_recommendations',
+            'Tables': 'tables',
+            'Interpretations': 'interpretations',
+            'Visualizations': 'visualizations',
+            'Yield Forecast': 'yield_forecast',
+            'Format Analysis': 'format_analysis',
+            'Data Format Recommendations': 'data_format_recommendations',
+            'Plantation Values vs. Malaysian Reference Ranges': 'plantation_values_vs_reference',
+            'Soil Issues': 'soil_issues',
+            'Issues Source': 'issues_source',
+            'Scenarios': 'scenarios',
+            'Assumptions': 'assumptions',
+        }
+        for k, v in list(analysis_data.items()):
+            if k in alias_map and alias_map[k] not in analysis_data:
+                analysis_data[alias_map[k]] = v
+        # Remove original capitalized keys to prevent raw dict leakage in other_fields
+        for original_key in list(analysis_data.keys()):
+            if original_key in alias_map:
+                try:
+                    del analysis_data[original_key]
+                except Exception:
+                    pass
+        # Hoist known sections from nested containers like 'analysis_results' to top-level
+        known_sections = set(['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source'])
+        nested_keys = ['analysis_results','results','content']
+        for container_key in nested_keys:
+            nested = analysis_data.get(container_key)
+            if isinstance(nested, dict):
+                for sub_k, sub_v in list(nested.items()):
+                    norm_k = alias_map.get(sub_k, sub_k)
+                    if norm_k in known_sections and norm_k not in analysis_data and sub_v is not None and sub_v != "":
+                        analysis_data[norm_k] = sub_v
+                try:
+                    del analysis_data[container_key]
+                except Exception:
+                    pass
+    except Exception:
+        pass
     
     # Debug: Log the structure of analysis_data
     logger.info(f"Step {step_number} analysis_data keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
@@ -4706,7 +4975,7 @@ def display_enhanced_step_result(step_result, step_number):
     # 2. KEY FINDINGS SECTION - Removed from individual steps
     # Key findings are now consolidated and displayed only after Executive Summary
         
-    # 3. DETAILED ANALYSIS SECTION - Show if available
+    # 3. DETAILED ANALYSIS SECTION - Show if available (with filtering for all steps)
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
         st.markdown("### 📋 Detailed Analysis")
         detailed_text = analysis_data['detailed_analysis']
@@ -4759,8 +5028,21 @@ def display_enhanced_step_result(step_result, step_number):
                         if viz_data and isinstance(viz_data, dict):
                             display_visualization(viz_data, i, step_number)
     
-    # 5. TABLES SECTION - Show if available (skip for Step 3)
-    if step_number != 3 and 'tables' in analysis_data and analysis_data['tables']:
+    # Contextual banner for month/season/weather
+    try:
+        ctx = st.session_state.get("runtime_context", {})
+        if ctx:
+            st.markdown(
+                f"<div style=\"background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:8px 12px;margin:8px 0;\">"
+                f"<strong>Context:</strong> {ctx.get('month_name','')} · {ctx.get('season','')} · {ctx.get('weather_hint','')}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+    except Exception:
+        pass
+
+    # 5. TABLES SECTION - Show if available (enabled for all steps)
+    if 'tables' in analysis_data and analysis_data['tables']:
         st.markdown("### 📊 Data Tables")
         tables = analysis_data['tables']
         if isinstance(tables, list):
@@ -4768,8 +5050,8 @@ def display_enhanced_step_result(step_result, step_number):
                 if table_data and isinstance(table_data, dict):
                     display_table(table_data, f"Table {i}")
 
-    # 6. ADDITIONAL DATA SECTION - Show any other structured data (skip for Step 3 and prohibited sections)
-    if step_number != 3:
+    # 6. ADDITIONAL DATA SECTION - Show any other structured data (prohibited sections filtered)
+    if True:
         # Filter out prohibited sections
         prohibited_keys = [
             'specific_recommendations', 'interpretations', 'visualizations',
@@ -4803,11 +5085,19 @@ def display_enhanced_step_result(step_result, step_number):
                         else:
                             st.markdown(f"- {item}")
                 elif isinstance(value, str) and value.strip():
-                    st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+                    # Filter out raw dictionary patterns from string values
+                    filtered_value = filter_known_sections_from_text(value)
+                    if filtered_value.strip() and filtered_value != "Content filtered to prevent raw LLM output display.":
+                        # Additional check: if the original value contained raw LLM patterns, don't display
+                        original_filtered = filter_known_sections_from_text(str(value))
+                        if original_filtered == "Content filtered to prevent raw LLM output display.":
+                            pass  # Don't display anything
+                        else:
+                            st.markdown(f"**{key.replace('_', ' ').title()}:** {filtered_value}")
                 st.markdown("")
-    
-    # Display visualizations for all steps except Step 2 (which shows no visualizations or tables)
-    if step_number != 2:
+
+    # Display visualizations only for Steps 1 and 6 (Step 2 visuals are disabled)
+    if step_number in [1, 6]:
         # Display visualizations for other steps only if step instructions contain visualization keywords
         # Skip visualizations for economic forecast steps
         if should_show_visualizations(step_result) and not should_show_forecast_graph(step_result):
@@ -5002,6 +5292,163 @@ def display_step3_solution_recommendations(analysis_data):
         elif isinstance(recommendations, str):
             st.markdown(recommendations)
 
+def filter_known_sections_from_text(text):
+    """Filter out known sections from raw text to prevent raw LLM output display"""
+    if not isinstance(text, str):
+        return text
+    
+    # Known sections to filter out
+    known_sections = [
+        "Plantation Values vs. Malaysian Reference Ranges",
+        "Soil Issues:",
+        "🚨 Soil Issues",
+        "Issues Source:",
+        "Specific Recommendations:",
+        "Tables:",
+        "Interpretations:",
+        "Visualizations:",
+        "Yield Forecast:",
+        "Format Analysis:",
+        "Data Format Recommendations:",
+        "Key Findings:",
+        "(Chart to be generated from 'visualizations' data)",
+        "Scenarios:",
+        "Assumptions:"
+    ]
+    
+    # More aggressive filtering - check for specific problematic text patterns
+    problematic_patterns = [
+        "Plantation Values vs. Malaysian Reference Ranges",
+        "Below are tables comparing your plantation's average nutrient levels",
+        "Soil Issues:",
+        "🚨 Soil Issues",
+        "🚨 Soil Issues Item 0:",
+        "Issues Source:",
+        "Item 0: {",
+        '"parameter": "pH"',
+        '"current_value": 0.0',
+        '"optimal_range": "4.0-5.5"',
+        '"status": "Deficient"',
+        '"severity": "Critical"',
+        '"impact": "Primary impacts: Aluminum toxicity"',
+        '"causes": "Likely causes: High rainfall leaching"',
+        '"critical": true',
+        '"category": "Soil Chemistry"',
+        '"unit": "pH units"',
+        '"source": "Soil Analysis"',
+        '"issue_description": "pH levels are deficient"',
+        '"deviation_percent": 100.0',
+        '"coefficient_variation": 0',
+        '"sample_id": "9 out of 9 samples"',
+        '"out_of_range_samples": [',
+        '"critical_samples": [',
+        '"total_samples": 9',
+        '"out_of_range_count": 9',
+        '"variance_issues": []',
+        '"type": "soil"',
+        '"priority_score": 95',
+        "Issues Source: deterministic",
+        # Additional patterns for raw dictionary detection
+        'Item 0: {"parameter":',
+        '{"parameter": "pH"',
+        '"parameter": "pH", "current_value": 0.0',
+        '"optimal_value": 4.75',
+        '"deviation_percent": 100.0',
+        '"coefficient_variation": 0',
+        '"sample_id": "9 out of 9 samples"',
+        '"out_of_range_samples": [{"sample_no": "pH"',
+        '"critical_samples": ["pH (pH)"',
+        '"total_samples": 9, "out_of_range_count": 9',
+        '"variance_issues": [], "type": "soil"',
+        '"priority_score": 95}',
+        # Step 5 Economic Impact patterns
+        "Scenarios: {",
+        "Assumptions: {",
+        "'high': {",
+        "'medium': {",
+        "'low': {",
+        "'investment_level':",
+        "'cost_per_hectare_range':",
+        "'total_cost_range':",
+        "'current_yield':",
+        "'new_yield_range':",
+        "'additional_yield_range':",
+        "'additional_revenue_range':",
+        "'roi_percentage_range':",
+        "'payback_months_range':",
+        "'item_0':",
+        "'item_1':",
+        "'item_2':",
+        "'item_3':",
+        "'item_4':",
+        "'item_5':",
+        "Yield improvements based on addressing identified nutrient issues",
+        "FFB price range: RM 550-750/tonne",
+        "Palm density: 148 palms per hectare",
+        "Costs include fertilizer, micronutrients",
+        "ROI calculated over 12-month period and capped at 60% for realism",
+        "All financial values are approximate and represent recent historical price and cost ranges"
+    ]
+    
+    # Check if the text contains any of the problematic patterns
+    for pattern in problematic_patterns:
+        if pattern in text:
+            # Return empty string or a placeholder message
+            return "Content filtered to prevent raw LLM output display."
+    
+    # Additional regex-based check for complete raw dictionary patterns
+    import re
+    
+    # Check for complete raw dictionary patterns (Item X: { ... })
+    raw_dict_pattern = r'Item \d+:\s*\{[^}]*"parameter"[^}]*\}'
+    if re.search(raw_dict_pattern, text, re.DOTALL):
+        return "Content filtered to prevent raw LLM output display."
+
+    # Check for standalone raw dictionary patterns
+    standalone_dict_pattern = r'\{"parameter":\s*"[^"]*"[^}]*"priority_score":\s*\d+\}'
+    if re.search(standalone_dict_pattern, text, re.DOTALL):
+        return "Content filtered to prevent raw LLM output display."
+
+    # Check for multi-line raw dictionary patterns
+    multiline_dict_pattern = r'Item \d+:\s*\{[^}]*"out_of_range_samples":\s*\[[^\]]*\][^}]*\}'
+    if re.search(multiline_dict_pattern, text, re.DOTALL):
+        return "Content filtered to prevent raw LLM output display."
+
+    # Check for soil issues header with raw data
+    soil_issues_header_pattern = r'🚨 Soil Issues\s+Item \d+:\s*\{[^}]*"parameter"[^}]*\}'
+    if re.search(soil_issues_header_pattern, text, re.DOTALL):
+        return "Content filtered to prevent raw LLM output display."
+    
+    lines = text.split('\n')
+    filtered_lines = []
+    skip_section = False
+    
+    for line in lines:
+        # Check if this line starts a known section
+        if any(line.strip().startswith(section) for section in known_sections):
+            skip_section = True
+            continue
+        
+        # Also check for chart generation notes (flexible pattern)
+        if ("chart" in line.lower() and "generated" in line.lower() and "visualizations" in line.lower()) or \
+           ("chart to be generated" in line.lower()) or \
+           ("(chart to be generated" in line.lower()):
+            skip_section = True
+            continue
+        
+        # If we're skipping a section and hit an empty line or new section, stop skipping
+        if skip_section and (line.strip() == '' or line.strip().startswith('###') or line.strip().startswith('##')):
+            skip_section = False
+            if line.strip() != '':
+                filtered_lines.append(line)
+            continue
+        
+        # If we're not skipping, add the line
+        if not skip_section:
+            filtered_lines.append(line)
+    
+    return '\n'.join(filtered_lines)
+
 def parse_and_display_json_analysis(json_text):
     """Parse and display JSON-like analysis data with proper formatting"""
     try:
@@ -5037,19 +5484,25 @@ def parse_and_display_json_analysis(json_text):
         
         # Fallback to regular text display
         st.markdown("### 📋 Detailed Analysis")
-        st.markdown(json_text)
+        # Filter out known sections from raw text display
+        filtered_text = filter_known_sections_from_text(json_text)
+        st.markdown(filtered_text)
         
     except Exception as e:
         logger.error(f"Error parsing JSON analysis: {e}")
         # Fallback to regular text display
         st.markdown("### 📋 Detailed Analysis")
-        st.markdown(json_text)
+        # Filter out known sections from raw text display
+        filtered_text = filter_known_sections_from_text(json_text)
+        st.markdown(filtered_text)
 
 def display_structured_analysis(data):
     """Display structured analysis data"""
     if not isinstance(data, dict):
         st.markdown("### 📋 Detailed Analysis")
-        st.markdown(str(data))
+        # Filter out known sections from raw text display
+        filtered_text = filter_known_sections_from_text(str(data))
+        st.markdown(filtered_text)
         return
     
     # Display summary if available
@@ -5066,7 +5519,9 @@ def display_structured_analysis(data):
                 if finding:  # Ensure finding is not None or empty
                     st.markdown(f"{i}. {str(finding)}")
         elif findings:  # If it's not a list but has content
-            st.markdown(str(findings))
+            # Filter out known sections from raw text display
+            filtered_findings = filter_known_sections_from_text(str(findings))
+            st.markdown(filtered_findings)
     
     # Display recommendations if available
     if 'recommendations' in data:
@@ -5077,18 +5532,29 @@ def display_structured_analysis(data):
                 if rec:  # Ensure rec is not None or empty
                     st.markdown(f"{i}. {str(rec)}")
         elif recommendations:  # If it's not a list but has content
-            st.markdown(str(recommendations))
+            # Filter out known sections from raw text display
+            filtered_recommendations = filter_known_sections_from_text(str(recommendations))
+            st.markdown(filtered_recommendations)
     
     # Display other structured content
+    excluded_structured_keys = [
+        'summary', 'key_findings', 'recommendations', 'specific_recommendations', 
+        'tables', 'interpretations', 'visualizations', 'yield_forecast', 
+        'format_analysis', 'data_format_recommendations',
+        'plantation_values_vs_reference', 'soil_issues', 'issues_source',
+        'Plantation Values vs. Malaysian Reference Ranges', 'Soil Issues', 'Issues Source'
+    ]
     for key, value in data.items():
-        if key not in ['summary', 'key_findings', 'recommendations']:
+        if key not in excluded_structured_keys:
             st.markdown(f"### {key.replace('_', ' ').title()}")
             if isinstance(value, list) and value:
                 for i, item in enumerate(value, 1):
                     if item:  # Ensure item is not None or empty
                         st.markdown(f"{i}. {str(item)}")
             elif value:  # If it's not a list but has content
-                st.markdown(str(value))
+                # Filter out known sections from raw text display
+                filtered_value = filter_known_sections_from_text(str(value))
+                st.markdown(filtered_value)
 
 def display_economic_forecast(economic_forecast):
     """Display economic forecast data"""
@@ -5101,7 +5567,9 @@ def display_economic_forecast(economic_forecast):
         for key, value in economic_forecast.items():
             st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
     else:
-        st.markdown(str(economic_forecast))
+        # Filter out known sections from raw text display
+        filtered_forecast = filter_known_sections_from_text(str(economic_forecast))
+        st.markdown(filtered_forecast)
 
 def display_bar_chart(data, title):
     """Display bar chart with separate charts for each parameter"""
@@ -5322,7 +5790,7 @@ def display_line_chart(data, title):
         if current_yield > 0:
             consolidated_findings.append({
                 'title': 'Economic Viability & ROI',
-                'description': 'Estimated investment for correction: RM 2,570–3,070/ha.\\n\\nMedium response scenario (4.5–6.0 t/ha yield gain): ROI ranges from -5% to +60%, with payback in 12–18 months.\\n\\nHigh response scenario (6.5–8.0 t/ha gain): ROI ranges from +38% to +60%, payback <12 months.\\n\\nProfitability is sensitive to FFB price fluctuations and actual yield response.',
+                'description': 'Estimated investment for correction: RM 2,570–3,070/ha.\\n\\nScenario ROI may vary from negative to positive depending on actual yield response and prices. Use the scenario table for precise figures and avoid fixed ROI caps.',
                 'category': 'economic'
             })
 
@@ -5537,11 +6005,43 @@ def display_enhanced_step_result(step_result, step_number):
         display_step1_data_analysis(analysis_data)
         return
     
+    
+    
     # Special handling for STEP 3 - Solution Recommendations
     if step_number == 3:
         display_step3_solution_recommendations(analysis_data)
         return
     
+    # Alias-mapping: normalize common capitalized keys from LLM output
+    try:
+        alias_map = {
+            'Key Findings': 'key_findings',
+            'Specific Recommendations': 'specific_recommendations',
+            'Tables': 'tables',
+            'Interpretations': 'interpretations',
+            'Visualizations': 'visualizations',
+            'Yield Forecast': 'yield_forecast',
+            'Format Analysis': 'format_analysis',
+            'Data Format Recommendations': 'data_format_recommendations',
+            'Plantation Values vs. Malaysian Reference Ranges': 'plantation_values_vs_reference',
+            'Soil Issues': 'soil_issues',
+            'Issues Source': 'issues_source',
+            'Scenarios': 'scenarios',
+            'Assumptions': 'assumptions',
+        }
+        for k, v in list(analysis_data.items()):
+            if k in alias_map and alias_map[k] not in analysis_data:
+                analysis_data[alias_map[k]] = v
+        # Remove original capitalized keys to prevent raw dict leakage in other_fields
+        for original_key in list(analysis_data.keys()):
+            if original_key in alias_map:
+                try:
+                    del analysis_data[original_key]
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # 1. SUMMARY SECTION - Always show if available
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("### 📋 Summary")
@@ -5558,7 +6058,7 @@ def display_enhanced_step_result(step_result, step_number):
     # 2. KEY FINDINGS SECTION - Removed from individual steps
     # Key findings are now consolidated and displayed only after Executive Summary
         
-    # 3. DETAILED ANALYSIS SECTION - Show if available
+    # 3. DETAILED ANALYSIS SECTION - Show if available (with filtering for all steps)
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
         st.markdown("### 📋 Detailed Analysis")
         detailed_text = analysis_data['detailed_analysis']
@@ -5577,33 +6077,206 @@ def display_enhanced_step_result(step_result, step_number):
         # For Step 2, we want to keep the visual comparison text but remove the actual QuickChart URLs
         # This allows the visualization generation to work properly
         
-        # Process HTML tables and other content
-        processed_text = process_html_tables(detailed_text)
-        
-        # Split into paragraphs for better formatting
-        paragraphs = processed_text.split('\n\n') if '\n\n' in processed_text else [processed_text]
-        
-        for paragraph in paragraphs:
-            if isinstance(paragraph, str) and paragraph.strip():
-                # Skip empty paragraphs
-                if paragraph.strip() == '':
-                    continue
-                    
-                # Check if this paragraph contains a table (already processed)
-                if '<table' in paragraph and '</table>' in paragraph:
-                    # This is an HTML table, render it directly
-                    st.markdown(paragraph, unsafe_allow_html=True)
-                else:
-                    # Regular text paragraph
-                    st.markdown(
-                        f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                        f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+        # Filter out raw LLM output patterns before processing
+        filtered_detailed_text = filter_known_sections_from_text(detailed_text)
+
+        if filtered_detailed_text.strip() and filtered_detailed_text != "Content filtered to prevent raw LLM output display.":
+            # Process HTML tables and other content
+            processed_text = process_html_tables(filtered_detailed_text)
+
+            # Split into paragraphs for better formatting
+            paragraphs = processed_text.split('\n\n') if '\n\n' in processed_text else [processed_text]
+
+            for paragraph in paragraphs:
+                if isinstance(paragraph, str) and paragraph.strip():
+                    # Skip empty paragraphs
+                    if paragraph.strip() == '':
+                        continue
+
+                    # Check if this paragraph contains a table (already processed)
+                    if '<table' in paragraph and '</table>' in paragraph:
+                        # This is an HTML table, render it directly
+                        st.markdown(paragraph, unsafe_allow_html=True)
+                    else:
+                        # Regular text paragraph
+                        st.markdown(
+                            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+        else:
+            # If all content was filtered out, don't display anything
+            pass
         st.markdown("")
     
+    # 3.5. PLANTATION VALUES VS REFERENCE RANGES SECTION - Special handling for Step 2
+    if 'plantation_values_vs_reference' in analysis_data and analysis_data['plantation_values_vs_reference']:
+        plantation_data = analysis_data['plantation_values_vs_reference']
+
+        # Check if this contains raw content or just display the standard header
+        if isinstance(plantation_data, str):
+            # Filter the content to see if it's just the standard text
+            filtered_content = filter_known_sections_from_text(plantation_data)
+            if filtered_content.strip() and filtered_content != "Content filtered to prevent raw LLM output display.":
+                # Display filtered content if it's not raw data
+                st.markdown(f"### 📊 Plantation Values vs. Malaysian Reference Ranges")
+                st.markdown(filtered_content)
+                st.markdown("")
+            else:
+                # Just show the standard header
+                st.markdown("### 📊 Plantation Values vs. Malaysian Reference Ranges")
+                st.markdown("Below are tables comparing your plantation's average nutrient levels with the MPOB standards for mature oil palm.")
+                st.markdown("")
+        else:
+            # For non-string data, show standard header
+            st.markdown("### 📊 Plantation Values vs. Malaysian Reference Ranges")
+            st.markdown("Below are tables comparing your plantation's average nutrient levels with the MPOB standards for mature oil palm.")
+            st.markdown("")
+
+    # 3.6. SOIL ISSUES SECTION - Special handling for Step 2 (parse and format properly)
+    if 'soil_issues' in analysis_data and analysis_data['soil_issues']:
+        soil_issues = analysis_data['soil_issues']
+
+        # Check if this is a raw string containing JSON data that needs parsing
+        if isinstance(soil_issues, str):
+            # Try to extract and parse JSON data from the string
+            import json
+            import re
+
+            # Look for "Item X: {json_data}" pattern
+            item_pattern = r'Item \d+:\s*(\{[^}]*"parameter"[^}]*\})'
+            match = re.search(item_pattern, soil_issues, re.DOTALL)
+
+            if match:
+                json_str = match.group(1)
+                try:
+                    # Parse the JSON data
+                    issue_data = json.loads(json_str)
+                    # Display the formatted soil issue
+                    display_formatted_soil_issue(issue_data, 0)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, try the normal filtering
+                    filtered_text = filter_known_sections_from_text(soil_issues)
+                    if filtered_text.strip() and filtered_text != "Content filtered to prevent raw LLM output display.":
+                        st.markdown(filtered_text)
+            else:
+                # No JSON pattern found, use normal filtering
+                filtered_text = filter_known_sections_from_text(soil_issues)
+                if filtered_text.strip() and filtered_text != "Content filtered to prevent raw LLM output display.":
+                    st.markdown(filtered_text)
+        else:
+            # Handle other data types normally
+            if isinstance(soil_issues, list):
+                for idx, issue in enumerate(soil_issues):
+                    if isinstance(issue, dict):
+                        display_formatted_soil_issue(issue, idx)
+                    elif isinstance(issue, str):
+                        # Filter out raw dictionary patterns from string items
+                        filtered_issue = filter_known_sections_from_text(issue)
+                        if filtered_issue.strip() and filtered_issue != "Content filtered to prevent raw LLM output display.":
+                            st.markdown(f"**Issue {idx + 1}:** {filtered_issue}")
+                    else:
+                        st.markdown(f"**Issue {idx + 1}:** {str(issue)}")
+            elif isinstance(soil_issues, dict):
+                # Handle single issue or structured data
+                if 'parameter' in soil_issues:
+                    # Single issue
+                    display_formatted_soil_issue(soil_issues, 0)
+                else:
+                    # Multiple issues in a dict format
+                    for idx, (key, issue) in enumerate(soil_issues.items()):
+                        if isinstance(issue, dict) and 'parameter' in issue:
+                            display_formatted_soil_issue(issue, idx)
+                        elif isinstance(issue, str):
+                            # Filter out raw dictionary patterns from string values
+                            filtered_issue = filter_known_sections_from_text(issue)
+                            if filtered_issue.strip() and filtered_issue != "Content filtered to prevent raw LLM output display.":
+                                st.markdown(f"**{key.replace('_', ' ').title()}:** {filtered_issue}")
+                        else:
+                            st.markdown(f"**{key.replace('_', ' ').title()}:** {str(issue)}")
+
+        st.markdown("")
+
+    # 3.7. ECONOMIC SCENARIOS SECTION - Special handling for Step 5
+    if 'scenarios' in analysis_data and analysis_data['scenarios']:
+        scenarios = analysis_data['scenarios']
+
+        st.markdown("### 📈 Investment Scenarios")
+
+        # Handle different formats of scenarios data
+        if isinstance(scenarios, dict):
+            # Display each scenario in a formatted card
+            for scenario_key, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict):
+                    display_formatted_scenario(scenario_key, scenario_data)
+        elif isinstance(scenarios, str):
+            # Try to parse JSON from string
+            import json
+            import re
+
+            # Look for JSON pattern
+            json_pattern = r'\{[^}]*"high"[^}]*\}'
+            match = re.search(json_pattern, scenarios, re.DOTALL)
+
+            if match:
+                json_str = match.group(0)
+                try:
+                    scenarios_data = json.loads(json_str)
+                    for scenario_key, scenario_data in scenarios_data.items():
+                        if isinstance(scenario_data, dict):
+                            display_formatted_scenario(scenario_key, scenario_data)
+                except json.JSONDecodeError:
+                    # Fallback to filtering
+                    filtered_text = filter_known_sections_from_text(scenarios)
+                    if filtered_text.strip() and filtered_text != "Content filtered to prevent raw LLM output display.":
+                        st.markdown(filtered_text)
+
+        st.markdown("")
+
+    # 3.8. ASSUMPTIONS SECTION - Special handling for Step 5
+    if 'assumptions' in analysis_data and analysis_data['assumptions']:
+        assumptions = analysis_data['assumptions']
+
+        st.markdown("### 📋 Key Assumptions")
+
+        # Handle different formats of assumptions data
+        if isinstance(assumptions, dict):
+            # Display assumptions as a list
+            for key, assumption in assumptions.items():
+                st.markdown(f"• **{key.replace('item_', '').replace('_', ' ').title()}:** {assumption}")
+        elif isinstance(assumptions, list):
+            for assumption in assumptions:
+                st.markdown(f"• {assumption}")
+        elif isinstance(assumptions, str):
+            # Try to parse JSON from string
+            import json
+            import re
+
+            # Look for JSON pattern
+            json_pattern = r'\{[^}]*"item_0"[^}]*\}'
+            match = re.search(json_pattern, assumptions, re.DOTALL)
+
+            if match:
+                json_str = match.group(0)
+                try:
+                    assumptions_data = json.loads(json_str)
+                    for key, assumption in assumptions_data.items():
+                        st.markdown(f"• **{key.replace('item_', '').replace('_', ' ').title()}:** {assumption}")
+                except json.JSONDecodeError:
+                    # Fallback to filtering
+                    filtered_text = filter_known_sections_from_text(assumptions)
+                    if filtered_text.strip() and filtered_text != "Content filtered to prevent raw LLM output display.":
+                        st.markdown(filtered_text)
+
+        st.markdown("")
+
     # 4. TABLES SECTION - Display detailed tables if available
+    try:
+        if 'tables' in analysis_data and analysis_data['tables']:
+            analysis_data['tables'] = _normalize_tables_section(analysis_data['tables'])
+    except Exception:
+        pass
     if 'tables' in analysis_data and analysis_data['tables']:
         # st.markdown("### 📊 Detailed Data Tables")  # REMOVED
         for table in analysis_data['tables']:
@@ -5657,8 +6330,56 @@ def display_enhanced_step_result(step_result, step_number):
                     st.error(f"Unable to display table '{table['title']}'")
                     continue
                 st.markdown("")
+
+    # 5b. SPECIFIC RECOMMENDATIONS (for steps other than 3)
+    if step_number != 3 and analysis_data.get('specific_recommendations'):
+        try:
+            analysis_data['specific_recommendations'] = _normalize_recommendations_section(analysis_data['specific_recommendations'])
+        except Exception:
+            pass
+        st.markdown("### ✅ Specific Recommendations")
+        ctx = st.session_state.get("runtime_context", {})
+        mon = ctx.get('month')
+        for idx, rec in enumerate(analysis_data['specific_recommendations'], 1):
+            if isinstance(rec, str):
+                st.markdown(f"- {rec}")
+                continue
+            action = rec.get('action', 'Recommendation')
+            timeline = rec.get('timeline', 'N/A')
+            cost = rec.get('cost_estimate', rec.get('cost', 'N/A'))
+            impact = rec.get('expected_impact', '')
+            success = rec.get('success_indicators', '')
+            notes = rec.get('data_format_notes', '')
+
+            dynamic_notes = []
+            try:
+                if mon in [11,12,1,2]:
+                    dynamic_notes.append("Rainy season: split MOP doses; avoid urea before rain; delay GML if soils are waterlogged.")
+                elif mon in [5,6,7,8,9]:
+                    dynamic_notes.append("Inter-monsoon: frequent showers possible; schedule applications during dry windows.")
+                else:
+                    dynamic_notes.append("Transitional months: verify soil moisture; adjust timing within 48 hours around rainfall events.")
+            except Exception:
+                pass
+
+            st.markdown(f"""
+<div style=\"border:1px solid #e9ecef; border-radius:10px; padding:14px; margin-bottom:10px; background: #ffffff;\">
+  <div style=\"font-weight:700; margin-bottom:6px;\">{idx}. {action}</div>
+  <div><strong>Timeline:</strong> {timeline}</div>
+  <div><strong>Cost:</strong> {cost}</div>
+  {('<div><strong>Expected Impact:</strong> ' + impact + '</div>') if impact else ''}
+  {('<div><strong>Success Indicators:</strong> ' + success + '</div>') if success else ''}
+  {('<div><strong>Notes:</strong> ' + notes + '</div>') if notes else ''}
+  {('<div><strong>Real-time Adjustment:</strong> ' + ' '.join(dynamic_notes) + '</div>') if dynamic_notes else ''}
+</div>
+""", unsafe_allow_html=True)
     
-    # 5. INTERPRETATIONS SECTION - Display detailed interpretations if available
+    # 5. INTERPRETATIONS SECTION - Normalize and display detailed interpretations if available
+    try:
+        if 'interpretations' in analysis_data and analysis_data['interpretations']:
+            analysis_data['interpretations'] = _normalize_interpretations_section(analysis_data['interpretations'])
+    except Exception:
+        pass
     if 'interpretations' in analysis_data and analysis_data['interpretations']:
         st.markdown("### 🔍 Detailed Interpretations")
         interpretations = analysis_data['interpretations']
@@ -5702,24 +6423,96 @@ def display_enhanced_step_result(step_result, step_number):
     
     # 6. ANALYSIS RESULTS SECTION - Show actual LLM results (renamed from Additional Information)
     # This section shows the main analysis results from the LLM
-    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'tables', 'interpretations', 'data_quality'])
+    excluded_keys = set([
+        'summary', 'key_findings', 'detailed_analysis', 'formatted_analysis',
+        'step_number', 'step_title', 'step_description',
+        'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions',
+        'tables', 'interpretations', 'data_quality',
+        'specific_recommendations', 'format_analysis', 'data_format_recommendations',
+        'raw_llm_output', 'raw_output', 'raw_llm',
+        'scenarios', 'assumptions'
+    ])
+    excluded_keys.update([
+        'Key Findings', 'Specific Recommendations', 'Tables', 'Interpretations', 'Visualizations',
+        'Yield Forecast', 'Format Analysis', 'Data Format Recommendations', 'Plantation Values vs. Malaysian Reference Ranges',
+        'Soil Issues', 'Issues Source'
+    ])
+    # Also exclude capitalized variants that may appear from LLM outputs
+    excluded_keys.update([
+        'Specific Recommendations', 'Tables', 'Interpretations', 'Visualizations',
+        'Yield Forecast', 'Format Analysis', 'Data Format Recommendations'
+    ])
+    # Exclude raw LLM output patterns and deterministic data
+    excluded_keys.update([
+        'raw_llm_output', 'raw_output', 'raw_llm', 'deterministic', 'llm_output',
+        'Item 0', 'Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6', 'Item 7', 'Item 8', 'Item 9'
+    ])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
     
-    if other_fields:
+    has_key_findings = bool(analysis_data.get('key_findings'))
+    if has_key_findings or other_fields:
         st.markdown("### 📊 Additional Analysis Results")
+
+    # KEY FINDINGS - render nicely under Analysis Results (for all steps except 3)
+    if has_key_findings and step_number != 3:
+        key_findings = analysis_data.get('key_findings')
+        normalized_kf = []
+        if isinstance(key_findings, dict):
+            ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 1000000000))
+            for k in ordered_keys:
+                v = key_findings.get(k)
+                if isinstance(v, str) and v.strip():
+                    normalized_kf.append(v.strip())
+        elif isinstance(key_findings, list):
+            for v in key_findings:
+                if isinstance(v, str) and v.strip():
+                    normalized_kf.append(v.strip())
+        elif isinstance(key_findings, str) and key_findings.strip():
+            parts = [p.strip('-• ').strip() for p in key_findings.strip().split('\n') if p.strip()]
+            normalized_kf.extend(parts if parts else [key_findings.strip()])
+
+        if normalized_kf:
+            st.markdown(
+                """
+<div style=\"background:#ffffff;border:1px solid #e9ecef;border-radius:10px;padding:14px;margin-bottom:12px;\">
+  <div style=\"font-weight:700;margin-bottom:8px;\">🚩 Key Findings</div>
+  <ol style=\"margin:0 0 0 18px;padding:0;color:#2c3e50;line-height:1.6;\">
+                """,
+                unsafe_allow_html=True
+            )
+            for idx, finding in enumerate(normalized_kf, 1):
+                st.markdown(f"<li style=\\\"margin:6px 0;\\\">{finding}</li>", unsafe_allow_html=True)
+            st.markdown("</ol></div>", unsafe_allow_html=True)
+
+    if other_fields:
         for key in other_fields:
             value = analysis_data.get(key)
             title = key.replace('_', ' ').title()
             
+            # Skip raw LLM output patterns
+            if key.startswith('Item ') or key in ['deterministic', 'raw_llm_output', 'raw_output', 'llm_output']:
+                continue
+            
             if isinstance(value, dict) and value:
+                # Skip if this looks like raw LLM output (contains parameter, current_value, optimal_range, etc.)
+                if any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                    continue
+                    
                 st.markdown(f"**{title}:**")
+                # Skip known sections to avoid raw JSON leakage
                 for sub_k, sub_v in value.items():
+                    norm_sub_k = sub_k.replace(' ', '_').lower()
+                    if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
+                        continue
                     if sub_v is not None and sub_v != "":
                         st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for idx, item in enumerate(value, 1):
                     if isinstance(item, dict):
+                        # Skip if this looks like raw LLM output
+                        if any(k in item for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                            continue
                         st.markdown(f"- **Item {idx}:**")
                         for k, v in item.items():
                             if isinstance(v, (dict, list)):
@@ -5731,9 +6524,17 @@ def display_enhanced_step_result(step_result, step_number):
                     else:
                         st.markdown(f"- {item}")
             elif isinstance(value, str) and value.strip():
-                st.markdown(f"**{title}:** {value}")
+                # Filter out raw dictionary patterns from string values
+                filtered_value = filter_known_sections_from_text(value)
+                if filtered_value.strip() and filtered_value != "Content filtered to prevent raw LLM output display.":
+                    # Additional check: if the original value contained raw LLM patterns, don't display
+                    original_filtered = filter_known_sections_from_text(str(value))
+                    if original_filtered == "Content filtered to prevent raw LLM output display.":
+                        pass  # Don't display anything
+                    else:
+                        st.markdown(f"**{title}:** {filtered_value}")
             st.markdown("")
-    
+
     # Display visualizations for all steps except Step 2 (which shows no visualizations or tables)
     if step_number != 2:
         # Display visualizations for other steps only if step instructions contain visualization keywords
@@ -5778,8 +6579,8 @@ def display_enhanced_step_result(step_result, step_number):
                     st.error("Error displaying visualizations")
     # No farmer message needed - removed as requested
     
-    # Display forecast graph if this step has yield forecast data
-    if should_show_forecast_graph(step_result) and has_yield_forecast_data(analysis_data):
+    # Display forecast graph only for Step 6
+    if step_number == 6 and should_show_forecast_graph(step_result) and has_yield_forecast_data(analysis_data):
         display_forecast_graph_content(analysis_data, step_number, step_result.get('step_title', f'Step {step_number}'))
 
 def display_single_step_result(step_result, step_number):
@@ -5904,9 +6705,9 @@ def should_show_visualizations(step_result):
     if should_show_forecast_graph(step_result):
         return False
     
-    # Get step number and exclude steps 3-6 (Solution Recommendations, Regenerative Agriculture, Economic Impact, Yield Forecast)
+    # Get step number and allow only steps 1 and 6
     step_number = step_result.get('step_number', 0)
-    if step_number >= 3 and step_number <= 6:
+    if step_number not in [1, 6]:
         return False
     
     # Get step content
@@ -5930,8 +6731,8 @@ def should_show_visualizations(step_result):
     
     has_visual_keywords = any(keyword in combined_text for keyword in visual_keywords)
     
-    # Always show for Step 1, or if visual keywords detected (including Step 2)
-    return step_number == 1 or has_visual_keywords
+    # Show for Step 1 if keywords or unconditionally; for Step 6, visualizations are handled by forecast graph
+    return step_number == 1 and (has_visual_keywords or True)
 
 def generate_contextual_visualizations(step_result, analysis_data):
     """Generate contextual visualizations based on step content and visual keywords"""
@@ -7593,6 +8394,37 @@ def display_gauge_chart(data, title, options=None):
 
 def display_step1_data_analysis(analysis_data):
     """Display Step 1: Data Analysis with nutrient status tables"""
+    
+    # Normalize aliases and common mis-cased keys for all steps
+    try:
+        alias_map = {
+            'Key Findings': 'key_findings',
+            'Specific Recommendations': 'specific_recommendations',
+            'Tables': 'tables',
+            'Interpretations': 'interpretations',
+            'Visualizations': 'visualizations',
+            'Yield Forecast': 'yield_forecast',
+            'Format Analysis': 'format_analysis',
+            'Data Format Recommendations': 'data_format_recommendations',
+            'Plantation Values vs. Malaysian Reference Ranges': 'plantation_values_vs_reference',
+            'Soil Issues': 'soil_issues',
+            'Issues Source': 'issues_source',
+            'Scenarios': 'scenarios',
+            'Assumptions': 'assumptions',
+        }
+        for k, v in list(analysis_data.items()):
+            if k in alias_map and alias_map[k] not in analysis_data:
+                analysis_data[alias_map[k]] = v
+        # Remove original capitalized keys to prevent raw dict leakage in other_fields
+        for original_key in list(analysis_data.keys()):
+            if original_key in alias_map:
+                try:
+                    del analysis_data[original_key]
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    
     # 1. SUMMARY SECTION
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("### 📋 Summary")
@@ -7658,6 +8490,66 @@ def display_step1_data_analysis(analysis_data):
         logger.error(f"Error creating visualizations from data: {e}")
         st.error("Error creating visualizations from data")
         st.info("📊 Visualization data could not be processed.")
+    
+    # 7. ADDITIONAL ANALYSIS RESULTS - Display remaining fields (excluding known sections)
+    excluded_keys = set([
+        'summary', 'key_findings', 'detailed_analysis', 'formatted_analysis',
+        'step_number', 'step_title', 'step_description',
+        'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions',
+        'tables', 'interpretations', 'data_quality',
+        'specific_recommendations', 'format_analysis', 'data_format_recommendations',
+        'raw_llm_output', 'raw_output', 'raw_llm', 'nutrient_comparisons'
+    ])
+    excluded_keys.update([
+        'Key Findings', 'Specific Recommendations', 'Tables', 'Interpretations', 'Visualizations',
+        'Yield Forecast', 'Format Analysis', 'Data Format Recommendations', 'Plantation Values vs. Malaysian Reference Ranges',
+        'Soil Issues', 'Issues Source'
+    ])
+    
+    other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
+    
+    if other_fields:
+        st.markdown("### 📊 Additional Analysis Results")
+        for key in other_fields:
+            value = analysis_data.get(key)
+            title = key.replace('_', ' ').title()
+            
+            # Skip raw LLM output patterns
+            if key.startswith('Item ') or key in ['deterministic', 'raw_llm_output', 'raw_output', 'llm_output']:
+                continue
+            
+            if isinstance(value, dict) and value:
+                # Skip if this looks like raw LLM output (contains parameter, current_value, optimal_range, etc.)
+                if any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                    continue
+                    
+                st.markdown(f"**{title}:**")
+                # Skip known sections to avoid raw JSON leakage
+                for sub_k, sub_v in value.items():
+                    norm_sub_k = sub_k.replace(' ', '_').lower()
+                    if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
+                        continue
+                    if sub_v is not None and sub_v != "":
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+            elif isinstance(value, list) and value:
+                st.markdown(f"**{title}:**")
+                for i, item in enumerate(value, 1):
+                    if isinstance(item, dict):
+                        # Skip if this looks like raw LLM output
+                        if any(k in item for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                            continue
+                    if item:
+                        st.markdown(f"{i}. {str(item)}")
+            elif value:
+                # Filter out known sections from raw text display
+                filtered_value = filter_known_sections_from_text(str(value))
+                if filtered_value != "Content filtered to prevent raw LLM output display.":
+                    # Additional check: if the original value contained raw LLM patterns, don't display
+                    original_filtered = filter_known_sections_from_text(str(value))
+                    if original_filtered == "Content filtered to prevent raw LLM output display.":
+                        pass  # Don't display anything
+                    else:
+                        st.markdown(f"**{title}:** {filtered_value}")
 
 def create_step1_visualizations_from_data(analysis_data):
     """Create visualizations from raw data for Step 1 - WORLD-CLASS ROBUST MAPPING SYSTEM"""
@@ -9768,9 +10660,11 @@ def display_structured_solutions(detailed_text):
         logger.error(f"Error parsing structured solutions: {e}")
         # Fallback to regular text display with better formatting
         st.markdown("### 📋 Detailed Analysis")
+        # Filter out known sections from raw text display
+        filtered_text = filter_known_sections_from_text(detailed_text)
         st.markdown(
             f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{detailed_text}</p>'
+            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{filtered_text}</p>'
             f'</div>',
             unsafe_allow_html=True
         )
@@ -9953,6 +10847,8 @@ def display_solution_content(content):
                 intro_text = section.strip()
                 # Remove any remaining escape characters
                 intro_text = intro_text.replace('\\n', '\n').replace('\\"', '"')
+                # Filter out known sections from raw text display
+                intro_text = filter_known_sections_from_text(intro_text)
                 
                 st.markdown(
                     f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e3f2fd, #ffffff); border-left: 4px solid #2196f3; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
@@ -9981,6 +10877,8 @@ def display_detailed_agronomic_recommendations(content):
             intro_text = intro_text.replace('### Detailed Agronomic Recommendations', '').strip()
         
         if intro_text:
+            # Filter out known sections from raw text display
+            filtered_intro_text = filter_known_sections_from_text(intro_text)
             st.markdown("""
             <div style="
                 background: linear-gradient(135deg, #e8f5e8, #ffffff);
@@ -9997,7 +10895,7 @@ def display_detailed_agronomic_recommendations(content):
                     {intro_text}
                 </p>
             </div>
-            """.format(intro_text=intro_text), unsafe_allow_html=True)
+            """.format(intro_text=filtered_intro_text), unsafe_allow_html=True)
     
     # Display each problem
     for i, problem in enumerate(problems[1:], 1):
@@ -10256,6 +11154,115 @@ def display_dict_analysis(detailed_dict):
             for sub_key, sub_value in value.items():
                 st.markdown(f"- {sub_key.replace('_', ' ').title()}: {sub_value}")
 
+def _parse_itemized_json_dict(possibly_itemized):
+    """Normalize dicts like {'item_0': '{"action": ...}', ...} into a list of dicts or values.
+    - If values are JSON strings, parse them; fall back to raw strings on error.
+    - Preserve item order by sorting keys by numeric suffix.
+    """
+    try:
+        import json
+    except Exception:
+        json = None
+    if not isinstance(possibly_itemized, dict):
+        return possibly_itemized
+    # Detect item_* pattern
+    keys = list(possibly_itemized.keys())
+    if not keys:
+        return []
+    is_itemized = all(k.startswith('item_') for k in keys)
+    if not is_itemized:
+        return possibly_itemized
+    def _key_index(k):
+        try:
+            return int(k.split('_', 1)[1])
+        except Exception:
+            return 0
+    normalized_list = []
+    for k in sorted(keys, key=_key_index):
+        v = possibly_itemized[k]
+        if isinstance(v, str) and v.strip():
+            if json:
+                try:
+                    parsed = json.loads(v)
+                    normalized_list.append(parsed)
+                    continue
+                except Exception:
+                    pass
+        normalized_list.append(v)
+    return normalized_list
+
+def _normalize_tables_section(tables_value):
+    """Normalize various table payloads to a list of {title, headers, rows} dicts."""
+    import json as _json
+    # Itemized dict -> list
+    if isinstance(tables_value, dict):
+        # If already single table dict with required keys
+        if {'title','headers','rows'}.issubset(set(tables_value.keys())):
+            return [tables_value]
+        tables_value = _parse_itemized_json_dict(tables_value)
+    normalized = []
+    if isinstance(tables_value, list):
+        for t in tables_value:
+            if isinstance(t, str):
+                try:
+                    t = _json.loads(t)
+                except Exception:
+                    t = None
+            if isinstance(t, dict) and {'title','headers','rows'}.issubset(set(t.keys())):
+                normalized.append(t)
+    return normalized
+
+def _normalize_recommendations_section(recs_value):
+    """Normalize specific_recommendations to a list of dicts with common keys."""
+    recs_list = _parse_itemized_json_dict(recs_value)
+    if isinstance(recs_list, dict):
+        recs_list = [recs_list]
+    return recs_list if isinstance(recs_list, list) else []
+
+def _normalize_interpretations_section(interp_value):
+    """Normalize interpretations into a list of strings."""
+    if isinstance(interp_value, dict):
+        # Itemized dict or plain dict
+        values = _parse_itemized_json_dict(interp_value)
+        if isinstance(values, list):
+            return [v.get('text', v) if isinstance(v, dict) else v for v in values]
+        # plain dict: take values
+        return [str(v) for v in interp_value.values()]
+    if isinstance(interp_value, list):
+        return [v.get('text', v) if isinstance(v, dict) else v for v in interp_value]
+    if isinstance(interp_value, str):
+        return [interp_value]
+    return []
+
+def _normalize_visualizations_section(viz_value):
+    """Normalize visualizations to a list of dicts suitable for display_visualization."""
+    import json as _json
+    if isinstance(viz_value, dict):
+        viz_value = _parse_itemized_json_dict(viz_value)
+    result = []
+    if isinstance(viz_value, list):
+        for v in viz_value:
+            if isinstance(v, str):
+                try:
+                    v = _json.loads(v)
+                except Exception:
+                    v = None
+            if isinstance(v, dict):
+                result.append(v)
+    return result
+
+def _normalize_yield_forecast_section(yf_value):
+    """Normalize yield_forecast possibly containing strings into a clean dict."""
+    if not isinstance(yf_value, dict):
+        return yf_value
+    # Convert nested year ranges left as-is; just ensure baseline is a float if possible
+    baseline = yf_value.get('baseline_yield')
+    try:
+        yf_value['baseline_yield'] = float(baseline) if baseline is not None else baseline
+    except Exception:
+        pass
+    return yf_value
+
 def display_step3_solution_recommendations(analysis_data):
     """Display Step 3: Solution Recommendations with enhanced structure and layout"""
     
@@ -10318,41 +11325,193 @@ def display_step3_solution_recommendations(analysis_data):
         
         st.markdown("")
     
+    # Normalize common sections that often arrive as itemized dicts of JSON strings
+    try:
+        if 'tables' in analysis_data and analysis_data['tables']:
+            analysis_data['tables'] = _normalize_tables_section(analysis_data['tables'])
+        if 'specific_recommendations' in analysis_data and analysis_data['specific_recommendations']:
+            analysis_data['specific_recommendations'] = _normalize_recommendations_section(analysis_data['specific_recommendations'])
+        if 'interpretations' in analysis_data and analysis_data['interpretations']:
+            analysis_data['interpretations'] = _normalize_interpretations_section(analysis_data['interpretations'])
+        if 'visualizations' in analysis_data and analysis_data['visualizations']:
+            analysis_data['visualizations'] = _normalize_visualizations_section(analysis_data['visualizations'])
+        if 'yield_forecast' in analysis_data and analysis_data['yield_forecast']:
+            analysis_data['yield_forecast'] = _normalize_yield_forecast_section(analysis_data['yield_forecast'])
+    except Exception as _norm_err:
+        logger.warning(f"Normalization warning (Step 3): {_norm_err}")
+
+    # Normalize capitalized keys and remove originals to prevent raw dict leakage
+    try:
+        alias_map = {
+            'Specific Recommendations': 'specific_recommendations',
+            'Tables': 'tables',
+            'Interpretations': 'interpretations',
+            'Visualizations': 'visualizations',
+            'Yield Forecast': 'yield_forecast',
+            'Format Analysis': 'format_analysis',
+            'Data Format Recommendations': 'data_format_recommendations',
+        }
+        for k, v in list(analysis_data.items()):
+            if k in alias_map and alias_map[k] not in analysis_data:
+                analysis_data[alias_map[k]] = v
+        for original_key in list(analysis_data.keys()):
+            if original_key in alias_map:
+                try:
+                    del analysis_data[original_key]
+                except Exception:
+                    pass
+        # Hoist known sections from nested containers like 'analysis_results' to top-level
+        known_sections = set(['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source'])
+        nested_keys = ['analysis_results','results','content']
+        for container_key in nested_keys:
+            nested = analysis_data.get(container_key)
+            if isinstance(nested, dict):
+                for sub_k, sub_v in list(nested.items()):
+                    norm_k = alias_map.get(sub_k, sub_k)
+                    if norm_k in known_sections and norm_k not in analysis_data and sub_v is not None and sub_v != "":
+                        analysis_data[norm_k] = sub_v
+                try:
+                    del analysis_data[container_key]
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # 3. TABLES SECTION - Display detailed tables if available
     if 'tables' in analysis_data and analysis_data['tables']:
-        # st.markdown("### 📊 Detailed Data Tables")  # REMOVED
         for table in analysis_data['tables']:
             if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
                 st.markdown(f"**{table['title']}**")
                 if table.get('subtitle'):
                     st.markdown(f"*{table['subtitle']}*")
-                # Create a DataFrame for better display
                 import pandas as pd
                 df = pd.DataFrame(table['rows'], columns=table['headers'])
                 apply_table_styling()
                 st.dataframe(df, width='stretch')
                 st.markdown("")
+
+    # 3b. SPECIFIC RECOMMENDATIONS - render as cards with dynamic month/weather adjustments
+    if analysis_data.get('specific_recommendations'):
+        st.markdown("### ✅ Specific Recommendations")
+        ctx = st.session_state.get("runtime_context", {})
+        mon = ctx.get('month')
+        season = ctx.get('season','')
+        for idx, rec in enumerate(analysis_data['specific_recommendations'], 1):
+            if isinstance(rec, str):
+                st.markdown(f"- {rec}")
+                continue
+            action = rec.get('action', 'Recommendation')
+            timeline = rec.get('timeline', 'N/A')
+            cost = rec.get('cost_estimate', rec.get('cost', 'N/A'))
+            impact = rec.get('expected_impact', '')
+            success = rec.get('success_indicators', '')
+            notes = rec.get('data_format_notes', '')
+
+            dynamic_notes = []
+            try:
+                if mon in [11,12,1,2]:
+                    # Rainy/Monsoon adjustments
+                    dynamic_notes.append("Rainy season: split MOP doses; avoid urea before rain; delay GML if soils are waterlogged.")
+                elif mon in [5,6,7,8,9]:
+                    dynamic_notes.append("Inter-monsoon: frequent showers possible; schedule applications during dry windows.")
+                else:
+                    dynamic_notes.append("Transitional months: verify soil moisture; adjust timing within 48 hours around rainfall events.")
+            except Exception:
+                pass
+
+            st.markdown(f"""
+<div style="border:1px solid #e9ecef; border-radius:10px; padding:14px; margin-bottom:10px; background: #ffffff;">
+  <div style="font-weight:700; margin-bottom:6px;">{idx}. {action}</div>
+  <div><strong>Timeline:</strong> {timeline}</div>
+  <div><strong>Cost:</strong> {cost}</div>
+  {('<div><strong>Expected Impact:</strong> ' + impact + '</div>') if impact else ''}
+  {('<div><strong>Success Indicators:</strong> ' + success + '</div>') if success else ''}
+  {('<div><strong>Notes:</strong> ' + notes + '</div>') if notes else ''}
+  {('<div><strong>Real-time Adjustment:</strong> ' + ' '.join(dynamic_notes) + '</div>') if dynamic_notes else ''}
+</div>
+""", unsafe_allow_html=True)
+
+    # 3c. INTERPRETATIONS
+    if analysis_data.get('interpretations'):
+        st.markdown("### 🔍 Detailed Interpretations")
+        for i, text in enumerate(analysis_data['interpretations'], 1):
+            if not text:
+                continue
+            st.markdown(f"{i}. {text}")
+
+    # 3d. VISUALIZATIONS - suppressed in Step 3
+    # 3e. YIELD FORECAST - suppressed in Step 3
     
     # 4. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
     # This section shows the main analysis results from the LLM
-    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions'])
+    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'specific_recommendations', 'interpretations', 'tables', 'data_format_recommendations', 'format_analysis'])
+    excluded_keys.update(['Key Findings','Specific Recommendations','Interpretations','Tables','Visualizations','Yield Forecast','Format Analysis','Data Format Recommendations'])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
     
-    if other_fields:
+    has_key_findings = bool(analysis_data.get('key_findings'))
+    if has_key_findings or other_fields:
         st.markdown("### 📊 Analysis Results")
+
+    # 4a. KEY FINDINGS - render nicely under Analysis Results
+    if has_key_findings:
+        key_findings = analysis_data.get('key_findings')
+        normalized_kf = []
+        if isinstance(key_findings, dict):
+            ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 1000000000))
+            for k in ordered_keys:
+                v = key_findings.get(k)
+                if isinstance(v, str) and v.strip():
+                    normalized_kf.append(v.strip())
+        elif isinstance(key_findings, list):
+            for v in key_findings:
+                if isinstance(v, str) and v.strip():
+                    normalized_kf.append(v.strip())
+        elif isinstance(key_findings, str) and key_findings.strip():
+            parts = [p.strip('-• ').strip() for p in key_findings.strip().split('\n') if p.strip()]
+            normalized_kf.extend(parts if parts else [key_findings.strip()])
+
+        if normalized_kf:
+            st.markdown(
+                """
+<div style=\"background:#ffffff;border:1px solid #e9ecef;border-radius:10px;padding:14px;margin-bottom:12px;\">
+  <div style=\"font-weight:700;margin-bottom:8px;\">🚩 Key Findings</div>
+  <ol style=\"margin:0 0 0 18px;padding:0;color:#2c3e50;line-height:1.6;\">
+                """,
+                unsafe_allow_html=True
+            )
+            for idx, finding in enumerate(normalized_kf, 1):
+                st.markdown(f"<li style=\\\"margin:6px 0;\\\">{finding}</li>", unsafe_allow_html=True)
+            st.markdown("</ol></div>", unsafe_allow_html=True)
+
+    if other_fields:
         for key in other_fields:
             value = analysis_data.get(key)
             title = key.replace('_', ' ').title()
             
+            # Skip raw LLM output patterns
+            if key.startswith('Item ') or key in ['deterministic', 'raw_llm_output', 'raw_output', 'llm_output']:
+                continue
+            
             if isinstance(value, dict) and value:
+                # Skip if this looks like raw LLM output (contains parameter, current_value, optimal_range, etc.)
+                if any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                    continue
+                    
                 st.markdown(f"**{title}:**")
                 for sub_k, sub_v in value.items():
+                    # Skip known sections (prevent raw leakage)
+                    norm_sub_k = sub_k.replace(' ', '_').lower()
+                    if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
+                        continue
                     if sub_v is not None and sub_v != "":
                         st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for idx, item in enumerate(value, 1):
                     if isinstance(item, dict):
+                        # Skip if this looks like raw LLM output
+                        if any(k in item for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                            continue
                         # Check if it's a table structure
                         if 'title' in item and 'headers' in item and 'rows' in item:
                             st.markdown(f"**{item.get('title', f'Table {idx}')}**")
@@ -10378,7 +11537,10 @@ def display_step3_solution_recommendations(analysis_data):
                     else:
                         st.markdown(f"- {item}")
             elif isinstance(value, str) and value.strip():
-                st.markdown(f"**{title}:** {value}")
+                # Filter out raw dictionary patterns from string values
+                filtered_value = filter_known_sections_from_text(value)
+                if filtered_value.strip() and filtered_value != "Content filtered to prevent raw LLM output display.":
+                    st.markdown(f"**{title}:** {filtered_value}")
             st.markdown("")
     
 
@@ -10508,6 +11670,20 @@ def display_economic_impact_content(analysis_data):
         current_yield = econ_forecast.get('current_yield_tonnes_per_ha', 0)
         land_size = econ_forecast.get('land_size_hectares', 0)
         scenarios = econ_forecast.get('scenarios', {})
+        # Try to resolve FFB price per tonne (RM/t)
+        def _resolve_price(data: dict) -> float:
+            candidates = [
+                'ffb_price_rm_per_tonne', 'ffb_price_rm_tonne', 'ffb_price',
+                'price_rm_per_tonne', 'price_per_tonne_rm', 'price_per_tonne'
+            ]
+            for k in candidates:
+                if k in data:
+                    try:
+                        return float(data[k])
+                    except Exception:
+                        continue
+            return 0.0
+        ffb_price = _resolve_price(econ_forecast)
         
         # Display key metrics
         col1, col2, col3 = st.columns(3)
@@ -10549,15 +11725,22 @@ def display_economic_impact_content(analysis_data):
             scenarios_data = []
             for level, data in scenarios.items():
                 if isinstance(data, dict) and 'investment_level' in data:
-                    # Ensure all numeric values are properly formatted
+                    # Recalculate realistic ROI metrics from inputs
                     try:
-                        cost_per_ha = float(data.get('cost_per_hectare', 0))
-                        total_cost = float(data.get('total_cost', 0))
-                        new_yield = float(data.get('new_yield', 0))
-                        add_yield = float(data.get('additional_yield', 0))
-                        add_revenue = float(data.get('additional_revenue', 0))
-                        roi_pct = float(data.get('roi_percentage', 0))
-                        payback = float(data.get('payback_months', 0))
+                        cost_per_ha = float(data.get('cost_per_hectare', 0) or 0)
+                        total_cost_input = data.get('total_cost', None)
+                        total_cost = float(total_cost_input) if total_cost_input is not None else cost_per_ha * float(land_size or 0)
+                        new_yield = float(data.get('new_yield', 0) or 0)
+                        add_yield = float(data.get('additional_yield', new_yield - float(current_yield or 0)))
+                        # Resolve price; allow scenario override
+                        price_override = _resolve_price(data)
+                        rm_price = price_override if price_override > 0 else ffb_price
+                        additional_revenue = float(add_yield) * float(land_size or 0) * float(rm_price or 0)
+                        # ROI: (revenue - cost) / cost * 100, allow negatives
+                        roi_pct = ((additional_revenue - total_cost) / total_cost * 100.0) if total_cost > 0 else 0.0
+                        # Payback months: cost / monthly net income
+                        monthly_net = (additional_revenue - total_cost) / 12.0 if additional_revenue > 0 else 0.0
+                        payback = (total_cost / (additional_revenue / 12.0)) if additional_revenue > 0 else float('inf')
 
                         scenarios_data.append({
                             'Investment Level': str(data.get('investment_level', level.title())),
@@ -10565,19 +11748,20 @@ def display_economic_impact_content(analysis_data):
                             'Total Cost (RM)': f"{total_cost:,.0f}",
                             'New Yield (t/ha)': f"{new_yield:.1f}",
                             'Additional Yield (t/ha)': f"{add_yield:.1f}",
-                            'Additional Revenue (RM)': f"{add_revenue:,.0f}",
+                            'FFB Price (RM/t)': f"{rm_price:,.0f}",
+                            'Additional Revenue (RM)': f"{additional_revenue:,.0f}",
                             'ROI (%)': f"{roi_pct:.1f}%",
-                            'Payback (months)': f"{payback:.1f}"
+                            'Payback (months)': ("∞" if payback == float('inf') else f"{payback:.1f}")
                         })
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"Error formatting scenario data for {level}: {e}")
-                        # Fallback with string conversion
+                        logger.warning(f"Error calculating scenario data for {level}: {e}")
                         scenarios_data.append({
                             'Investment Level': str(data.get('investment_level', level.title())),
                             'Cost per Hectare (RM)': str(data.get('cost_per_hectare', 'N/A')),
-                            'Total Cost (RM)': str(data.get('total_cost', 'N/A')),
+                            'Total Cost (RM)': str(total_cost_input if total_cost_input is not None else 'N/A'),
                             'New Yield (t/ha)': str(data.get('new_yield', 'N/A')),
                             'Additional Yield (t/ha)': str(data.get('additional_yield', 'N/A')),
+                            'FFB Price (RM/t)': str(price_override if price_override > 0 else (ffb_price if ffb_price > 0 else 'N/A')),
                             'Additional Revenue (RM)': str(data.get('additional_revenue', 'N/A')),
                             'ROI (%)': str(data.get('roi_percentage', 'N/A')),
                             'Payback (months)': str(data.get('payback_months', 'N/A'))
@@ -10589,7 +11773,7 @@ def display_economic_impact_content(analysis_data):
                     df = pd.DataFrame(scenarios_data)
                     # Ensure all columns are present
                     expected_columns = ['Investment Level', 'Cost per Hectare (RM)', 'Total Cost (RM)',
-                                      'New Yield (t/ha)', 'Additional Yield (t/ha)', 'Additional Revenue (RM)',
+                                      'New Yield (t/ha)', 'Additional Yield (t/ha)', 'FFB Price (RM/t)', 'Additional Revenue (RM)',
                                       'ROI (%)', 'Payback (months)']
                     for col in expected_columns:
                         if col not in df.columns:
@@ -10601,10 +11785,18 @@ def display_economic_impact_content(analysis_data):
                     logger.error(f"Error creating scenarios table: {e}")
                     st.error("Error displaying investment scenarios table")
                 
-                # Add assumptions
+                # Add assumptions and formula notes
                 assumptions = econ_forecast.get('assumptions', [])
-                if assumptions:
-                    st.markdown("#### 📋 Assumptions")
+                notes = [
+                    "ROI = (Additional Revenue - Total Cost) / Total Cost",
+                    "Additional Revenue = Additional Yield (t/ha) × Land Size (ha) × FFB Price (RM/t)",
+                ]
+                if assumptions or notes or (ffb_price and ffb_price > 0):
+                    st.markdown("#### 📋 Assumptions & Formulas")
+                    if ffb_price and ffb_price > 0:
+                        st.markdown(f"• FFB Price used: RM {ffb_price:,.0f}/t")
+                    for n in notes:
+                        st.markdown(f"• {n}")
                     for assumption in assumptions:
                         st.markdown(f"• {assumption}")
     
