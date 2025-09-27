@@ -799,7 +799,7 @@ def reconstruct_firestore_data(data):
     This handles converting ISO datetime strings back to datetime objects.
     """
     try:
-        def _reconstruct(obj):
+        def _reconstruct(obj, key_path=""):
             if isinstance(obj, str):
                 # Try to convert various datetime string formats back to datetime objects
                 try:
@@ -820,17 +820,36 @@ def reconstruct_firestore_data(data):
                     # Check if it's just a date string
                     elif len(obj) == 10 and obj[4] == '-' and obj[7] == '-':
                         return datetime.strptime(obj, '%Y-%m-%d')
+                    # Check if it's a timestamp-like string (Unix timestamp)
+                    elif obj.isdigit() and len(obj) >= 10:
+                        try:
+                            return datetime.fromtimestamp(float(obj))
+                        except (ValueError, OSError):
+                            pass
+                    # Check if it's a float-like timestamp string
+                    elif '.' in obj and obj.replace('.', '').isdigit():
+                        try:
+                            return datetime.fromtimestamp(float(obj))
+                        except (ValueError, OSError):
+                            pass
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Failed to parse datetime string '{obj}': {e}")
                     pass
+                
+                # Special handling for known datetime fields - if we can't parse it, return current time
+                if key_path.endswith('created_at') or key_path.endswith('timestamp') or key_path.endswith('date'):
+                    logger.warning(f"Could not parse datetime field '{key_path}' with value '{obj}' (type: {type(obj)}), using current time")
+                    return datetime.now()
+                
                 return obj
             elif isinstance(obj, dict):
                 reconstructed_dict = {}
                 for key, value in obj.items():
-                    reconstructed_dict[key] = _reconstruct(value)
+                    new_key_path = f"{key_path}.{key}" if key_path else key
+                    reconstructed_dict[key] = _reconstruct(value, new_key_path)
                 return reconstructed_dict
             elif isinstance(obj, list):
-                return [_reconstruct(item) for item in obj]
+                return [_reconstruct(item, f"{key_path}[{i}]") for i, item in enumerate(obj)]
             else:
                 return obj
 
@@ -1505,7 +1524,10 @@ def display_results_header(results_data):
         with col1:
             timestamp = results_data.get('timestamp')
             if timestamp:
-                formatted_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                if hasattr(timestamp, 'strftime'):
+                    formatted_time = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    formatted_time = str(timestamp)
                 st.metric("📅 Analysis Date", formatted_time)
         
         with col2:

@@ -32,7 +32,7 @@ def show_dashboard():
         return
     
     # ===== MAIN DASHBOARD TABS =====
-    tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "📈 Analytics & Insights", "💬 Help Us Improve"])
+    tab1, tab2 = st.tabs(["📊 Dashboard", "💬 Help Us Improve"])
     
     with tab1:
         # ===== SIMPLIFIED LAYOUT =====
@@ -56,10 +56,6 @@ def show_dashboard():
             display_simple_system_status()
     
     with tab2:
-        # ===== ANALYTICS & INSIGHTS TAB =====
-        display_analytics_insights_tab(user_id)
-    
-    with tab3:
         # ===== HELP US IMPROVE TAB =====
         display_help_us_improve_tab()
 
@@ -116,8 +112,7 @@ def _cached_user_stats(user_id: str) -> Dict[str, Any]:
         # Silent error handling - return default values
         return {'total_analyses': 0, 'recent_activity': 0, 'total_recommendations': 0}
 
-@st.cache_data(ttl=60)
-def _cached_user_analytics(user_id: str) -> Dict[str, Any]:
+# Removed analytics function - no longer needed
     """Get comprehensive analytics data for user"""
     try:
         db = get_firestore_client()
@@ -1989,173 +1984,6 @@ def delete_analysis(analysis_id: str):
             
         except Exception as e:
             st.error(f"Error deleting analysis: {str(e)}")
-
-def display_analytics_insights_tab(user_id):
-    """Display Analytics & Insights tab content"""
-    # Enhanced header with agriculture theme
-    st.markdown("""
-    <div style="
-        background: linear-gradient(135deg, #2E8B57 0%, #32CD32 50%, #90EE90 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        color: white;
-        margin-bottom: 2rem;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 8px 32px rgba(46, 139, 87, 0.3);
-    ">
-        <div style="position: absolute; top: -20px; right: -20px; font-size: 6rem; opacity: 0.1;">📊</div>
-        <div style="position: absolute; bottom: -30px; left: -30px; font-size: 8rem; opacity: 0.1;">🤖</div>
-        <div style="position: relative; z-index: 1;">
-            <h2 style="color: white; margin: 0 0 1rem 0; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
-                📈 AI Agriculture Analytics & Insights
-            </h2>
-            <p style="color: #f0f8ff; margin: 0; text-align: center; font-size: 1.1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
-                Discover intelligent patterns and insights from your oil palm agricultural analysis data
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Get user analytics data
-    analytics_data = _cached_user_analytics(user_id)
-    
-    if not analytics_data or analytics_data['total_analyses'] == 0:
-        st.markdown("""
-        <div style="
-            background: linear-gradient(135deg, #fff8dc 0%, #f0e68c 100%);
-            padding: 3rem;
-            border-radius: 15px;
-            border: 3px solid #DAA520;
-            text-align: center;
-            margin: 2rem 0;
-        ">
-            <h3 style="color: #DAA520; margin: 0 0 1.5rem 0; font-size: 1.8rem;">🌱 No Analysis Data Available Yet</h3>
-            <p style="color: #DAA520; margin: 0 0 2rem 0; font-size: 1.2rem;">
-                Upload your first oil palm agricultural report to unlock AI-powered insights and analytics!
-            </p>
-            <p style="color: #DAA520; margin: 0; font-size: 1rem;">
-                Our AI will analyze your soil and leaf data to provide intelligent recommendations and trend analysis.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        return
-    
-    # Create columns for different analytics sections
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Analysis Trends
-        st.markdown("### 📊 Analysis Trends")
-        
-        # Monthly analysis count
-        monthly_data = analytics_data.get('monthly_trends', [])
-        if monthly_data:
-            import plotly.express as px
-            import pandas as pd
-            
-            # Create enhanced trend chart
-            df = pd.DataFrame(monthly_data)
-            fig = px.line(df, x='formatted_month', y='count', 
-                         title='Monthly Analysis Count',
-                         markers=True,
-                         line_shape='spline')
-            fig.update_layout(
-                height=300,
-                xaxis_title="Month",
-                yaxis_title="Number of Analyses",
-                hovermode='x unified'
-            )
-            fig.update_traces(
-                line=dict(width=3),
-                marker=dict(size=8)
-            )
-            st.plotly_chart(fig, width='stretch')
-            
-            # Show trend summary
-            if len(monthly_data) > 1:
-                recent_count = monthly_data[-1]['count']
-                previous_count = monthly_data[-2]['count'] if len(monthly_data) > 1 else 0
-                trend_change = recent_count - previous_count
-                trend_text = "increased" if trend_change > 0 else "decreased" if trend_change < 0 else "unchanged"
-                st.caption(f"📈 Analysis activity {trend_text} by {abs(trend_change)} from last month")
-        else:
-            st.info("Analysis trends will appear after multiple analyses")
-        
-    
-    with col2:
-        # Placeholder for optional secondary analytics; recent activity removed
-        st.markdown("### 📊 Additional Analytics")
-        st.info("More analytics will appear here as your data grows.")
-    
-    # Enhanced AI-Generated Insights
-    st.markdown("### 💡 AI-Generated Insights")
-    insights = analytics_data.get('ai_insights', [])
-    if insights:
-        # Group insights by priority
-        high_priority = [i for i in insights if i.get('priority') == 'high']
-        medium_priority = [i for i in insights if i.get('priority') == 'medium']
-        low_priority = [i for i in insights if i.get('priority') == 'low']
-        
-        # Display high priority insights first
-        if high_priority:
-            st.markdown("#### 🔴 High Priority Insights")
-            for insight in high_priority:
-                insight_type = insight.get('type', 'info')
-                icon_map = {
-                    'success': '✅',
-                    'warning': '⚠️',
-                    'info': 'ℹ️',
-                    'insight': '💡',
-                    'trend': '📈'
-                }
-                icon = icon_map.get(insight_type, 'ℹ️')
-                
-                with st.expander(f"{icon} {insight['title']}", expanded=True):
-                    st.markdown(insight['description'])
-                    if 'recommendation' in insight:
-                        st.markdown(f"**💡 Recommendation:** {insight['recommendation']}")
-        
-        # Display medium priority insights
-        if medium_priority:
-            st.markdown("#### 🟡 Medium Priority Insights")
-            for insight in medium_priority:
-                insight_type = insight.get('type', 'info')
-                icon_map = {
-                    'success': '✅',
-                    'warning': '⚠️',
-                    'info': 'ℹ️',
-                    'insight': '💡',
-                    'trend': '📈'
-                }
-                icon = icon_map.get(insight_type, 'ℹ️')
-                
-                with st.expander(f"{icon} {insight['title']}", expanded=False):
-                    st.markdown(insight['description'])
-                    if 'recommendation' in insight:
-                        st.markdown(f"**💡 Recommendation:** {insight['recommendation']}")
-        
-        # Display low priority insights
-        if low_priority:
-            st.markdown("#### 🟢 Additional Insights")
-            for insight in low_priority:
-                insight_type = insight.get('type', 'info')
-                icon_map = {
-                    'success': '✅',
-                    'warning': '⚠️',
-                    'info': 'ℹ️',
-                    'insight': '💡',
-                    'trend': '📈'
-                }
-                icon = icon_map.get(insight_type, 'ℹ️')
-                
-                with st.expander(f"{icon} {insight['title']}", expanded=False):
-                    st.markdown(insight['description'])
-                    if 'recommendation' in insight:
-                        st.markdown(f"**💡 Recommendation:** {insight['recommendation']}")
-    else:
-        st.info("AI insights will be generated as you complete more analyses")
-    
 
 def display_help_us_improve_tab():
     """Display Help Us Improve tab content"""

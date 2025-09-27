@@ -100,6 +100,17 @@ def display_history_statistics():
             # Reconstruct data from Firestore format
             from modules.results import reconstruct_firestore_data
             analysis_data = reconstruct_firestore_data(analysis_data)
+            
+            # Ensure analysis_data is not None after reconstruction
+            if analysis_data is None:
+                logger.error(f"❌ DEBUG - analysis_data is None after reconstruction for document {doc.id}")
+                continue
+            
+            # Additional safety check: ensure created_at is a datetime object
+            created_at = analysis_data.get('created_at')
+            if not isinstance(created_at, datetime):
+                logger.warning(f"🔧 DEBUG - created_at is not datetime after reconstruction: {created_at} (type: {type(created_at)})")
+                analysis_data['created_at'] = _safe_datetime_conversion(created_at)
 
             logger.info(f"🔍 DEBUG - Statistics processing document {doc.id}")
             logger.info(f"🔍 DEBUG - Document keys: {list(analysis_data.keys())}")
@@ -148,6 +159,24 @@ def display_history_statistics():
             # Reconstruct data from Firestore format
             from modules.results import reconstruct_firestore_data
             analysis_data = reconstruct_firestore_data(analysis_data)
+            
+            # Ensure analysis_data is not None after reconstruction
+            if analysis_data is None:
+                logger.error(f"❌ DEBUG - analysis_data is None after reconstruction for document {doc.id}")
+                continue
+            
+            # Additional safety check: ensure created_at is a datetime object
+            created_at = analysis_data.get('created_at')
+            if not isinstance(created_at, datetime):
+                logger.warning(f"🔧 DEBUG - created_at is not datetime after reconstruction: {created_at} (type: {type(created_at)})")
+                analysis_data['created_at'] = _safe_datetime_conversion(created_at)
+                created_at = analysis_data['created_at']
+            
+            # Final safety check: ensure ALL datetime fields are properly converted
+            for key, value in analysis_data.items():
+                if key in ['created_at', 'timestamp', 'date', 'updated_at'] and not isinstance(value, datetime):
+                    logger.warning(f"🔧 DEBUG - Converting {key} from {type(value)} to datetime")
+                    analysis_data[key] = _safe_datetime_conversion(value)
 
             created_at = analysis_data.get('created_at', datetime.now())
 
@@ -273,6 +302,24 @@ def display_history_statistics():
                 # Reconstruct data from Firestore format
                 from modules.results import reconstruct_firestore_data
                 doc_data = reconstruct_firestore_data(doc_data)
+                
+                # Ensure doc_data is not None after reconstruction
+                if doc_data is None:
+                    logger.error(f"❌ DEBUG - doc_data is None after reconstruction for document {doc.id}")
+                    continue
+                
+                # Additional safety check: ensure created_at is a datetime object
+                created_at = doc_data.get('created_at')
+                if not isinstance(created_at, datetime):
+                    logger.warning(f"🔧 DEBUG - created_at is not datetime after reconstruction: {created_at} (type: {type(created_at)})")
+                    doc_data['created_at'] = _safe_datetime_conversion(created_at)
+                    created_at = doc_data['created_at']
+                
+                # Final safety check: ensure ALL datetime fields are properly converted
+                for key, value in doc_data.items():
+                    if key in ['created_at', 'timestamp', 'date', 'updated_at'] and not isinstance(value, datetime):
+                        logger.warning(f"🔧 DEBUG - Converting {key} from {type(value)} to datetime")
+                        doc_data[key] = _safe_datetime_conversion(value)
 
                 created_at = doc_data.get('created_at', now)
                 # Convert timezone-aware datetime to naive for comparison
@@ -307,15 +354,30 @@ def _safe_datetime_conversion(timestamp):
                 # Try parsing as Unix timestamp string
                 return datetime.fromtimestamp(float(timestamp))
             except (ValueError, TypeError, OSError):
+                try:
+                    # Try parsing as simple date-time string
+                    if len(timestamp) >= 19 and timestamp[4] == '-' and timestamp[7] == '-' and timestamp[10] == ' ':
+                        return datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    pass
+                try:
+                    # Try parsing as date string
+                    if len(timestamp) == 10 and timestamp[4] == '-' and timestamp[7] == '-':
+                        return datetime.strptime(timestamp, '%Y-%m-%d')
+                except ValueError:
+                    pass
                 # If all parsing fails, return current time
+                logger.warning(f"Could not parse timestamp string '{timestamp}', using current time")
                 return datetime.now()
     elif isinstance(timestamp, (int, float)):
         try:
             return datetime.fromtimestamp(timestamp)
         except (ValueError, TypeError, OSError):
+            logger.warning(f"Could not parse timestamp number '{timestamp}', using current time")
             return datetime.now()
     else:
         # For any other type, return current time
+        logger.warning(f"Unknown timestamp type '{type(timestamp)}' with value '{timestamp}', using current time")
         return datetime.now()
 
 def display_analysis_history():
@@ -385,6 +447,24 @@ def display_analysis_history():
                 logger.error(f"❌ DEBUG - Reconstruction failed: {e}")
                 # Continue with original data if reconstruction fails
                 pass
+            
+            # Ensure analysis_data is not None after reconstruction
+            if analysis_data is None:
+                logger.error(f"❌ DEBUG - analysis_data is None after reconstruction for document {doc.id}")
+                continue
+            
+            # Additional safety check: ensure created_at is a datetime object
+            created_at = analysis_data.get('created_at')
+            if not isinstance(created_at, datetime):
+                logger.warning(f"🔧 DEBUG - created_at is not datetime after reconstruction: {created_at} (type: {type(created_at)})")
+                analysis_data['created_at'] = _safe_datetime_conversion(created_at)
+                logger.info(f"🔧 DEBUG - Fixed created_at: {analysis_data['created_at']} (type: {type(analysis_data['created_at'])})")
+            
+            # Final safety check: ensure ALL datetime fields are properly converted
+            for key, value in analysis_data.items():
+                if key in ['created_at', 'timestamp', 'date', 'updated_at'] and not isinstance(value, datetime):
+                    logger.warning(f"🔧 DEBUG - Converting {key} from {type(value)} to datetime")
+                    analysis_data[key] = _safe_datetime_conversion(value)
 
             # Debug: Check created_at type after reconstruction
             created_at_after = analysis_data.get('created_at')
@@ -489,6 +569,18 @@ def display_analysis_history():
                                 logger.info(f"🔍 DEBUG - Using dict data as single step analysis")
                                 break
 
+                # Strategy 5: Check if analysis_results contains the data directly
+                if not step_analysis and analysis_results:
+                    logger.info(f"🔍 DEBUG - Checking analysis_results for step data...")
+                    if isinstance(analysis_results, dict):
+                        # Look for any list that might contain step data
+                        for key, value in analysis_results.items():
+                            if isinstance(value, list) and len(value) > 0:
+                                if isinstance(value[0], dict) and any(k in value[0] for k in ['step_title', 'step_number', 'summary', 'detailed_analysis']):
+                                    step_analysis = value
+                                    logger.info(f"🔍 DEBUG - Found step data in analysis_results.{key}: {len(step_analysis)} items")
+                                    break
+
             except Exception as e:
                 logger.error(f"🔍 DEBUG - Error during data extraction: {str(e)}")
                 step_analysis = []
@@ -534,7 +626,16 @@ def display_analysis_history():
 
                 # Display debug information in the UI if step analysis is empty
                 if not step_analysis:
-                    st.markdown("""
+                    # Get more detailed debug information
+                    analysis_results_debug = "Not found"
+                    if 'analysis_results' in analysis_data:
+                        analysis_results_data = analysis_data['analysis_results']
+                        if isinstance(analysis_results_data, dict):
+                            analysis_results_debug = f"Dict with keys: {list(analysis_results_data.keys())}"
+                        else:
+                            analysis_results_debug = f"Type: {type(analysis_results_data)}"
+                    
+                    st.markdown(f"""
                     <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
                     <h4>📊 Analysis Summary</h4>
                     <p>Analysis results summary</p>
@@ -545,13 +646,40 @@ def display_analysis_history():
                     <p><strong>Debug Information:</strong></p>
                     <p>Analysis results type: {type(analysis_data)}</p>
                     <p>Analysis results keys: {list(analysis_data.keys())}</p>
+                    <p>Analysis results data: {analysis_results_debug}</p>
                     <p>Step results type: {type(step_analysis)}</p>
                     <p>Step results length: {len(step_analysis)}</p>
-                    <p>Has stored analysis results: {bool(step_analysis)}</p>
+                    <p>No stored analysis results in session state</p>
                     </div>
                     </div>
                     """, unsafe_allow_html=True)
-                    logger.warning(f"🔍 DEBUG - No step analysis found for document {doc.id} - skipping display")
+                    logger.warning(f"🔍 DEBUG - No step analysis found for document {doc.id} - creating fallback display")
+                    
+                    # Create a fallback analysis summary even without step-by-step data
+                    st.markdown("**📊 Analysis Summary**")
+                    st.info("Analysis completed successfully, but detailed step-by-step results are not available.")
+                    
+                    # Try to show any available analysis data
+                    if 'analysis_results' in analysis_data:
+                        analysis_results_data = analysis_data['analysis_results']
+                        if isinstance(analysis_results_data, dict):
+                            # Show available keys
+                            available_keys = list(analysis_results_data.keys())
+                            st.write(f"**Available Analysis Data:** {', '.join(available_keys)}")
+                            
+                            # Try to show summary if available
+                            if 'summary' in analysis_results_data:
+                                st.write("**Summary:**", analysis_results_data['summary'])
+                            elif 'findings' in analysis_results_data:
+                                st.write("**Findings:**", analysis_results_data['findings'])
+                            elif 'recommendations' in analysis_results_data:
+                                st.write("**Recommendations:**", analysis_results_data['recommendations'])
+                    
+                    # Show basic analysis info
+                    st.write(f"**Analysis ID:** {doc.id}")
+                    st.write(f"**Status:** {status.title()}")
+                    st.write(f"**Date:** {timestamp_str}")
+                    
                     continue
                 
                 with col1:
