@@ -2702,6 +2702,8 @@ class PromptAnalyzer:
             - For soil parameter tables, use titles like "Soil Parameters Summary", "Soil Analysis Results", or "Soil Nutrient Status"
             - For comparison tables, use titles like "Soil Analysis: Plantation Average vs. MPOB Standards" or "Parameter Comparison Analysis"
             - CRITICAL: Comparison tables MUST show all parameters, including those with "N/A" values for missing data
+            - CRITICAL: For Nutrient Gap Analysis tables, you MUST sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last)
+            - CRITICAL: Nutrient Gap Analysis tables must show the most severe deficiencies at the top of the table
             
             FORECAST DETECTION:
             - If the step title or description contains words like "forecast", "projection", "5-year", "yield forecast", "graph", or "chart", you MUST include yield_forecast data
@@ -2734,13 +2736,14 @@ class PromptAnalyzer:
             24. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
             25. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
             26. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
-            27. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
-            28. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
-            29. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
-            30. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
-            31. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
-            32. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
-            33. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            27. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
+            28. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
+            29. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
+            30. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
+            31. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
+            32. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
+            33. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
+            34. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
