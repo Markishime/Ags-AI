@@ -12401,6 +12401,123 @@ def _parse_json_finding(finding_text):
     # If not JSON or parsing failed, return as-is
     return finding_text
 
+def display_analysis_tables(tables_data, step_title="Data Tables"):
+    """Robust table display function that handles all table formats and edge cases."""
+    if not tables_data:
+        return
+
+    try:
+        # Normalize tables to consistent format
+        normalized_tables = _normalize_tables_section(tables_data)
+
+        if not normalized_tables:
+            return
+
+        # Only show section header if we have valid tables to display
+        has_valid_tables = False
+        for table in normalized_tables:
+            if (isinstance(table, dict) and
+                table.get('headers') and
+                table.get('rows') and
+                len(table.get('rows', [])) > 0):
+                has_valid_tables = True
+                break
+
+        if not has_valid_tables:
+            return
+
+        st.markdown(f"#### 📊 {step_title}")
+
+        for table_idx, table in enumerate(normalized_tables):
+            try:
+                if not isinstance(table, dict):
+                    continue
+
+                # Ensure all required keys exist
+                title = table.get('title', f'Table {table_idx + 1}')
+                headers = table.get('headers', [])
+                rows = table.get('rows', [])
+                subtitle = table.get('subtitle', '')
+
+                # Skip empty tables
+                if not headers or not rows:
+                    continue
+
+                # Validate data types and convert to strings for safety
+                try:
+                    headers = [str(h) if h is not None else '' for h in headers]
+
+                    # Process rows - ensure they're lists and convert values to strings
+                    processed_rows = []
+                    for row in rows:
+                        if isinstance(row, list):
+                            processed_row = []
+                            for cell in row:
+                                # Handle None values and convert to strings
+                                if cell is None or cell == 0:
+                                    processed_row.append('N/A')
+                                else:
+                                    try:
+                                        # Try to format numbers nicely
+                                        if isinstance(cell, (int, float)):
+                                            if cell == int(cell):
+                                                processed_row.append(str(int(cell)))
+                                            else:
+                                                processed_row.append(f"{cell:.2f}")
+                                        else:
+                                            processed_row.append(str(cell))
+                                    except Exception:
+                                        processed_row.append(str(cell))
+                            processed_rows.append(processed_row)
+                        else:
+                            # If row is not a list, skip it
+                            continue
+
+                    # Skip if no valid rows
+                    if not processed_rows:
+                        continue
+
+                    # Ensure all rows have the same number of columns as headers
+                    max_cols = len(headers)
+                    for row in processed_rows:
+                        while len(row) < max_cols:
+                            row.append('')
+                        if len(row) > max_cols:
+                            row[:] = row[:max_cols]
+
+                    # Create styled container
+                    st.markdown(
+                        f'<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                        f'<h4 style="margin: 0 0 10px 0; color: #6f42c1; font-size: 16px;">📋 {title}</h4>',
+                        unsafe_allow_html=True
+                    )
+
+                    if subtitle:
+                        st.markdown(f'<div style="color: #6c757d; font-style: italic; margin-bottom: 15px;">{subtitle}</div>', unsafe_allow_html=True)
+
+                    # Create DataFrame with error handling
+                    import pandas as pd
+                    df = pd.DataFrame(processed_rows, columns=headers)
+
+                    # Apply consistent styling
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                except Exception as e:
+                    # Log error but continue with other tables
+                    st.warning(f"Error displaying table '{title}': {str(e)}")
+                    continue
+
+            except Exception as e:
+                # Log error but continue with other tables
+                st.warning(f"Error processing table {table_idx + 1}: {str(e)}")
+                continue
+
+    except Exception as e:
+        st.error(f"Error displaying tables: {str(e)}")
+
 def _normalize_tables_section(tables_value):
     """Normalize various table payloads to a list of {title, headers, rows} dicts."""
     import json as _json
@@ -13004,27 +13121,8 @@ def display_regenerative_agriculture_content(analysis_data):
             practice_html += '</div></div>'
             st.markdown(practice_html, unsafe_allow_html=True)
 
-    # 5) Tables (if available)
-    try:
-        if analysis_data.get('tables') and isinstance(analysis_data['tables'], list):
-            st.markdown("#### 📊 Data Tables")
-            for table in analysis_data['tables']:
-                if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
-                    # Create a container for each table
-                    st.markdown(
-                        f'<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
-                        f'<h4 style="margin: 0 0 10px 0; color: #6f42c1; font-size: 16px;">📋 {table["title"]}</h4>',
-                        unsafe_allow_html=True
-                    )
-                    if table.get('subtitle'):
-                        st.markdown(f'<div style="color: #6c757d; font-style: italic; margin-bottom: 15px;">{table["subtitle"]}</div>', unsafe_allow_html=True)
-                    import pandas as pd
-                    df = pd.DataFrame(table['rows'], columns=table['headers'])
-                    apply_table_styling()
-                    st.dataframe(df, width='stretch')
-                    st.markdown('</div>', unsafe_allow_html=True)
-    except Exception:
-        pass
+    # 5) Tables (if available) - Use robust table display function
+    display_analysis_tables(analysis_data.get('tables'), "Regenerative Agriculture Data Tables")
 
     # 6) Interpretations (if available) — ensure lists render properly
     try:
@@ -13091,8 +13189,9 @@ def display_economic_impact_content(analysis_data):
             # Do not derive ROI from scenarios; show placeholder or omit
             st.metric("💰 Estimated ROI", "N/A")
 
-        # Remove projected improvement derived from scenarios
-        
+        # Display any additional tables from analysis data
+        display_analysis_tables(analysis_data.get('tables'), "Economic Analysis Data Tables")
+
         # Do not display investment scenarios or assumptions
     
     elif econ_data:
@@ -13112,6 +13211,9 @@ def display_economic_impact_content(analysis_data):
                 st.markdown(f"- Investment: RM {scenario.get('investment', 0):,.0f}")
                 st.markdown(f"- Return: RM {scenario.get('return', 0):,.0f}")
                 st.markdown(f"- ROI: {scenario.get('roi', 0):.1f}%")
+
+        # Display any additional tables from analysis data
+        display_analysis_tables(analysis_data.get('tables'), "Economic Analysis Data Tables")
     
     else:
         # Show helpful information instead of just an error message
@@ -13146,6 +13248,9 @@ def display_economic_impact_content(analysis_data):
         ])
         apply_table_styling()
         st.dataframe(df, width='stretch')
+
+        # Also try to display any additional tables from analysis data
+        display_analysis_tables(analysis_data.get('tables'), "Economic Analysis Data Tables")
         
         st.markdown("*Note: These are estimated values based on typical oil palm plantation economics. Actual results may vary based on specific conditions and implementation.*")
         
