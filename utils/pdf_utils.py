@@ -1452,17 +1452,37 @@ class PDFReportGenerator:
                     story.append(Spacer(1, 6))
             story.append(Spacer(1, 8))
         
+    def _create_step3_pdf_content(self, story, analysis_data):
+        """Create Step 3 PDF content matching results page format"""
         # Key Findings section (at the end, consistent with Step 2)
         if 'key_findings' in analysis_data and analysis_data['key_findings']:
             story.append(Paragraph("🔍 Key Findings", self.styles['Heading3']))
             key_findings = analysis_data['key_findings']
-            if isinstance(key_findings, list):
-                for i, finding in enumerate(key_findings, 1):
-                    story.append(Paragraph(f"{i}. {self._sanitize_text_persona(str(finding))}", self.styles['CustomBody']))
-            story.append(Spacer(1, 8))
+            normalized_kf = []
 
-    def _create_step3_pdf_content(self, story, analysis_data):
-        """Create Step 3 PDF content matching results page format"""
+            # Handle different key_findings formats (dict with item_0, item_1, etc. or list)
+            if isinstance(key_findings, dict):
+                # Sort keys to ensure consistent ordering
+                ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 10**9))
+                for k in ordered_keys:
+                    v = key_findings.get(k)
+                    if isinstance(v, str) and v.strip():
+                        # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                        from modules.results import _parse_json_finding
+                        parsed_finding = _parse_json_finding(v.strip())
+                        normalized_kf.append(parsed_finding)
+            elif isinstance(key_findings, list):
+                for v in key_findings:
+                    if isinstance(v, str) and v.strip():
+                        # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                        from modules.results import _parse_json_finding
+                        parsed_finding = _parse_json_finding(v.strip())
+                        normalized_kf.append(parsed_finding)
+
+            # Display the normalized findings
+            for i, finding in enumerate(normalized_kf, 1):
+                story.append(Paragraph(f"{i}. {self._sanitize_text_persona(str(finding))}", self.styles['CustomBody']))
+            story.append(Spacer(1, 8))
         story.append(Paragraph("💡 Solution Recommendations", self.styles['Heading2']))
         story.append(Spacer(1, 8))
         
@@ -3513,11 +3533,30 @@ class PDFReportGenerator:
             if 'key_findings' in analysis_results:
                 story.append(Paragraph("Key Findings:", self.styles['Heading3']))
                 key_findings = analysis_results['key_findings']
-                if isinstance(key_findings, list):
-                    for i, finding in enumerate(key_findings, 1):
-                        story.append(Paragraph(f"{i}. {finding}", self.styles['CustomBody']))
-                else:
-                    story.append(Paragraph(str(key_findings), self.styles['CustomBody']))
+                normalized_kf = []
+
+                # Handle different key_findings formats (dict with item_0, item_1, etc. or list)
+                if isinstance(key_findings, dict):
+                    # Sort keys to ensure consistent ordering
+                    ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 10**9))
+                    for k in ordered_keys:
+                        v = key_findings.get(k)
+                        if isinstance(v, str) and v.strip():
+                            # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                            from modules.results import _parse_json_finding
+                            parsed_finding = _parse_json_finding(v.strip())
+                            normalized_kf.append(parsed_finding)
+                elif isinstance(key_findings, list):
+                    for v in key_findings:
+                        if isinstance(v, str) and v.strip():
+                            # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                            from modules.results import _parse_json_finding
+                            parsed_finding = _parse_json_finding(v.strip())
+                            normalized_kf.append(parsed_finding)
+
+                # Display the normalized findings
+                for i, finding in enumerate(normalized_kf, 1):
+                    story.append(Paragraph(f"{i}. {finding}", self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
             
             # Add summary if available
@@ -3609,7 +3648,30 @@ class PDFReportGenerator:
             # Key Findings (from enhanced LLM output)
             if 'key_findings' in step and step['key_findings']:
                 story.append(Paragraph("Key Findings:", self.styles['Heading3']))
-                for i, finding in enumerate(step['key_findings'], 1):
+                key_findings = step['key_findings']
+                normalized_kf = []
+
+                # Handle different key_findings formats (dict with item_0, item_1, etc. or list)
+                if isinstance(key_findings, dict):
+                    # Sort keys to ensure consistent ordering
+                    ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 10**9))
+                    for k in ordered_keys:
+                        v = key_findings.get(k)
+                        if isinstance(v, str) and v.strip():
+                            # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                            from modules.results import _parse_json_finding
+                            parsed_finding = _parse_json_finding(v.strip())
+                            normalized_kf.append(parsed_finding)
+                elif isinstance(key_findings, list):
+                    for v in key_findings:
+                        if isinstance(v, str) and v.strip():
+                            # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                            from modules.results import _parse_json_finding
+                            parsed_finding = _parse_json_finding(v.strip())
+                            normalized_kf.append(parsed_finding)
+
+                # Display the normalized findings
+                for i, finding in enumerate(normalized_kf, 1):
                     finding_text = f"<b>{i}.</b> {self._sanitize_text_persona(str(finding))}"
                     story.append(Paragraph(finding_text, self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
@@ -5296,15 +5358,36 @@ class PDFReportGenerator:
         # Key Findings only
         if 'key_findings' in step and step['key_findings']:
             story.append(Paragraph("Key Findings:", self.styles['Heading3']))
-            findings = step['key_findings']
-            if isinstance(findings, list):
-                for i, finding in enumerate(findings, 1):
-                    finding_text = str(finding)
-                    # Apply comprehensive cleaning
-                    finding_text = self._clean_persona_wording(finding_text)
-                    finding_text = self._filter_raw_llm_structures(finding_text)
-                    finding_text = self._sanitize_text_persona(finding_text)
-                    story.append(Paragraph(f"<b>{i}.</b> {finding_text}", self.styles['CustomBody']))
+            key_findings = step['key_findings']
+            normalized_kf = []
+
+            # Handle different key_findings formats (dict with item_0, item_1, etc. or list)
+            if isinstance(key_findings, dict):
+                # Sort keys to ensure consistent ordering
+                ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 10**9))
+                for k in ordered_keys:
+                    v = key_findings.get(k)
+                    if isinstance(v, str) and v.strip():
+                        # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                        from modules.results import _parse_json_finding
+                        parsed_finding = _parse_json_finding(v.strip())
+                        normalized_kf.append(parsed_finding)
+            elif isinstance(key_findings, list):
+                for v in key_findings:
+                    if isinstance(v, str) and v.strip():
+                        # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                        from modules.results import _parse_json_finding
+                        parsed_finding = _parse_json_finding(v.strip())
+                        normalized_kf.append(parsed_finding)
+
+            # Display the normalized findings
+            for i, finding in enumerate(normalized_kf, 1):
+                finding_text = str(finding)
+                # Apply comprehensive cleaning
+                finding_text = self._clean_persona_wording(finding_text)
+                finding_text = self._filter_raw_llm_structures(finding_text)
+                finding_text = self._sanitize_text_persona(finding_text)
+                story.append(Paragraph(f"<b>{i}.</b> {finding_text}", self.styles['CustomBody']))
             else:
                 finding_text = str(findings)
                 # Apply comprehensive cleaning
@@ -5447,7 +5530,30 @@ class PDFReportGenerator:
             # Key Findings
             if 'key_findings' in step and step['key_findings']:
                 story.append(Paragraph("Key Findings:", self.styles['Heading3']))
-                for i, finding in enumerate(step['key_findings'], 1):
+                key_findings = step['key_findings']
+                normalized_kf = []
+
+                # Handle different key_findings formats (dict with item_0, item_1, etc. or list)
+                if isinstance(key_findings, dict):
+                    # Sort keys to ensure consistent ordering
+                    ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 10**9))
+                    for k in ordered_keys:
+                        v = key_findings.get(k)
+                        if isinstance(v, str) and v.strip():
+                            # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                            from modules.results import _parse_json_finding
+                            parsed_finding = _parse_json_finding(v.strip())
+                            normalized_kf.append(parsed_finding)
+                elif isinstance(key_findings, list):
+                    for v in key_findings:
+                        if isinstance(v, str) and v.strip():
+                            # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                            from modules.results import _parse_json_finding
+                            parsed_finding = _parse_json_finding(v.strip())
+                            normalized_kf.append(parsed_finding)
+
+                # Display the normalized findings
+                for i, finding in enumerate(normalized_kf, 1):
                     finding_text = f"<b>{i}.</b> {finding}"
                     story.append(Paragraph(finding_text, self.styles['CustomBody']))
                 story.append(Spacer(1, 8))
