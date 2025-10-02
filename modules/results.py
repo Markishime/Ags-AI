@@ -5469,7 +5469,9 @@ def display_enhanced_step_result(step_result, step_number):
                     st.markdown(f"**{key.replace('_', ' ').title()}:**")
                     for sub_k, sub_v in value.items():
                         if sub_v is not None and sub_v != "":
-                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                            # Apply persona sanitization to remove consulting agronomist language
+                        sanitized_sub_v = sanitize_persona_and_enforce_article(str(sub_v))
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_sub_v}")
                 elif isinstance(value, list) and value:
                     st.markdown(f"**{key.replace('_', ' ').title()}:**")
                     for idx, item in enumerate(value, 1):
@@ -6666,6 +6668,9 @@ def parse_and_display_json_analysis(json_text):
         st.markdown("### 📋 Detailed Analysis")
         # Filter out known sections from raw text display
         filtered_text = filter_known_sections_from_text(json_text)
+        
+        # Apply persona sanitization to remove consulting agronomist language
+        filtered_text = sanitize_persona_and_enforce_article(filtered_text)
 
         # Additional check for corrupted soil issues data in fallback
         if ('"parameter": "pH"' in filtered_text and '"optimal_range": "4.0-5.5"' in filtered_text and
@@ -6682,6 +6687,9 @@ def parse_and_display_json_analysis(json_text):
         st.markdown("### 📋 Detailed Analysis")
         # Filter out known sections from raw text display
         filtered_text = filter_known_sections_from_text(json_text)
+        
+        # Apply persona sanitization to remove consulting agronomist language
+        filtered_text = sanitize_persona_and_enforce_article(filtered_text)
 
         # Additional check for corrupted soil issues data in fallback
         if ('"parameter": "pH"' in filtered_text and '"optimal_range": "4.0-5.5"' in filtered_text and
@@ -6707,13 +6715,18 @@ def display_structured_analysis(data):
             return
 
         filtered_text = filter_known_sections_from_text(text_data)
+        
+        # Apply persona sanitization to remove consulting agronomist language
+        filtered_text = sanitize_persona_and_enforce_article(filtered_text)
+        
         st.markdown(filtered_text)
         return
     
     # Display summary if available
     if 'summary' in data:
         st.markdown("### 📋 Summary")
-        st.markdown(data['summary'])
+        summary_text = sanitize_persona_and_enforce_article(str(data['summary']))
+        st.markdown(summary_text)
     
     # Display key findings if available
     if 'key_findings' in data:
@@ -6722,10 +6735,14 @@ def display_structured_analysis(data):
         if isinstance(findings, list) and findings:
             for i, finding in enumerate(findings, 1):
                 if finding:  # Ensure finding is not None or empty
-                    st.markdown(f"{i}. {str(finding)}")
+                    # Apply persona sanitization to individual findings
+                    sanitized_finding = sanitize_persona_and_enforce_article(str(finding))
+                    st.markdown(f"{i}. {sanitized_finding}")
         elif findings:  # If it's not a list but has content
             # Filter out known sections from raw text display
             filtered_findings = filter_known_sections_from_text(str(findings))
+            # Apply persona sanitization to remove consulting agronomist language
+            filtered_findings = sanitize_persona_and_enforce_article(filtered_findings)
             st.markdown(filtered_findings)
     
     # Display recommendations if available
@@ -6761,6 +6778,9 @@ def display_structured_analysis(data):
             elif value:  # If it's not a list but has content
                 # Filter out known sections from raw text display
                 filtered_value = filter_known_sections_from_text(str(value))
+                
+                # Apply persona sanitization to remove consulting agronomist language
+                filtered_value = sanitize_persona_and_enforce_article(filtered_value)
                 st.markdown(filtered_value)
 
 def display_economic_forecast(economic_forecast):
@@ -7627,7 +7647,9 @@ def display_enhanced_step_result(step_result, step_number):
                 unsafe_allow_html=True
             )
             for idx, finding in enumerate(normalized_kf, 1):
-                st.markdown(f"<li style=\\\"margin:6px 0;\\\">{finding}</li>", unsafe_allow_html=True)
+                # Apply persona sanitization to remove consulting agronomist language
+                sanitized_finding = sanitize_persona_and_enforce_article(finding)
+                st.markdown(f"<li style=\\\"margin:6px 0;\\\">{sanitized_finding}</li>", unsafe_allow_html=True)
             st.markdown("</ol></div>", unsafe_allow_html=True)
 
     if other_fields:
@@ -7651,7 +7673,9 @@ def display_enhanced_step_result(step_result, step_number):
                     if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
                         continue
                     if sub_v is not None and sub_v != "":
-                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                        # Apply persona sanitization to remove consulting agronomist language
+                        sanitized_sub_v = sanitize_persona_and_enforce_article(str(sub_v))
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for idx, item in enumerate(value, 1):
@@ -9713,7 +9737,9 @@ def display_step1_data_analysis(analysis_data):
                     if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source','economic_forecast','scenarios','assumptions']:
                         continue
                     if sub_v is not None and sub_v != "":
-                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                        # Apply persona sanitization to remove consulting agronomist language
+                        sanitized_sub_v = sanitize_persona_and_enforce_article(str(sub_v))
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for i, item in enumerate(value, 1):
@@ -9722,10 +9748,15 @@ def display_step1_data_analysis(analysis_data):
                         if any(k in item for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
                             continue
                     if item:
-                        st.markdown(f"{i}. {str(item)}")
+                        # Apply persona sanitization to remove consulting agronomist language
+                        sanitized_item = sanitize_persona_and_enforce_article(str(item))
+                        st.markdown(f"{i}. {sanitized_item}")
             elif value:
                 # Filter out known sections from raw text display
                 filtered_value = filter_known_sections_from_text(str(value))
+                
+                # Apply persona sanitization to remove consulting agronomist language
+                filtered_value = sanitize_persona_and_enforce_article(filtered_value)
                 if filtered_value != "Content filtered to prevent raw LLM output display.":
                     # Additional check: if the original value contained raw LLM patterns, don't display
                     original_filtered = filter_known_sections_from_text(str(value))
@@ -12963,7 +12994,9 @@ def display_step3_solution_recommendations(analysis_data):
                 unsafe_allow_html=True
             )
             for idx, finding in enumerate(normalized_kf, 1):
-                st.markdown(f"<li style=\\\"margin:6px 0;\\\">{finding}</li>", unsafe_allow_html=True)
+                # Apply persona sanitization to remove consulting agronomist language
+                sanitized_finding = sanitize_persona_and_enforce_article(finding)
+                st.markdown(f"<li style=\\\"margin:6px 0;\\\">{sanitized_finding}</li>", unsafe_allow_html=True)
             st.markdown("</ol></div>", unsafe_allow_html=True)
 
     if other_fields:
@@ -12987,7 +13020,9 @@ def display_step3_solution_recommendations(analysis_data):
                     if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
                         continue
                     if sub_v is not None and sub_v != "":
-                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                        # Apply persona sanitization to remove consulting agronomist language
+                        sanitized_sub_v = sanitize_persona_and_enforce_article(str(sub_v))
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for idx, item in enumerate(value, 1):
