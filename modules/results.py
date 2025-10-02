@@ -5179,6 +5179,7 @@ def sanitize_persona_and_enforce_article(text):
             r"^[\t ]*As\s+a\s+consulting\s+agronomist[,\s:]+",
             r"^[\t ]*As\s+your\s+agronomist[,\s:]+",
             r"^[\t ]*As\s+an\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+an\s+experienced\s+agronomist\s+in\s+Malaysia[,\s:]+",
         ]
         for pattern in persona_line_patterns:
             cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
@@ -5187,9 +5188,21 @@ def sanitize_persona_and_enforce_article(text):
             r"(\n|^)\s*As\s+an\s+experienced\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+your\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+an\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+an\s+experienced\s+agronomist\s+in\s+Malaysia[,\s:]+",
         ]
         for pattern in inline_persona_patterns:
             cleaned = re.sub(pattern, '\n', cleaned, flags=re.IGNORECASE)
+        
+        # Remove persona phrases anywhere in the text (more aggressive)
+        aggressive_persona_patterns = [
+            r"\bAs\s+an\s+experienced\s+agronomist\s+in\s+Malaysia[,\s:]+",
+            r"\bAs\s+an\s+experienced\s+agronomist[,\s:]+",
+            r"\bAs\s+your\s+consulting\s+agronomist[,\s:]+",
+            r"\bAs\s+your\s+agronomist[,\s:]+",
+            r"\bAs\s+an\s+agronomist[,\s:]+",
+        ]
+        for pattern in aggressive_persona_patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
 
         # Replace specific possessive pronouns with "The"
         possessive_replacements = [
@@ -5215,6 +5228,19 @@ def sanitize_persona_and_enforce_article(text):
             (r"\bmy\b", ""),
         ]
         for pattern, replacement in first_person_replacements:
+            cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+
+        # Fix specific problematic patterns
+        problematic_patterns = [
+            (r"\bThe\s+in\s+Malaysia\b", "In Malaysia"),
+            (r"\bThe\s+In\s+Malaysia\b", "In Malaysia"),  # Handle capitalized version
+            (r"\bThe\s+in\s+", "In "),
+            (r"\bThe\s+assessment\b", "Assessment"),
+            (r"\bThe\s+analysis\b", "Analysis"),
+            (r"\bThe\s+primary\b", "Primary"),
+            (r"\bThe\s+immediate\b", "Immediate"),
+        ]
+        for pattern, replacement in problematic_patterns:
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
 
         # Normalize extra spaces introduced by removals
