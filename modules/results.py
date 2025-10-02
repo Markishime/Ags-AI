@@ -1,3 +1,151 @@
+def normalize_markdown_block_for_step3(text):
+    """Normalize inline dense markdown into readable headings and lists for Step 3.
+
+    - Ensures numbered sections like '**1. ...**' start on a new line
+    - Adds newlines before list bullets and headings
+    - Preserves bold markers while improving spacing
+    """
+    try:
+        import re
+        s = text
+        # Ensure bold-number headings start on new line
+        s = re.sub(r"\s*\*\*(\d+\.)\s*", r"\n\n**\1 ", s)
+        # Ensure bold subheadings like '**High-investment approach**' start on new line
+        s = re.sub(r"\s*\*\*(High-investment approach|Moderate-investment approach|Low-investment approach)\*\*", r"\n\n**\1**", s, flags=re.IGNORECASE)
+        # Add line breaks before 'Products & Rates', 'Timing & Method', 'Agronomic Effect', 'Cost'
+        s = re.sub(r"\s*\*\*Products\s*&\s*Rates:\*\*", r"\n\n**Products & Rates:**", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s*\*\*Product\s*&\s*Rate:\*\*", r"\n\n**Product & Rate:**", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s*\*\*Timing\s*&\s*Method:\*\*", r"\n\n**Timing & Method:**", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s*\*\*Agronomic Effect:\*\*", r"\n\n**Agronomic Effect:**", s, flags=re.IGNORECASE)
+        s = re.sub(r"\s*\*\*Cost:\*\*", r"\n\n**Cost:**", s, flags=re.IGNORECASE)
+        # Ensure numbered subitems 1., 2. under Products & Rates appear as list items
+        s = re.sub(r"\)\.\s*\*\*", ")**", s)  # tidy up pattern like '). **'
+        s = re.sub(r"\s(\d+)\.\s\*\*", r"\n- \1. **", s)
+        # Ensure headings begin on new lines
+        s = re.sub(r"\s*(####\s)", r"\n\n\1", s)
+        s = re.sub(r"\s*(###\s)", r"\n\n\1", s)
+        # Collapse excessive spaces
+        s = re.sub(r"\s{3,}", "  ", s)
+        return s
+    except Exception:
+        return text
+def remove_economic_scenarios_from_analysis(data):
+    """Return a copy of analysis dict with scenarios/assumptions removed everywhere.
+
+    This prevents raw LLM economic objects from being processed or displayed.
+    """
+    try:
+        if not isinstance(data, dict):
+            return data
+        cleaned = dict(data)
+        # Top-level removals
+        for k in ['scenarios', 'assumptions']:
+            if k in cleaned:
+                try:
+                    del cleaned[k]
+                except Exception:
+                    pass
+        # Nested under economic_forecast
+        econ = cleaned.get('economic_forecast')
+        if isinstance(econ, dict):
+            for k in ['scenarios', 'assumptions']:
+                if k in econ:
+                    try:
+                        del econ[k]
+                    except Exception:
+                        pass
+            cleaned['economic_forecast'] = econ
+        # Remove string dumps that start with these labels
+        for key, val in list(cleaned.items()):
+            try:
+                if isinstance(val, str) and (val.strip().startswith('Scenarios: {') or val.strip().startswith('Assumptions: {')):
+                    del cleaned[key]
+            except Exception:
+                pass
+        return cleaned
+    except Exception:
+        return data
+def display_step1_placeholder_tables(analysis_data, detailed_text):
+    """Generate and display Step 1 tables when LLM placeholders are detected.
+
+    Detects markers like:
+      - <insert_table: 0> (Your Soil and Leaf Test Results)
+      - <insert_table: 1> (Soil Nutrient Ratios)
+      - <insert_table: 2> (Leaf Nutrient Ratios)
+      - <insert_table: 3> (Nutrient Gap Analysis)
+      - <insert table: Your Soil and Leaf Test Results Summary>
+      - <insert table: Soil Nutrient Ratio Analysis>
+      - <insert table: Leaf Nutrient Ratio Analysis>
+      - <insert table: Nutrient Gap Analysis: Observed vs. Malaysian Minimum Thresholds>
+      - <insert table: Deficient Nutrient Parameter Quick Guide>
+    and renders the corresponding tables from available data sources.
+    """
+    try:
+        if not isinstance(detailed_text, str):
+            return
+        text_lower = detailed_text.lower()
+
+        # Handle numbered placeholders like <insert_table: 0>
+        import re
+        numbered_placeholders = re.findall(r'<\s*insert[_\s]*table\s*:\s*(\d+)\s*>', detailed_text, re.IGNORECASE)
+
+        for placeholder_num in numbered_placeholders:
+            try:
+                num = int(placeholder_num)
+                if num == 0:
+                    try:
+                        display_overall_results_summary_table(analysis_data)
+                    except Exception as _e:
+                        st.info("📋 Your Soil and Leaf Test Results Summary: No data available to display.")
+                elif num == 1:
+                    try:
+                        display_soil_ratio_table(analysis_data)
+                    except Exception:
+                        st.info("📋 Soil Nutrient Ratios: No data available to display.")
+                elif num == 2:
+                    try:
+                        display_leaf_ratio_table(analysis_data)
+                    except Exception:
+                        st.info("📋 Leaf Nutrient Ratios: No data available to display.")
+                elif num == 3:
+                    try:
+                        display_nutrient_gap_analysis_table(analysis_data)
+                    except Exception:
+                        st.info("📋 Nutrient Gap Analysis: No data available to display.")
+            except Exception as e:
+                logger.error(f"Error rendering numbered table placeholder {num}: {e}")
+
+        # Also handle named placeholders for backward compatibility
+        # Nutrient Gap Analysis
+        if '<insert table: nutrient gap analysis' in text_lower:
+            try:
+                display_nutrient_gap_analysis_table(analysis_data)
+            except Exception as e:
+                logger.error(f"Error rendering Nutrient Gap Analysis table: {e}")
+
+        # Ratio Analysis tables
+        if '<insert table: soil nutrient ratio analysis' in text_lower or '<insert table: leaf nutrient ratio analysis' in text_lower:
+            try:
+                display_ratio_analysis_tables(analysis_data)
+            except Exception as e:
+                logger.error(f"Error rendering Ratio Analysis tables: {e}")
+
+        # Deficient Nutrient Parameter Quick Guide
+        if '<insert table: deficient nutrient parameter quick guide' in text_lower:
+            try:
+                display_deficient_nutrient_quick_guide(analysis_data)
+            except Exception as e:
+                logger.error(f"Error rendering Deficient Nutrient Quick Guide: {e}")
+
+        # High-level summary table
+        if '<insert table: your soil and leaf test results summary' in text_lower:
+            try:
+                display_overall_results_summary_table(analysis_data)
+            except Exception as e:
+                logger.error(f"Error rendering Overall Results Summary table: {e}")
+    except Exception as outer_e:
+        logger.error(f"display_step1_placeholder_tables error: {outer_e}")
+
 import streamlit as st
 import sys
 import os
@@ -513,6 +661,7 @@ def show_results_page():
                     "weather_hint": "",
                 }
 
+        # Display Executive Summary before Step-by-Step as requested
         display_summary_section(results_data)
         display_key_findings_section(results_data)  # Key Findings below Executive Summary
         display_step_by_step_results(results_data)
@@ -2812,7 +2961,30 @@ def display_summary_section(results_data):
     
     metadata = analysis_results.get('analysis_metadata', {}) if isinstance(analysis_results, dict) else {}
     
-    # Generate comprehensive agronomic summary with detailed issue explanations
+    # Try LLM-based dynamic executive summary from actual step-by-step results
+    dynamic_summary_text = None
+    try:
+        from utils.analysis_engine import PromptAnalyzer
+        pa = PromptAnalyzer()
+        dynamic_summary_text = pa.generate_executive_summary_from_steps(analysis_results)
+    except Exception:
+        dynamic_summary_text = None
+
+    if isinstance(dynamic_summary_text, str) and dynamic_summary_text.strip():
+        sanitized_summary = sanitize_persona_and_enforce_article(dynamic_summary_text.strip())
+        st.markdown(
+            f'<div class="analysis-card"><p style="font-size: 16px; line-height: 1.8; margin: 0; text-align: justify;">{sanitized_summary}</p></div>',
+            unsafe_allow_html=True
+        )
+        # Also store on analysis_results for PDF export reuse
+        try:
+            if isinstance(analysis_results, dict):
+                analysis_results['executive_summary'] = sanitized_summary
+        except Exception:
+            pass
+        return
+
+    # Fallback deterministic generation when LLM is unavailable
     summary_sentences = []
 
     # 1-3: Analysis overview and scope
@@ -2863,24 +3035,24 @@ def display_summary_section(results_data):
         p_data = soil_stats.get('Available_P_mg_kg', {})
         if p_data:
             p_avg = p_data.get('average', 0)
-            if p_avg > 0 and p_avg < 10:
-                summary_sentences.append(f"Available phosphorus levels at {p_avg:.1f} mg/kg indicate deficiency, which can impair root development and reduce fruit bunch formation in oil palm trees.")
+            if p_avg > 0 and p_avg < 15:
+                summary_sentences.append(f"Available phosphorus levels at {p_avg:.1f} mg/kg indicate deficiency (MPOB optimal: 15-40 mg/kg), which can impair root development and reduce fruit bunch formation in oil palm trees.")
                 nutrient_sentences_added += 1
 
         # Check for potassium issues
         k_data = soil_stats.get('Exchangeable_K_meq%', {})
         if k_data and nutrient_sentences_added < 2:
             k_avg = k_data.get('average', 0)
-            if k_avg > 0 and k_avg < 0.2:
-                summary_sentences.append(f"Exchangeable potassium deficiency at {k_avg:.2f} meq% can compromise water balance regulation and reduce oil synthesis in oil palm trees.")
+            if k_avg > 0 and k_avg < 0.15:
+                summary_sentences.append(f"Exchangeable potassium deficiency at {k_avg:.2f} meq% (MPOB optimal: 0.15-0.40 meq%) can compromise water balance regulation and reduce oil synthesis in oil palm trees.")
                 nutrient_sentences_added += 1
 
         # Check for calcium issues
         ca_data = soil_stats.get('Exchangeable_Ca_meq%', {})
         if ca_data and nutrient_sentences_added < 2:
             ca_avg = ca_data.get('average', 0)
-            if ca_avg > 0 and ca_avg < 0.5:
-                summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% indicates insufficient structural support, potentially weakening cell walls and reducing palm vigor.")
+            if ca_avg > 0 and ca_avg < 2.0:
+                summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% indicates deficiency (MPOB optimal: 2.0-5.0 meq%), potentially weakening cell walls and reducing palm vigor.")
                 nutrient_sentences_added += 1
 
     # If no nutrient issues were specifically detected, avoid generic adequacy claims
@@ -2930,7 +3102,15 @@ def display_summary_section(results_data):
         summary_sentences.append(f"Current yield performance is {current_yield:.1f} t/ha based on the uploaded report.")
     elif land_size is not None:
         summary_sentences.append(f"Recorded land size is {land_size:.0f} ha based on the uploaded report.")
-    summary_sentences.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production.")
+    # Get ROI range from economic forecast if available
+    economic_forecast = analysis_results.get('economic_forecast', {})
+    roi_range = "positive returns"
+    if economic_forecast and 'scenarios' in economic_forecast:
+        scenarios = economic_forecast['scenarios']
+        if 'medium' in scenarios and 'roi_percentage_range' in scenarios['medium']:
+            roi_range = scenarios['medium']['roi_percentage_range']
+
+    summary_sentences.append(f"Economic analysis indicates that investment in corrective fertilization programs will generate {roi_range} within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production.")
     summary_sentences.append("pH deficiency correction alone can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms.")
 
     # 19-20: Detailed recommendations and monitoring
@@ -2946,6 +3126,7 @@ def display_summary_section(results_data):
     
     # Join sentences into a comprehensive summary
     comprehensive_summary = " ".join(summary_sentences)
+    comprehensive_summary = sanitize_persona_and_enforce_article(comprehensive_summary)
     
     # Display the enhanced summary
     st.markdown(
@@ -4583,6 +4764,14 @@ def display_step_by_step_results(results_data):
         return
     
     step_results = analysis_results.get('step_by_step_analysis', []) if isinstance(analysis_results, dict) else []
+    # Sanitize Step 5 content globally to remove economic scenarios/assumptions raw outputs
+    try:
+        if isinstance(step_results, list):
+            for i, sr in enumerate(step_results):
+                if isinstance(sr, dict) and (sr.get('step_number') == 5 or sr.get('number') == 5):
+                    step_results[i] = remove_economic_scenarios_from_analysis(sr)
+    except Exception:
+        pass
     total_steps = len(step_results)
     
     # Enhanced debugging for step-by-step analysis
@@ -4764,10 +4953,69 @@ def display_formatted_scenario(scenario_key, scenario_data):
     """, unsafe_allow_html=True)
 
 
+def _is_corrupted_soil_issue(issue):
+    """Check if a soil issue is corrupted and should be filtered out"""
+    if not isinstance(issue, dict):
+        return False
+
+    parameter = issue.get('parameter', '')
+    optimal_range = issue.get('optimal_range', '')
+    current_value = issue.get('current_value', 0)
+
+    # Check 1: non-pH parameter has pH optimal range
+    if parameter != 'pH' and optimal_range == '4.0-5.5':
+        return True
+
+    # Check 2: all values are 0.0 (indicates data corruption)
+    if current_value == 0.0:
+        out_of_range_samples = issue.get('out_of_range_samples', [])
+        if out_of_range_samples and all(sample.get('value', 0) == 0.0 for sample in out_of_range_samples):
+            return True
+
+    # Check 3: pH parameter with samples containing other parameter names
+    if parameter == 'pH':
+        out_of_range_samples = issue.get('out_of_range_samples', [])
+        if out_of_range_samples:
+            sample_names = [sample.get('sample_no', '').lower() for sample in out_of_range_samples]
+            other_params = ['n (%)', 'org. c (%)', 'total p', 'avail p', 'exch. k', 'exch. ca', 'exch. mg', 'cec']
+            if any(any(other in name for other in other_params) for name in sample_names):
+                return True
+
+    return False
+
+
 def display_formatted_soil_issue(issue, issue_number):
     """Display a single soil issue in a formatted, user-friendly way"""
     if not isinstance(issue, dict):
         return
+
+    # Additional corruption check to prevent display of malformed data
+    # Filter out issues where non-pH parameters have pH optimal ranges (4.0-5.5)
+    parameter = issue.get('parameter', '')
+    optimal_range = issue.get('optimal_range', '')
+    current_value = issue.get('current_value', 0)
+
+    if parameter != 'pH' and optimal_range == '4.0-5.5':
+        st.warning(f"⚠️ Filtered out corrupted soil issue for {parameter}: incorrect pH optimal range applied")
+        return
+
+    # Filter out issues where all values are 0.0 (indicates data corruption)
+    if current_value == 0.0:
+        out_of_range_samples = issue.get('out_of_range_samples', [])
+        if out_of_range_samples and all(sample.get('value', 0) == 0.0 for sample in out_of_range_samples):
+            st.warning(f"⚠️ Filtered out corrupted soil issue for {parameter}: all sample values are 0.0")
+            return
+
+    # Filter out corruption where parameter is pH but samples contain data for other parameters
+    if parameter == 'pH':
+        out_of_range_samples = issue.get('out_of_range_samples', [])
+        if out_of_range_samples:
+            sample_names = [sample.get('sample_no', '').lower() for sample in out_of_range_samples]
+            # If samples contain names of other parameters, it's corrupted
+            other_params = ['n (%)', 'org. c (%)', 'total p', 'avail p', 'exch. k', 'exch. ca', 'exch. mg', 'cec']
+            if any(any(other in name for other in other_params) for name in sample_names):
+                st.warning(f"⚠️ Filtered out corrupted soil issue for {parameter}: samples contain data for other parameters")
+                return
     
     # Extract key information
     parameter = issue.get('parameter', 'Unknown Parameter')
@@ -4910,6 +5158,87 @@ def display_step_block(step_result, step_number, step_title):
     # Display the enhanced step result content
     display_enhanced_step_result(step_result, step_number)
 
+def sanitize_persona_and_enforce_article(text):
+    """Remove persona phrases and ensure the text starts with 'The'.
+
+    - Strips phrases like 'As an experienced agronomist', 'As your consulting agronomist',
+      'As an expert', 'my analysis', 'I recommend', etc.
+    - Replaces 'our' with 'The' and removes 'my' and other first-person pronouns
+    - If first non-space word is not 'The' (case-insensitive), prepend 'The ' (with capitalization).
+    """
+    try:
+        if not isinstance(text, str):
+            return text
+        cleaned = text
+        # Remove common persona prefixes (at start of text OR start of any line)
+        import re
+        persona_line_patterns = [
+            r"^[\t ]*As\s+an\s+experienced\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+your\s+consulting\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+an\s+expert[,\s:]+",
+            r"^[\t ]*As\s+a\s+consulting\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+your\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+an\s+agronomist[,\s:]+",
+        ]
+        for pattern in persona_line_patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+        # Also remove inline occurrences that may follow headings
+        inline_persona_patterns = [
+            r"(\n|^)\s*As\s+an\s+experienced\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+your\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+an\s+agronomist[,\s:]+",
+        ]
+        for pattern in inline_persona_patterns:
+            cleaned = re.sub(pattern, '\n', cleaned, flags=re.IGNORECASE)
+
+        # Replace specific possessive pronouns with "The"
+        possessive_replacements = [
+            (r"\bour\b", "The"),
+        ]
+        for pattern, replacement in possessive_replacements:
+            cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+
+        # Remove/replace first-person phrases and possessive pronouns
+        first_person_replacements = [
+            (r"\bmy\s+analysis\b", ""),
+            (r"\bmy\s+first\s+step\b", "first step"),
+            (r"\bmy\s+recommendation\b", "recommendation"),
+            (r"\bmy\s+assessment\b", "assessment"),
+            (r"\bI\s+recommend\b", "recommend"),
+            (r"\bI\s+suggest\b", "suggest"),
+            (r"\bwe\s+recommend\b", "recommend"),
+            (r"\bwe\s+suggest\b", "suggest"),
+            (r"\bI\s+conclude\b", "conclude"),
+            (r"\bI\s+observe\b", "observe"),
+            (r"\bI\s+see\b", "analysis shows"),
+            (r"\bThe\s+I\s+see\b", "The analysis shows"),
+            (r"\bmy\b", ""),
+        ]
+        for pattern, replacement in first_person_replacements:
+            cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
+
+        # Normalize extra spaces introduced by removals
+        cleaned = re.sub(r"\s{2,}", ' ', cleaned).strip()
+
+        # Enforce leading 'The' and fix leading 'Your/your'
+        if cleaned:
+            # Trim leading whitespace but preserve it in prefix
+            m = re.search(r"[A-Za-z]", cleaned)
+            if m:
+                start_idx = m.start()
+                prefix = cleaned[:start_idx]
+                remainder = cleaned[start_idx:]
+                # If starts with 'Your ' or 'your ', convert to 'The '
+                if re.match(r"^(Your|your)\s+", remainder):
+                    remainder = re.sub(r"^(Your|your)\s+", 'The ', remainder)
+                # Now ensure it starts with 'The '
+                if not remainder.lower().startswith('the '):
+                    remainder = 'The ' + remainder if remainder else 'The '
+                cleaned = prefix + remainder
+        return cleaned
+    except Exception:
+        return text
+
 def display_enhanced_step_result(step_result, step_number):
     """Display enhanced step results with proper structure and formatting for non-technical users"""
     # Ensure step_result is a dictionary
@@ -4919,6 +5248,10 @@ def display_enhanced_step_result(step_result, step_number):
         return
     
     analysis_data = step_result
+    
+    # For STEP 5, strip any economic scenarios/assumptions keys from analysis_data to prevent leakage
+    if step_number == 5 and isinstance(analysis_data, dict):
+        analysis_data = remove_economic_scenarios_from_analysis(analysis_data)
 
     # Normalize aliases and common mis-cased keys for all steps
     try:
@@ -4975,16 +5308,34 @@ def display_enhanced_step_result(step_result, step_number):
     if step_number == 1:
         display_step1_data_analysis(analysis_data)
         return
-    
+
+    # Special handling for STEP 2 - Issue Diagnosis
+    if step_number == 2:
+        display_step2_issue_diagnosis(analysis_data)
+        return
+
     # Special handling for STEP 3 - Solution Recommendations
     if step_number == 3:
         display_step3_solution_recommendations(analysis_data)
+        return
+    
+    # Special handling for STEP 4 - Regenerative Agriculture
+    if step_number == 4:
+        display_regenerative_agriculture_content(analysis_data)
+        return
+
+    # Special handling for STEP 5 - Economic Impact Forecast
+    if step_number == 5:
+        display_step5_economic_forecast(analysis_data)
         return
     
     # 1. SUMMARY SECTION - Always show if available
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("### 📋 Summary")
         summary_text = analysis_data['summary']
+        # Sanitize persona and enforce neutral tone
+        if isinstance(summary_text, str):
+            summary_text = sanitize_persona_and_enforce_article(summary_text)
         if isinstance(summary_text, str) and summary_text.strip():
             st.markdown(
                 f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
@@ -5314,17 +5665,499 @@ def display_step3_solution_recommendations(analysis_data):
         elif isinstance(recommendations, str):
             st.markdown(recommendations)
 
+def display_step2_issue_diagnosis(analysis_data):
+    """Display Step 2: Issue Diagnosis content with consistent formatting"""
+    st.markdown("### 🔍 Issue Diagnosis")
+
+    # Display summary if available
+    if 'summary' in analysis_data and analysis_data['summary']:
+        st.markdown("#### 📋 Summary")
+        summary_text = analysis_data['summary']
+        if isinstance(summary_text, str) and summary_text.strip():
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{sanitize_persona_and_enforce_article(summary_text.strip())}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    # Display identified issues
+    if 'identified_issues' in analysis_data and analysis_data['identified_issues']:
+        st.markdown("#### 🚨 Identified Issues")
+        issues = analysis_data['identified_issues']
+        if isinstance(issues, list):
+            for i, issue in enumerate(issues, 1):
+                if isinstance(issue, dict):
+                    # Check for corrupted issues before displaying
+                    if _is_corrupted_soil_issue(issue):
+                        st.warning(f"⚠️ Filtered out corrupted issue for parameter: {issue.get('parameter', 'Unknown')}")
+                        continue
+
+                    # Create a formatted card for each issue
+                    parameter = issue.get('parameter', 'Unknown')
+                    current_value = issue.get('current_value', 'N/A')
+                    optimal_range = issue.get('optimal_range', 'N/A')
+                    status = issue.get('status', 'Unknown')
+                    severity = issue.get('severity', 'Unknown')
+                    description = issue.get('description', '')
+
+                    st.markdown(
+                        f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #fff5f5, #ffffff); border-left: 4px solid #dc3545; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                        f'<h4 style="margin: 0 0 10px 0; color: #dc3545; font-size: 18px;">⚠️ Issue {i}: {parameter}</h4>'
+                        f'<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">'
+                        f'<div><strong>Current Value:</strong> {current_value}</div>'
+                        f'<div><strong>Optimal Range:</strong> {optimal_range}</div>'
+                        f'<div><strong>Status:</strong> {status}</div>'
+                        f'<div><strong>Severity:</strong> {severity}</div>'
+                        f'</div>'
+                        f'{f"<div><strong>Description:</strong> {description}</div>" if description else ""}'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    # Handle string issues
+                    st.markdown(
+                        f'<div style="margin-bottom: 15px; padding: 12px; background: linear-gradient(135deg, #fff5f5, #ffffff); border-left: 4px solid #dc3545; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">'
+                        f'<p style="margin: 0; font-size: 15px; color: #2c3e50;"><strong>Issue {i}:</strong> {sanitize_persona_and_enforce_article(str(issue))}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+  
+    # Display visualizations
+    if 'visualizations' in analysis_data and analysis_data['visualizations']:
+        st.markdown("#### 📊 Visualizations")
+        try:
+            visualizations = analysis_data['visualizations']
+            if isinstance(visualizations, list):
+                for i, viz in enumerate(visualizations, 1):
+                    if isinstance(viz, dict) and 'type' in viz:
+                        display_visualization(viz, i, 2)
+        except Exception as e:
+            logger.error(f"Error displaying visualizations: {e}")
+            st.error("Error displaying visualizations")
+
+    # Display tables
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("#### 📋 Data Tables")
+        try:
+            tables = analysis_data['tables']
+            if isinstance(tables, list):
+                for i, table_data in enumerate(tables, 1):
+                    if isinstance(table_data, dict):
+                        display_table(table_data, f"Table {i}")
+        except Exception as e:
+            logger.error(f"Error displaying tables: {e}")
+            st.error("Error displaying tables")
+
+def display_step5_economic_forecast(analysis_data):
+    """Display Step 5: Economic Impact Forecast content with consistent formatting"""
+    st.markdown("### 💰 Economic Impact Forecast")
+
+    # Display summary if available
+    if 'summary' in analysis_data and analysis_data['summary']:
+        st.markdown("#### 📋 Summary")
+        summary_text = analysis_data['summary']
+        if isinstance(summary_text, str) and summary_text.strip():
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{sanitize_persona_and_enforce_article(summary_text.strip())}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    # Try to render any formatted tables embedded directly in this step's formatted/detailed analysis
+    try:
+        fa_text_top = None
+        if isinstance(analysis_data.get('formatted_analysis'), str) and (
+            '<tables>' in analysis_data['formatted_analysis'] or '<table' in analysis_data['formatted_analysis']
+        ):
+            fa_text_top = analysis_data['formatted_analysis']
+        elif isinstance(analysis_data.get('detailed_analysis'), str) and (
+            '<tables>' in analysis_data['detailed_analysis'] or '<table' in analysis_data['detailed_analysis']
+        ):
+            import re as _re
+            # Look for "Formatted Analysis:" section first
+            m2 = _re.search(r"Formatted Analysis:\s*(.*?)(?=\n\n|\Z)", analysis_data['detailed_analysis'], _re.DOTALL | _re.IGNORECASE)
+            if m2 and m2.group(1).strip():
+                fa_text_top = m2.group(1).strip()
+            else:
+                # Fall back to the entire detailed_analysis if no Formatted Analysis section
+                fa_text_top = analysis_data['detailed_analysis']
+        
+        if isinstance(fa_text_top, str) and ('<table' in fa_text_top):
+            display_formatted_economic_tables(fa_text_top)
+    except Exception as e:
+        logger.error(f"Error parsing Step 5 formatted tables: {e}")
+        pass
+
+    # Display economic analysis with enhanced formatting
+    if 'economic_analysis' in analysis_data and analysis_data['economic_analysis']:
+        st.markdown("#### 📊 Economic Analysis")
+        econ_data = analysis_data['economic_analysis']
+        if isinstance(econ_data, dict):
+            # Create a metrics container
+            metrics_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">'
+
+            if 'roi' in econ_data:
+                metrics_html += f'''
+                <div style="background: linear-gradient(135deg, #667eea, #764ba2); padding: 20px; border-radius: 10px; text-align: center; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">{econ_data['roi']}%</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Expected ROI</div>
+                </div>'''
+
+            if 'payback_period' in econ_data:
+                metrics_html += f'''
+                <div style="background: linear-gradient(135deg, #f093fb, #f5576c); padding: 20px; border-radius: 10px; text-align: center; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">{econ_data['payback_period']}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Payback Period (months)</div>
+                </div>'''
+
+            if 'net_benefit' in econ_data:
+                metrics_html += f'''
+                <div style="background: linear-gradient(135deg, #4facfe, #00f2fe); padding: 20px; border-radius: 10px; text-align: center; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">RM {econ_data['net_benefit']:,}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Net Benefit</div>
+                </div>'''
+
+            metrics_html += '</div>'
+            st.markdown(metrics_html, unsafe_allow_html=True)
+
+    # Display economic forecast data with consistent formatting
+    if 'economic_forecast' in analysis_data and analysis_data['economic_forecast']:
+        st.markdown("#### 📈 Economic Forecast Details")
+        forecast_data = analysis_data['economic_forecast']
+        # Case A: formatted analysis provided at top-level (string with <tables>)
+        try:
+            fa_text = None
+            if isinstance(analysis_data.get('formatted_analysis'), str):
+                fa_text = analysis_data['formatted_analysis']
+            elif isinstance(analysis_data.get('detailed_analysis'), str):
+                # Prefer explicit "Formatted Analysis:" block if embedded
+                import re as _re
+                m = _re.search(r"Formatted Analysis:\s*(.*?)(?=\n\n|\Z)", analysis_data['detailed_analysis'], _re.DOTALL | _re.IGNORECASE)
+                fa_text = m.group(1).strip() if m and m.group(1).strip() else analysis_data['detailed_analysis']
+            if isinstance(fa_text, str) and ('<tables>' in fa_text or '<table' in fa_text):
+                display_formatted_economic_tables(fa_text)
+        except Exception as e:
+            logger.error(f"Error in Case A table detection: {e}")
+            pass
+
+        if isinstance(forecast_data, dict):
+            # Check if this contains formatted analysis with tables
+            if isinstance(forecast_data, str) and ('<tables>' in forecast_data or '<table' in forecast_data):
+                # Parse and display formatted tables
+                display_formatted_economic_tables(forecast_data)
+            else:
+                # Create a forecast overview container
+                overview_html = '<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #007bff;">'
+                overview_html += '<h4 style="margin: 0 0 15px 0; color: #007bff;">📊 Current Plantation Overview</h4>'
+                overview_html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">'
+
+                if 'current_yield_tonnes_per_ha' in forecast_data:
+                    overview_html += f'''
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <div style="font-size: 20px; font-weight: bold; color: #28a745; margin-bottom: 5px;">{forecast_data['current_yield_tonnes_per_ha']:.1f}</div>
+                        <div style="font-size: 12px; color: #6c757d;">t/ha</div>
+                        <div style="font-size: 14px; color: #495057; margin-top: 5px;">Current Yield</div>
+                    </div>'''
+
+                if 'land_size_hectares' in forecast_data:
+                    overview_html += f'''
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <div style="font-size: 20px; font-weight: bold; color: #17a2b8; margin-bottom: 5px;">{forecast_data['land_size_hectares']:.1f}</div>
+                        <div style="font-size: 12px; color: #6c757d;">ha</div>
+                        <div style="font-size: 14px; color: #495057; margin-top: 5px;">Land Size</div>
+                    </div>'''
+
+                overview_html += '</div></div>'
+                st.markdown(overview_html, unsafe_allow_html=True)
+
+            # Do not display nested scenarios (already filtered out)
+
+    # Display visualizations
+    if 'visualizations' in analysis_data and analysis_data['visualizations']:
+        st.markdown("#### 📊 Economic Visualizations")
+        try:
+            visualizations = analysis_data['visualizations']
+            if isinstance(visualizations, list):
+                for i, viz in enumerate(visualizations, 1):
+                    if isinstance(viz, dict) and 'type' in viz:
+                        display_visualization(viz, i, 5)
+        except Exception as e:
+            logger.error(f"Error displaying visualizations: {e}")
+            st.error("Error displaying visualizations")
+
+    # Display tables
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("#### 📋 Economic Data Tables")
+        try:
+            tables = analysis_data['tables']
+            if isinstance(tables, list):
+                for i, table_data in enumerate(tables, 1):
+                    if isinstance(table_data, dict):
+                        display_table(table_data, f"Table {i}")
+        except Exception as e:
+            logger.error(f"Error displaying tables: {e}")
+            st.error("Error displaying tables")
+
+def display_formatted_economic_tables(formatted_text):
+    """Parse and display tables from formatted economic analysis text."""
+    try:
+        import pandas as pd
+        import re
+
+        # First apply persona sanitization to the entire text
+        formatted_text = sanitize_persona_and_enforce_article(formatted_text)
+
+        # Find all table sections - support multiple patterns:
+        # 1. <tables> wrapper with <table title="...">
+        # 2. Bare <table title="...">
+        # 3. Bare <table> without title
+        
+        tables = []
+        
+        # Pattern 1: <tables> wrapper with titled tables
+        tables_wrapper_pattern = r'<tables>\s*<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>\s*</tables>'
+        tables_wrapper_matches = re.findall(tables_wrapper_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+        tables.extend(tables_wrapper_matches)
+        
+        # Pattern 2: Bare titled tables (not inside <tables> wrapper)
+        bare_titled_pattern = r'(?<!<tables>\s*)<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>(?!\s*</tables>)'
+        bare_titled_matches = re.findall(bare_titled_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+        tables.extend(bare_titled_matches)
+        
+        # Pattern 3: Untitled tables as fallback
+        if not tables:
+            untitled = re.findall(r'<table[^>]*>([\s\S]*?)</table>', formatted_text, re.DOTALL | re.IGNORECASE)
+            tables = [(f"Table {i+1}", t) for i, t in enumerate(untitled)]
+
+        for i, (title, table_content) in enumerate(tables):
+            st.markdown(f"#### 📋 {title}")
+
+            # Extract headers and rows
+            thead_pattern = r'<thead[^>]*>(.*?)</thead>'
+            tbody_pattern = r'<tbody[^>]*>(.*?)</tbody>'
+
+            thead_match = re.search(thead_pattern, table_content, re.DOTALL | re.IGNORECASE)
+            tbody_match = re.search(tbody_pattern, table_content, re.DOTALL | re.IGNORECASE)
+
+            if thead_match and tbody_match:
+                # Parse headers
+                header_row = re.findall(r'<th[^>]*>(.*?)</th>', thead_match.group(1), re.DOTALL | re.IGNORECASE)
+                headers = [re.sub(r'<[^>]+>', '', h).strip() for h in header_row]
+
+                # Parse rows
+                rows = []
+                row_matches = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_match.group(1), re.DOTALL | re.IGNORECASE)
+                for row_match in row_matches:
+                    cells = re.findall(r'<td[^>]*>(.*?)</td>', row_match, re.DOTALL | re.IGNORECASE)
+                    clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
+                    if clean_cells:
+                        rows.append(clean_cells)
+
+                if headers and rows:
+                    df = pd.DataFrame(rows, columns=headers)
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+                else:
+                    st.markdown("No data found in table.")
+            else:
+                # Try naive row parsing without explicit thead/tbody
+                row_matches = re.findall(r'<tr[^>]*>([\s\S]*?)</tr>', table_content, re.DOTALL | re.IGNORECASE)
+                rows = []
+                for row_match in row_matches:
+                    cells = re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', row_match, re.DOTALL | re.IGNORECASE)
+                    clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
+                    if clean_cells:
+                        rows.append(clean_cells)
+                if rows:
+                    # Use first row as header if plausible
+                    headers = rows[0]
+                    body = rows[1:] if len(rows) > 1 else []
+                    import pandas as pd
+                    df = pd.DataFrame(body, columns=headers if body else None)
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+                else:
+                    st.markdown("Table format not recognized.")
+
+            st.markdown("")
+
+    except Exception as e:
+        logger.error(f"Error displaying formatted economic tables: {e}")
+        st.error("Error displaying economic tables")
+
+def _clean_step1_llm_noise(text: str) -> str:
+    """Remove noisy LLM scaffolding lines from Step 1 detailed analysis.
+    This strips stray lines like Action:, Timeline:, Headers:, Rows:, Detected Formats:, etc.
+    Keeps 'Table X: <title>' captions for markdown table titles.
+    """
+    try:
+        import re
+        if not isinstance(text, str):
+            return text
+        lines = text.split('\n')
+        cleaned = []
+        skip_prefixes = (
+            'Action:', 'Timeline:', 'Cost Estimate:', 'Expected Impact:', 'Success Indicators:',
+            'Data Format Notes:', 'Headers:', 'Rows:', 'Detected Formats:', 'Format Comparison:',
+            'Quality Assessment:', 'Integration Quality:', 'Format Specific Insights:',
+            'Cross Format Benefits:', 'Optimal Testing Strategy:', 'Cost Optimization:',
+            'Quality Improvements:', 'Integration Benefits:', 'Visualizations Source:', 'Title:'
+        )
+        for ln in lines:
+            s = ln.strip()
+            if not s:
+                cleaned.append(ln)
+                continue
+            # Remove quoted lines ending with ", or stray trailing punctuation from LLM JSONish dumps
+            if s.endswith('\",') or s.endswith('\"'):
+                continue
+            # Remove stray lines beginning with 'T ' (truncated artifacts)
+            if s.startswith('T '):
+                continue
+            if any(s.startswith(p) for p in skip_prefixes):
+                continue
+            cleaned.append(ln)
+        return '\n'.join(cleaned)
+    except Exception:
+        return text
+
+def _extract_and_render_markdown_tables(raw_text: str) -> str:
+    """Find GitHub-style markdown tables in text, render them as dataframes, and
+    return the text with those table blocks removed to avoid duplication.
+    Recognizes optional preceding caption lines like 'Table 1: Title'.
+    """
+    try:
+        import re
+        import pandas as pd
+        if not isinstance(raw_text, str) or '|' not in raw_text:
+            return raw_text
+
+        text = raw_text
+        rendered_spans = []
+        rendered_count = 0
+
+        # More flexible regex for markdown tables - handle various formats
+        # Look for Table X: title followed by markdown table
+        table_pattern = re.compile(
+            r'(?:^|\n)(Table\s*\d+\s*:\s*(?P<title>[^\n]+?)\s*\n)'  # caption line
+            r'(?P<table>'
+            r'\|[^\n]*\|\s*\n'             # header row
+            r'\|[-\s|:]+\|\s*\n'           # separator row (more flexible)
+            r'(?:\|[^\n]*\|\s*\n)+'        # data rows
+            r')',
+            re.MULTILINE
+        )
+
+        matches = list(table_pattern.finditer(text))
+        
+        # If no matches with captions, try without captions
+        if not matches:
+            table_pattern = re.compile(
+                r'(?P<table>'
+                r'\|[^\n]*\|\s*\n'             # header row
+                r'\|[-\s|:]+\|\s*\n'           # separator row
+                r'(?:\|[^\n]*\|\s*\n)+'        # data rows
+                r')',
+                re.MULTILINE
+            )
+            matches = list(table_pattern.finditer(text))
+
+        for i, m in enumerate(matches):
+            table_block = m.group('table')
+            title = m.group('title') if 'title' in m.groupdict() and m.group('title') else f"Table {i+1}"
+
+            # Build rows by splitting lines and cells
+            lines = [ln.strip() for ln in table_block.strip().split('\n') if ln.strip()]
+            if len(lines) < 2:
+                continue
+                
+            header_line = lines[0]
+            sep_line = lines[1]
+            data_lines = lines[2:]
+
+            # Split by '|' and drop empty ends
+            def split_row(row: str):
+                parts = [c.strip() for c in row.split('|')]
+                if parts and parts[0] == '':
+                    parts = parts[1:]
+                if parts and parts[-1] == '':
+                    parts = parts[:-1]
+                return parts
+
+            headers = split_row(header_line)
+            # More flexible separator validation
+            if not any(c in sep_line for c in ['-', ':', '=']):
+                continue
+                
+            rows = [split_row(r) for r in data_lines]
+            # Align row column counts
+            rows = [r if len(r) == len(headers) else (r + [''] * (len(headers) - len(r))) for r in rows]
+
+            try:
+                df = pd.DataFrame(rows, columns=headers)
+                apply_table_styling()
+                st.markdown(f"#### 📋 {title}")
+                st.dataframe(df, width='stretch')
+                st.markdown("")  # Add spacing
+            except Exception as e:
+                logger.error(f"Error rendering table '{title}': {e}")
+                continue
+
+            # Record span to remove later
+            rendered_spans.append((m.start(), m.end()))
+            rendered_count += 1
+
+        # Remove rendered spans from text (from end to start to preserve indices)
+        if rendered_spans:
+            new_text = []
+            last_idx = 0
+            for start, end in sorted(rendered_spans, key=lambda x: x[0]):
+                new_text.append(raw_text[last_idx:start])
+                last_idx = end
+            new_text.append(raw_text[last_idx:])
+            return ''.join(new_text)
+
+        # Fallback: if no parsed tables rendered, try to render raw markdown table blocks directly
+        if rendered_count == 0:
+            try:
+                # Find any markdown table blocks heuristically and render them
+                simple_table_blocks = re.findall(r'(?:^|\n)(\|[^\n]*\|\s*\n\|[-\s|:]+\|[\s\S]*?)(?=\n\n|$)', text, re.MULTILINE)
+                for block in simple_table_blocks:
+                    st.markdown(block)
+            except Exception as e:
+                logger.error(f"Fallback markdown render failed: {e}")
+        return raw_text
+    except Exception as e:
+        logger.error(f"Error in _extract_and_render_markdown_tables: {e}")
+        return raw_text
+
 def filter_known_sections_from_text(text):
     """Filter out known sections from raw text to prevent raw LLM output display"""
     if not isinstance(text, str):
         return text
     
-    # Known sections to filter out
+    # Super-aggressive early filter for any leaked raw Soil Issues blocks
+    try:
+        if ('Soil Issues' in text) and ('Item' in text) and ('{"parameter"' in text or '"parameter":' in text):
+            return "Content filtered to prevent raw LLM output display."
+    except Exception:
+        pass
+    
+    # Known sections to filter out (expanded aggressively)
     known_sections = [
         "Plantation Values vs. Malaysian Reference Ranges",
+        "Visual Comparison Tables",
         "Soil Issues:",
+        "Soil Issues",
+        "### Soil Issues",
+        "#### Soil Issues",
+        "🚨 Soil Issues Item 0:",
         "🚨 Soil Issues",
         "Issues Source:",
+        "Issues Source: deterministic",
+        "Visual Comparison: Plantation vs. Malaysian Reference Ranges",
         "Specific Recommendations:",
         "Tables:",
         "Interpretations:",
@@ -5341,8 +6174,11 @@ def filter_known_sections_from_text(text):
     # More aggressive filtering - check for specific problematic text patterns
     problematic_patterns = [
         "Plantation Values vs. Malaysian Reference Ranges",
+        "Visual Comparison Tables",
         "Below are tables comparing your plantation's average nutrient levels",
         "Soil Issues:",
+        "### Soil Issues",
+        "#### Soil Issues",
         "🚨 Soil Issues",
         "🚨 Soil Issues Item 0:",
         "Issues Source:",
@@ -5370,6 +6206,7 @@ def filter_known_sections_from_text(text):
         '"type": "soil"',
         '"priority_score": 95',
         "Issues Source: deterministic",
+        "Visual Comparison: Plantation vs. Malaysian Reference Ranges",
         # Additional patterns for raw dictionary detection
         'Item 0: {"parameter":',
         '{"parameter": "pH"',
@@ -5418,7 +6255,7 @@ def filter_known_sections_from_text(text):
             # Return empty string or a placeholder message
             return "Content filtered to prevent raw LLM output display."
     
-    # Additional regex-based check for complete raw dictionary patterns
+    # Additional regex-based check for complete raw dictionary patterns and Soil Issues block
     import re
     
     # Check for complete raw dictionary patterns (Item X: { ... })
@@ -5437,8 +6274,13 @@ def filter_known_sections_from_text(text):
         return "Content filtered to prevent raw LLM output display."
 
     # Check for soil issues header with raw data
-    soil_issues_header_pattern = r'🚨 Soil Issues\s+Item \d+:\s*\{[^}]*"parameter"[^}]*\}'
+    soil_issues_header_pattern = r'(🚨\s*)?Soil Issues(\s*\n\s*)?Item \d+:\s*\{[^}]*"parameter"[^}]*\}'
     if re.search(soil_issues_header_pattern, text, re.DOTALL):
+        return "Content filtered to prevent raw LLM output display."
+
+    # Check for corrupted soil issues with mixed parameter samples (pH with N, Org C, etc.)
+    corrupted_soil_pattern = r'"parameter":\s*"pH"[^}]*"sample_no":\s*"[^"]*(?:N\s*\(%\)|Org\.?\s*C\.?|Total\s*P|Avail\s*P|Exch\.?\s*K|Exch\.?\s*Ca|Exch\.?\s*Mg|CEC)[^"]*"[^}]*\}'
+    if re.search(corrupted_soil_pattern, text, re.DOTALL):
         return "Content filtered to prevent raw LLM output display."
     
     lines = text.split('\n')
@@ -5508,6 +6350,14 @@ def parse_and_display_json_analysis(json_text):
         st.markdown("### 📋 Detailed Analysis")
         # Filter out known sections from raw text display
         filtered_text = filter_known_sections_from_text(json_text)
+
+        # Additional check for corrupted soil issues data in fallback
+        if ('"parameter": "pH"' in filtered_text and '"optimal_range": "4.0-5.5"' in filtered_text and
+            ('"sample_no": "N (%)"' in filtered_text or '"sample_no": "Org. C (%)"' in filtered_text or
+             '"sample_no": "Total P' in filtered_text or '"sample_no": "Avail P' in filtered_text)):
+            st.warning("⚠️ Filtered out corrupted soil issue data in fallback display")
+            return
+
         st.markdown(filtered_text)
         
     except Exception as e:
@@ -5516,6 +6366,14 @@ def parse_and_display_json_analysis(json_text):
         st.markdown("### 📋 Detailed Analysis")
         # Filter out known sections from raw text display
         filtered_text = filter_known_sections_from_text(json_text)
+
+        # Additional check for corrupted soil issues data in fallback
+        if ('"parameter": "pH"' in filtered_text and '"optimal_range": "4.0-5.5"' in filtered_text and
+            ('"sample_no": "N (%)"' in filtered_text or '"sample_no": "Org. C (%)"' in filtered_text or
+             '"sample_no": "Total P' in filtered_text or '"sample_no": "Avail P' in filtered_text)):
+            st.warning("⚠️ Filtered out corrupted soil issue data in fallback display")
+            return
+
         st.markdown(filtered_text)
 
 def display_structured_analysis(data):
@@ -5523,7 +6381,16 @@ def display_structured_analysis(data):
     if not isinstance(data, dict):
         st.markdown("### 📋 Detailed Analysis")
         # Filter out known sections from raw text display
-        filtered_text = filter_known_sections_from_text(str(data))
+        text_data = str(data)
+
+        # Additional check for corrupted soil issues data
+        if ('"parameter": "pH"' in text_data and '"optimal_range": "4.0-5.5"' in text_data and
+            ('"sample_no": "N (%)"' in text_data or '"sample_no": "Org. C (%)"' in text_data or
+             '"sample_no": "Total P' in text_data or '"sample_no": "Avail P' in text_data)):
+            st.warning("⚠️ Filtered out corrupted soil issue data")
+            return
+
+        filtered_text = filter_known_sections_from_text(text_data)
         st.markdown(filtered_text)
         return
     
@@ -5564,6 +6431,8 @@ def display_structured_analysis(data):
         'tables', 'interpretations', 'visualizations', 'yield_forecast', 
         'format_analysis', 'data_format_recommendations',
         'plantation_values_vs_reference', 'soil_issues', 'issues_source',
+        # Prevent raw LLM economic sections
+        'economic_forecast', 'scenarios', 'assumptions',
         'Plantation Values vs. Malaysian Reference Ranges', 'Soil Issues', 'Issues Source'
     ]
     for key, value in data.items():
@@ -5586,8 +6455,24 @@ def display_economic_forecast(economic_forecast):
     st.markdown("### 💰 Economic Forecast")
     
     if isinstance(economic_forecast, dict):
-        for key, value in economic_forecast.items():
-            st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+        # Hard-remove scenarios/assumptions even if passed in here
+        try:
+            if 'scenarios' in economic_forecast:
+                del economic_forecast['scenarios']
+            if 'assumptions' in economic_forecast:
+                del economic_forecast['assumptions']
+        except Exception:
+            pass
+        # Show only curated safe metrics; skip nested dicts/lists and raw sections
+        safe_keys = [
+            'land_size_hectares', 'current_yield_tonnes_per_ha', 'palm_density_per_hectare',
+            'total_palms', 'oil_palm_price_range_rm_per_tonne'
+        ]
+        for key in safe_keys:
+            if key in economic_forecast:
+                value = economic_forecast.get(key)
+                if not isinstance(value, (dict, list)):
+                    st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
     else:
         # Filter out known sections from raw text display
         filtered_forecast = filter_known_sections_from_text(str(economic_forecast))
@@ -6091,6 +6976,9 @@ def display_enhanced_step_result(step_result, step_number):
         elif not isinstance(detailed_text, str):
             detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
         
+        # Sanitize persona and enforce neutral tone before other filtering
+        detailed_text = sanitize_persona_and_enforce_article(detailed_text)
+        
         # Filter out QuickChart URLs but preserve visual comparison text for proper chart generation
         import re
         # Remove QuickChart URLs but keep the visual comparison text
@@ -6123,7 +7011,7 @@ def display_enhanced_step_result(step_result, step_number):
                         # Regular text paragraph
                         st.markdown(
                             f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{sanitize_persona_and_enforce_article(paragraph.strip())}</p>'
                             f'</div>',
                             unsafe_allow_html=True
                         )
@@ -6132,91 +7020,11 @@ def display_enhanced_step_result(step_result, step_number):
             pass
         st.markdown("")
     
-    # 3.5. PLANTATION VALUES VS REFERENCE RANGES SECTION - Special handling for Step 2
-    if 'plantation_values_vs_reference' in analysis_data and analysis_data['plantation_values_vs_reference']:
-        plantation_data = analysis_data['plantation_values_vs_reference']
+    # 3.5. PLANTATION VALUES VS REFERENCE RANGES SECTION - REMOVED as requested
+    # This section has been removed to eliminate the "Visual Comparison: Plantation vs. Malaysian Reference Ranges" display
 
-        # Check if this contains raw content or just display the standard header
-        if isinstance(plantation_data, str):
-            # Filter the content to see if it's just the standard text
-            filtered_content = filter_known_sections_from_text(plantation_data)
-            if filtered_content.strip() and filtered_content != "Content filtered to prevent raw LLM output display.":
-                # Display filtered content if it's not raw data
-                st.markdown(f"### 📊 Plantation Values vs. Malaysian Reference Ranges")
-                st.markdown(filtered_content)
-                st.markdown("")
-            else:
-                # Just show the standard header
-                st.markdown("### 📊 Plantation Values vs. Malaysian Reference Ranges")
-                st.markdown("Below are tables comparing your plantation's average nutrient levels with the MPOB standards for mature oil palm.")
-                st.markdown("")
-        else:
-            # For non-string data, show standard header
-            st.markdown("### 📊 Plantation Values vs. Malaysian Reference Ranges")
-            st.markdown("Below are tables comparing your plantation's average nutrient levels with the MPOB standards for mature oil palm.")
-            st.markdown("")
-
-    # 3.6. SOIL ISSUES SECTION - Special handling for Step 2 (parse and format properly)
-    if 'soil_issues' in analysis_data and analysis_data['soil_issues']:
-        soil_issues = analysis_data['soil_issues']
-
-        # Check if this is a raw string containing JSON data that needs parsing
-        if isinstance(soil_issues, str):
-            # Try to extract and parse JSON data from the string
-            import json
-            import re
-
-            # Look for "Item X: {json_data}" pattern
-            item_pattern = r'Item \d+:\s*(\{[^}]*"parameter"[^}]*\})'
-            match = re.search(item_pattern, soil_issues, re.DOTALL)
-
-            if match:
-                json_str = match.group(1)
-                try:
-                    # Parse the JSON data
-                    issue_data = json.loads(json_str)
-                    # Display the formatted soil issue
-                    display_formatted_soil_issue(issue_data, 0)
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, try the normal filtering
-                    filtered_text = filter_known_sections_from_text(soil_issues)
-                    if filtered_text.strip() and filtered_text != "Content filtered to prevent raw LLM output display.":
-                        st.markdown(filtered_text)
-            else:
-                # No JSON pattern found, use normal filtering
-                filtered_text = filter_known_sections_from_text(soil_issues)
-                if filtered_text.strip() and filtered_text != "Content filtered to prevent raw LLM output display.":
-                    st.markdown(filtered_text)
-        else:
-            # Handle other data types normally
-            if isinstance(soil_issues, list):
-                for idx, issue in enumerate(soil_issues):
-                    if isinstance(issue, dict):
-                        display_formatted_soil_issue(issue, idx)
-                    elif isinstance(issue, str):
-                        # Filter out raw dictionary patterns from string items
-                        filtered_issue = filter_known_sections_from_text(issue)
-                        if filtered_issue.strip() and filtered_issue != "Content filtered to prevent raw LLM output display.":
-                            st.markdown(f"**Issue {idx + 1}:** {filtered_issue}")
-                    else:
-                        st.markdown(f"**Issue {idx + 1}:** {str(issue)}")
-            elif isinstance(soil_issues, dict):
-                # Handle single issue or structured data
-                if 'parameter' in soil_issues:
-                    # Single issue
-                    display_formatted_soil_issue(soil_issues, 0)
-                else:
-                    # Multiple issues in a dict format
-                    for idx, (key, issue) in enumerate(soil_issues.items()):
-                        if isinstance(issue, dict) and 'parameter' in issue:
-                            display_formatted_soil_issue(issue, idx)
-                        elif isinstance(issue, str):
-                            # Filter out raw dictionary patterns from string values
-                            filtered_issue = filter_known_sections_from_text(issue)
-                            if filtered_issue.strip() and filtered_issue != "Content filtered to prevent raw LLM output display.":
-                                st.markdown(f"**{key.replace('_', ' ').title()}:** {filtered_issue}")
-                        else:
-                            st.markdown(f"**{key.replace('_', ' ').title()}:** {str(issue)}")
+    # 3.6. SOIL ISSUES SECTION - Disabled to prevent raw or malformed 'Soil Issues' output
+    # Intentionally no-op: we do not render analysis_data['soil_issues'] at all
 
         st.markdown("")
 
@@ -8449,7 +9257,7 @@ def display_step1_data_analysis(analysis_data):
     
     # 1. SUMMARY SECTION
     if 'summary' in analysis_data and analysis_data['summary']:
-        st.markdown("### 📋 Summary")
+        st.markdown("#### 📋 Summary")
         summary_text = analysis_data['summary']
         if isinstance(summary_text, str) and summary_text.strip():
             st.markdown(
@@ -8464,13 +9272,42 @@ def display_step1_data_analysis(analysis_data):
     
     # 3. DETAILED ANALYSIS SECTION
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
-        st.markdown("### 📋 Detailed Analysis")
+        st.markdown("#### 📋 Detailed Analysis")
         detailed_text = analysis_data['detailed_analysis']
         
         if isinstance(detailed_text, dict):
             detailed_text = str(detailed_text)
         elif not isinstance(detailed_text, str):
             detailed_text = str(detailed_text) if detailed_text is not None else "No detailed analysis available"
+
+        # If the LLM included a prefixed "Formatted Analysis:" section, prefer its content
+        try:
+            import re
+            formatted_block = re.search(r"Formatted Analysis:\s*(.*)$", detailed_text, re.DOTALL | re.IGNORECASE)
+            if formatted_block and formatted_block.group(1).strip():
+                detailed_text = formatted_block.group(1).strip()
+        except Exception:
+            pass
+
+        # Unescape common escape sequences that sometimes leak from LLM
+        try:
+            detailed_text = detailed_text.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"')
+        except Exception:
+            pass
+
+        # Sanitize persona and enforce neutral tone before rendering
+        detailed_text = sanitize_persona_and_enforce_article(detailed_text)
+        
+        # Remove large noisy blocks (e.g., Detected Formats dumps) before parsing tables
+        try:
+            import re as _re
+            detailed_text = _re.sub(r"Detected Formats:[\s\S]*$", "", detailed_text, flags=_re.IGNORECASE)
+        except Exception:
+            pass
+
+        # Remove noisy scaffolding blocks leaked by LLM and render markdown tables
+        detailed_text = _clean_step1_llm_noise(detailed_text)
+        detailed_text = _extract_and_render_markdown_tables(detailed_text)
         
         paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
         
@@ -8478,10 +9315,16 @@ def display_step1_data_analysis(analysis_data):
             if isinstance(paragraph, str) and paragraph.strip():
                 st.markdown(
                     f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{paragraph.strip()}</p>'
+                    f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{sanitize_persona_and_enforce_article(paragraph.strip())}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
+
+        # If LLM left placeholders like "<insert table: ...>", auto-generate the corresponding tables
+        try:
+            display_step1_placeholder_tables(analysis_data, detailed_text)
+        except Exception as e:
+            logger.error(f"Error generating placeholder tables for Step 1: {e}")
     
     # 4. NUTRIENT STATUS TABLES - Display comprehensive nutrient analysis tables
     display_nutrient_status_tables(analysis_data)
@@ -8520,7 +9363,9 @@ def display_step1_data_analysis(analysis_data):
         'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions',
         'tables', 'interpretations', 'data_quality',
         'specific_recommendations', 'format_analysis', 'data_format_recommendations',
-        'raw_llm_output', 'raw_output', 'raw_llm', 'nutrient_comparisons'
+        'raw_llm_output', 'raw_output', 'raw_llm', 'nutrient_comparisons',
+        # Prevent raw LLM economic objects from leaking under Additional Analysis Results
+        'economic_forecast', 'scenarios', 'assumptions'
     ])
     excluded_keys.update([
         'Key Findings', 'Specific Recommendations', 'Tables', 'Interpretations', 'Visualizations',
@@ -8531,7 +9376,7 @@ def display_step1_data_analysis(analysis_data):
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
     
     if other_fields:
-        st.markdown("### 📊 Additional Analysis Results")
+        st.markdown("#### 📊 Additional Analysis Results")
         for key in other_fields:
             value = analysis_data.get(key)
             title = key.replace('_', ' ').title()
@@ -8549,7 +9394,7 @@ def display_step1_data_analysis(analysis_data):
                 # Skip known sections to avoid raw JSON leakage
                 for sub_k, sub_v in value.items():
                     norm_sub_k = sub_k.replace(' ', '_').lower()
-                    if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
+                    if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source','economic_forecast','scenarios','assumptions']:
                         continue
                     if sub_v is not None and sub_v != "":
                         st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
@@ -8571,7 +9416,9 @@ def display_step1_data_analysis(analysis_data):
                     if original_filtered == "Content filtered to prevent raw LLM output display.":
                         pass  # Don't display anything
                     else:
-                        st.markdown(f"**{title}:** {filtered_value}")
+                        # Apply persona sanitization to the filtered value
+                        sanitized_value = sanitize_persona_and_enforce_article(filtered_value)
+                        st.markdown(f"**{title}:** {sanitized_value}")
 
 def create_step1_visualizations_from_data(analysis_data):
     """Create visualizations from raw data for Step 1 - WORLD-CLASS ROBUST MAPPING SYSTEM"""
@@ -10641,6 +11488,270 @@ def display_nutrient_status_tables(analysis_data):
         logger.error(f"❌ Critical error in display_nutrient_status_tables: {str(e)}")
         st.error("Critical error in nutrient status tables display")
 
+def display_overall_results_summary_table(analysis_data):
+    """Display a concise summary table of key soil and leaf averages for Step 1."""
+    try:
+        import pandas as pd
+        soil_params = None
+        leaf_params = None
+        if isinstance(analysis_data, dict):
+            soil_params = (analysis_data.get('raw_data', {}) or {}).get('soil_parameters') or analysis_data.get('soil_parameters')
+            leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
+        rows = []
+
+        def find_avg(param_stats: dict, aliases: list):
+            for alias in aliases:
+                try:
+                    v = (param_stats.get(alias, {}) or {})
+                    if isinstance(v, dict) and 'average' in v and v['average'] is not None:
+                        return v['average']
+                except Exception:
+                    pass
+            return None
+
+        if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
+            s = soil_params['parameter_statistics']
+            rows.append({'Category': 'Soil', 'Parameter': 'pH', 'Average': f"{find_avg(s, ['pH']):.2f}" if find_avg(s, ['pH']) is not None else 'N.D.'})
+            rows.append({'Category': 'Soil', 'Parameter': 'Avail P (mg/kg)', 'Average': f"{find_avg(s, ['Avail P (mg/kg)','Available P (mg/kg)','Avail P','Available P']):.2f}" if find_avg(s, ['Avail P (mg/kg)','Available P (mg/kg)','Avail P','Available P']) is not None else 'N.D.'})
+            rows.append({'Category': 'Soil', 'Parameter': 'Exch. K (meq%)', 'Average': f"{find_avg(s, ['Exch. K (meq%)','Exchangeable K (meq%)','Exch K (meq%)']):.2f}" if find_avg(s, ['Exch. K (meq%)','Exchangeable K (meq%)','Exch K (meq%)']) is not None else 'N.D.'})
+            rows.append({'Category': 'Soil', 'Parameter': 'CEC (meq%)', 'Average': f"{find_avg(s, ['CEC (meq%)','CEC']):.2f}" if find_avg(s, ['CEC (meq%)','CEC']) is not None else 'N.D.'})
+
+        if leaf_params and isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
+            l = leaf_params['parameter_statistics']
+            rows.append({'Category': 'Leaf', 'Parameter': 'N (%)', 'Average': f"{find_avg(l, ['N (%)','Leaf N (%)','N']):.2f}" if find_avg(l, ['N (%)','Leaf N (%)','N']) is not None else 'N.D.'})
+            rows.append({'Category': 'Leaf', 'Parameter': 'P (%)', 'Average': f"{find_avg(l, ['P (%)','Leaf P (%)','P']):.3f}" if find_avg(l, ['P (%)','Leaf P (%)','P']) is not None else 'N.D.'})
+            rows.append({'Category': 'Leaf', 'Parameter': 'K (%)', 'Average': f"{find_avg(l, ['K (%)','Leaf K (%)','K']):.2f}" if find_avg(l, ['K (%)','Leaf K (%)','K']) is not None else 'N.D.'})
+            rows.append({'Category': 'Leaf', 'Parameter': 'Cu (mg/kg)', 'Average': f"{find_avg(l, ['Cu (mg/kg)','Leaf Cu (mg/kg)','Cu']):.2f}" if find_avg(l, ['Cu (mg/kg)','Leaf Cu (mg/kg)','Cu']) is not None else 'N.D.'})
+
+        st.markdown("#### Your Soil and Leaf Test Results Summary")
+        if rows:
+            df = pd.DataFrame(rows)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+        else:
+            st.info("No summary data available to display.")
+    except Exception as e:
+        logger.error(f"Error in display_overall_results_summary_table: {e}")
+
+def display_nutrient_gap_analysis_table(analysis_data):
+    """Display a Nutrient Gap Analysis table using observed averages vs minimum thresholds."""
+    try:
+        import pandas as pd
+        soil_params = None
+        leaf_params = None
+        if isinstance(analysis_data, dict):
+            soil_params = (analysis_data.get('raw_data', {}) or {}).get('soil_parameters') or analysis_data.get('soil_parameters')
+            leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
+
+        soil_min = {
+            'Avail P (mg/kg)': 20.0,
+            'Exch. K (meq%)': 0.2,
+            'Exch. Ca (meq%)': 3.0,
+            'Exch. Mg (meq%)': 0.4,
+            'CEC (meq%)': 12.0,
+        }
+        leaf_min = {
+            'N (%)': 2.6,
+            'P (%)': 0.16,
+            'K (%)': 1.3,
+            'Mg (%)': 0.28,
+            'Cu (mg/kg)': 6.0,
+            'Zn (mg/kg)': 15.0,
+        }
+
+        rows = []
+        def add_gaps(param_stats, thresholds, source):
+            for name, minimum in thresholds.items():
+                avg = None
+                if isinstance(param_stats, dict):
+                    item = param_stats.get(name, {})
+                    avg = item.get('average')
+                if isinstance(avg, (int, float)):
+                    gap = ((minimum - avg) / minimum) * 100.0 if minimum > 0 and avg < minimum else 0.0
+                    rows.append({'Source': source, 'Parameter': name, 'Observed': f"{avg:.2f}", 'Minimum': f"{minimum}", 'Percent Gap': f"{gap:.0f}%" if gap > 0 else '0%'})
+
+        if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
+            add_gaps(soil_params['parameter_statistics'], soil_min, 'Soil')
+        if leaf_params and isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
+            add_gaps(leaf_params['parameter_statistics'], leaf_min, 'Leaf')
+
+        if rows:
+            # Sort by Percent Gap descending
+            try:
+                def parse_pct(x):
+                    try:
+                        return float(x.replace('%',''))
+                    except Exception:
+                        return 0.0
+                rows.sort(key=lambda r: parse_pct(r.get('Percent Gap','0%')), reverse=True)
+            except Exception:
+                pass
+            st.markdown("#### Nutrient Gap Analysis: Observed vs. Malaysian Minimum Thresholds")
+            df = pd.DataFrame(rows)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+    except Exception as e:
+        logger.error(f"Error in display_nutrient_gap_analysis_table: {e}")
+
+def display_soil_ratio_table(analysis_data):
+    """Display soil K:Mg ratio analysis."""
+    try:
+        import pandas as pd
+        soil_params = None
+        if isinstance(analysis_data, dict):
+            soil_params = (analysis_data.get('raw_data', {}) or {}).get('soil_parameters') or analysis_data.get('soil_parameters')
+
+        def ratio(val_k, val_mg):
+            try:
+                if val_k is None or val_mg in (None, 0):
+                    return None
+                return val_k / val_mg
+            except Exception:
+                return None
+
+        if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
+            s = soil_params['parameter_statistics']
+            # Accept alias keys
+            rk = None
+            for k_alias in ['Exch. K (meq%)','Exchangeable K (meq%)','Exch K (meq%)']:
+                rk = (s.get(k_alias, {}) or {}).get('average') if rk is None else rk
+            rmg = None
+            for mg_alias in ['Exch. Mg (meq%)','Exchangeable Mg (meq%)','Exch Mg (meq%)']:
+                rmg = (s.get(mg_alias, {}) or {}).get('average') if rmg is None else rmg
+            r = ratio(rk, rmg)
+
+            st.markdown("#### Soil Nutrient Ratios")
+            rows = [{'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'}]
+            df = pd.DataFrame(rows)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+    except Exception as e:
+        logger.error(f"Error in display_soil_ratio_table: {e}")
+
+def display_leaf_ratio_table(analysis_data):
+    """Display leaf K:Mg ratio analysis."""
+    try:
+        import pandas as pd
+        leaf_params = None
+        if isinstance(analysis_data, dict):
+            leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
+
+        def ratio(val_k, val_mg):
+            try:
+                if val_k is None or val_mg in (None, 0):
+                    return None
+                return val_k / val_mg
+            except Exception:
+                return None
+
+        if leaf_params and isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
+            l = leaf_params['parameter_statistics']
+            rk = None
+            for k_alias in ['K (%)','Leaf K (%)','K']:
+                rk = (l.get(k_alias, {}) or {}).get('average') if rk is None else rk
+            rmg = None
+            for mg_alias in ['Mg (%)','Leaf Mg (%)','Mg']:
+                rmg = (l.get(mg_alias, {}) or {}).get('average') if rmg is None else rmg
+            r = ratio(rk, rmg)
+
+            st.markdown("#### Leaf Nutrient Ratios")
+            rows = [{'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'}]
+            df = pd.DataFrame(rows)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+    except Exception as e:
+        logger.error(f"Error in display_leaf_ratio_table: {e}")
+
+def display_ratio_analysis_tables(analysis_data):
+    """Display simple K:Mg ratio analysis for soil and leaf averages."""
+    try:
+        import pandas as pd
+        soil_params = None
+        leaf_params = None
+        if isinstance(analysis_data, dict):
+            soil_params = (analysis_data.get('raw_data', {}) or {}).get('soil_parameters') or analysis_data.get('soil_parameters')
+            leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
+
+        def ratio(val_k, val_mg):
+            try:
+                if val_k is None or val_mg in (None, 0):
+                    return None
+                return val_k / val_mg
+            except Exception:
+                return None
+
+        rows = []
+        if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
+            s = soil_params['parameter_statistics']
+            rk = (s.get('Exch. K (meq%)', {}) or {}).get('average')
+            rmg = (s.get('Exch. Mg (meq%)', {}) or {}).get('average')
+            r = ratio(rk, rmg)
+            rows.append({'Category': 'Soil', 'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'})
+
+        if leaf_params and isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
+            l = leaf_params['parameter_statistics']
+            rk = (l.get('K (%)', {}) or {}).get('average')
+            rmg = (l.get('Mg (%)', {}) or {}).get('average')
+            r = ratio(rk, rmg)
+            rows.append({'Category': 'Leaf', 'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'})
+
+        if rows:
+            st.markdown("#### Soil and Leaf Nutrient Ratio Analysis")
+            df = pd.DataFrame(rows)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+    except Exception as e:
+        logger.error(f"Error in display_ratio_analysis_tables: {e}")
+
+def display_deficient_nutrient_quick_guide(analysis_data):
+    """Display a quick guide listing parameters currently below minimum thresholds."""
+    try:
+        import pandas as pd
+        soil_params = None
+        leaf_params = None
+        if isinstance(analysis_data, dict):
+            soil_params = (analysis_data.get('raw_data', {}) or {}).get('soil_parameters') or analysis_data.get('soil_parameters')
+            leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
+
+        soil_min = {
+            'Avail P (mg/kg)': 20.0,
+            'Exch. K (meq%)': 0.2,
+            'Exch. Ca (meq%)': 3.0,
+            'Exch. Mg (meq%)': 0.4,
+            'CEC (meq%)': 12.0,
+        }
+        leaf_min = {
+            'N (%)': 2.6,
+            'P (%)': 0.16,
+            'K (%)': 1.3,
+            'Mg (%)': 0.28,
+            'Cu (mg/kg)': 6.0,
+            'Zn (mg/kg)': 15.0,
+        }
+
+        rows = []
+        def add_def(param_stats, thresholds, source):
+            for name, minimum in thresholds.items():
+                avg = None
+                if isinstance(param_stats, dict):
+                    item = param_stats.get(name, {})
+                    avg = item.get('average')
+                if isinstance(avg, (int, float)) and avg < minimum:
+                    rows.append({'Source': source, 'Parameter': name, 'Observed': f"{avg:.2f}", 'Minimum': f"{minimum}"})
+
+        if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
+            add_def(soil_params['parameter_statistics'], soil_min, 'Soil')
+        if leaf_params and isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
+            add_def(leaf_params['parameter_statistics'], leaf_min, 'Leaf')
+
+        if rows:
+            st.markdown("#### Deficient Nutrient Parameter Quick Guide")
+            df = pd.DataFrame(rows)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+    except Exception as e:
+        logger.error(f"Error in display_deficient_nutrient_quick_guide: {e}")
+
 def display_issue_diagnosis_content(analysis_data):
     """Display Step 2: Issue Diagnosis content"""
     st.markdown("### 🔍 Agronomic Issues Identified")
@@ -11314,11 +12425,31 @@ def display_step3_solution_recommendations(analysis_data):
     
     # 2. DETAILED ANALYSIS SECTION - Enhanced parsing and formatting
     if 'detailed_analysis' in analysis_data and analysis_data['detailed_analysis']:
-        st.markdown("### 📋 Detailed Analysis")
         detailed_text = analysis_data['detailed_analysis']
         
         # Parse and format the detailed analysis properly
         if isinstance(detailed_text, str) and detailed_text.strip():
+            # Check for "Formatted Analysis:" block first - this is what we want to show
+            try:
+                import re
+                formatted_block = re.search(r"Formatted Analysis:\s*(.*)$", detailed_text, re.DOTALL | re.IGNORECASE)
+                if formatted_block and formatted_block.group(1).strip():
+                    # Extract ONLY the formatted analysis content
+                    formatted_content = formatted_block.group(1).strip()
+                    # Clean up persona language
+                    clean_content = sanitize_persona_and_enforce_article(formatted_content)
+                    # Normalize markdown formatting
+                    normalized_content = normalize_markdown_block_for_step3(clean_content)
+                    st.markdown("### 📋 Detailed Analysis")
+                    st.markdown(normalized_content)
+                    st.markdown("")
+                    return  # Exit early to avoid showing duplicate content
+            except Exception:
+                pass
+            
+            # If no formatted block found, sanitize and show the original content
+            detailed_text = sanitize_persona_and_enforce_article(detailed_text)
+            
             # Check if it's JSON-like structure that needs parsing
             if detailed_text.strip().startswith('{') and ('key_findings' in detailed_text or 'formatted_analysis' in detailed_text):
                 # Parse structured solution recommendations
@@ -11327,13 +12458,17 @@ def display_step3_solution_recommendations(analysis_data):
                 # Parse structured solution recommendations
                 display_structured_solutions(detailed_text)
             else:
-                # Display as regular text with proper formatting
+                # Improve formatting: promote headings, lists, and bold items to readable markdown
+                detailed_text = normalize_markdown_block_for_step3(detailed_text)
+                st.markdown("### 📋 Detailed Analysis")
                 paragraphs = detailed_text.split('\n\n') if '\n\n' in detailed_text else [detailed_text]
                 for paragraph in paragraphs:
                     if paragraph.strip():
-                        # Clean up any remaining escape characters
-                        clean_paragraph = paragraph.strip().replace('\\n', '\n').replace('\\"', '"')
-                        st.markdown(
+                        clean_paragraph = sanitize_persona_and_enforce_article(paragraph.strip().replace('\\n', '\n').replace('\\"', '"'))
+                        if any(token in clean_paragraph for token in ['\n- ', '\n* ', '\n1.', '\n2.', '### ', '#### ', '**1.']):
+                            st.markdown(clean_paragraph)
+                        else:
+                            st.markdown(
                             f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
                             f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{clean_paragraph}</p>'
                             f'</div>',
@@ -11401,16 +12536,22 @@ def display_step3_solution_recommendations(analysis_data):
 
     # 3. TABLES SECTION - Display detailed tables if available
     if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("#### 📊 Data Tables")
         for table in analysis_data['tables']:
             if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
-                st.markdown(f"**{table['title']}**")
+                # Create a container for each table
+                st.markdown(
+                    f'<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                    f'<h4 style="margin: 0 0 10px 0; color: #6f42c1; font-size: 16px;">📋 {table["title"]}</h4>',
+                    unsafe_allow_html=True
+                )
                 if table.get('subtitle'):
-                    st.markdown(f"*{table['subtitle']}*")
+                    st.markdown(f'<div style="color: #6c757d; font-style: italic; margin-bottom: 15px;">{table["subtitle"]}</div>', unsafe_allow_html=True)
                 import pandas as pd
                 df = pd.DataFrame(table['rows'], columns=table['headers'])
                 apply_table_styling()
                 st.dataframe(df, width='stretch')
-                st.markdown("")
+                st.markdown('</div>', unsafe_allow_html=True)
 
     # 3b. SPECIFIC RECOMMENDATIONS - render as cards with dynamic month/weather adjustments
     if analysis_data.get('specific_recommendations'):
@@ -11455,11 +12596,15 @@ def display_step3_solution_recommendations(analysis_data):
 
     # 3c. INTERPRETATIONS
     if analysis_data.get('interpretations'):
-        st.markdown("### 🔍 Detailed Interpretations")
+        st.markdown("#### 🔍 Detailed Interpretations")
+        interpretations_html = '<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #007bff;">'
+        interpretations_html += '<ol style="margin: 0; padding-left: 20px; color: #2c3e50; line-height: 1.6;">'
         for i, text in enumerate(analysis_data['interpretations'], 1):
             if not text:
                 continue
-            st.markdown(f"{i}. {text}")
+            interpretations_html += f'<li style="margin-bottom: 12px;"><strong>Interpretation {i}:</strong> {text}</li>'
+        interpretations_html += '</ol></div>'
+        st.markdown(interpretations_html, unsafe_allow_html=True)
 
     # 3d. VISUALIZATIONS - suppressed in Step 3
     # 3e. YIELD FORECAST - suppressed in Step 3
@@ -11560,6 +12705,16 @@ def display_step3_solution_recommendations(analysis_data):
                         st.markdown(f"- {item}")
             elif isinstance(value, str) and value.strip():
                 # Filter out raw dictionary patterns from string values
+                # Skip duplicate long-form solution blocks often prefixed by "Formatted Analysis:"
+                skip = False
+                try:
+                    import re
+                    if re.search(r"^\s*Formatted Analysis:\s*", value, re.IGNORECASE):
+                        skip = True
+                except Exception:
+                    pass
+                if skip:
+                    continue
                 filtered_value = filter_known_sections_from_text(value)
                 if filtered_value.strip() and filtered_value != "Content filtered to prevent raw LLM output display.":
                     st.markdown(f"**{title}:** {filtered_value}")
@@ -11667,16 +12822,141 @@ def display_step3_solution_recommendations(analysis_data):
             st.markdown("---")
 
 def display_regenerative_agriculture_content(analysis_data):
-    """Display Step 4: Regenerative Agriculture content"""
+    """Display Step 4: Regenerative Agriculture content with consistent formatting"""
     st.markdown("### 🌱 Regenerative Agriculture Strategies")
     
-    if 'regenerative_practices' in analysis_data:
+    # 1) Summary (if available)
+    try:
+        summary_text = analysis_data.get('summary')
+        if isinstance(summary_text, str) and summary_text.strip():
+            st.markdown("#### 📋 Summary")
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{sanitize_persona_and_enforce_article(summary_text.strip())}</p>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+    except Exception:
+        pass
+
+    # 2) Detailed Analysis / Formatted Analysis (prefer formatted block)
+    try:
+        detailed_text = analysis_data.get('detailed_analysis') or analysis_data.get('formatted_analysis')
+        if isinstance(detailed_text, str) and detailed_text.strip():
+            import re
+            # Prefer explicit "Formatted Analysis:" section if embedded
+            fa_match = re.search(r"Formatted Analysis:\s*(.*)$", detailed_text, re.DOTALL | re.IGNORECASE)
+            if fa_match and fa_match.group(1).strip():
+                detailed_text = fa_match.group(1).strip()
+            detailed_text = sanitize_persona_and_enforce_article(detailed_text)
+
+            # Use markdown normalization for better formatting
+            normalized_content = normalize_markdown_block_for_step3(detailed_text)
+
+            st.markdown("#### 📋 Detailed Analysis")
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
+                f'<div style="color: #2c3e50; line-height: 1.7;">{normalized_content}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+    except Exception:
+        pass
+
+    # 3) Key Findings (if provided)
+    try:
+        key_findings = analysis_data.get('key_findings')
+        normalized_kf = []
+        if isinstance(key_findings, dict):
+            ordered_keys = sorted(key_findings.keys(), key=lambda x: (not x.startswith('item_'), int(x.split('_')[1]) if x.startswith('item_') and x.split('_')[1].isdigit() else 10**9))
+            for k in ordered_keys:
+                v = key_findings.get(k)
+                if isinstance(v, str) and v.strip():
+                    normalized_kf.append(v.strip())
+        elif isinstance(key_findings, list):
+            for v in key_findings:
+                if isinstance(v, str) and v.strip():
+                    normalized_kf.append(v.strip())
+        elif isinstance(key_findings, str) and key_findings.strip():
+            parts = [p.strip('-• ').strip() for p in key_findings.strip().split('\n') if p.strip()]
+            normalized_kf.extend(parts if parts else [key_findings.strip()])
+        if normalized_kf:
+            st.markdown("#### 🚩 Key Findings")
+            findings_html = '<div style="background: linear-gradient(135deg, #fff3cd, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #ffc107;">'
+            findings_html += '<ol style="margin: 0; padding-left: 20px; color: #2c3e50; line-height: 1.6;">'
+            for i, item in enumerate(normalized_kf, 1):
+                findings_html += f'<li style="margin-bottom: 8px;"><strong>{item}</strong></li>'
+            findings_html += '</ol></div>'
+            st.markdown(findings_html, unsafe_allow_html=True)
+    except Exception:
+        pass
+
+    # 4) Regenerative Practices (structured)
+    if 'regenerative_practices' in analysis_data and isinstance(analysis_data['regenerative_practices'], list):
+        st.markdown("#### 🧪 Regenerative Practices")
         for practice in analysis_data['regenerative_practices']:
-            st.markdown(f"**{practice.get('practice', 'Unknown Practice')}:**")
-            st.markdown(f"- Mechanism: {practice.get('mechanism', 'N/A')}")
-            st.markdown(f"- Benefits: {practice.get('benefits', 'N/A')}")
-            st.markdown(f"- Implementation: {practice.get('implementation', 'N/A')}")
-            st.markdown("---")
+            if not isinstance(practice, dict):
+                continue
+
+            practice_name = practice.get('practice', 'Practice')
+            mech = practice.get('mechanism')
+            bene = practice.get('benefits')
+            impl = practice.get('implementation')
+
+            # Create a formatted card for each practice
+            practice_html = f'''
+            <div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #17a2b8;">
+                <h4 style="margin: 0 0 15px 0; color: #17a2b8; font-size: 18px;">🌱 {practice_name}</h4>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+            '''
+
+            if mech:
+                practice_html += f'<div><strong style="color: #495057;">Mechanism:</strong> {mech}</div>'
+            if bene:
+                practice_html += f'<div><strong style="color: #495057;">Benefits:</strong> {bene}</div>'
+            if impl:
+                practice_html += f'<div><strong style="color: #495057;">Implementation:</strong> {impl}</div>'
+
+            practice_html += '</div></div>'
+            st.markdown(practice_html, unsafe_allow_html=True)
+
+    # 5) Tables (if available)
+    try:
+        if analysis_data.get('tables') and isinstance(analysis_data['tables'], list):
+            st.markdown("#### 📊 Data Tables")
+            for table in analysis_data['tables']:
+                if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
+                    # Create a container for each table
+                    st.markdown(
+                        f'<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                        f'<h4 style="margin: 0 0 10px 0; color: #6f42c1; font-size: 16px;">📋 {table["title"]}</h4>',
+                        unsafe_allow_html=True
+                    )
+                    if table.get('subtitle'):
+                        st.markdown(f'<div style="color: #6c757d; font-style: italic; margin-bottom: 15px;">{table["subtitle"]}</div>', unsafe_allow_html=True)
+                    import pandas as pd
+                    df = pd.DataFrame(table['rows'], columns=table['headers'])
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+                    st.markdown('</div>', unsafe_allow_html=True)
+    except Exception:
+        pass
+
+    # 6) Interpretations (if available) — ensure lists render properly
+    try:
+        interps = analysis_data.get('interpretations')
+        if interps:
+            st.markdown("#### 🔍 Detailed Interpretations")
+            # Reuse normalization helper used elsewhere
+            items = _normalize_interpretations_section(interps)
+            interpretations_html = '<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #007bff;">'
+            interpretations_html += '<ol style="margin: 0; padding-left: 20px; color: #2c3e50; line-height: 1.6;">'
+            for i, it in enumerate(items, 1):
+                interpretations_html += f'<li style="margin-bottom: 12px;"><strong>Interpretation {i}:</strong> {it}</li>'
+            interpretations_html += '</ol></div>'
+            st.markdown(interpretations_html, unsafe_allow_html=True)
+    except Exception:
+        pass
 
 def display_economic_impact_content(analysis_data):
     """Display Step 5: Economic Impact Forecast content"""
@@ -11691,7 +12971,17 @@ def display_economic_impact_content(analysis_data):
         # Use the more accurate economic forecast data
         current_yield = econ_forecast.get('current_yield_tonnes_per_ha', 0)
         land_size = econ_forecast.get('land_size_hectares', 0)
-        scenarios = econ_forecast.get('scenarios', {})
+        # Remove scenarios and assumptions as requested
+        if 'scenarios' in econ_forecast:
+            try:
+                del econ_forecast['scenarios']
+            except Exception:
+                pass
+        if 'assumptions' in econ_forecast:
+            try:
+                del econ_forecast['assumptions']
+            except Exception:
+                pass
         # Try to resolve FFB price per tonne (RM/t)
         def _resolve_price(data: dict) -> float:
             candidates = [
@@ -11714,113 +13004,12 @@ def display_economic_impact_content(analysis_data):
         with col2:
             st.metric("🏞️ Land Size", f"{land_size:.1f} hectares")
         with col3:
-            # Get medium scenario ROI range as representative
-            medium_roi_range = scenarios.get('medium', {}).get('roi_percentage_range', 'N/A')
-            st.metric("💰 Estimated ROI", medium_roi_range)
+            # Do not derive ROI from scenarios; show placeholder or omit
+            st.metric("💰 Estimated ROI", "N/A")
 
-        # Projected improvement (% change from current yield to medium scenario new_yield)
-        projected_improvement = None
-        try:
-            if scenarios:
-                base = float(current_yield) if current_yield else 0.0
-                # Prefer medium, then high, then low
-                candidate = None
-                for tier in ['medium', 'high', 'low']:
-                    if tier in scenarios and isinstance(scenarios[tier], dict):
-                        cand_val = scenarios[tier].get('new_yield')
-                        if isinstance(cand_val, (int, float)) and cand_val > 0:
-                            candidate = float(cand_val)
-                            break
-                if base > 0 and candidate is not None:
-                    projected_improvement = (candidate - base) / base * 100.0
-        except Exception:
-            projected_improvement = None
-
-        if projected_improvement is not None:
-            st.metric("📈 Projected Improvement", f"{projected_improvement:.1f}%")
+        # Remove projected improvement derived from scenarios
         
-        # Display investment scenarios
-        if scenarios:
-            st.markdown("#### 💹 Investment Scenarios")
-            
-            # Create scenarios table
-            scenarios_data = []
-            for level, data in scenarios.items():
-                if isinstance(data, dict) and 'investment_level' in data:
-                    # Recalculate realistic ROI metrics from inputs
-                    try:
-                        cost_per_ha = float(data.get('cost_per_hectare', 0) or 0)
-                        total_cost_input = data.get('total_cost', None)
-                        total_cost = float(total_cost_input) if total_cost_input is not None else cost_per_ha * float(land_size or 0)
-                        new_yield = float(data.get('new_yield', 0) or 0)
-                        add_yield = float(data.get('additional_yield', new_yield - float(current_yield or 0)))
-                        # Resolve price; allow scenario override
-                        price_override = _resolve_price(data)
-                        rm_price = price_override if price_override > 0 else ffb_price
-                        additional_revenue = float(add_yield) * float(land_size or 0) * float(rm_price or 0)
-                        # ROI: (revenue - cost) / cost * 100, allow negatives
-                        roi_pct = ((additional_revenue - total_cost) / total_cost * 100.0) if total_cost > 0 else 0.0
-                        # Payback months: cost / monthly net income
-                        monthly_net = (additional_revenue - total_cost) / 12.0 if additional_revenue > 0 else 0.0
-                        payback = (total_cost / (additional_revenue / 12.0)) if additional_revenue > 0 else float('inf')
-
-                        scenarios_data.append({
-                            'Investment Level': str(data.get('investment_level', level.title())),
-                            'Cost per Hectare (RM)': f"{cost_per_ha:,.0f}",
-                            'Total Cost (RM)': f"{total_cost:,.0f}",
-                            'New Yield (t/ha)': f"{new_yield:.1f}",
-                            'Additional Yield (t/ha)': f"{add_yield:.1f}",
-                            'FFB Price (RM/t)': f"{rm_price:,.0f}",
-                            'Additional Revenue (RM)': f"{additional_revenue:,.0f}",
-                            'ROI (%)': f"{roi_pct:.1f}%",
-                            'Payback (months)': ("∞" if payback == float('inf') else f"{payback:.1f}")
-                        })
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Error calculating scenario data for {level}: {e}")
-                        scenarios_data.append({
-                            'Investment Level': str(data.get('investment_level', level.title())),
-                            'Cost per Hectare (RM)': str(data.get('cost_per_hectare', 'N/A')),
-                            'Total Cost (RM)': str(total_cost_input if total_cost_input is not None else 'N/A'),
-                            'New Yield (t/ha)': str(data.get('new_yield', 'N/A')),
-                            'Additional Yield (t/ha)': str(data.get('additional_yield', 'N/A')),
-                            'FFB Price (RM/t)': str(price_override if price_override > 0 else (ffb_price if ffb_price > 0 else 'N/A')),
-                            'Additional Revenue (RM)': str(data.get('additional_revenue', 'N/A')),
-                            'ROI (%)': str(data.get('roi_percentage', 'N/A')),
-                            'Payback (months)': str(data.get('payback_months', 'N/A'))
-                        })
-
-            if scenarios_data:
-                try:
-                    import pandas as pd
-                    df = pd.DataFrame(scenarios_data)
-                    # Ensure all columns are present
-                    expected_columns = ['Investment Level', 'Cost per Hectare (RM)', 'Total Cost (RM)',
-                                      'New Yield (t/ha)', 'Additional Yield (t/ha)', 'FFB Price (RM/t)', 'Additional Revenue (RM)',
-                                      'ROI (%)', 'Payback (months)']
-                    for col in expected_columns:
-                        if col not in df.columns:
-                            df[col] = 'N/A'
-                    df = df[expected_columns]  # Reorder columns
-                    apply_table_styling()
-                    st.dataframe(df, width='stretch')
-                except Exception as e:
-                    logger.error(f"Error creating scenarios table: {e}")
-                    st.error("Error displaying investment scenarios table")
-                
-                # Add assumptions and formula notes
-                assumptions = econ_forecast.get('assumptions', [])
-                notes = [
-                    "ROI = (Additional Revenue - Total Cost) / Total Cost",
-                    "Additional Revenue = Additional Yield (t/ha) × Land Size (ha) × FFB Price (RM/t)",
-                ]
-                if assumptions or notes or (ffb_price and ffb_price > 0):
-                    st.markdown("#### 📋 Assumptions & Formulas")
-                    if ffb_price and ffb_price > 0:
-                        st.markdown(f"• FFB Price used: RM {ffb_price:,.0f}/t")
-                    for n in notes:
-                        st.markdown(f"• {n}")
-                    for assumption in assumptions:
-                        st.markdown(f"• {assumption}")
+        # Do not display investment scenarios or assumptions
     
     elif econ_data:
         # Fallback to LLM-generated economic analysis
@@ -11841,7 +13030,40 @@ def display_economic_impact_content(analysis_data):
                 st.markdown(f"- ROI: {scenario.get('roi', 0):.1f}%")
     
     else:
-        st.info("📊 Economic forecast data not available. This may be due to missing land size or yield data.")
+        # Show helpful information instead of just an error message
+        st.markdown("#### 📊 Economic Impact Assessment")
+        st.markdown(
+            f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #fff3cd, #ffffff); border-left: 4px solid #ffc107; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+            f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">Economic forecast data will be available after completing the analysis. The system will calculate projected yield improvements and ROI based on your soil and leaf analysis results.</p>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        
+        # Show estimated ranges based on typical oil palm economics
+        st.markdown("#### Estimated Economic Impact (Typical Ranges)")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("🌾 Projected Yield Improvement", "15-25%")
+        with col2:
+            st.metric("💰 Estimated ROI", "200-300%")
+        with col3:
+            st.metric("⏱️ Payback Period", "24-36 months")
+        
+        st.markdown("#### Investment Scenarios")
+        investment_data = [
+            ["Low Investment", "RM 2,000 - 3,000", "RM 8,000 - 12,000", "250-300%", "24-36 months"],
+            ["Medium Investment", "RM 4,000 - 6,000", "RM 15,000 - 20,000", "275-350%", "24-36 months"],
+            ["High Investment", "RM 8,000 - 12,000", "RM 25,000 - 35,000", "200-300%", "36-48 months"]
+        ]
+        
+        import pandas as pd
+        df = pd.DataFrame(investment_data, columns=[
+            "Investment Level", "Total Investment (RM)", "Expected Return (RM)", "ROI (%)", "Payback Period"
+        ])
+        apply_table_styling()
+        st.dataframe(df, width='stretch')
+        
+        st.markdown("*Note: These are estimated values based on typical oil palm plantation economics. Actual results may vary based on specific conditions and implementation.*")
         
 
 

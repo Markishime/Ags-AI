@@ -767,10 +767,24 @@ def display_analysis_history():
                 with col4:
                     st.markdown("**⚡ Actions**")
                     if st.button("📊 View Full Report", key=f"view_{doc.id}"):
-                        # Store analysis data for results page - convert to expected format
+                        # Resolve the correct analysis_results structure
+                        if isinstance(analysis_data, dict) and isinstance(analysis_data.get('analysis_results'), dict):
+                            resolved_analysis_results = analysis_data['analysis_results']
+                        elif isinstance(analysis_data, dict) and 'step_by_step_analysis' in analysis_data:
+                            # analysis_data itself is already in the analysis_results shape
+                            resolved_analysis_results = analysis_data
+                        else:
+                            resolved_analysis_results = {}
+
+                        # Ensure stored_analysis_results exists and store by id for results page lookup
+                        if 'stored_analysis_results' not in st.session_state or not isinstance(st.session_state.stored_analysis_results, dict):
+                            st.session_state.stored_analysis_results = {}
+                        st.session_state.stored_analysis_results[doc.id] = resolved_analysis_results
+
+                        # Store analysis metadata for results page routing
                         st.session_state.current_analysis = {
                             'id': doc.id,
-                            'analysis_results': analysis_data,  # Full analysis_results data
+                            'analysis_results': resolved_analysis_results,
                             'soil_data': soil_data,
                             'leaf_data': leaf_data,
                             'land_yield_data': land_yield,

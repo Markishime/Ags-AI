@@ -2151,8 +2151,43 @@ class StandardsComparator:
                         'type': 'soil',
                         'priority_score': self._calculate_priority_score(severity, critical, deviation_percent, len(out_of_range_samples), stats['count'])
                     }
-                    
-                    issues.append(issue)
+
+                    # Filter out corrupted issues where all parameters are incorrectly mapped to pH standards
+                    # This prevents display of malformed data where all parameters show pH optimal range (4.0-5.5)
+                    # but are not pH parameters, or where all values are 0.0 indicating data corruption
+                    is_corrupted = False
+
+                    # Check if non-pH parameter has pH optimal range
+                    if param != 'pH' and f"{min_val}-{max_val}" == "4.0-5.5":
+                        is_corrupted = True
+                        self.logger.warning(f"Filtering corrupted soil issue for {param}: incorrect pH optimal range applied to non-pH parameter")
+
+                    # Check if all sample values are 0.0 (indicates data corruption)
+                    if avg_value == 0.0 and all(sample['value'] == 0.0 for sample in stats['samples']):
+                        is_corrupted = True
+                        self.logger.warning(f"Filtering corrupted soil issue for {param}: all sample values are 0.0")
+
+                    # Check for the specific corruption pattern where all out_of_range_samples have pH min/max but wrong parameter
+                    if out_of_range_samples and all(sample.get('min_val') == 4.0 and sample.get('max_val') == 5.5 for sample in out_of_range_samples):
+                        if param != 'pH':
+                            is_corrupted = True
+                            self.logger.warning(f"Filtering corrupted soil issue for {param}: all samples incorrectly using pH range (4.0-5.5)")
+
+                    # Check for corruption where parameter is pH but samples have different parameter names
+                    # This indicates the sample data is corrupted and mixed up
+                    if param == 'pH' and out_of_range_samples:
+                        sample_names = [sample.get('sample_no', '').lower() for sample in out_of_range_samples]
+                        # If samples contain names of other parameters, it's corrupted
+                        other_params = ['n (%)', 'org. c (%)', 'total p', 'avail p', 'exch. k', 'exch. ca', 'exch. mg', 'cec']
+                        if any(any(other in name for other in other_params) for name in sample_names):
+                            is_corrupted = True
+                            self.logger.warning(f"Filtering corrupted soil issue for {param}: samples contain data for other parameters")
+
+                    # Only append if not corrupted
+                    if not is_corrupted:
+                        issues.append(issue)
+                    else:
+                        self.logger.info(f"Excluded corrupted soil issue for parameter: {param}")
             
             self.logger.info(f"Identified {len(issues)} soil issues from {soil_params.get('total_samples', 0)} samples")
             if len(issues) == 0:
@@ -3210,7 +3245,7 @@ class PromptAnalyzer:
                 'step_number': step_num,
                 'step_title': step_title,
                 'summary': f"Step {step_num} analysis completed with enhanced fallback processing",
-                'detailed_analysis': f"Due to LLM unavailability, this step has been processed using enhanced fallback methods. The system has analyzed available soil and leaf data using MPOB standards and provided basic recommendations.",
+                'detailed_analysis': self._clean_persona_wording(f"Due to LLM unavailability, this step has been processed using enhanced fallback methods. The system has analyzed available soil and leaf data using MPOB standards and provided basic recommendations."),
                 'key_findings': [
                     "Analysis completed using fallback processing methods",
                     "Data validation and quality checks performed against MPOB standards",
@@ -3230,7 +3265,7 @@ class PromptAnalyzer:
                 'step_number': step.get('number', 0),
                 'step_title': step.get('title', 'Unknown Step'),
                 'summary': "Step analysis completed with basic fallback processing",
-                'detailed_analysis': "Basic analysis completed due to system limitations.",
+                'detailed_analysis': self._clean_persona_wording("Basic analysis completed due to system limitations."),
                 'key_findings': ["Fallback analysis performed"],
                 'tables': [],
                 'visualizations': [],
@@ -3373,7 +3408,7 @@ class PromptAnalyzer:
                     'step_number': step['number'],
                     'step_title': step['title'],
                     'summary': parsed_data.get('summary', 'Analysis completed'),
-                    'detailed_analysis': parsed_data.get('detailed_analysis', 'Detailed analysis not available'),
+                    'detailed_analysis': self._clean_persona_wording(parsed_data.get('detailed_analysis', 'Detailed analysis not available')),
                     'key_findings': parsed_data.get('key_findings', []),
                     'analysis': parsed_data  # Store the full parsed data for display
                 }
@@ -3438,7 +3473,7 @@ class PromptAnalyzer:
                 'step_number': step['number'],
                 'step_title': step['title'],
                 'summary': 'Analysis completed',
-                'detailed_analysis': response[:500] + "..." if len(response) > 500 else response,
+                'detailed_analysis': self._clean_persona_wording(response[:500] + "..." if len(response) > 500 else response),
                 'confidence_level': 'Medium',
                 'analysis': {'raw_response': response}
             }
@@ -3449,6 +3484,56 @@ class PromptAnalyzer:
             if step.get('number') == 2:
                 return self._get_enhanced_step2_fallback(step)
             return self._get_default_step_result(step)
+
+    def generate_executive_summary_from_steps(self, analysis_results: Dict[str, Any]) -> Optional[str]:
+        """Generate an Executive Summary using the LLM based on step-by-step results for this run.
+
+        Returns None if the LLM is unavailable or an error occurs.
+        """
+        try:
+            if not self.ensure_llm_available():
+                return None
+
+            step_results: List[Dict[str, Any]] = []
+            if isinstance(analysis_results, dict):
+                step_results = analysis_results.get('step_by_step_analysis', []) or []
+
+            # Build concise context from steps
+            lines: List[str] = []
+            if isinstance(step_results, list) and step_results:
+                for step in step_results:
+                    step_num = step.get('step_number') or step.get('number')
+                    title = step.get('step_title') or step.get('title') or f"Step {step_num}"
+                    summary = step.get('summary') or ''
+                    findings = step.get('key_findings') or []
+                    findings_text = " ; ".join([str(f) for f in findings[:6]]) if isinstance(findings, list) else ""
+                    lines.append(f"Step {step_num}: {title}\nSummary: {summary}\nKey Findings: {findings_text}")
+
+            raw = analysis_results.get('raw_data', {}) if isinstance(analysis_results, dict) else {}
+            land = raw.get('land_yield_data', {}) if isinstance(raw, dict) else {}
+
+            prompt = (
+                "You are an expert agronomist. Write an Executive Summary for an oil palm report. "
+                "Use ONLY the findings provided from this run. 120-220 words. Farmer-friendly. "
+                "Single paragraph. No headings, no bullets, no placeholders. Do not invent numbers.\n\n"
+                "Context from step-by-step results:\n" + "\n\n".join(lines[:10]) + "\n\n"
+                f"Current yield: {land.get('current_yield', 'N/A')} t/ha; Land size: {land.get('land_size', 'N/A')} ha."
+            )
+
+            try:
+                import google.generativeai as genai  # noqa: F401  (ensures client is available)
+                response = self.llm.generate_content(prompt)  # type: ignore[attr-defined]
+                text = getattr(response, 'text', None)
+            except Exception as gen_err:
+                self.logger.error(f"Gemini generate_content failed: {gen_err}")
+                return None
+
+            if isinstance(text, str):
+                return text.strip()
+            return None
+        except Exception as e:
+            self.logger.error(f"Error generating executive summary from steps: {e}")
+            return None
     
     def _format_soil_data_for_llm(self, soil_params: Dict[str, Any]) -> str:
         """Format soil data for LLM consumption - ALL SAMPLES including missing standard parameters"""
@@ -3572,7 +3657,7 @@ class PromptAnalyzer:
         step_fallbacks = {
             1: {
                 'summary': 'Data analysis completed using fallback processing',
-                'detailed_analysis': 'Soil and leaf data has been processed and validated. Please check your Google API quota to get detailed AI analysis.',
+                'detailed_analysis': self._clean_persona_wording('Soil and leaf data has been processed and validated. Please check your Google API quota to get detailed AI analysis.'),
                 'key_findings': [
                     'Data has been successfully extracted and validated',
                     'Soil and leaf parameters are available for analysis',
@@ -3582,7 +3667,7 @@ class PromptAnalyzer:
             },
             2: {
                 'summary': 'Issue diagnosis completed using standard analysis',
-                'detailed_analysis': 'Standard agronomic issue detection has been performed. AI-powered diagnosis requires Google API access.',
+                'detailed_analysis': self._clean_persona_wording('Standard agronomic issue detection has been performed. AI-powered diagnosis requires Google API access.'),
                 'key_findings': [
                     'Standard nutrient level analysis completed',
                     'Basic issue identification performed',
@@ -3592,7 +3677,7 @@ class PromptAnalyzer:
             },
             3: {
                 'summary': 'Solution recommendations prepared',
-                'detailed_analysis': 'Basic solution framework has been established. Detailed AI recommendations require Google API access.',
+                'detailed_analysis': self._clean_persona_wording('Basic solution framework has been established. Detailed AI recommendations require Google API access.'),
                 'key_findings': [
                     'Standard solution approaches identified',
                     'Basic investment options outlined',
@@ -3602,7 +3687,7 @@ class PromptAnalyzer:
             },
             4: {
                 'summary': 'Regenerative agriculture strategies outlined',
-                'detailed_analysis': 'Standard regenerative practices have been identified. AI integration requires Google API access.',
+                'detailed_analysis': self._clean_persona_wording('Standard regenerative practices have been identified. AI integration requires Google API access.'),
                 'key_findings': [
                     'Standard regenerative practices identified',
                     'Basic soil health improvement strategies outlined',
@@ -3612,7 +3697,7 @@ class PromptAnalyzer:
             },
             5: {
                 'summary': 'Economic impact assessment prepared',
-                'detailed_analysis': 'Basic economic framework established. Detailed AI calculations require Google API access.',
+                'detailed_analysis': self._clean_persona_wording('Basic economic framework established. Detailed AI calculations require Google API access.'),
                 'key_findings': [
                     'Basic economic framework established',
                     'Standard ROI calculations available',
@@ -3622,7 +3707,7 @@ class PromptAnalyzer:
             },
             6: {
                 'summary': 'Yield forecast framework prepared',
-                'detailed_analysis': 'Basic yield projection structure established. Detailed AI forecasts require Google API access.',
+                'detailed_analysis': self._clean_persona_wording('Basic yield projection structure established. Detailed AI forecasts require Google API access.'),
                 'key_findings': [
                     'Basic yield projection framework established',
                     'Standard forecasting approach outlined',
@@ -3634,7 +3719,7 @@ class PromptAnalyzer:
         
         fallback = step_fallbacks.get(step['number'], {
             'summary': f"Step {step['number']} analysis completed",
-            'detailed_analysis': f"Analysis for {step['title']} - LLM not available",
+            'detailed_analysis': self._clean_persona_wording(f"Analysis for {step['title']} - LLM not available"),
             'key_findings': ['Analysis pending Google API quota restoration']
         })
         
@@ -3642,7 +3727,7 @@ class PromptAnalyzer:
             'step_number': step['number'],
             'step_title': step['title'],
             'summary': fallback['summary'],
-            'detailed_analysis': fallback['detailed_analysis'],
+                'detailed_analysis': self._clean_persona_wording(fallback['detailed_analysis']),
             'key_findings': fallback['key_findings'],
             'confidence_level': 'Medium',
             'analysis': {'status': 'fallback_mode', 'api_error': 'Google API quota exceeded'}
@@ -3740,7 +3825,7 @@ class PromptAnalyzer:
                 'step_number': step['number'],
                 'step_title': step['title'],
                 'summary': 'Agronomic issues identified through standard analysis',
-                'detailed_analysis': 'Based on soil and leaf analysis, several agronomic issues have been identified that may be affecting palm health and yield potential. These issues require targeted interventions to optimize production.',
+                'detailed_analysis': self._clean_persona_wording('Based on soil and leaf analysis, several agronomic issues have been identified that may be affecting palm health and yield potential. These issues require targeted interventions to optimize production.'),
                 'key_findings': [
                     'Soil pH levels may be outside optimal range for oil palm cultivation',
                     'Nutrient imbalances detected across multiple parameters',
@@ -3774,7 +3859,7 @@ class PromptAnalyzer:
                     'step_number': step_number,
                     'step_title': f'Step {step_number}',
                     'summary': 'Analysis completed',
-                    'detailed_analysis': str(result) if result else 'No analysis available',
+                    'detailed_analysis': self._clean_persona_wording(str(result) if result else 'No analysis available'),
                     'key_findings': []
                 }
             
@@ -5011,6 +5096,35 @@ class PromptAnalyzer:
                 'low_investment': {}
             }
 
+    def _clean_persona_wording(self, text: str) -> str:
+        """Clean persona wording from text"""
+        if not isinstance(text, str):
+            return str(text)
+
+        # Remove common persona phrases
+        persona_patterns = [
+            r'As your consulting agronomist[,\s]*',
+            r'As your agronomist[,\s]*',
+            r'As your consultant[,\s]*',
+            r'As your advisor[,\s]*',
+            r'Based on my analysis[,\s]*',
+            r'In my professional opinion[,\s]*',
+            r'I recommend[,\s]*',
+            r'I suggest[,\s]*',
+            r'I advise[,\s]*',
+            r'From my experience[,\s]*',
+            r'In my assessment[,\s]*',
+            r'My recommendation[,\s]*',
+            r'My suggestion[,\s]*',
+            r'My advice[,\s]*',
+        ]
+
+        cleaned_text = text
+        for pattern in persona_patterns:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
+
+        return cleaned_text.strip()
+
 
 class ResultsGenerator:
     """Generates comprehensive analysis results and recommendations"""
@@ -5796,24 +5910,47 @@ class ResultsGenerator:
             ffb_price_high = 750  # RM per tonne
             ffb_price_mid = (ffb_price_low + ffb_price_high) / 2  # RM 650 per tonne for calculations
             
+            # Check if Boron is recommended in the recommendations
+            boron_recommended = False
+            if recommendations:
+                for rec in recommendations:
+                    if isinstance(rec, dict):
+                        rec_text = str(rec).lower()
+                        # Check if Boron is actually recommended for application
+                        if ('boron' in rec_text or 'borax' in rec_text) and ('apply' in rec_text or 'fertilizer' in rec_text or 'recommend' in rec_text):
+                            boron_recommended = True
+                            break
+
             scenarios = {}
             for investment_level in ['high', 'medium', 'low']:
-                # Cost per hectare ranges (including micronutrients)
+                # Cost per hectare ranges (including micronutrients, excluding Boron if not recommended)
                 if investment_level == 'high':
-                    cost_per_ha_low = 800  # Increased to include micronutrients (Boron, Copper, Zinc, etc.)
+                    cost_per_ha_low = 800  # Increased to include micronutrients (Copper, Zinc, etc.)
                     cost_per_ha_high = 1000
                     yield_increase_low = 0.20  # 20% increase
                     yield_increase_high = 0.30  # 30% increase
+                    # Reduce costs if Boron not recommended (subtract ~RM 50-100/ha for Boron)
+                    if not boron_recommended:
+                        cost_per_ha_low -= 50
+                        cost_per_ha_high -= 100
                 elif investment_level == 'medium':
                     cost_per_ha_low = 500  # Increased to include key micronutrients
                     cost_per_ha_high = 700
                     yield_increase_low = 0.15  # 15% increase
                     yield_increase_high = 0.22  # 22% increase
+                    # Reduce costs if Boron not recommended (subtract ~RM 30-70/ha for Boron)
+                    if not boron_recommended:
+                        cost_per_ha_low -= 30
+                        cost_per_ha_high -= 70
                 else:  # low
                     cost_per_ha_low = 300  # Basic micronutrient supplementation
                     cost_per_ha_high = 450
                     yield_increase_low = 0.08  # 8% increase
                     yield_increase_high = 0.15  # 15% increase
+                    # Reduce costs if Boron not recommended (subtract ~RM 20-40/ha for Boron)
+                    if not boron_recommended:
+                        cost_per_ha_low -= 20
+                        cost_per_ha_high -= 40
                 
                 # Calculate ranges for all metrics
                 total_cost_low = cost_per_ha_low * land_size_ha
@@ -7211,7 +7348,7 @@ class AnalysisEngine:
                 'step_number': step.get('number', 0),
                 'step_title': step.get('title', 'Unknown Step'),
                 'summary': f"Step {step.get('number', 0)} analysis completed using actual soil/leaf averages with fallback processing",
-                'detailed_analysis': detailed_analysis,
+                'detailed_analysis': self._clean_persona_wording(detailed_analysis),
                 'key_findings': key_findings,
                 'data_quality': 'Standard (Fallback Mode)',
                 'confidence_level': 'Medium',
@@ -7227,7 +7364,7 @@ class AnalysisEngine:
                 'step_number': step.get('number', 0),
                 'step_title': step.get('title', 'Error Step'),
                 'summary': 'Step processing failed',
-                'detailed_analysis': f'Critical error in step processing: {str(error)}',
+                'detailed_analysis': self._clean_persona_wording(f'Critical error in step processing: {str(error)}'),
                 'key_findings': ['Processing error occurred'],
                 'fallback_mode': True,
                 'error': str(error)
@@ -8561,6 +8698,7 @@ class AnalysisEngine:
                 return 'High'
         else:
             return 'Optimal'
+
 
 # Legacy function for backward compatibility
 def analyze_lab_data(soil_data: Dict[str, Any], leaf_data: Dict[str, Any],

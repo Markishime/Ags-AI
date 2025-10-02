@@ -611,7 +611,13 @@ class PDFReportGenerator:
         except Exception as exc:
             logger.error(f"Error generating executive summary: {str(exc)}")
             # Fallback to hardcoded summary
-            return """This comprehensive agronomic analysis evaluates 17 key nutritional parameters from both soil and leaf tissue samples to assess the current fertility status and plant health of the oil palm plantation. The analysis is based on adherence to Malaysian Palm Oil Board (MPOB) standards for optimal oil palm cultivation. Laboratory results indicate 1 significant nutritional imbalance requiring immediate attention to optimize yield potential and maintain sustainable production. Soil pH levels are within acceptable ranges, supporting proper nutrient availability and root development in the oil palm plantation. Key soil nutrients including phosphorus, potassium, and calcium are within adequate ranges for supporting healthy oil palm growth and development. Leaf tissue analysis shows adequate levels of key nutrients including nitrogen and magnesium for maintaining optimal oil palm photosynthetic capacity and health. Current yield performance of 32.0 tonnes per hectare across 31 hectares exceeds industry benchmarks, with nutritional corrections potentially maintaining production by 15-25%. Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production. pH deficiency correction alone can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms. Adopt site-specific nutrient management to align input rates with soil supply and crop demand, while prioritizing balanced N-P-K programs complemented by targeted secondary and micronutrient support for optimal oil palm nutrition. Incorporate organic matter through empty fruit bunches, compost, or cover crops to build soil health, and monitor pH and CEC trends annually to safeguard nutrient availability and retention capacity. Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation."""
+            # Generate a more generic but still dynamic fallback summary
+            total_samples = 17  # Default value
+            if analysis_results and isinstance(analysis_results, dict):
+                metadata = analysis_results.get('analysis_metadata', {})
+                total_samples = metadata.get('total_parameters_analyzed', 17)
+
+            return f"This comprehensive agronomic analysis evaluates {total_samples} key nutritional parameters from soil and leaf tissue samples to assess the current fertility status and plant health of the oil palm plantation. The analysis is based on adherence to Malaysian Palm Oil Board (MPOB) standards for optimal oil palm cultivation. Laboratory results indicate nutritional conditions that may require attention to optimize yield potential and maintain sustainable production. Soil pH levels and nutrient availability have been assessed for proper root development and plant health. Current yield performance and land size data have been analyzed for economic projections. Economic analysis indicates that investment in corrective fertilization programs can generate positive returns through improved fruit bunch quality and increased fresh fruit bunch production. Site-specific nutrient management aligned with soil supply and crop demand is recommended, along with regular monitoring of pH and CEC trends to safeguard nutrient availability and retention capacity. Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation."
             has_soil_data = bool(soil_params and soil_params.get('parameter_statistics'))
             has_leaf_data = bool(leaf_params and leaf_params.get('parameter_statistics'))
 
@@ -650,32 +656,36 @@ class PDFReportGenerator:
 
                 soil_stats = soil_params['parameter_statistics']
 
-                # Check phosphorus
+                # Check phosphorus (MPOB: critical <5, acceptable <8)
                 p_data = soil_stats.get('Available_P_mg_kg', {})
                 if p_data:
                     p_avg = p_data.get('average', 0)
-                    if p_avg > 0 and p_avg < 10:
+                    if p_avg > 0 and p_avg < 8:
                         executive_sections.append(f"Available phosphorus levels at {p_avg:.1f} mg/kg indicate deficiency, which can impair root development and reduce fruit bunch formation in oil palm trees.")
                         nutrient_sentences_added += 1
 
-                # Check potassium
+                # Check potassium (MPOB: critical <0.05, acceptable <0.10)
                 k_data = soil_stats.get('Exchangeable_K_meq%', {})
                 if k_data and nutrient_sentences_added < 2:
                     k_avg = k_data.get('average', 0)
-                    if k_avg > 0 and k_avg < 0.2:
+                    if k_avg > 0 and k_avg < 0.10:
                         executive_sections.append(f"Exchangeable potassium deficiency at {k_avg:.2f} meq% can compromise water balance regulation and reduce oil synthesis in oil palm trees.")
                         nutrient_sentences_added += 1
 
-                # Check calcium
+                # Check calcium (MPOB: critical <0.5, optimal <2.0)
                 ca_data = soil_stats.get('Exchangeable_Ca_meq%', {})
                 if ca_data and nutrient_sentences_added < 2:
                     ca_avg = ca_data.get('average', 0)
-                    if ca_avg > 0 and ca_avg < 0.5:
+                    if ca_avg > 0 and ca_avg < 2.0:
                         executive_sections.append(f"Calcium availability at {ca_avg:.2f} meq% indicates insufficient structural support, potentially weakening cell walls and reducing palm vigor.")
                         nutrient_sentences_added += 1
 
                 if nutrient_sentences_added == 0:
-                    executive_sections.append("Key soil nutrients including phosphorus, potassium, and calcium are within adequate ranges for supporting healthy oil palm growth and development.")
+                    # Only add a generic statement if we actually have soil data but no specific deficiencies
+                    if soil_params.get('parameter_statistics'):
+                        executive_sections.append("Soil nutrient analysis completed with no critical deficiencies detected in the tested parameters.")
+                    else:
+                        executive_sections.append("Soil nutrient analysis data is being processed.")
             executive_sections.append("")
 
             # 12-15: Leaf tissue nutrient status (only if we have leaf data)
@@ -702,7 +712,11 @@ class PDFReportGenerator:
                         leaf_sentences_added += 1
 
                 if leaf_sentences_added == 0:
-                    executive_sections.append("Leaf tissue analysis shows adequate levels of key nutrients including nitrogen and magnesium for maintaining optimal oil palm photosynthetic capacity and health.")
+                    # Only add a generic statement if we actually have leaf data but no specific deficiencies
+                    if leaf_params.get('parameter_statistics'):
+                        executive_sections.append("Leaf tissue analysis completed with no critical deficiencies detected in the tested parameters.")
+                    else:
+                        executive_sections.append("Leaf tissue analysis data is being processed.")
                 executive_sections.append("")
 
             # 16-18: Yield and economic implications (only if we have yield data)
@@ -740,7 +754,19 @@ class PDFReportGenerator:
                 correction_verb = "maintaining" if current_yield > industry_benchmark else "increasing"
 
                 executive_sections.append(f"Current yield performance of {current_yield:.1f} tonnes per hectare across {land_size:.0f} hectares {yield_comparison} industry benchmarks, with nutritional corrections potentially {correction_verb} production by 15-25%.")
-                executive_sections.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production.")
+                # Dynamic economic analysis based on actual forecast data
+                economic_forecast = analysis_results.get('economic_forecast', {})
+                if economic_forecast and economic_forecast.get('scenarios'):
+                    scenarios = economic_forecast['scenarios']
+                    # Get payback period from medium scenario (most representative)
+                    medium_scenario = scenarios.get('medium', {})
+                    if medium_scenario and 'payback_months_range' in medium_scenario:
+                        payback_range = medium_scenario['payback_months_range']
+                        executive_sections.append(f"Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within {payback_range} through improved fruit bunch quality and increased fresh fruit bunch production.")
+                    else:
+                        executive_sections.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns through improved fruit bunch quality and increased fresh fruit bunch production.")
+                else:
+                    executive_sections.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns through improved fruit bunch quality and increased fresh fruit bunch production.")
                 executive_sections.append("pH deficiency correction alone can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms.")
                 executive_sections.append("")
             else:
@@ -1034,48 +1060,167 @@ class PDFReportGenerator:
     
     def _generate_dynamic_executive_summary(self, analysis_results: Dict[str, Any]) -> str:
         """Generate the exact Executive Summary that mirrors the results page with detailed land/yield data."""
+        # Get the same data that results.py uses
+        raw_data = analysis_results.get('raw_data', {}) if isinstance(analysis_results, dict) else {}
+        soil_params = raw_data.get('soil_parameters', {}) if isinstance(raw_data, dict) else {}
+        leaf_params = raw_data.get('leaf_parameters', {}) if isinstance(raw_data, dict) else {}
+        land_yield_data = raw_data.get('land_yield_data', {}) if isinstance(raw_data, dict) else {}
+
+        issues_analysis = analysis_results.get('issues_analysis', {}) if isinstance(analysis_results, dict) else {}
+        all_issues = issues_analysis.get('all_issues', []) if isinstance(issues_analysis, dict) else []
+
+        metadata = analysis_results.get('analysis_metadata', {}) if isinstance(analysis_results, dict) else {}
+
         try:
-            # Extract land/yield data for detailed summary
-            raw_data = analysis_results.get('raw_data', {}) if isinstance(analysis_results, dict) else {}
-            land_yield_data = raw_data.get('land_yield_data', {}) if isinstance(raw_data, dict) else {}
-            
-            # Get accurate land and yield information
+
+            # Generate the executive summary using the same logic as results.py
+            summary_sentences = []
+
+            # 1-3: Analysis overview and scope (using actual data)
+            total_samples = metadata.get('total_parameters_analyzed', 17)
+            summary_sentences.append(
+                f"This comprehensive agronomic analysis evaluates {total_samples} "
+                "key nutritional parameters from both soil and leaf tissue samples "
+                "to assess the current fertility status and plant health of the "
+                "oil palm plantation.")
+            summary_sentences.append(
+                "The analysis is based on adherence to Malaysian Palm "
+                "Oil Board (MPOB) standards for optimal oil palm cultivation.")
+            summary_sentences.append(
+                "Laboratory results indicate 1 significant "
+                "nutritional imbalance requiring immediate attention to optimize "
+                "yield potential and maintain sustainable production.")
+
+            # 4-7: Detailed issue identification and impacts (pH and nutrients)
+            ph_messages_added = False
+            if soil_params.get('parameter_statistics'):
+                soil_stats = soil_params['parameter_statistics']
+                ph_data = soil_stats.get('pH', {})
+                if ph_data:
+                    ph_avg = ph_data.get('average', 0)
+                    if ph_avg > 0 and ph_avg < 5.5:
+                        summary_sentences.append(f"Critical soil pH deficiency detected at {ph_avg:.2f}, which severely limits nutrient availability and can cause stunted root growth, reduced nutrient uptake, and increased susceptibility to root diseases in oil palm trees.")
+                        summary_sentences.append("Low soil pH affects oil palm by reducing the solubility of essential nutrients like phosphorus and micronutrients, leading to chlorosis, poor fruit development, and decreased oil content in fruit bunches.")
+                        summary_sentences.append("pH deficiency in oil palm plantations can result in aluminum toxicity, which damages root systems and impairs water absorption, ultimately causing premature leaf senescence and reduced photosynthetic capacity.")
+                        summary_sentences.append("Immediate pH correction through liming is essential to prevent long-term soil degradation and maintain the plantation's productive lifespan.")
+                        ph_messages_added = True
+                    elif ph_avg > 0 and ph_avg >= 5.5 and ph_avg <= 7.0:
+                        summary_sentences.append(f"Soil pH levels at {ph_avg:.2f} are within optimal ranges, supporting proper nutrient availability and root development in the oil palm plantation.")
+                        ph_messages_added = True
+
+            if not ph_messages_added:
+                summary_sentences.append("Soil pH levels are within acceptable ranges, supporting proper nutrient availability and root development in the oil palm plantation.")
+
+            # 8-11: Key soil nutrient status (using correct MPOB thresholds)
+            nutrient_sentences_added = 0
+            if soil_params.get('parameter_statistics'):
+                soil_stats = soil_params['parameter_statistics']
+
+                # Check phosphorus (MPOB: critical <5, acceptable <8)
+                p_data = soil_stats.get('Available_P_mg_kg', {})
+                if p_data:
+                    p_avg = p_data.get('average', 0)
+                    if p_avg > 0 and p_avg < 8:
+                        summary_sentences.append(f"Available phosphorus levels at {p_avg:.1f} mg/kg indicate deficiency, which can impair root development and reduce fruit bunch formation in oil palm trees.")
+                        nutrient_sentences_added += 1
+
+                # Check potassium (MPOB: critical <0.05, acceptable <0.10)
+                k_data = soil_stats.get('Exchangeable_K_meq%', {})
+                if k_data and nutrient_sentences_added < 2:
+                    k_avg = k_data.get('average', 0)
+                    if k_avg > 0 and k_avg < 0.10:
+                        summary_sentences.append(f"Exchangeable potassium deficiency at {k_avg:.2f} meq% can compromise water balance regulation and reduce oil synthesis in oil palm trees.")
+                        nutrient_sentences_added += 1
+
+                # Check calcium (MPOB: critical <0.5, optimal <2.0)
+                ca_data = soil_stats.get('Exchangeable_Ca_meq%', {})
+                if ca_data and nutrient_sentences_added < 2:
+                    ca_avg = ca_data.get('average', 0)
+                    if ca_avg > 0 and ca_avg < 2.0:
+                        summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% indicates insufficient structural support, potentially weakening cell walls and reducing palm vigor.")
+                        nutrient_sentences_added += 1
+
+            # 12-15: Leaf tissue nutrient status
+            leaf_sentences_added = 0
+            if leaf_params.get('parameter_statistics'):
+                leaf_stats = leaf_params['parameter_statistics']
+
+                # Check nitrogen
+                n_data = leaf_stats.get('N_%', {})
+                if n_data:
+                    n_avg = n_data.get('average', 0)
+                    if n_avg > 0 and n_avg < 2.5:
+                        summary_sentences.append(f"Leaf nitrogen content at {n_avg:.2f}% indicates deficiency, which can limit protein synthesis and reduce photosynthetic efficiency in oil palm.")
+                        leaf_sentences_added += 1
+
+                # Check magnesium
+                mg_data = leaf_stats.get('Mg_%', {})
+                if mg_data and leaf_sentences_added < 2:
+                    mg_avg = mg_data.get('average', 0)
+                    if mg_avg > 0 and mg_avg < 0.25:
+                        summary_sentences.append(f"Magnesium deficiency at {mg_avg:.3f}% threatens chlorophyll integrity, potentially causing chlorosis and reduced photosynthetic capacity in oil palm fronds.")
+                        leaf_sentences_added += 1
+
+            # 16-18: Yield and economic implications
             current_yield = land_yield_data.get('current_yield')
             land_size = land_yield_data.get('land_size')
-            land_unit = land_yield_data.get('land_unit', 'hectares')
-            yield_unit = land_yield_data.get('yield_unit', 'tonnes per hectare')
-            
-            # Ensure values are numeric
+
             try:
                 current_yield = float(current_yield) if current_yield is not None else None
             except (ValueError, TypeError):
                 current_yield = None
-                
+
             try:
                 land_size = float(land_size) if land_size is not None else None
             except (ValueError, TypeError):
                 land_size = None
-            
-            # Create detailed land/yield information
-            land_yield_info = ""
+
             if current_yield is not None and land_size is not None:
-                land_yield_info = f"Current yield performance of {current_yield:.1f} {yield_unit} across {land_size:.0f} {land_unit} exceeds industry benchmarks, with nutritional corrections potentially maintaining production by 15-25%."
+                summary_sentences.append(f"Current yield performance is {current_yield:.1f} t/ha over {land_size:.0f} ha based on the uploaded report.")
             elif current_yield is not None:
-                land_yield_info = f"Current yield performance of {current_yield:.1f} {yield_unit} exceeds industry benchmarks, with nutritional corrections potentially maintaining production by 15-25%."
+                summary_sentences.append(f"Current yield performance is {current_yield:.1f} t/ha based on the uploaded report.")
             elif land_size is not None:
-                land_yield_info = f"Analysis covers {land_size:.0f} {land_unit} of agricultural land with comprehensive nutritional assessment for optimal yield potential."
+                summary_sentences.append(f"Recorded land size is {land_size:.0f} ha based on the uploaded report.")
+
+            # Dynamic economic analysis based on actual forecast data
+            economic_forecast = analysis_results.get('economic_forecast', {})
+            if economic_forecast and economic_forecast.get('scenarios'):
+                scenarios = economic_forecast['scenarios']
+                # Get payback period from medium scenario (most representative)
+                medium_scenario = scenarios.get('medium', {})
+                if medium_scenario and 'payback_months_range' in medium_scenario:
+                    payback_range = medium_scenario['payback_months_range']
+                    summary_sentences.append(f"Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within {payback_range} through improved fruit bunch quality and increased fresh fruit bunch production.")
+                else:
+                    summary_sentences.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns through improved fruit bunch quality and increased fresh fruit bunch production.")
             else:
-                land_yield_info = "Current yield performance exceeds industry benchmarks, with nutritional corrections potentially maintaining production by 15-25%."
-            
-            # Use the exact executive summary text with enhanced land/yield data
-            executive_summary = f"""This comprehensive agronomic analysis evaluates 17 key nutritional parameters from both soil and leaf tissue samples to assess the current fertility status and plant health of the oil palm plantation. The analysis is based on adherence to Malaysian Palm Oil Board (MPOB) standards for optimal oil palm cultivation. Laboratory results indicate 1 significant nutritional imbalance requiring immediate attention to optimize yield potential and maintain sustainable production. Soil pH levels are within acceptable ranges, supporting proper nutrient availability and root development in the oil palm plantation. Key soil nutrients including phosphorus, potassium, and calcium are within adequate ranges for supporting healthy oil palm growth and development. Leaf tissue analysis shows adequate levels of key nutrients including nitrogen and magnesium for maintaining optimal oil palm photosynthetic capacity and health. {land_yield_info} Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production. pH deficiency correction alone can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms. Adopt site-specific nutrient management to align input rates with soil supply and crop demand, while prioritizing balanced N-P-K programs complemented by targeted secondary and micronutrient support for optimal oil palm nutrition. Incorporate organic matter through empty fruit bunches, compost, or cover crops to build soil health, and monitor pH and CEC trends annually to safeguard nutrient availability and retention capacity. Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation."""
-            
-            return executive_summary
-            
+                summary_sentences.append("Economic analysis indicates that investment in corrective fertilization programs will generate positive returns through improved fruit bunch quality and increased fresh fruit bunch production.")
+
+            # Only mention pH correction benefits if pH was actually deficient
+            if ph_messages_added and any('deficien' in sentence.lower() for sentence in summary_sentences if 'pH' in sentence):
+                summary_sentences.append("pH correction can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms.")
+
+            # 19-20: Detailed recommendations and monitoring
+            summary_sentences.append("Adopt site-specific nutrient management to align input rates with soil supply and crop demand, while prioritizing balanced N-P-K programs complemented by targeted secondary and micronutrient support for optimal oil palm nutrition.")
+            summary_sentences.append("Incorporate organic matter through empty fruit bunches, compost, or cover crops to build soil health, and monitor pH and CEC trends annually to safeguard nutrient availability and retention capacity.")
+
+            # Add a final concluding sentence
+            summary_sentences.append("Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation.")
+
+            # Limit to exactly 20 sentences maximum
+            if len(summary_sentences) > 20:
+                summary_sentences = summary_sentences[:20]
+
+            # Join sentences into a comprehensive summary
+            comprehensive_summary = " ".join(summary_sentences)
+
+            return comprehensive_summary
+
         except Exception as e:
             logger.error(f"Error generating enhanced executive summary: {str(e)}")
-            # Fallback to original text
-            return """This comprehensive agronomic analysis evaluates 17 key nutritional parameters from both soil and leaf tissue samples to assess the current fertility status and plant health of the oil palm plantation. The analysis is based on adherence to Malaysian Palm Oil Board (MPOB) standards for optimal oil palm cultivation. Laboratory results indicate 1 significant nutritional imbalance requiring immediate attention to optimize yield potential and maintain sustainable production. Soil pH levels are within acceptable ranges, supporting proper nutrient availability and root development in the oil palm plantation. Key soil nutrients including phosphorus, potassium, and calcium are within adequate ranges for supporting healthy oil palm growth and development. Leaf tissue analysis shows adequate levels of key nutrients including nitrogen and magnesium for maintaining optimal oil palm photosynthetic capacity and health. Current yield performance of 32.0 tonnes per hectare across 31 hectares exceeds industry benchmarks, with nutritional corrections potentially maintaining production by 15-25%. Economic analysis indicates that investment in corrective fertilization programs will generate positive returns within 12-18 months through improved fruit bunch quality and increased fresh fruit bunch production. pH deficiency correction alone can prevent yield losses of up to 30% and improve fruit bunch quality by enhancing nutrient availability to developing palms. Adopt site-specific nutrient management to align input rates with soil supply and crop demand, while prioritizing balanced N-P-K programs complemented by targeted secondary and micronutrient support for optimal oil palm nutrition. Incorporate organic matter through empty fruit bunches, compost, or cover crops to build soil health, and monitor pH and CEC trends annually to safeguard nutrient availability and retention capacity. Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation."""
+            # Fallback to a more generic but still dynamic summary
+            total_samples = metadata.get('total_parameters_analyzed', 17)
+            return f"This comprehensive agronomic analysis evaluates {total_samples} key nutritional parameters from soil and leaf tissue samples to assess the current fertility status and plant health of the oil palm plantation. The analysis is based on adherence to Malaysian Palm Oil Board (MPOB) standards for optimal oil palm cultivation. Laboratory results indicate nutritional conditions that may require attention to optimize yield potential and maintain sustainable production. Soil pH levels and nutrient availability have been assessed for proper root development and plant health. Current yield performance and land size data have been analyzed for economic projections. Economic analysis indicates that investment in corrective fertilization programs can generate positive returns through improved fruit bunch quality and increased fresh fruit bunch production. Site-specific nutrient management aligned with soil supply and crop demand is recommended, along with regular monitoring of pH and CEC trends to safeguard nutrient availability and retention capacity. Continued monitoring and adaptive management strategies will be essential for maintaining optimal nutritional status and maximizing the economic potential of this oil palm operation."
 
     def _create_fallback_steps_from_analysis_data(self, analysis_results: Dict[str, Any]) -> List:
         """Create fallback step structure from available analysis data"""
@@ -1169,6 +1314,39 @@ class PDFReportGenerator:
             "Plantation Values vs. Malaysian Reference Ranges"
         ]
         
+        # Enhanced pattern detection with counting and combination logic
+        # Count occurrences of problematic patterns
+        pattern_count = sum(1 for pattern in problematic_patterns if pattern in text)
+
+        # If contains multiple problematic patterns, likely raw LLM output
+        if pattern_count >= 3:  # Lowered threshold for better detection
+            return "Content filtered to prevent raw LLM output display."
+
+        # Check for combination patterns that strongly indicate raw LLM output
+        combination_patterns = [
+            # Pattern combinations that are characteristic of raw LLM output
+            "investment_level" in text and "cost_per_hectare_range" in text,
+            "roi_percentage_range" in text and "payback_months_range" in text,
+            "new_yield_range" in text and "additional_revenue_range" in text,
+            # Check for specific raw output markers
+            "Land Size Hectares:" in text or "Current Yield Tonnes Per Ha:" in text,
+            "Palm Density Per Hectare:" in text or "Total Palms:" in text,
+            "Oil Palm Price Range Rm Per Tonne:" in text,
+            # Issue-related combinations
+            '"parameter":' in text and '"current_value":' in text and '"optimal_range":' in text,
+            '"status":' in text and '"severity":' in text and '"impact":' in text,
+            # Table-related combinations
+            "Nutrient Gap Analysis" in text and "__TABLE_" in text,
+            "Visual Comparisons:" in text and "__TABLE_" in text,
+            # Enhanced patterns for user's specific raw LLM output
+            "'investment_level': 'High', 'cost_per_hectare_range': 'RM" in text,
+            "'roi_percentage_range': '40-40% (Capped for realism)'" in text,
+            "'item_0': 'Yield improvements based on addressing" in text,
+        ]
+
+        if any(combination_patterns):
+            return "Content filtered to prevent raw LLM output display."
+
         # Check if text contains any problematic patterns
         for pattern in problematic_patterns:
             if pattern in text:
@@ -1369,7 +1547,11 @@ class PDFReportGenerator:
             story.append(Paragraph("📋 Summary", self.styles['Heading3']))
             summary_text = analysis_data['summary']
             if isinstance(summary_text, str) and summary_text.strip():
-                story.append(Paragraph(self._sanitize_text_persona(summary_text.strip()), self.styles['CustomBody']))
+                # Apply comprehensive cleaning (same as analysis engine)
+                summary_text = self._clean_persona_wording(summary_text.strip())
+                summary_text = self._filter_raw_llm_structures(summary_text)
+                summary_text = self._sanitize_text_persona(summary_text)
+                story.append(Paragraph(summary_text, self.styles['CustomBody']))
             story.append(Spacer(1, 8))
         
         # Detailed Analysis section
@@ -3570,6 +3752,73 @@ class PDFReportGenerator:
         except Exception:
             return text
     
+    def _clean_persona_wording(self, text: str) -> str:
+        """Clean persona wording from text (same as analysis engine)"""
+        if not isinstance(text, str):
+            return str(text)
+        
+        # Remove common persona phrases
+        persona_patterns = [
+            r'As your consulting agronomist[,\s]*',
+            r'As your agronomist[,\s]*',
+            r'As your consultant[,\s]*',
+            r'As your advisor[,\s]*',
+            r'Based on my analysis[,\s]*',
+            r'In my professional opinion[,\s]*',
+            r'I recommend[,\s]*',
+            r'I suggest[,\s]*',
+            r'I advise[,\s]*',
+            r'From my experience[,\s]*',
+            r'In my assessment[,\s]*',
+            r'My recommendation[,\s]*',
+            r'My suggestion[,\s]*',
+            r'My advice[,\s]*',
+        ]
+        
+        cleaned_text = text
+        for pattern in persona_patterns:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
+        
+        return cleaned_text.strip()
+    
+    def _filter_raw_llm_structures(self, text: str) -> str:
+        """Filter raw LLM structures from text (same as analysis engine)"""
+        if not isinstance(text, str):
+            return str(text)
+        
+        # Remove JSON-like structures
+        json_patterns = [
+            r'\{[^}]*"[^"]*"[^}]*\}',
+            r'\[[^\]]*"[^"]*"[^\]]*\]',
+            r'"\w+":\s*"[^"]*"',
+            r'"\w+":\s*\d+',
+            r'"\w+":\s*\[[^\]]*\]',
+        ]
+        
+        cleaned_text = text
+        for pattern in json_patterns:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        
+        # Remove XML/HTML tags
+        xml_patterns = [
+            r'<[^>]+>',
+            r'</[^>]+>',
+        ]
+        
+        for pattern in xml_patterns:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        
+        # Remove Item patterns
+        item_patterns = [
+            r'Item \d+:\s*\{[^}]*\}',
+            r'item_\d+:\s*[^,\n]*[,]?',
+        ]
+        
+        for pattern in item_patterns:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        
+        return cleaned_text.strip()
+    
     def _create_step_visualizations(self, step: Dict[str, Any], step_number: int) -> List:
         """Create visualizations for each step with enhanced contextual support"""
         story = []
@@ -4811,14 +5060,12 @@ class PDFReportGenerator:
                 if yield_chart:
                     story.append(yield_chart)
                     story.append(Spacer(1, 8))
-                else:
-                    story.append(Paragraph("Yield forecast visualization could not be generated.", self.styles['Normal']))
-            else:
-                story.append(Paragraph("Yield forecast data is not available.", self.styles['Normal']))
+                # Remove error message - just skip if chart can't be generated
+            # Remove error message - just skip if no data available
 
         except Exception as e:
             logger.error(f"Error creating Step 6 yield forecast: {str(e)}")
-            story.append(Paragraph("Yield forecast visualization could not be generated.", self.styles['Normal']))
+            # Remove error message - just skip if error occurs
 
         return story
     
@@ -5010,173 +5257,83 @@ class PDFReportGenerator:
         return story
 
     def _create_step5_economic_tables(self, step: Dict[str, Any]) -> List:
-        """Create comprehensive economic tables for Step 5"""
+        """Create comprehensive economic tables for Step 5 using actual analysis results"""
         story = []
         
-        # Investment Scenarios Table
-        if 'investment_scenarios' in step and step['investment_scenarios']:
-            story.append(Paragraph("Investment Scenarios Analysis", self.styles['Heading3']))
-            scenarios = step['investment_scenarios']
-            
-            table_data = [['Investment Level', 'Total Cost (RM)', 'Expected Return (RM)', 'ROI (%)', 'Payback Period']]
-            
-            for scenario_name, scenario_data in scenarios.items():
-                if isinstance(scenario_data, dict):
-                    cost = scenario_data.get('total_cost', 0)
-                    return_val = scenario_data.get('expected_return', 0)
-                    roi = scenario_data.get('roi', 0)
-                    payback = scenario_data.get('payback_period', 'N/A')
-                    
-                    table_data.append([
-                        scenario_name.title(),
-                        f"{cost:,.0f}" if isinstance(cost, (int, float)) else str(cost),
-                        f"{return_val:,.0f}" if isinstance(return_val, (int, float)) else str(return_val),
-                        f"{roi:.1f}%" if isinstance(roi, (int, float)) else str(roi),
-                        str(payback)
-                    ])
-            
-            if len(table_data) > 1:
-                # Use proper column widths for investment scenarios table
-                col_widths = [self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2, self.content_width * 0.2]
-                table = self._create_table_with_proper_layout(table_data, col_widths, font_size=9)
-                if table:
-                    story.append(table)
-                    story.append(Spacer(1, 8))
+        # Get economic forecast data from the step results
+        economic_forecast = step.get('economic_forecast', {})
+        scenarios = economic_forecast.get('scenarios', {})
         
-        # Economic Assumptions Section
-        story.append(Paragraph("Economic Assumptions", self.styles['Heading2']))
-        story.append(Paragraph("The following table details the price and cost ranges used for all calculations in this forecast.", self.styles['CustomBody']))
-        story.append(Spacer(1, 6))
-
-        # Economic Assumptions Table
-        story.append(Paragraph("Table 1: Economic Assumptions for Forecast", self.styles['Heading3']))
-
-        economic_table_data = [
-            ['Item', 'Unit', 'Price / Cost Range (RM)'],
-            ['FFB Price', 'per tonne', '650 - 750'],
-            ['Ground Magnesium Limestone (GML)', 'per tonne', '180 - 250'],
-            ['Muriate of Potash (MOP)', 'per tonne', '2,200 - 2,600'],
-            ['Rock Phosphate (CIRP)', 'per tonne', '800 - 1,100'],
-            ['Ammonium Sulphate (AS)', 'per tonne', '1,300 - 1,600'],
-            ['Kieserite', 'per tonne', '1,100 - 1,400'],
-            ['Borate Fertilizer', 'per kg', '8 - 12'],
-            ['Copper Sulphate (CuSO₄)', 'per kg', '25 - 35'],
-            ['Zinc Sulphate (ZnSO₄)', 'per kg', '15 - 20'],
-            ['Application & Labour', 'per ha', '80 - 120']
-        ]
-
-        economic_col_widths = [self.content_width * 0.4, self.content_width * 0.25, self.content_width * 0.35]
-        economic_table = self._create_table_with_proper_layout(economic_table_data, economic_col_widths, font_size=9)
-        if economic_table:
-            economic_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # Center the price column
-            ]))
-            story.append(economic_table)
-            story.append(Spacer(1, 12))
-
-        # High-Investment Scenario
-        story.append(Paragraph("High-Investment Scenario: Aggressive Correction", self.styles['Heading3']))
-        story.append(Paragraph("This scenario aims for rapid recovery by applying optimal rates of all required inputs.", self.styles['CustomBody']))
-        story.append(Spacer(1, 4))
-
-        high_scenario_data = [
-            ['Projected Year-1 Yield Improvement:', '4.0 - 5.5 t/ha'],
-            ['Estimated Costs (per ha):', ''],
-            ['GML:', 'RM 360 - 500'],
-            ['MOP:', 'RM 977 - 1,154'],
-            ['CIRP:', 'RM 237 - 326'],
-            ['AS:', 'RM 481 - 592'],
-            ['Kieserite:', 'RM 163 - 207'],
-            ['Borate:', 'RM 118 - 178'],
-            ['Copper Sulphate (CuSO₄):', 'RM 185 - 259'],
-            ['Zinc Sulphate (ZnSO₄):', 'RM 111 - 148'],
-            ['Application:', 'RM 80 - 120'],
-            ['Total Estimated Cost:', 'RM 2,712 - 3,484 per ha'],
-            ['Estimated Incremental Revenue:', 'RM 2,600 - 4,125 per ha'],
-            ['Estimated Net Profit / Loss:', '-RM 884 to RM 1,413 per ha'],
-            ['Estimated Year-1 ROI:', '-25% to 52%']
-        ]
-
-        for item in high_scenario_data:
-            if item[0] and item[1]:
-                story.append(Paragraph(f"<b>{item[0]}</b> {item[1]}", self.styles['CustomBody']))
-            elif item[0]:
-                story.append(Paragraph(f"<b>{item[0]}</b>", self.styles['CustomBody']))
-            story.append(Spacer(1, 2))
-
-        story.append(Spacer(1, 12))
-
-        # Medium-Investment Scenario
-        story.append(Paragraph("Medium-Investment Scenario: Balanced Correction", self.styles['Heading3']))
-        story.append(Paragraph("This scenario provides a balanced approach to cost and recovery speed.", self.styles['CustomBody']))
-        story.append(Spacer(1, 4))
-
-        medium_scenario_data = [
-            ['Projected Year-1 Yield Improvement:', '2.5 - 4.0 t/ha'],
-            ['Estimated Costs (per ha):', ''],
-            ['GML:', 'RM 270 - 375'],
-            ['MOP:', 'RM 814 - 962'],
-            ['CIRP:', 'RM 178 - 244'],
-            ['AS:', 'RM 385 - 474'],
-            ['Kieserite:', 'RM 122 - 155'],
-            ['Borate:', 'RM 89 - 133'],
-            ['Copper Sulphate (CuSO₄):', 'RM 111 - 155'],
-            ['Zinc Sulphate (ZnSO₄):', 'RM 67 - 89'],
-            ['Application:', 'RM 80 - 120'],
-            ['Total Estimated Cost:', 'RM 2,116 - 2,707 per ha'],
-            ['Estimated Incremental Revenue:', 'RM 1,625 - 3,000 per ha'],
-            ['Estimated Net Profit / Loss:', '-RM 1,082 to RM 884 per ha'],
-            ['Estimated Year-1 ROI:', '-40% to 42%']
-        ]
-
-        for item in medium_scenario_data:
-            if item[0] and item[1]:
-                story.append(Paragraph(f"<b>{item[0]}</b> {item[1]}", self.styles['CustomBody']))
-            elif item[0]:
-                story.append(Paragraph(f"<b>{item[0]}</b>", self.styles['CustomBody']))
-            story.append(Spacer(1, 2))
-
-        story.append(Spacer(1, 12))
-
-        # Low-Investment Scenario
-        story.append(Paragraph("Low-Investment Scenario: Gradual Improvement", self.styles['Heading3']))
-        story.append(Paragraph("This scenario focuses on addressing the most critical issues with a minimal budget, leading to slower recovery.", self.styles['CustomBody']))
-        story.append(Spacer(1, 4))
-
-        low_scenario_data = [
-            ['Projected Year-1 Yield Improvement:', '1.5 - 2.5 t/ha'],
-            ['Estimated Costs (per ha):', ''],
-            ['GML:', 'RM 180 - 250'],
-            ['MOP:', 'RM 488 - 577'],
-            ['CIRP:', 'RM 118 - 163'],
-            ['AS:', 'RM 289 - 355'],
-            ['Kieserite:', 'RM 81 - 104'],
-            ['Borate:', 'RM 59 - 89'],
-            ['Copper Sulphate (CuSO₄):', 'RM 74 - 104'],
-            ['Zinc Sulphate (ZnSO₄):', 'RM 44 - 59'],
-            ['Application:', 'RM 80 - 120'],
-            ['Total Estimated Cost:', 'RM 1,413 - 1,821 per ha'],
-            ['Estimated Incremental Revenue:', 'RM 975 - 1,875 per ha'],
-            ['Estimated Net Profit / Loss:', '-RM 846 to RM 462 per ha'],
-            ['Estimated Year-1 ROI:', '-47% to 33%']
-        ]
-
-        for item in low_scenario_data:
-            if item[0] and item[1]:
-                story.append(Paragraph(f"<b>{item[0]}</b> {item[1]}", self.styles['CustomBody']))
-            elif item[0]:
-                story.append(Paragraph(f"<b>{item[0]}</b>", self.styles['CustomBody']))
-            story.append(Spacer(1, 2))
+        if not scenarios:
+            # Fallback: try to get economic data from other sources
+            economic_analysis = step.get('economic_analysis', {})
+            investment_scenarios = step.get('investment_scenarios', {})
+            
+            if investment_scenarios:
+                scenarios = investment_scenarios
+            elif economic_analysis:
+                # Convert economic_analysis to scenarios format if needed
+                scenarios = self._convert_economic_analysis_to_scenarios(economic_analysis)
+        
+        if not scenarios:
+            # Skip Step 5 entirely if no economic data is available
+            return story
+        
+        # Only show summary and key findings for Step 5
+        story.append(Paragraph("Economic Impact Forecast", self.styles['Heading2']))
+        
+        # Summary only
+        if 'summary' in step and step['summary']:
+            story.append(Paragraph("Summary:", self.styles['Heading3']))
+            summary_text = str(step['summary'])
+            # Apply comprehensive cleaning
+            summary_text = self._clean_persona_wording(summary_text.strip())
+            summary_text = self._filter_raw_llm_structures(summary_text)
+            summary_text = self._sanitize_text_persona(summary_text)
+            story.append(Paragraph(summary_text, self.styles['CustomBody']))
+            story.append(Spacer(1, 8))
+        
+        # Key Findings only
+        if 'key_findings' in step and step['key_findings']:
+            story.append(Paragraph("Key Findings:", self.styles['Heading3']))
+            findings = step['key_findings']
+            if isinstance(findings, list):
+                for i, finding in enumerate(findings, 1):
+                    finding_text = str(finding)
+                    # Apply comprehensive cleaning
+                    finding_text = self._clean_persona_wording(finding_text)
+                    finding_text = self._filter_raw_llm_structures(finding_text)
+                    finding_text = self._sanitize_text_persona(finding_text)
+                    story.append(Paragraph(f"<b>{i}.</b> {finding_text}", self.styles['CustomBody']))
+            else:
+                finding_text = str(findings)
+                # Apply comprehensive cleaning
+                finding_text = self._clean_persona_wording(finding_text)
+                finding_text = self._filter_raw_llm_structures(finding_text)
+                finding_text = self._sanitize_text_persona(finding_text)
+                story.append(Paragraph(finding_text, self.styles['CustomBody']))
+            story.append(Spacer(1, 8))
         
         return story
+    
+    def _convert_economic_analysis_to_scenarios(self, economic_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert economic_analysis format to scenarios format for consistency"""
+        scenarios = {}
+        
+        # Try to extract scenario data from economic_analysis
+        if 'investment_scenarios' in economic_analysis:
+            return economic_analysis['investment_scenarios']
+        
+        # If no scenarios found, create a basic structure
+        scenarios['medium'] = {
+            'investment_level': 'Medium',
+            'cost_per_hectare': economic_analysis.get('total_cost', 'N/A'),
+            'additional_revenue': economic_analysis.get('additional_revenue', 'N/A'),
+            'roi_percentage': economic_analysis.get('roi', 'N/A'),
+            'payback_months': economic_analysis.get('payback_period', 'N/A')
+        }
+        
+        return scenarios
 
     def _create_step6_forecast_tables(self, step: Dict[str, Any]) -> List:
         """Create forecast tables for Step 6: Yield Forecast"""
@@ -5847,51 +6004,7 @@ class PDFReportGenerator:
                 story.append(Paragraph(f"<b>Oil Palm Price:</b> RM {oil_palm_price:.0f}/tonne", self.styles['CustomBody']))
             story.append(Spacer(1, 12))
             
-            # Replace cost-benefit table with Economic Forecast Assumptions and Year-1 Impact per Hectare
-            assumptions = econ.get('assumptions', []) if isinstance(econ, dict) else []
-            # Add micronutrient cost assumption if boron was recommended
-            critical_deficiencies = []
-            step_results = analysis_data.get('step_by_step_analysis', []) if 'step_by_step_analysis' in analysis_data else []
-            for step in step_results:
-                if isinstance(step, dict):
-                    tables = step.get('tables', [])
-                    if isinstance(tables, list):
-                        for table in tables:
-                            if isinstance(table, dict) and 'gap' in table.get('title', '').lower():
-                                rows = table.get('rows', [])
-                                headers = table.get('headers', [])
-                                gap_idx = None
-                                for i, header in enumerate(headers):
-                                    if 'gap' in header.lower() or '%' in header.lower():
-                                        gap_idx = i
-                                        break
-                                if gap_idx is not None:
-                                    for row in rows:
-                                        if isinstance(row, list) and len(row) > gap_idx:
-                                            try:
-                                                gap_value = row[gap_idx]
-                                                if isinstance(gap_value, str):
-                                                    import re
-                                                    match = re.search(r'([+-]?\d*\.?\d+)', gap_value)
-                                                    if match:
-                                                        gap_percent = float(match.group(1))
-                                                        if gap_percent > 50:  # Severe deficiency threshold
-                                                            nutrient = row[0] if len(row) > 0 else "Unknown"
-                                                            if nutrient == 'B':  # Boron deficiency
-                                                                assumptions.append("Boron costs: RM 1-2 kg/ha/year borax included in micronutrient budget")
-                                            except (ValueError, TypeError):
-                                                continue
-
-            if assumptions:
-                story.append(Paragraph("📋 Economic Forecast Assumptions", self.styles['Heading2']))
-                story.append(Spacer(1, 6))
-                for a in assumptions:
-                    text = str(a).strip()
-                    # Filter placeholder items like item_0, item_1
-                    if not text or text.lower().startswith('item_'):
-                        continue
-                    story.append(Paragraph(f"• {text}", self.styles['CustomBody']))
-                story.append(Spacer(1, 12))
+            # Remove Economic Forecast Assumptions section as requested
 
             # Year-1 Economic Impact Forecast per Hectare
             year1 = econ.get('year_1', {}) if isinstance(econ, dict) else {}
@@ -5926,21 +6039,7 @@ class PDFReportGenerator:
                     story.append(table)
                 story.append(Spacer(1, 12))
                 
-                # Assumptions: ensure micronutrient costs (e.g., Boron) are included if relevant
-                assumptions = econ.get('assumptions', []) if isinstance(econ, dict) else []
-                try:
-                    # If any recommendation mentions Boron, include cost note
-                    recs = analysis_data.get('analysis_results', {}).get('specific_recommendations', []) if isinstance(analysis_data, dict) else []
-                    rec_text = " ".join([str(r) for r in recs]).lower()
-                    if ('boron' in rec_text or 'b (mg/kg)' in rec_text or 'borax' in rec_text) and not any('boron costs' in str(a).lower() for a in assumptions):
-                        assumptions.append("Boron costs: RM 1–2 per kg/ha/year (borax) included in micronutrient budget")
-                except Exception:
-                    pass
-                if assumptions:
-                    story.append(Spacer(1, 8))
-                    story.append(Paragraph("Assumptions:", self.styles['Heading3']))
-                    for a in assumptions:
-                        story.append(Paragraph(f"• {a}", self.styles['CustomBody']))
+                # Remove assumptions subsection under Year-1 as requested
                 
                 # Add note
                 story.append(Paragraph("<i>Note: RM values are based on current market rates and typical plantation economics.</i>", self.styles['CustomBody']))
