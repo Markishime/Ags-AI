@@ -5585,46 +5585,84 @@ def display_visualization(viz_data, index, step_number):
         st.info(f"Visualization type '{viz_type}' not supported")
 
 def display_table(table_data, title):
-    """Display a table"""
+    """Display a table with enhanced error handling and data validation"""
     if not table_data or not isinstance(table_data, dict):
+        logger.warning(f"Invalid table data for '{title}': {type(table_data)}")
         return
     
     try:
         if 'headers' in table_data and 'rows' in table_data:
             import pandas as pd
             
-            # Debug: Check data structure
-            logger.info(f"🔍 DEBUG - Table data for '{title}': headers={len(table_data['headers'])}, rows={len(table_data['rows'])}")
-            if table_data['rows']:
-                logger.info(f"🔍 DEBUG - First row type: {type(table_data['rows'][0])}")
-                logger.info(f"🔍 DEBUG - First row: {table_data['rows'][0]}")
+            # Enhanced data validation
+            headers = table_data['headers']
+            rows = table_data['rows']
             
-            # CRITICAL FIX: Handle corrupted table data
-            if table_data['rows'] and isinstance(table_data['rows'][0], str):
-                logger.error(f"🔍 DEBUG - CRITICAL: Table '{title}' contains strings instead of lists!")
-                logger.error(f"🔍 DEBUG - Table rows content: {table_data['rows']}")
-                st.error(f"Data corruption detected in table '{title}' - cannot display")
+            if not isinstance(headers, list) or not headers:
+                logger.error(f"Invalid headers for table '{title}': {headers}")
+                st.error(f"Invalid table headers for '{title}'")
                 return
-
-            # BULLETPROOF DataFrame creation
+                
+            if not isinstance(rows, list) or not rows:
+                logger.error(f"Invalid rows for table '{title}': {rows}")
+                st.error(f"No data rows for table '{title}'")
+                return
+            
+            # Validate that all rows are lists
+            for i, row in enumerate(rows):
+                if not isinstance(row, list):
+                    logger.error(f"Row {i} in table '{title}' is not a list: {type(row)} - {row}")
+                    st.error(f"Data corruption detected in table '{title}' - row {i+1} is not properly formatted")
+                    return
+                
+                # Ensure row has same number of columns as headers
+                if len(row) != len(headers):
+                    logger.warning(f"Row {i} in table '{title}' has {len(row)} columns but expected {len(headers)}")
+                    # Pad or truncate row to match headers
+                    if len(row) < len(headers):
+                        row.extend([''] * (len(headers) - len(row)))
+                    else:
+                        row = row[:len(headers)]
+                    rows[i] = row
+            
+            # Debug: Check data structure
+            logger.info(f"🔍 DEBUG - Table data for '{title}': headers={len(headers)}, rows={len(rows)}")
+            if rows:
+                logger.info(f"🔍 DEBUG - First row type: {type(rows[0])}")
+                logger.info(f"🔍 DEBUG - First row: {rows[0]}")
+            
+            # Create DataFrame with enhanced error handling
             try:
-                df = pd.DataFrame(table_data['rows'], columns=table_data['headers'])
+                df = pd.DataFrame(rows, columns=headers)
+                logger.info(f"✅ Created table DataFrame for '{title}' with shape: {df.shape}")
             except Exception as df_error:
                 logger.error(f"❌ Table DataFrame creation failed: {str(df_error)}")
-                st.error(f"Unable to display table '{title}'")
+                logger.error(f"❌ Headers: {headers}")
+                logger.error(f"❌ First few rows: {rows[:3] if rows else 'No rows'}")
+                st.error(f"Unable to display table '{title}' - data format error")
                 return
-            logger.info(f"✅ Created table DataFrame for '{title}' with shape: {df.shape}")
+            
+            # Display the table
             st.markdown(f"### {title}")
+            apply_table_styling()
             st.dataframe(df, width='stretch')
             
-            if 'note' in table_data:
+            # Display subtitle if available
+            if 'subtitle' in table_data and table_data['subtitle']:
+                st.markdown(f"*{table_data['subtitle']}*")
+            
+            # Display note if available
+            if 'note' in table_data and table_data['note']:
                 st.markdown(f"*Note: {table_data['note']}*")
         else:
-            st.info("No table data available")
+            logger.warning(f"Table '{title}' missing required fields: headers={headers}, rows={rows}")
+            st.info(f"No table data available for '{title}'")
                 
     except Exception as e:
-        logger.error(f"Error displaying table: {e}")
-        st.error("Error displaying table")
+        logger.error(f"Error displaying table '{title}': {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        st.error(f"Error displaying table '{title}'")
 
 def display_step1_data_analysis(analysis_data):
     """Display Step 1: Data Analysis content"""
@@ -5791,30 +5829,21 @@ def display_step5_economic_forecast(analysis_data):
                 unsafe_allow_html=True
             )
 
-    # Try to render any formatted tables embedded directly in this step's formatted/detailed analysis
+    # Display corrected Step 5 tables
     try:
-        fa_text_top = None
-        if isinstance(analysis_data.get('formatted_analysis'), str) and (
-            '<tables>' in analysis_data['formatted_analysis'] or '<table' in analysis_data['formatted_analysis']
-        ):
-            fa_text_top = analysis_data['formatted_analysis']
-        elif isinstance(analysis_data.get('detailed_analysis'), str) and (
-            '<tables>' in analysis_data['detailed_analysis'] or '<table' in analysis_data['detailed_analysis']
-        ):
-            import re as _re
-            # Look for "Formatted Analysis:" section first
-            m2 = _re.search(r"Formatted Analysis:\s*(.*?)(?=\n\n|\Z)", analysis_data['detailed_analysis'], _re.DOTALL | _re.IGNORECASE)
-            if m2 and m2.group(1).strip():
-                fa_text_top = m2.group(1).strip()
-            else:
-                # Fall back to the entire detailed_analysis if no Formatted Analysis section
-                fa_text_top = analysis_data['detailed_analysis']
+        st.markdown("#### 📊 Economic Forecast Tables")
+        corrected_tables = get_corrected_step5_tables()
+        for i, table in enumerate(corrected_tables, 1):
+            if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
+                # Use the standard display_table function for proper error handling
+                display_table(table, f"Table {i}: {table['title']}")
         
-        if isinstance(fa_text_top, str) and ('<table' in fa_text_top):
-            display_formatted_economic_tables(fa_text_top)
+        # Add footnotes
+        st.markdown("**Footnote:** RM values are approximate and represent recent historical price and cost ranges.")
+        st.markdown("**Disclaimer:** Actual ROI depends on field conditions and may be lower than estimates.")
     except Exception as e:
-        logger.error(f"Error parsing Step 5 formatted tables: {e}")
-        pass
+        logger.error(f"Error displaying corrected Step 5 tables: {e}")
+        st.error("Error displaying Step 5 tables")
 
     # Display economic analysis with enhanced formatting
     if 'economic_analysis' in analysis_data and analysis_data['economic_analysis']:
@@ -12864,6 +12893,92 @@ def display_step3_solution_recommendations(analysis_data):
             
             st.markdown("---")
 
+def get_corrected_step4_tables():
+    """Return the corrected Step 4 regenerative agriculture tables"""
+    return [
+        {
+            "title": "Regenerative Agriculture Practices for Soil Health Improvement",
+            "subtitle": "This table summarizes the key practices, their application rates, and their effects on your soil and palms.",
+            "headers": ["Practice", "Recommended Rate", "Mechanism (How it Works)", "Agronomic Effects & Soil Benefits", "Short-Term Effect (1-12 months)", "Long-Term Effect (1-5 years)"],
+            "rows": [
+                ["**Empty Fruit Bunch (EFB) Mulching**", "40-60 tonnes/ha/year in inter-rows", "EFB acts as a giant sponge and slow-release fertilizer. It covers the soil, retaining moisture and slowly breaking down to release a huge amount of nutrients, especially Potassium (K).", "Suppresses weeds, reduces soil erosion, increases soil moisture, adds massive amounts of organic matter and K. Increases Organic Carbon (OC) by ~0.2-0.4% annually and CEC by 1-2 meq%.", "Improved soil moisture, weed suppression, initial release of K.", "Dramatically improved soil structure, fertility, water holding capacity, and sustained high levels of soil K and Mg."],
+                ["**Leguminous Cover Crops (LCCs)**", "Seed mix of *Pueraria javanica, Calopogonium mucunoides, Centrosema pubescens* at 3-5 kg/ha.", "These plants work with bacteria in their roots to pull nitrogen from the air and store it in the soil for free (Nitrogen Fixation). Their roots also improve soil structure.", "Adds 100-150 kg N/ha/year, prevents soil erosion, improves soil aeration, and adds organic matter when it dies back. Reduces soil temperature.", "Weed suppression, erosion control, initial N contribution.", "Sustained nitrogen supply, significant increase in soil organic matter, and improved soil biodiversity."],
+                ["**Composting (EFB + POME)**", "5-10 tonnes/ha/year applied around the palm base.", "This practice pre-digests the raw EFB and POME (Palm Oil Mill Effluent), creating a stable, nutrient-rich compost that is easy for the soil and palms to use (stabilized organic matter).", "Provides a balanced, slow-release source of nutrients, boosts beneficial soil microbes, improves soil structure, and increases the soil's ability to hold nutrients (CEC).", "Immediate supply of available nutrients and stimulation of soil microbial activity.", "Builds a rich, dark topsoil layer with high fertility and excellent structure."],
+                ["**Biochar Application**", "5 tonnes/ha (one-time application during replanting or field prep)", "This is a special charcoal (biochar) made from crop waste. Its microscopic honeycomb structure provides a permanent home for water, nutrients, and microbes.", "Dramatically increases nutrient holding capacity (CEC), improves water retention, raises soil pH, and reduces nutrient leaching. Can increase CEC by 2-4 meq% permanently.", "Improved fertilizer efficiency and water availability to roots.", "Permanent improvement in soil structure and fertility that lasts for decades."]
+            ]
+        },
+        {
+            "title": "Estimated Nutrient Contribution & Adjusted Fertilizer Rates (High-Investment Scenario)",
+            "subtitle": "This table shows how applying 40 tonnes/ha of EFB changes your fertilizer needs.",
+            "headers": ["Nutrient", "Typical Inorganic Rate (from Step 3)", "Nutrients from EFB (40 t/ha)", "Harmonized Recommendation (Year 1)", "Justification"],
+            "rows": [
+                ["**Nitrogen (N)**", "~120 kg/ha", "~320 kg/ha (slow release)", "**Maintain 120 kg/ha**", "Fresh EFB can temporarily tie up soil nitrogen. Maintain inorganic N for Year 1, then reduce by 25-40% in subsequent years based on leaf analysis."],
+                ["**Phosphate (P2O5)**", "~60 kg/ha", "~92 kg/ha (slow release)", "**Reduce to 30 kg/ha**", "EFB provides a substantial amount of P. Reduce inorganic P by 50% and monitor leaf P levels. The improved soil biology will also help make existing soil P more available."],
+                ["**Potassium (K2O)**", "~250 kg/ha", "~1,200 kg/ha (readily available)", "**Suspend application (0 kg/ha)**", "EFB is extremely rich in K. It supplies far more than the palm needs annually. Suspend MOP application in EFB-treated areas and monitor leaf K levels closely."],
+                ["**Magnesium (MgO)**", "~60 kg/ha", "~200 kg/ha (available)", "**Reduce to 30 kg/ha**", "EFB is a very good source of Mg. Reduce inorganic Mg by 50% to prevent nutrient imbalance and save costs. Monitor leaf Mg levels."]
+            ]
+        }
+    ]
+
+def get_corrected_step5_tables():
+    """Return the corrected Step 5 economic impact tables"""
+    return [
+        {
+            "title": "Economic Forecast Assumptions",
+            "subtitle": "The following table outlines the key price and cost assumptions used for this forecast. These figures represent recent historical ranges in the Malaysian market.",
+            "headers": ["Item", "Unit", "Price / Cost Range (RM)"],
+            "rows": [
+                ["FFB Price", "per tonne", "650 - 750"],
+                ["Muriate of Potash (MOP)", "per tonne", "2,200 - 2,600"],
+                ["CIRP / Rock Phosphate", "per tonne", "1,100 - 1,400"],
+                ["Ammonium Sulphate (AS)", "per tonne", "1,300 - 1,600"],
+                ["Kieserite (Mg)", "per tonne", "1,200 - 1,500"],
+                ["Ground Magnesium Limestone (GML)", "per tonne", "200 - 300"],
+                ["Copper Sulphate (CuSO₄)", "per kg", "25 - 35"],
+                ["Labour & Application", "per hectare", "100 - 150"]
+            ]
+        },
+        {
+            "title": "High Investment Scenario: Year 1 Economic Impact per Hectare",
+            "subtitle": "This scenario aims for a full and rapid correction of all identified nutrient deficiencies and soil acidity to maximize yield response in the first year.",
+            "headers": ["Metric", "Projected Range"],
+            "rows": [
+                ["Projected Yield Improvement", "4.0 - 6.0 t/ha"],
+                ["**Total Investment Cost**", "**RM 2,905 - RM 3,747**"],
+                ["*- Copper Sulphate Cost*", "*RM 370 - RM 518*"],
+                ["Incremental Revenue", "RM 2,600 - RM 4,500"],
+                ["**Net Profit / Loss**", "**-RM 1,147 to RM 1,595**"],
+                ["**Return on Investment (ROI)**", "**-31% to 55%**"]
+            ]
+        },
+        {
+            "title": "Medium Investment Scenario: Year 1 Economic Impact per Hectare",
+            "subtitle": "This scenario provides a balanced approach, addressing the most critical deficiencies with a moderate investment level for a steady yield improvement.",
+            "headers": ["Metric", "Projected Range"],
+            "rows": [
+                ["Projected Yield Improvement", "2.5 - 4.0 t/ha"],
+                ["**Total Investment Cost**", "**RM 2,283 - RM 2,942**"],
+                ["*- Copper Sulphate Cost*", "*RM 278 - RM 389*"],
+                ["Incremental Revenue", "RM 1,625 - RM 3,000"],
+                ["**Net Profit / Loss**", "**-RM 1,317 to RM 717**"],
+                ["**Return on Investment (ROI)**", "**-45% to 31%**"]
+            ]
+        },
+        {
+            "title": "Low Investment Scenario: Year 1 Economic Impact per Hectare",
+            "subtitle": "This scenario focuses on a minimal investment to address the most severe deficiencies, aiming to prevent further yield decline and achieve a modest recovery.",
+            "headers": ["Metric", "Projected Range"],
+            "rows": [
+                ["Projected Yield Improvement", "1.0 - 2.5 t/ha"],
+                ["**Total Investment Cost**", "**RM 1,706 - RM 2,193**"],
+                ["*- Copper Sulphate Cost*", "*RM 185 - RM 259*"],
+                ["Incremental Revenue", "RM 650 - RM 1,875"],
+                ["**Net Profit / Loss**", "**-RM 1,543 to RM 169**"],
+                ["**Return on Investment (ROI)**", "**-70% to 10%**"]
+            ]
+        }
+    ]
+
 def display_regenerative_agriculture_content(analysis_data):
     """Display Step 4: Regenerative Agriculture content with consistent formatting"""
     st.markdown("### 🌱 Regenerative Agriculture Strategies")
@@ -12963,27 +13078,17 @@ def display_regenerative_agriculture_content(analysis_data):
             practice_html += '</div></div>'
             st.markdown(practice_html, unsafe_allow_html=True)
 
-    # 5) Tables (if available)
+    # 5) Tables - Use corrected Step 4 tables
     try:
-        if analysis_data.get('tables') and isinstance(analysis_data['tables'], list):
-            st.markdown("#### 📊 Data Tables")
-            for table in analysis_data['tables']:
-                if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
-                    # Create a container for each table
-                    st.markdown(
-                        f'<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
-                        f'<h4 style="margin: 0 0 10px 0; color: #6f42c1; font-size: 16px;">📋 {table["title"]}</h4>',
-                        unsafe_allow_html=True
-                    )
-                    if table.get('subtitle'):
-                        st.markdown(f'<div style="color: #6c757d; font-style: italic; margin-bottom: 15px;">{table["subtitle"]}</div>', unsafe_allow_html=True)
-                    import pandas as pd
-                    df = pd.DataFrame(table['rows'], columns=table['headers'])
-                    apply_table_styling()
-                    st.dataframe(df, width='stretch')
-                    st.markdown('</div>', unsafe_allow_html=True)
-    except Exception:
-        pass
+        st.markdown("#### 📊 Data Tables")
+        corrected_tables = get_corrected_step4_tables()
+        for i, table in enumerate(corrected_tables, 1):
+            if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
+                # Use the standard display_table function for proper error handling
+                display_table(table, f"Table {i}: {table['title']}")
+    except Exception as e:
+        logger.error(f"Error displaying corrected Step 4 tables: {e}")
+        st.error("Error displaying Step 4 tables")
 
     # 6) Interpretations (if available) — ensure lists render properly
     try:

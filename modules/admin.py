@@ -650,12 +650,30 @@ For all three approaches:
 - Assign cost label: Low / Medium / High
 
 Step 4: Regenerative Agriculture Strategies
-Integrate practices into each investment option:
-- Cover cropping
-- Reduced tillage
-- Composting
-- Biochar
-- Empty Fruit Bunch (EFB) mulching
+Integrate practices into each investment option and provide the following EXACT tables:
+
+Table 1: Regenerative Agriculture Practices for Soil Health Improvement
+This table summarizes the key practices, their application rates, and their effects on your soil and palms.
+
+Practice | Recommended Rate | Mechanism (How it Works) | Agronomic Effects & Soil Benefits | Short-Term Effect (1-12 months) | Long-Term Effect (1-5 years)
+---|---|---|---|---|---
+**Empty Fruit Bunch (EFB) Mulching** | 40-60 tonnes/ha/year in inter-rows | EFB acts as a giant sponge and slow-release fertilizer. It covers the soil, retaining moisture and slowly breaking down to release a huge amount of nutrients, especially Potassium (K). | Suppresses weeds, reduces soil erosion, increases soil moisture, adds massive amounts of organic matter and K. Increases Organic Carbon (OC) by ~0.2-0.4% annually and CEC by 1-2 meq%. | Improved soil moisture, weed suppression, initial release of K. | Dramatically improved soil structure, fertility, water holding capacity, and sustained high levels of soil K and Mg.
+**Leguminous Cover Crops (LCCs)** | Seed mix of *Pueraria javanica, Calopogonium mucunoides, Centrosema pubescens* at 3-5 kg/ha. | These plants work with bacteria in their roots to pull nitrogen from the air and store it in the soil for free (Nitrogen Fixation). Their roots also improve soil structure. | Adds 100-150 kg N/ha/year, prevents soil erosion, improves soil aeration, and adds organic matter when it dies back. Reduces soil temperature. | Weed suppression, erosion control, initial N contribution. | Sustained nitrogen supply, significant increase in soil organic matter, and improved soil biodiversity.
+**Composting (EFB + POME)** | 5-10 tonnes/ha/year applied around the palm base. | This practice pre-digests the raw EFB and POME (Palm Oil Mill Effluent), creating a stable, nutrient-rich compost that is easy for the soil and palms to use (stabilized organic matter). | Provides a balanced, slow-release source of nutrients, boosts beneficial soil microbes, improves soil structure, and increases the soil's ability to hold nutrients (CEC). | Immediate supply of available nutrients and stimulation of soil microbial activity. | Builds a rich, dark topsoil layer with high fertility and excellent structure.
+**Biochar Application** | 5 tonnes/ha (one-time application during replanting or field prep) | This is a special charcoal (biochar) made from crop waste. Its microscopic honeycomb structure provides a permanent home for water, nutrients, and microbes. | Dramatically increases nutrient holding capacity (CEC), improves water retention, raises soil pH, and reduces nutrient leaching. Can increase CEC by 2-4 meq% permanently. | Improved fertilizer efficiency and water availability to roots. | Permanent improvement in soil structure and fertility that lasts for decades.
+
+Harmonizing Fertilizer Use with Regenerative Practices
+The best part about these practices is that they give back to the soil, reducing your reliance on chemical fertilizers. Based on the nutrient content of EFB, we can adjust the fertilizer plan from Step 3. This is not about stopping fertilizer, but about using it smarter.
+
+Table 2: Estimated Nutrient Contribution & Adjusted Fertilizer Rates (High-Investment Scenario)
+This table shows how applying 40 tonnes/ha of EFB changes your fertilizer needs.
+
+Nutrient | Typical Inorganic Rate (from Step 3) | Nutrients from EFB (40 t/ha) | Harmonized Recommendation (Year 1) | Justification
+---|---|---|---|---
+**Nitrogen (N)** | ~120 kg/ha | ~320 kg/ha (slow release) | **Maintain 120 kg/ha** | Fresh EFB can temporarily tie up soil nitrogen. Maintain inorganic N for Year 1, then reduce by 25-40% in subsequent years based on leaf analysis.
+**Phosphate (P2O5)** | ~60 kg/ha | ~92 kg/ha (slow release) | **Reduce to 30 kg/ha** | EFB provides a substantial amount of P. Reduce inorganic P by 50% and monitor leaf P levels. The improved soil biology will also help make existing soil P more available.
+**Potassium (K2O)** | ~250 kg/ha | ~1,200 kg/ha (readily available) | **Suspend application (0 kg/ha)** | EFB is extremely rich in K. It supplies far more than the palm needs annually. Suspend MOP application in EFB-treated areas and monitor leaf K levels closely.
+**Magnesium (MgO)** | ~60 kg/ha | ~200 kg/ha (available) | **Reduce to 30 kg/ha** | EFB is a very good source of Mg. Reduce inorganic Mg by 50% to prevent nutrient imbalance and save costs. Monitor leaf Mg levels.
 
 For each practice:
 - Explain mechanism (e.g., soil health, nutrient cycling, water retention, biodiversity)
@@ -663,11 +681,60 @@ For each practice:
 - Quantify benefits where possible
 
 Step 5: Economic Impact Forecast
-If yield and land size are available:
-- Estimate % yield improvement for each solution
-- Provide cost-benefit overview in RM (range values)
-- Include ROI estimates in RM for each scenario
-- Add footnote: RM values are approximate and represent recent historical price and cost ranges
+If yield and land size are available, provide the following EXACT economic forecast tables:
+
+Economic Forecast Assumptions
+The following table outlines the key price and cost assumptions used for this forecast. These figures represent recent historical ranges in the Malaysian market.
+
+Item | Unit | Price / Cost Range (RM)
+---|---|---|---
+FFB Price | per tonne | 650 - 750
+Muriate of Potash (MOP) | per tonne | 2,200 - 2,600
+CIRP / Rock Phosphate | per tonne | 1,100 - 1,400
+Ammonium Sulphate (AS) | per tonne | 1,300 - 1,600
+Kieserite (Mg) | per tonne | 1,200 - 1,500
+Ground Magnesium Limestone (GML) | per tonne | 200 - 300
+Copper Sulphate (CuSO₄) | per kg | 25 - 35
+Labour & Application | per hectare | 100 - 150
+
+High Investment Scenario
+This scenario aims for a full and rapid correction of all identified nutrient deficiencies and soil acidity to maximize yield response in the first year.
+
+Metric | Projected Range
+---|---
+Projected Yield Improvement | 4.0 - 6.0 t/ha
+**Total Investment Cost** | **RM 2,905 - RM 3,747**
+*- Copper Sulphate Cost* | *RM 370 - RM 518*
+Incremental Revenue | RM 2,600 - RM 4,500
+**Net Profit / Loss** | **-RM 1,147 to RM 1,595**
+**Return on Investment (ROI)** | **-31% to 55%**
+
+Medium Investment Scenario
+This scenario provides a balanced approach, addressing the most critical deficiencies with a moderate investment level for a steady yield improvement.
+
+Metric | Projected Range
+---|---
+Projected Yield Improvement | 2.5 - 4.0 t/ha
+**Total Investment Cost** | **RM 2,283 - RM 2,942**
+*- Copper Sulphate Cost* | *RM 278 - RM 389*
+Incremental Revenue | RM 1,625 - RM 3,000
+**Net Profit / Loss** | **-RM 1,317 to RM 717**
+**Return on Investment (ROI)** | **-45% to 31%**
+
+Low Investment Scenario
+This scenario focuses on a minimal investment to address the most severe deficiencies, aiming to prevent further yield decline and achieve a modest recovery.
+
+Metric | Projected Range
+---|---
+Projected Yield Improvement | 1.0 - 2.5 t/ha
+**Total Investment Cost** | **RM 1,706 - RM 2,193**
+*- Copper Sulphate Cost* | *RM 185 - RM 259*
+Incremental Revenue | RM 650 - RM 1,875
+**Net Profit / Loss** | **-RM 1,543 to RM 169**
+**Return on Investment (ROI)** | **-70% to 10%**
+
+Footnote: RM values are approximate and represent recent historical price and cost ranges.
+Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.
 
 Step 6: Forecast Graph
 Generate yield projection graph (5 years):
