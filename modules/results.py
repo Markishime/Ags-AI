@@ -5470,8 +5470,8 @@ def display_enhanced_step_result(step_result, step_number):
                     for sub_k, sub_v in value.items():
                         if sub_v is not None and sub_v != "":
                             # Apply persona sanitization to remove consulting agronomist language
-                        sanitized_sub_v = sanitize_persona_and_enforce_article(str(sub_v))
-                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_sub_v}")
+                            sanitized_sub_v = sanitize_persona_and_enforce_article(str(sub_v))
+                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_sub_v}")
                 elif isinstance(value, list) and value:
                     st.markdown(f"**{key.replace('_', ' ').title()}:**")
                     for idx, item in enumerate(value, 1):
