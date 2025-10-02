@@ -4,10 +4,59 @@ def normalize_markdown_block_for_step3(text):
     - Ensures numbered sections like '**1. ...**' start on a new line
     - Adds newlines before list bullets and headings
     - Preserves bold markers while improving spacing
+    - Fixes Step 3 formatting issues
+    - Removes persona language
     """
     try:
         import re
         s = text
+        
+        # First apply persona sanitization
+        s = sanitize_persona_and_enforce_article(s)
+        
+        # Fix the main heading
+        s = re.sub(r'### The Step 3:', '### Step 3:', s)
+        
+        # Fix section headings to be properly formatted
+        s = re.sub(r'#### Problem (\d+):', r'#### Problem \1:', s)
+        
+        # Fix approach headings to be properly formatted
+        s = re.sub(r'(\d+)\. High-Investment Approach', r'**\1. High-Investment Approach**', s)
+        s = re.sub(r'(\d+)\. Moderate-Investment Approach', r'**\1. Moderate-Investment Approach**', s)
+        s = re.sub(r'(\d+)\. Low-Investment Approach', r'**\1. Low-Investment Approach**', s)
+        
+        # Fix subsection headings
+        s = re.sub(r'Products & Rates:', r'**Products & Rates:**', s)
+        s = re.sub(r'Timing & Method:', r'**Timing & Method:**', s)
+        s = re.sub(r'Agronomic Effect:', r'**Agronomic Effect:**', s)
+        s = re.sub(r'Cost:', r'**Cost:**', s)
+        
+        # Fix list items to be properly formatted
+        s = re.sub(r'\* Lime:', r'- **Lime:**', s)
+        s = re.sub(r'\* Potassium:', r'- **Potassium:**', s)
+        s = re.sub(r'\* Phosphorus:', r'- **Phosphorus:**', s)
+        s = re.sub(r'\* Magnesium:', r'- **Magnesium:**', s)
+        s = re.sub(r'\* Nitrogen:', r'- **Nitrogen:**', s)
+        s = re.sub(r'\* Organics:', r'- **Organics:**', s)
+        s = re.sub(r'\* Copper:', r'- **Copper:**', s)
+        s = re.sub(r'\* Zinc:', r'- **Zinc:**', s)
+        
+        # Fix timing and method list items
+        s = re.sub(r'\* GML:', r'- **GML:**', s)
+        s = re.sub(r'\* Rock Phosphate:', r'- **Rock Phosphate:**', s)
+        s = re.sub(r'\* MOP,', r'- **MOP, Kieserite, Urea:**', s)
+        s = re.sub(r'\* EFB:', r'- **EFB:**', s)
+        s = re.sub(r'\* MOP & Urea:', r'- **MOP & Urea:**', s)
+        s = re.sub(r'\* Apply once as a corrective dose:', r'- **Apply once as a corrective dose:**', s)
+        s = re.sub(r'\* Apply once, broadcast in the palm circle:', r'- **Apply once, broadcast in the palm circle:**', s)
+        s = re.sub(r'\* Apply Copper Sulphate once:', r'- **Apply Copper Sulphate once:**', s)
+        
+        # Fix cost indicators
+        s = re.sub(r'Cost: High', r'**Cost:** High', s)
+        s = re.sub(r'Cost: Medium', r'**Cost:** Medium', s)
+        s = re.sub(r'Cost: Low', r'**Cost:** Low', s)
+        s = re.sub(r'Cost: High \(relative to micronutrient costs\)', r'**Cost:** High (relative to micronutrient costs)', s)
+        
         # Ensure bold-number headings start on new line
         s = re.sub(r"\s*\*\*(\d+\.)\s*", r"\n\n**\1 ", s)
         # Ensure bold subheadings like '**High-investment approach**' start on new line
@@ -5159,13 +5208,73 @@ def display_step_block(step_result, step_number, step_title):
     # Display the enhanced step result content
     display_enhanced_step_result(step_result, step_number)
 
+def fix_step3_formatting(text):
+    """Fix Step 3 formatting issues to ensure proper structure and readability"""
+    if not isinstance(text, str):
+        return text
+    
+    try:
+        import re
+        
+        # Fix the main heading
+        text = re.sub(r'### The Step 3:', '### Step 3:', text)
+        
+        # Fix section headings to be properly formatted
+        text = re.sub(r'#### Problem (\d+):', r'#### Problem \1:', text)
+        
+        # Fix approach headings to be properly formatted
+        text = re.sub(r'(\d+)\. High-Investment Approach', r'**\1. High-Investment Approach**', text)
+        text = re.sub(r'(\d+)\. Moderate-Investment Approach', r'**\1. Moderate-Investment Approach**', text)
+        text = re.sub(r'(\d+)\. Low-Investment Approach', r'**\1. Low-Investment Approach**', text)
+        
+        # Fix subsection headings
+        text = re.sub(r'Products & Rates:', r'**Products & Rates:**', text)
+        text = re.sub(r'Timing & Method:', r'**Timing & Method:**', text)
+        text = re.sub(r'Agronomic Effect:', r'**Agronomic Effect:**', text)
+        text = re.sub(r'Cost:', r'**Cost:**', text)
+        
+        # Fix list items to be properly formatted
+        text = re.sub(r'\* Lime:', r'- **Lime:**', text)
+        text = re.sub(r'\* Potassium:', r'- **Potassium:**', text)
+        text = re.sub(r'\* Phosphorus:', r'- **Phosphorus:**', text)
+        text = re.sub(r'\* Magnesium:', r'- **Magnesium:**', text)
+        text = re.sub(r'\* Nitrogen:', r'- **Nitrogen:**', text)
+        text = re.sub(r'\* Organics:', r'- **Organics:**', text)
+        text = re.sub(r'\* Copper:', r'- **Copper:**', text)
+        text = re.sub(r'\* Zinc:', r'- **Zinc:**', text)
+        
+        # Fix timing and method list items
+        text = re.sub(r'\* GML:', r'- **GML:**', text)
+        text = re.sub(r'\* Rock Phosphate:', r'- **Rock Phosphate:**', text)
+        text = re.sub(r'\* MOP,', r'- **MOP, Kieserite, Urea:**', text)
+        text = re.sub(r'\* EFB:', r'- **EFB:**', text)
+        text = re.sub(r'\* MOP & Urea:', r'- **MOP & Urea:**', text)
+        text = re.sub(r'\* Apply once as a corrective dose:', r'- **Apply once as a corrective dose:**', text)
+        text = re.sub(r'\* Apply once, broadcast in the palm circle:', r'- **Apply once, broadcast in the palm circle:**', text)
+        text = re.sub(r'\* Apply Copper Sulphate once:', r'- **Apply Copper Sulphate once:**', text)
+        
+        # Fix cost indicators
+        text = re.sub(r'Cost: High', r'**Cost:** High', text)
+        text = re.sub(r'Cost: Medium', r'**Cost:** Medium', text)
+        text = re.sub(r'Cost: Low', r'**Cost:** Low', text)
+        text = re.sub(r'Cost: High \(relative to micronutrient costs\)', r'**Cost:** High (relative to micronutrient costs)', text)
+        
+        # Clean up extra spaces
+        text = re.sub(r'\s{2,}', ' ', text)
+        
+        return text
+        
+    except Exception as e:
+        logger.error(f"Error fixing Step 3 formatting: {e}")
+        return text
+
 def sanitize_persona_and_enforce_article(text):
-    """Remove persona phrases and ensure the text starts with 'The'.
+    """Remove persona phrases and intelligently handle article usage.
 
     - Strips phrases like 'As an experienced agronomist', 'As your consulting agronomist',
       'As an expert', 'my analysis', 'I recommend', etc.
-    - Replaces 'our' with 'The' and removes 'my' and other first-person pronouns
-    - If first non-space word is not 'The' (case-insensitive), prepend 'The ' (with capitalization).
+    - Replaces 'our' with appropriate articles and removes 'my' and other first-person pronouns
+    - Intelligently adds 'The' only when grammatically appropriate
     """
     try:
         if not isinstance(text, str):
@@ -5247,7 +5356,7 @@ def sanitize_persona_and_enforce_article(text):
         # Normalize extra spaces introduced by removals
         cleaned = re.sub(r"\s{2,}", ' ', cleaned).strip()
 
-        # Enforce leading 'The' and fix leading 'Your/your'
+        # Intelligently handle leading articles
         if cleaned:
             # Trim leading whitespace but preserve it in prefix
             m = re.search(r"[A-Za-z]", cleaned)
@@ -5255,12 +5364,24 @@ def sanitize_persona_and_enforce_article(text):
                 start_idx = m.start()
                 prefix = cleaned[:start_idx]
                 remainder = cleaned[start_idx:]
-                # If starts with 'Your ' or 'your ', convert to 'The '
+                
+                # If starts with 'Your ' or 'your ', convert to appropriate article
                 if re.match(r"^(Your|your)\s+", remainder):
-                    remainder = re.sub(r"^(Your|your)\s+", 'The ', remainder)
-                # Now ensure it starts with 'The '
-                if not remainder.lower().startswith('the '):
-                    remainder = 'The ' + remainder if remainder else 'The '
+                    remainder = re.sub(r"^(Your|your)\s+", '', remainder)
+                
+                # Only add 'The' if it makes grammatical sense
+                # Don't add 'The' if the sentence already starts with:
+                # - Proper nouns (capitalized words that aren't articles)
+                # - Numbers
+                # - Articles (a, an, the)
+                # - Prepositions (in, on, at, etc.)
+                # - Conjunctions (and, but, or, etc.)
+                if not re.match(r"^(The|A|An|In|On|At|And|But|Or|Here|This|That|These|Those|Step|Table|Figure|Chart|Graph|Analysis|Results|Summary|Findings|Recommendations|Solutions|Problems|Issues|Data|Information|Report|Assessment|Evaluation|Review|Overview|Introduction|Conclusion|Discussion|Methodology|Approach|Strategy|Plan|Program|System|Process|Procedure|Technique|Method|Tool|Resource|Material|Equipment|Fertilizer|Nutrient|Soil|Leaf|Palm|Plantation|Farm|Field|Area|Region|Location|Site|Property|Estate|Garden|Crop|Yield|Production|Harvest|Growth|Development|Health|Condition|Status|Level|Rate|Amount|Quantity|Value|Price|Cost|Budget|Investment|Return|Profit|Loss|Benefit|Advantage|Disadvantage|Risk|Challenge|Opportunity|Goal|Objective|Target|Aim|Purpose|Function|Role|Importance|Significance|Impact|Effect|Influence|Contribution|Benefit|Advantage|Disadvantage|Risk|Challenge|Opportunity|Goal|Objective|Target|Aim|Purpose|Function|Role|Importance|Significance|Impact|Effect|Influence|Contribution)\s+", remainder, re.IGNORECASE):
+                    # Check if the sentence would benefit from 'The'
+                    # Add 'The' for general nouns that need an article
+                    if re.match(r"^(soil|leaf|palm|plantation|farm|field|area|region|location|site|property|estate|garden|crop|yield|production|harvest|growth|development|health|condition|status|level|rate|amount|quantity|value|price|cost|budget|investment|return|profit|loss|benefit|advantage|disadvantage|risk|challenge|opportunity|goal|objective|target|aim|purpose|function|role|importance|significance|impact|effect|influence|contribution|analysis|results|summary|findings|recommendations|solutions|problems|issues|data|information|report|assessment|evaluation|review|overview|introduction|conclusion|discussion|methodology|approach|strategy|plan|program|system|process|procedure|technique|method|tool|resource|material|equipment|fertilizer|nutrient)\s+", remainder, re.IGNORECASE):
+                        remainder = 'The ' + remainder
+                
                 cleaned = prefix + remainder
         return cleaned
     except Exception:
