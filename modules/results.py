@@ -154,7 +154,6 @@ import pandas as pd
 import plotly.graph_objects as go
 # Use our configured Firestore client instead of direct import
 import logging
-from bs4 import BeautifulSoup
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -5170,7 +5169,6 @@ def sanitize_persona_and_enforce_article(text):
     try:
         if not isinstance(text, str):
             return text
-        original_text = text
         cleaned = text
         # Remove common persona prefixes (at start of text OR start of any line)
         import re
@@ -5181,9 +5179,6 @@ def sanitize_persona_and_enforce_article(text):
             r"^[\t ]*As\s+a\s+consulting\s+agronomist[,\s:]+",
             r"^[\t ]*As\s+your\s+agronomist[,\s:]+",
             r"^[\t ]*As\s+an\s+agronomist[,\s:]+",
-            r"^[\t ]*As\s+an\s+experienced\s+agronomist\s+in\s+Malaysia[,\s:]+",
-            r"^[\t ]*As\s+your\s+consulting\s+agronomist,\s+my\s+analysis[,\s:]+",
-            r"^[\t ]*As\s+your\s+consulting\s+agronomist[,\s:]*my\s+analysis[,\s:]+",
         ]
         for pattern in persona_line_patterns:
             cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
@@ -5192,24 +5187,9 @@ def sanitize_persona_and_enforce_article(text):
             r"(\n|^)\s*As\s+an\s+experienced\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+your\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+an\s+agronomist[,\s:]+",
-            r"(\n|^)\s*As\s+an\s+experienced\s+agronomist\s+in\s+Malaysia[,\s:]+",
-            r"(\n|^)\s*As\s+your\s+consulting\s+agronomist,\s+my\s+analysis[,\s:]+",
         ]
         for pattern in inline_persona_patterns:
             cleaned = re.sub(pattern, '\n', cleaned, flags=re.IGNORECASE)
-        
-        # Remove persona phrases anywhere in the text (more aggressive)
-        aggressive_persona_patterns = [
-            r"\bAs\s+an\s+experienced\s+agronomist\s+in\s+Malaysia[,\s:]+",
-            r"\bAs\s+an\s+experienced\s+agronomist[,\s:]+",
-            r"\bAs\s+your\s+consulting\s+agronomist[,\s:]+",
-            r"\bAs\s+your\s+agronomist[,\s:]+",
-            r"\bAs\s+an\s+agronomist[,\s:]+",
-            r"\bAs\s+your\s+consulting\s+agronomist,\s+my\s+analysis\b",
-            r"\bAs\s+your\s+consulting\s+agronomist[,\s:]*my\s+analysis\b",
-        ]
-        for pattern in aggressive_persona_patterns:
-            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
 
         # Replace specific possessive pronouns with "The"
         possessive_replacements = [
@@ -5221,7 +5201,6 @@ def sanitize_persona_and_enforce_article(text):
         # Remove/replace first-person phrases and possessive pronouns
         first_person_replacements = [
             (r"\bmy\s+analysis\b", ""),
-            (r"\bmy\s+analysis\s+of\b", "analysis of"),
             (r"\bmy\s+first\s+step\b", "first step"),
             (r"\bmy\s+recommendation\b", "recommendation"),
             (r"\bmy\s+assessment\b", "assessment"),
@@ -5238,45 +5217,35 @@ def sanitize_persona_and_enforce_article(text):
         for pattern, replacement in first_person_replacements:
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
 
-        # Fix specific problematic patterns
-        problematic_patterns = [
-            (r"\bThe\s+in\s+Malaysia\b", "In Malaysia"),
-            (r"\bThe\s+In\s+Malaysia\b", "In Malaysia"),  # Handle capitalized version
-            (r"\bThe\s+in\s+", "In "),
-            (r"\bThe\s+assessment\b", "Assessment"),
-            (r"\bThe\s+analysis\b", "Analysis"),
-            (r"\bThe\s+primary\b", "Primary"),
-            (r"\bThe\s+immediate\b", "Immediate"),
-        ]
-        for pattern, replacement in problematic_patterns:
-            cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
-
         # Normalize extra spaces introduced by removals
         cleaned = re.sub(r"\s{2,}", ' ', cleaned).strip()
 
-        # Enforce leading 'The' and fix leading 'Your/your'
+        # More selective 'The' enforcement - only for first statement if grammatically appropriate
         if cleaned:
-            # Trim leading whitespace but preserve it in prefix
+            # For detailed analysis sections, be more selective about adding 'The'
+            # Only add 'The' to the very first word/sentence if it makes grammatical sense
             m = re.search(r"[A-Za-z]", cleaned)
             if m:
                 start_idx = m.start()
                 prefix = cleaned[:start_idx]
                 remainder = cleaned[start_idx:]
+
                 # If starts with 'Your ' or 'your ', convert to 'The '
                 if re.match(r"^(Your|your)\s+", remainder):
                     remainder = re.sub(r"^(Your|your)\s+", 'The ', remainder)
-                # Now ensure it starts with 'The '
-                if not remainder.lower().startswith('the '):
-                    remainder = 'The ' + remainder if remainder else 'The '
+                # Only enforce 'The' at the very beginning if the text appears to be a complete statement
+                # that would benefit from starting with 'The' (not already a proper noun or specific term)
+                elif not remainder.lower().startswith('the '):
+                    # Check if this looks like it should start with 'The' (analysis, report, etc.)
+                    first_word = remainder.split()[0].lower() if remainder.split() else ''
+                    analysis_starters = ['analysis', 'report', 'assessment', 'evaluation', 'review', 'study', 'examination']
+                    if first_word in analysis_starters:
+                        remainder = 'The ' + remainder
+                    # For other cases, leave as-is to avoid forcing 'The' inappropriately
+
                 cleaned = prefix + remainder
-
-        # Debug logging for persona removal
-        if original_text != cleaned:
-            logger.info(f"🔧 Persona sanitization: '{original_text[:100]}...' -> '{cleaned[:100]}...'")
-
         return cleaned
-    except Exception as e:
-        logger.error(f"Error in sanitize_persona_and_enforce_article: {e}")
+    except Exception:
         return text
 
 def display_enhanced_step_result(step_result, step_number):
@@ -5455,20 +5424,6 @@ def display_enhanced_step_result(step_result, step_number):
         pass
 
     # 5. TABLES SECTION - Show if available (enabled for all steps)
-    # First, try to parse tables from formatted_analysis for all steps
-    formatted_analysis = analysis_data.get('formatted_analysis', '')
-    if formatted_analysis and isinstance(formatted_analysis, str):
-        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
-        if all_tables:
-            st.markdown("### 📊 Data Tables")
-            for i, table in enumerate(all_tables, 1):
-                try:
-                    display_table(table, f"Table {i}: {table['title']}")
-                except Exception as table_error:
-                    logger.error(f"Error displaying table {i} for step {step_number}: {table_error}")
-                    st.error(f"Error displaying table {i}")
-
-    # Also check for tables in the 'tables' field (fallback)
     if 'tables' in analysis_data and analysis_data['tables']:
         st.markdown("### 📊 Data Tables")
         tables = analysis_data['tables']
@@ -5612,402 +5567,51 @@ def display_visualization(viz_data, index, step_number):
     else:
         st.info(f"Visualization type '{viz_type}' not supported")
 
-def parse_html_tables_from_formatted_analysis(formatted_text):
-    """Parse HTML tables from formatted analysis text and convert to standard table format"""
-    import re
-    
-    if not formatted_text or not isinstance(formatted_text, str):
-        return []
-    
-    try:
-        # Parse HTML content
-        soup = BeautifulSoup(formatted_text, 'html.parser')
-        tables = soup.find_all('table')
-        
-        parsed_tables = []
-        for i, table in enumerate(tables, 1):
-            try:
-                # Extract table title from preceding heading or use default
-                title = f"Table {i}"
-                
-                # Look for preceding h3, h4, h5 tags for title
-                prev_element = table.find_previous(['h3', 'h4', 'h5'])
-                if prev_element:
-                    title = prev_element.get_text().strip()
-                
-                # Extract headers
-                headers = []
-                header_row = table.find('thead')
-                if header_row:
-                    header_cells = header_row.find_all(['th', 'td'])
-                    headers = [cell.get_text().strip() for cell in header_cells]
-                else:
-                    # If no thead, try first row
-                    first_row = table.find('tr')
-                    if first_row:
-                        header_cells = first_row.find_all(['th', 'td'])
-                        headers = [cell.get_text().strip() for cell in header_cells]
-                
-                if not headers:
-                    continue
-                
-                # Extract rows
-                rows = []
-                tbody = table.find('tbody')
-                if tbody:
-                    row_elements = tbody.find_all('tr')
-                else:
-                    row_elements = table.find_all('tr')[1:]  # Skip header row
-                
-                for row in row_elements:
-                    cells = row.find_all(['td', 'th'])
-                    if cells:
-                        row_data = []
-                        for cell in cells:
-                            # Handle colspan
-                            colspan = int(cell.get('colspan', 1))
-                            cell_text = cell.get_text().strip()
-                            row_data.append(cell_text)
-                            # Add empty cells for colspan
-                            for _ in range(colspan - 1):
-                                row_data.append('')
-                        
-                        # Ensure row has same length as headers
-                        while len(row_data) < len(headers):
-                            row_data.append('')
-                        row_data = row_data[:len(headers)]  # Truncate if too long
-                        
-                        rows.append(row_data)
-                
-                if rows:
-                    parsed_tables.append({
-                        'title': title,
-                        'headers': headers,
-                        'rows': rows,
-                        'subtitle': None
-                    })
-                    
-            except Exception as e:
-                logger.error(f"Error parsing HTML table {i}: {e}")
-                continue
-        
-        logger.info(f"✅ Parsed {len(parsed_tables)} HTML tables from formatted analysis")
-        return parsed_tables
-        
-    except Exception as e:
-        logger.error(f"Error parsing HTML tables: {e}")
-        return []
-
-def parse_all_tables_from_formatted_analysis(formatted_text):
-    """Parse all types of tables from formatted analysis text and convert to standard table format"""
-    import re
-
-    if not formatted_text or not isinstance(formatted_text, str):
-        return []
-
-    all_tables = []
-
-    # Extract table titles from headings
-    def get_table_title(lines, table_start_index):
-        """Look backwards from table start to find a heading"""
-        for i in range(table_start_index - 1, max(-1, table_start_index - 10), -1):
-            line = lines[i].strip()
-            if line.startswith('### ') or line.startswith('#### ') or line.startswith('**') or line.startswith('*'):
-                title = line.lstrip('#').lstrip('*').strip()
-                if title and len(title) > 3:  # Avoid very short titles
-                    return title
-        return None
-    
-    # First, try to parse HTML tables
-    try:
-        soup = BeautifulSoup(formatted_text, 'html.parser')
-        html_tables = soup.find_all('table')
-        
-        for i, table in enumerate(html_tables, 1):
-            try:
-                # Extract table title from preceding heading or use default
-                title = f"Table {i}"
-
-                # Look for preceding h3, h4, h5 tags for title
-                prev_element = table.find_previous(['h3', 'h4', 'h5'])
-                if prev_element:
-                    title = prev_element.get_text().strip()
-
-                # Also try to find markdown-style headings in text before the table
-                if title == f"Table {i}":
-                    # Look for ### or #### headings before the table in the raw text
-                    table_text = str(table)
-                    table_pos = formatted_text.find(table_text)
-                    if table_pos > 0:
-                        before_table = formatted_text[:table_pos]
-                        lines_before = before_table.split('\n')
-                        for line in reversed(lines_before[-10:]):  # Check last 10 lines before table
-                            line = line.strip()
-                            if line.startswith('### ') or line.startswith('#### '):
-                                title = line.lstrip('#').strip()
-                                break
-
-                # Extract headers
-                headers = []
-                header_row = table.find('thead')
-                if header_row:
-                    header_cells = header_row.find_all(['th', 'td'])
-                    headers = [cell.get_text().strip() for cell in header_cells]
-                else:
-                    # If no thead, try first row
-                    first_row = table.find('tr')
-                    if first_row:
-                        header_cells = first_row.find_all(['th', 'td'])
-                        headers = [cell.get_text().strip() for cell in header_cells]
-
-                if not headers:
-                    continue
-                
-                # Extract rows
-                rows = []
-                tbody = table.find('tbody')
-                if tbody:
-                    row_elements = tbody.find_all('tr')
-                else:
-                    row_elements = table.find_all('tr')[1:]  # Skip header row
-                
-                for row in row_elements:
-                    cells = row.find_all(['td', 'th'])
-                    if cells:
-                        row_data = []
-                        for cell in cells:
-                            # Handle colspan
-                            colspan = int(cell.get('colspan', 1))
-                            cell_text = cell.get_text().strip()
-                            row_data.append(cell_text)
-                            # Add empty cells for colspan
-                            for _ in range(colspan - 1):
-                                row_data.append('')
-                        
-                        # Ensure row has same length as headers
-                        while len(row_data) < len(headers):
-                            row_data.append('')
-                        row_data = row_data[:len(headers)]  # Truncate if too long
-                        
-                        rows.append(row_data)
-                
-                if rows:
-                    all_tables.append({
-                        'title': title,
-                        'headers': headers,
-                        'rows': rows,
-                        'subtitle': None
-                    })
-                    
-            except Exception as e:
-                logger.error(f"Error parsing HTML table {i}: {e}")
-                continue
-        
-        logger.info(f"✅ Parsed {len(all_tables)} HTML tables from formatted analysis")
-        
-    except Exception as e:
-        logger.error(f"Error parsing HTML tables: {e}")
-    
-    # If no HTML tables found, try to parse markdown tables
-    if not all_tables:
-        try:
-            # Parse markdown tables with proper structure recognition
-            lines = formatted_text.split('\n')
-            i = 0
-            table_count = 0
-
-            while i < len(lines):
-                line = lines[i].strip()
-
-                # Look for table start (header row with | separators)
-                if '|' in line and not line.startswith('|') and not any(char in line for char in ['**', '##', '-', '=']):
-                    # Check if this looks like a table header (contains text cells, not just separators)
-                    cells = [cell.strip() for cell in line.split('|') if cell.strip()]
-                    if len(cells) >= 2:  # At least 2 columns for a valid table
-                        # Found potential table start
-                        table_lines = [line]
-                        i += 1
-
-                        # Look for separator line
-                        if i < len(lines):
-                            next_line = lines[i].strip()
-                            if '|' in next_line and ('-' in next_line or '=' in next_line):
-                                table_lines.append(next_line)
-                                i += 1
-                            # Continue collecting data rows
-                            while i < len(lines):
-                                next_line = lines[i].strip()
-                                if '|' in next_line and not next_line.startswith('|') and not any(char in next_line for char in ['**', '##']):
-                                    # Check if it's a valid data row
-                                    row_cells = [cell.strip() for cell in next_line.split('|') if cell.strip()]
-                                    if len(row_cells) > 0:
-                                        table_lines.append(next_line)
-                                        i += 1
-                                    else:
-                                        break
-                                elif not next_line or not '|' in next_line:
-                                    # Empty line or no pipes - end of table
-                                    break
-                                else:
-                                    break
-
-                        # Parse the collected table
-                        if len(table_lines) >= 2:  # Header + at least one data row
-                            try:
-                                table_count += 1
-
-                                # Extract table title from preceding heading
-                                table_title = get_table_title(lines, i - len(table_lines))
-                                if not table_title:
-                                    table_title = f"Table {table_count}"
-
-                                # First line is headers
-                                headers = [cell.strip() for cell in table_lines[0].split('|') if cell.strip()]
-
-                                if len(headers) >= 2:
-                                    rows = []
-                                    # Skip separator line (index 1) and process data rows
-                                    for j in range(2, len(table_lines)):
-                                        row_data = [cell.strip() for cell in table_lines[j].split('|') if cell.strip()]
-                                        # Skip empty rows or rows that are just separators
-                                        if not row_data or all(cell.strip() in ['-', '=', ''] for cell in row_data):
-                                            continue
-                                        # Pad or truncate row to match header count
-                                        while len(row_data) < len(headers):
-                                            row_data.append('')
-                                        row_data = row_data[:len(headers)]
-                                        rows.append(row_data)
-
-                                    if rows:
-                                        # Log some sample data for debugging
-                                        logger.info(f"✅ Parsed markdown table '{table_title}' with {len(headers)} columns and {len(rows)} rows")
-                                        if rows:
-                                            logger.info(f"Sample row 1: {rows[0]}")
-                                            if len(rows) > 1:
-                                                logger.info(f"Sample row 2: {rows[1]}")
-
-                                        all_tables.append({
-                                            'title': table_title,
-                                            'headers': headers,
-                                            'rows': rows,
-                                            'subtitle': None
-                                        })
-
-                            except Exception as e:
-                                logger.error(f"Error parsing markdown table at line {i}: {e}")
-                        continue
-
-                i += 1
-
-            logger.info(f"✅ Parsed {len(all_tables)} total tables from formatted analysis")
-
-        except Exception as e:
-            logger.error(f"Error parsing markdown tables: {e}")
-    
-    return all_tables
-
 def display_table(table_data, title):
-    """Display a table with enhanced error handling and data validation"""
+    """Display a table"""
     if not table_data or not isinstance(table_data, dict):
-        logger.warning(f"Invalid table data for '{title}': {type(table_data)}")
         return
     
     try:
         if 'headers' in table_data and 'rows' in table_data:
             import pandas as pd
             
-            # Enhanced data validation
-            headers = table_data['headers']
-            rows = table_data['rows']
-            
-            if not isinstance(headers, list) or not headers:
-                logger.error(f"Invalid headers for table '{title}': {headers}")
-                st.error(f"Invalid table headers for '{title}'")
-                return
-                
-            if not isinstance(rows, list) or not rows:
-                logger.error(f"Invalid rows for table '{title}': {rows}")
-                st.error(f"No data rows for table '{title}'")
-                return
-            
-            # Validate that all rows are lists
-            for i, row in enumerate(rows):
-                if not isinstance(row, list):
-                    logger.error(f"Row {i} in table '{title}' is not a list: {type(row)} - {row}")
-                    st.error(f"Data corruption detected in table '{title}' - row {i+1} is not properly formatted")
-                    return
-                
-                # Ensure row has same number of columns as headers
-                if len(row) != len(headers):
-                    logger.warning(f"Row {i} in table '{title}' has {len(row)} columns but expected {len(headers)}")
-                    # Pad or truncate row to match headers
-                    if len(row) < len(headers):
-                        row.extend([''] * (len(headers) - len(row)))
-                    else:
-                        row = row[:len(headers)]
-                    rows[i] = row
-            
             # Debug: Check data structure
-            logger.info(f"🔍 DEBUG - Table data for '{title}': headers={len(headers)}, rows={len(rows)}")
-            if rows:
-                logger.info(f"🔍 DEBUG - First row type: {type(rows[0])}")
-                logger.info(f"🔍 DEBUG - First row: {rows[0]}")
+            logger.info(f"🔍 DEBUG - Table data for '{title}': headers={len(table_data['headers'])}, rows={len(table_data['rows'])}")
+            if table_data['rows']:
+                logger.info(f"🔍 DEBUG - First row type: {type(table_data['rows'][0])}")
+                logger.info(f"🔍 DEBUG - First row: {table_data['rows'][0]}")
             
-            # Create DataFrame with enhanced error handling
+            # CRITICAL FIX: Handle corrupted table data
+            if table_data['rows'] and isinstance(table_data['rows'][0], str):
+                logger.error(f"🔍 DEBUG - CRITICAL: Table '{title}' contains strings instead of lists!")
+                logger.error(f"🔍 DEBUG - Table rows content: {table_data['rows']}")
+                st.error(f"Data corruption detected in table '{title}' - cannot display")
+                return
+
+            # BULLETPROOF DataFrame creation
             try:
-                df = pd.DataFrame(rows, columns=headers)
-                logger.info(f"✅ Created table DataFrame for '{title}' with shape: {df.shape}")
+                df = pd.DataFrame(table_data['rows'], columns=table_data['headers'])
             except Exception as df_error:
                 logger.error(f"❌ Table DataFrame creation failed: {str(df_error)}")
-                logger.error(f"❌ Headers: {headers}")
-                logger.error(f"❌ First few rows: {rows[:3] if rows else 'No rows'}")
-                st.error(f"Unable to display table '{title}' - data format error")
+                st.error(f"Unable to display table '{title}'")
                 return
-            
-            # Display the table
+            logger.info(f"✅ Created table DataFrame for '{title}' with shape: {df.shape}")
             st.markdown(f"### {title}")
-            apply_table_styling()
             st.dataframe(df, width='stretch')
             
-            # Display subtitle if available
-            if 'subtitle' in table_data and table_data['subtitle']:
-                st.markdown(f"*{table_data['subtitle']}*")
-            
-            # Display note if available
-            if 'note' in table_data and table_data['note']:
+            if 'note' in table_data:
                 st.markdown(f"*Note: {table_data['note']}*")
         else:
-            logger.warning(f"Table '{title}' missing required fields: headers={headers}, rows={rows}")
-            st.info(f"No table data available for '{title}'")
+            st.info("No table data available")
                 
     except Exception as e:
-        logger.error(f"Error displaying table '{title}': {e}")
-        import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        st.error(f"Error displaying table '{title}'")
+        logger.error(f"Error displaying table: {e}")
+        st.error("Error displaying table")
 
 def display_step1_data_analysis(analysis_data):
     """Display Step 1: Data Analysis content"""
     st.markdown("### 📊 Data Analysis Results")
-    
-    # First, try to parse all types of tables from formatted_analysis
-    formatted_analysis = analysis_data.get('formatted_analysis', '')
-    if formatted_analysis and isinstance(formatted_analysis, str):
-        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
-        logger.info(f"Step 1: Parsed {len(all_tables)} tables from formatted analysis")
-        if all_tables:
-            st.markdown("#### Data Tables")
-            for i, table in enumerate(all_tables, 1):
-                logger.info(f"Displaying table {i}: {table.get('title', 'Unknown')} with {len(table.get('headers', []))} headers and {len(table.get('rows', []))} rows")
-                try:
-                    display_table(table, f"Table {i}: {table['title']}")
-                except Exception as table_error:
-                    logger.error(f"Error displaying table {i}: {table_error}")
-                    st.error(f"Error displaying table {i}")
-        else:
-            logger.warning("Step 1: No tables found in formatted analysis")
-            # Debug: show first 500 chars of formatted analysis
-            logger.info(f"Formatted analysis preview: {formatted_analysis[:500]}...")
     
     # Display nutrient comparisons
     if 'nutrient_comparisons' in analysis_data:
@@ -6032,9 +5636,9 @@ def display_step1_data_analysis(analysis_data):
             logger.error(f"Error displaying visualizations: {e}")
             st.error("Error displaying visualizations")
     
-    # Display tables from analysis_data['tables'] (fallback)
+    # Display tables
     if 'tables' in analysis_data and analysis_data['tables']:
-        st.markdown("#### Additional Data Tables")
+        st.markdown("#### Data Tables")
         try:
             tables = analysis_data['tables']
             if isinstance(tables, list):
@@ -6048,20 +5652,7 @@ def display_step1_data_analysis(analysis_data):
 def display_step3_solution_recommendations(analysis_data):
     """Display Step 3: Solution Recommendations content"""
     st.markdown("### 💡 Solution Recommendations")
-
-    # First, try to parse tables from formatted_analysis
-    formatted_analysis = analysis_data.get('formatted_analysis', '')
-    if formatted_analysis and isinstance(formatted_analysis, str):
-        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
-        if all_tables:
-            st.markdown("#### Data Tables")
-            for i, table in enumerate(all_tables, 1):
-                try:
-                    display_table(table, f"Table {i}: {table['title']}")
-                except Exception as table_error:
-                    logger.error(f"Error displaying table {i} for Step 3: {table_error}")
-                    st.error(f"Error displaying table {i}")
-
+    
     # Display solutions
     if 'solutions' in analysis_data and analysis_data['solutions']:
         solutions = analysis_data['solutions']
@@ -6086,19 +5677,6 @@ def display_step3_solution_recommendations(analysis_data):
 def display_step2_issue_diagnosis(analysis_data):
     """Display Step 2: Issue Diagnosis content with consistent formatting"""
     st.markdown("### 🔍 Issue Diagnosis")
-
-    # First, try to parse tables from formatted_analysis
-    formatted_analysis = analysis_data.get('formatted_analysis', '')
-    if formatted_analysis and isinstance(formatted_analysis, str):
-        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
-        if all_tables:
-            st.markdown("#### Data Tables")
-            for i, table in enumerate(all_tables, 1):
-                try:
-                    display_table(table, f"Table {i}: {table['title']}")
-                except Exception as table_error:
-                    logger.error(f"Error displaying table {i} for Step 2: {table_error}")
-                    st.error(f"Error displaying table {i}")
 
     # Display summary if available
     if 'summary' in analysis_data and analysis_data['summary']:
@@ -6184,19 +5762,6 @@ def display_step5_economic_forecast(analysis_data):
     """Display Step 5: Economic Impact Forecast content with consistent formatting"""
     st.markdown("### 💰 Economic Impact Forecast")
 
-    # First, try to parse tables from formatted_analysis
-    formatted_analysis = analysis_data.get('formatted_analysis', '')
-    if formatted_analysis and isinstance(formatted_analysis, str):
-        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
-        if all_tables:
-            st.markdown("#### Data Tables")
-            for i, table in enumerate(all_tables, 1):
-                try:
-                    display_table(table, f"Table {i}: {table['title']}")
-                except Exception as table_error:
-                    logger.error(f"Error displaying table {i} for Step 5: {table_error}")
-                    st.error(f"Error displaying table {i}")
-
     # Display summary if available
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("#### 📋 Summary")
@@ -6209,21 +5774,30 @@ def display_step5_economic_forecast(analysis_data):
                 unsafe_allow_html=True
             )
 
-    # Display corrected Step 5 tables
+    # Try to render any formatted tables embedded directly in this step's formatted/detailed analysis
     try:
-        st.markdown("#### 📊 Economic Forecast Tables")
-        corrected_tables = get_corrected_step5_tables()
-        for i, table in enumerate(corrected_tables, 1):
-            if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
-                # Use the standard display_table function for proper error handling
-                display_table(table, f"Table {i}: {table['title']}")
+        fa_text_top = None
+        if isinstance(analysis_data.get('formatted_analysis'), str) and (
+            '<tables>' in analysis_data['formatted_analysis'] or '<table' in analysis_data['formatted_analysis']
+        ):
+            fa_text_top = analysis_data['formatted_analysis']
+        elif isinstance(analysis_data.get('detailed_analysis'), str) and (
+            '<tables>' in analysis_data['detailed_analysis'] or '<table' in analysis_data['detailed_analysis']
+        ):
+            import re as _re
+            # Look for "Formatted Analysis:" section first
+            m2 = _re.search(r"Formatted Analysis:\s*(.*?)(?=\n\n|\Z)", analysis_data['detailed_analysis'], _re.DOTALL | _re.IGNORECASE)
+            if m2 and m2.group(1).strip():
+                fa_text_top = m2.group(1).strip()
+            else:
+                # Fall back to the entire detailed_analysis if no Formatted Analysis section
+                fa_text_top = analysis_data['detailed_analysis']
         
-        # Add footnotes
-        st.markdown("**Footnote:** RM values are approximate and represent recent historical price and cost ranges.")
-        st.markdown("**Disclaimer:** Actual ROI depends on field conditions and may be lower than estimates.")
+        if isinstance(fa_text_top, str) and ('<table' in fa_text_top):
+            display_formatted_economic_tables(fa_text_top)
     except Exception as e:
-        logger.error(f"Error displaying corrected Step 5 tables: {e}")
-        st.error("Error displaying Step 5 tables")
+        logger.error(f"Error parsing Step 5 formatted tables: {e}")
+        pass
 
     # Display economic analysis with enhanced formatting
     if 'economic_analysis' in analysis_data and analysis_data['economic_analysis']:
@@ -6498,23 +6072,6 @@ def _extract_and_render_markdown_tables(raw_text: str) -> str:
                 re.MULTILINE
             )
             matches = list(table_pattern.finditer(text))
-        
-        # Also check for Step 5 specific format: <tables> <table id='...'></table> </tables>
-        step5_pattern = re.compile(
-            r'<tables>\s*<table\s+id=[\'"](?P<id>[^\'"]+)[\'"]>\s*</table>\s*</tables>',
-            re.MULTILINE | re.IGNORECASE
-        )
-        step5_matches = list(step5_pattern.finditer(text))
-        
-        # If Step 5 format detected, show placeholder for now
-        if step5_matches:
-            for match in step5_matches:
-                table_id = match.group('id')
-                st.markdown(f"#### 📋 {table_id.replace('_', ' ').title()} Table")
-                st.info(f"Table data for {table_id} will be populated during analysis.")
-                st.markdown("")
-            # Remove Step 5 table placeholders from text
-            text = step5_pattern.sub('', text)
 
         for i, m in enumerate(matches):
             table_block = m.group('table')
@@ -7744,14 +7301,21 @@ def display_enhanced_step_result(step_result, step_number):
             for k in ordered_keys:
                 v = key_findings.get(k)
                 if isinstance(v, str) and v.strip():
-                    normalized_kf.append(v.strip())
+                    # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                    parsed_finding = _parse_json_finding(v.strip())
+                    normalized_kf.append(parsed_finding)
         elif isinstance(key_findings, list):
             for v in key_findings:
                 if isinstance(v, str) and v.strip():
-                    normalized_kf.append(v.strip())
+                    # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                    parsed_finding = _parse_json_finding(v.strip())
+                    normalized_kf.append(parsed_finding)
         elif isinstance(key_findings, str) and key_findings.strip():
             parts = [p.strip('-• ').strip() for p in key_findings.strip().split('\n') if p.strip()]
-            normalized_kf.extend(parts if parts else [key_findings.strip()])
+            for part in (parts if parts else [key_findings.strip()]):
+                # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                parsed_finding = _parse_json_finding(part)
+                normalized_kf.append(parsed_finding)
 
         if normalized_kf:
             st.markdown(
@@ -9750,12 +9314,6 @@ def display_step1_data_analysis(analysis_data):
         # Sanitize persona and enforce neutral tone before rendering
         detailed_text = sanitize_persona_and_enforce_article(detailed_text)
         
-        # Process placeholder tables BEFORE markdown extraction to avoid conflicts
-        try:
-            display_step1_placeholder_tables(analysis_data, detailed_text)
-        except Exception as e:
-            logger.error(f"Error generating placeholder tables for Step 1: {e}")
-        
         # Remove large noisy blocks (e.g., Detected Formats dumps) before parsing tables
         try:
             import re as _re
@@ -9777,6 +9335,12 @@ def display_step1_data_analysis(analysis_data):
                     f'</div>',
                     unsafe_allow_html=True
                 )
+
+        # If LLM left placeholders like "<insert table: ...>", auto-generate the corresponding tables
+        try:
+            display_step1_placeholder_tables(analysis_data, detailed_text)
+        except Exception as e:
+            logger.error(f"Error generating placeholder tables for Step 1: {e}")
     
     # 4. NUTRIENT STATUS TABLES - Display comprehensive nutrient analysis tables
     display_nutrient_status_tables(analysis_data)
@@ -9832,19 +9396,14 @@ def display_step1_data_analysis(analysis_data):
         for key in other_fields:
             value = analysis_data.get(key)
             title = key.replace('_', ' ').title()
-
+            
             # Skip raw LLM output patterns
             if key.startswith('Item ') or key in ['deterministic', 'raw_llm_output', 'raw_output', 'llm_output']:
                 continue
-
+            
             if isinstance(value, dict) and value:
-                # For the 'analysis' field, be less restrictive since it contains legitimate parsed data
-                if key == 'analysis':
-                    # Allow analysis field but skip obvious raw LLM patterns
-                    if any(k in value for k in ['raw_llm_output', 'raw_output', 'raw_llm', 'llm_output']):
-                        continue
                 # Skip if this looks like raw LLM output (contains parameter, current_value, optimal_range, etc.)
-                elif any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                if any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
                     continue
                     
                 st.markdown(f"**{title}:**")
@@ -9854,12 +9413,7 @@ def display_step1_data_analysis(analysis_data):
                     if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source','economic_forecast','scenarios','assumptions']:
                         continue
                     if sub_v is not None and sub_v != "":
-                        # Apply persona sanitization to string values
-                        if isinstance(sub_v, str):
-                            sanitized_value = sanitize_persona_and_enforce_article(sub_v)
-                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_value}")
-                        else:
-                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for i, item in enumerate(value, 1):
@@ -9868,7 +9422,12 @@ def display_step1_data_analysis(analysis_data):
                         if any(k in item for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
                             continue
                     if item:
-                        st.markdown(f"{i}. {str(item)}")
+                        # Try to parse JSON findings if it's a string
+                        if isinstance(item, str):
+                            parsed_item = _parse_json_finding(item)
+                        else:
+                            parsed_item = str(item)
+                        st.markdown(f"{i}. {parsed_item}")
             elif value:
                 # Filter out known sections from raw text display
                 filtered_value = filter_known_sections_from_text(str(value))
@@ -9878,8 +9437,10 @@ def display_step1_data_analysis(analysis_data):
                     if original_filtered == "Content filtered to prevent raw LLM output display.":
                         pass  # Don't display anything
                     else:
-                        # Apply persona sanitization to the filtered value
-                        sanitized_value = sanitize_persona_and_enforce_article(filtered_value)
+                        # Try to parse JSON findings before sanitization
+                        parsed_value = _parse_json_finding(filtered_value)
+                        # Apply persona sanitization to the parsed value
+                        sanitized_value = sanitize_persona_and_enforce_article(parsed_value)
                         st.markdown(f"**{title}:** {sanitized_value}")
 
 def create_step1_visualizations_from_data(analysis_data):
@@ -12786,6 +12347,30 @@ def _parse_itemized_json_dict(possibly_itemized):
         normalized_list.append(v)
     return normalized_list
 
+def _parse_json_finding(finding_text):
+    """Parse JSON-formatted findings like {"finding": "...", "implication": "..."} and format them nicely."""
+    import json as _json
+    if not isinstance(finding_text, str) or not finding_text.strip():
+        return finding_text
+
+    # Try to parse as JSON
+    try:
+        parsed = _json.loads(finding_text.strip())
+        if isinstance(parsed, dict) and 'finding' in parsed:
+            finding = parsed.get('finding', '').strip()
+            implication = parsed.get('implication', '').strip()
+
+            if implication:
+                # Format as: Finding text (Implication: implication text)
+                return f"{finding} **(Implication:** {implication}**)**"
+            else:
+                return finding
+    except (_json.JSONDecodeError, TypeError):
+        pass
+
+    # If not JSON or parsing failed, return as-is
+    return finding_text
+
 def _normalize_tables_section(tables_value):
     """Normalize various table payloads to a list of {title, headers, rows} dicts."""
     import json as _json
@@ -13116,21 +12701,16 @@ def display_step3_solution_recommendations(analysis_data):
         for key in other_fields:
             value = analysis_data.get(key)
             title = key.replace('_', ' ').title()
-
+            
             # Skip raw LLM output patterns
             if key.startswith('Item ') or key in ['deterministic', 'raw_llm_output', 'raw_output', 'llm_output']:
                 continue
-
+            
             if isinstance(value, dict) and value:
-                # For the 'analysis' field, be less restrictive since it contains legitimate parsed data
-                if key == 'analysis':
-                    # Allow analysis field but skip obvious raw LLM patterns
-                    if any(k in value for k in ['raw_llm_output', 'raw_output', 'raw_llm', 'llm_output']):
-                        continue
                 # Skip if this looks like raw LLM output (contains parameter, current_value, optimal_range, etc.)
-                elif any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
+                if any(k in value for k in ['parameter', 'current_value', 'optimal_range', 'status', 'severity', 'impact', 'causes', 'critical', 'category', 'unit', 'source', 'issue_description', 'deviation_percent', 'coefficient_variation', 'sample_id', 'out_of_range_samples', 'critical_samples', 'total_samples', 'out_of_range_count', 'variance_issues', 'type', 'priority_score']):
                     continue
-
+                    
                 st.markdown(f"**{title}:**")
                 for sub_k, sub_v in value.items():
                     # Skip known sections (prevent raw leakage)
@@ -13138,12 +12718,7 @@ def display_step3_solution_recommendations(analysis_data):
                     if norm_sub_k in ['key_findings','specific_recommendations','tables','interpretations','visualizations','yield_forecast','format_analysis','data_format_recommendations','plantation_values_vs_reference','soil_issues','issues_source']:
                         continue
                     if sub_v is not None and sub_v != "":
-                        # Apply persona sanitization to string values
-                        if isinstance(sub_v, str):
-                            sanitized_value = sanitize_persona_and_enforce_article(sub_v)
-                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sanitized_value}")
-                        else:
-                            st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
+                        st.markdown(f"- **{sub_k.replace('_',' ').title()}:** {sub_v}")
             elif isinstance(value, list) and value:
                 st.markdown(f"**{title}:**")
                 for idx, item in enumerate(value, 1):
@@ -13293,109 +12868,10 @@ def display_step3_solution_recommendations(analysis_data):
             
             st.markdown("---")
 
-def get_corrected_step4_tables():
-    """Return the corrected Step 4 regenerative agriculture tables"""
-    return [
-        {
-            "title": "Regenerative Agriculture Practices for Soil Health Improvement",
-            "subtitle": "This table summarizes the key practices, their application rates, and their effects on your soil and palms.",
-            "headers": ["Practice", "Recommended Rate", "Mechanism (How it Works)", "Agronomic Effects & Soil Benefits", "Short-Term Effect (1-12 months)", "Long-Term Effect (1-5 years)"],
-            "rows": [
-                ["**Empty Fruit Bunch (EFB) Mulching**", "40-60 tonnes/ha/year in inter-rows", "EFB acts as a giant sponge and slow-release fertilizer. It covers the soil, retaining moisture and slowly breaking down to release a huge amount of nutrients, especially Potassium (K).", "Suppresses weeds, reduces soil erosion, increases soil moisture, adds massive amounts of organic matter and K. Increases Organic Carbon (OC) by ~0.2-0.4% annually and CEC by 1-2 meq%.", "Improved soil moisture, weed suppression, initial release of K.", "Dramatically improved soil structure, fertility, water holding capacity, and sustained high levels of soil K and Mg."],
-                ["**Leguminous Cover Crops (LCCs)**", "Seed mix of *Pueraria javanica, Calopogonium mucunoides, Centrosema pubescens* at 3-5 kg/ha.", "These plants work with bacteria in their roots to pull nitrogen from the air and store it in the soil for free (Nitrogen Fixation). Their roots also improve soil structure.", "Adds 100-150 kg N/ha/year, prevents soil erosion, improves soil aeration, and adds organic matter when it dies back. Reduces soil temperature.", "Weed suppression, erosion control, initial N contribution.", "Sustained nitrogen supply, significant increase in soil organic matter, and improved soil biodiversity."],
-                ["**Composting (EFB + POME)**", "5-10 tonnes/ha/year applied around the palm base.", "This practice pre-digests the raw EFB and POME (Palm Oil Mill Effluent), creating a stable, nutrient-rich compost that is easy for the soil and palms to use (stabilized organic matter).", "Provides a balanced, slow-release source of nutrients, boosts beneficial soil microbes, improves soil structure, and increases the soil's ability to hold nutrients (CEC).", "Immediate supply of available nutrients and stimulation of soil microbial activity.", "Builds a rich, dark topsoil layer with high fertility and excellent structure."],
-                ["**Biochar Application**", "5 tonnes/ha (one-time application during replanting or field prep)", "This is a special charcoal (biochar) made from crop waste. Its microscopic honeycomb structure provides a permanent home for water, nutrients, and microbes.", "Dramatically increases nutrient holding capacity (CEC), improves water retention, raises soil pH, and reduces nutrient leaching. Can increase CEC by 2-4 meq% permanently.", "Improved fertilizer efficiency and water availability to roots.", "Permanent improvement in soil structure and fertility that lasts for decades."]
-            ]
-        },
-        {
-            "title": "Estimated Nutrient Contribution & Adjusted Fertilizer Rates (High-Investment Scenario)",
-            "subtitle": "This table shows how applying 40 tonnes/ha of EFB changes your fertilizer needs.",
-            "headers": ["Nutrient", "Typical Inorganic Rate (from Step 3)", "Nutrients from EFB (40 t/ha)", "Harmonized Recommendation (Year 1)", "Justification"],
-            "rows": [
-                ["**Nitrogen (N)**", "~120 kg/ha", "~320 kg/ha (slow release)", "**Maintain 120 kg/ha**", "Fresh EFB can temporarily tie up soil nitrogen. Maintain inorganic N for Year 1, then reduce by 25-40% in subsequent years based on leaf analysis."],
-                ["**Phosphate (P2O5)**", "~60 kg/ha", "~92 kg/ha (slow release)", "**Reduce to 30 kg/ha**", "EFB provides a substantial amount of P. Reduce inorganic P by 50% and monitor leaf P levels. The improved soil biology will also help make existing soil P more available."],
-                ["**Potassium (K2O)**", "~250 kg/ha", "~1,200 kg/ha (readily available)", "**Suspend application (0 kg/ha)**", "EFB is extremely rich in K. It supplies far more than the palm needs annually. Suspend MOP application in EFB-treated areas and monitor leaf K levels closely."],
-                ["**Magnesium (MgO)**", "~60 kg/ha", "~200 kg/ha (available)", "**Reduce to 30 kg/ha**", "EFB is a very good source of Mg. Reduce inorganic Mg by 50% to prevent nutrient imbalance and save costs. Monitor leaf Mg levels."]
-            ]
-        }
-    ]
-
-def get_corrected_step5_tables():
-    """Return the corrected Step 5 economic impact tables"""
-    return [
-        {
-            "title": "Economic Forecast Assumptions",
-            "subtitle": "The following table outlines the key price and cost assumptions used for this forecast. These figures represent recent historical ranges in the Malaysian market.",
-            "headers": ["Item", "Unit", "Price / Cost Range (RM)"],
-            "rows": [
-                ["FFB Price", "per tonne", "650 - 750"],
-                ["Muriate of Potash (MOP)", "per tonne", "2,200 - 2,600"],
-                ["CIRP / Rock Phosphate", "per tonne", "1,100 - 1,400"],
-                ["Ammonium Sulphate (AS)", "per tonne", "1,300 - 1,600"],
-                ["Kieserite (Mg)", "per tonne", "1,200 - 1,500"],
-                ["Ground Magnesium Limestone (GML)", "per tonne", "200 - 300"],
-                ["Copper Sulphate (CuSO₄)", "per kg", "25 - 35"],
-                ["Labour & Application", "per hectare", "100 - 150"]
-            ]
-        },
-        {
-            "title": "High Investment Scenario: Year 1 Economic Impact per Hectare",
-            "subtitle": "This scenario aims for a full and rapid correction of all identified nutrient deficiencies and soil acidity to maximize yield response in the first year.",
-            "headers": ["Metric", "Projected Range"],
-            "rows": [
-                ["Projected Yield Improvement", "4.0 - 6.0 t/ha"],
-                ["**Total Investment Cost**", "**RM 2,905 - RM 3,747**"],
-                ["*- Copper Sulphate Cost*", "*RM 370 - RM 518*"],
-                ["Incremental Revenue", "RM 2,600 - RM 4,500"],
-                ["**Net Profit / Loss**", "**-RM 1,147 to RM 1,595**"],
-                ["**Return on Investment (ROI)**", "**-31% to 55%**"]
-            ]
-        },
-        {
-            "title": "Medium Investment Scenario: Year 1 Economic Impact per Hectare",
-            "subtitle": "This scenario provides a balanced approach, addressing the most critical deficiencies with a moderate investment level for a steady yield improvement.",
-            "headers": ["Metric", "Projected Range"],
-            "rows": [
-                ["Projected Yield Improvement", "2.5 - 4.0 t/ha"],
-                ["**Total Investment Cost**", "**RM 2,283 - RM 2,942**"],
-                ["*- Copper Sulphate Cost*", "*RM 278 - RM 389*"],
-                ["Incremental Revenue", "RM 1,625 - RM 3,000"],
-                ["**Net Profit / Loss**", "**-RM 1,317 to RM 717**"],
-                ["**Return on Investment (ROI)**", "**-45% to 31%**"]
-            ]
-        },
-        {
-            "title": "Low Investment Scenario: Year 1 Economic Impact per Hectare",
-            "subtitle": "This scenario focuses on a minimal investment to address the most severe deficiencies, aiming to prevent further yield decline and achieve a modest recovery.",
-            "headers": ["Metric", "Projected Range"],
-            "rows": [
-                ["Projected Yield Improvement", "1.0 - 2.5 t/ha"],
-                ["**Total Investment Cost**", "**RM 1,706 - RM 2,193**"],
-                ["*- Copper Sulphate Cost*", "*RM 185 - RM 259*"],
-                ["Incremental Revenue", "RM 650 - RM 1,875"],
-                ["**Net Profit / Loss**", "**-RM 1,543 to RM 169**"],
-                ["**Return on Investment (ROI)**", "**-70% to 10%**"]
-            ]
-        }
-    ]
-
 def display_regenerative_agriculture_content(analysis_data):
     """Display Step 4: Regenerative Agriculture content with consistent formatting"""
     st.markdown("### 🌱 Regenerative Agriculture Strategies")
-
-    # First, try to parse tables from formatted_analysis
-    formatted_analysis = analysis_data.get('formatted_analysis', '')
-    if formatted_analysis and isinstance(formatted_analysis, str):
-        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
-        if all_tables:
-            st.markdown("#### Data Tables")
-            for i, table in enumerate(all_tables, 1):
-                try:
-                    display_table(table, f"Table {i}: {table['title']}")
-                except Exception as table_error:
-                    logger.error(f"Error displaying table {i} for Step 4: {table_error}")
-                    st.error(f"Error displaying table {i}")
-
+    
     # 1) Summary (if available)
     try:
         summary_text = analysis_data.get('summary')
@@ -13443,14 +12919,21 @@ def display_regenerative_agriculture_content(analysis_data):
             for k in ordered_keys:
                 v = key_findings.get(k)
                 if isinstance(v, str) and v.strip():
-                    normalized_kf.append(v.strip())
+                    # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                    parsed_finding = _parse_json_finding(v.strip())
+                    normalized_kf.append(parsed_finding)
         elif isinstance(key_findings, list):
             for v in key_findings:
                 if isinstance(v, str) and v.strip():
-                    normalized_kf.append(v.strip())
+                    # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                    parsed_finding = _parse_json_finding(v.strip())
+                    normalized_kf.append(parsed_finding)
         elif isinstance(key_findings, str) and key_findings.strip():
             parts = [p.strip('-• ').strip() for p in key_findings.strip().split('\n') if p.strip()]
-            normalized_kf.extend(parts if parts else [key_findings.strip()])
+            for part in (parts if parts else [key_findings.strip()]):
+                # Try to parse JSON objects like {"finding": "...", "implication": "..."}
+                parsed_finding = _parse_json_finding(part)
+                normalized_kf.append(parsed_finding)
         if normalized_kf:
             st.markdown("#### 🚩 Key Findings")
             findings_html = '<div style="background: linear-gradient(135deg, #fff3cd, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #ffc107;">'
@@ -13491,17 +12974,27 @@ def display_regenerative_agriculture_content(analysis_data):
             practice_html += '</div></div>'
             st.markdown(practice_html, unsafe_allow_html=True)
 
-    # 5) Tables - Use corrected Step 4 tables
+    # 5) Tables (if available)
     try:
-        st.markdown("#### 📊 Data Tables")
-        corrected_tables = get_corrected_step4_tables()
-        for i, table in enumerate(corrected_tables, 1):
-            if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
-                # Use the standard display_table function for proper error handling
-                display_table(table, f"Table {i}: {table['title']}")
-    except Exception as e:
-        logger.error(f"Error displaying corrected Step 4 tables: {e}")
-        st.error("Error displaying Step 4 tables")
+        if analysis_data.get('tables') and isinstance(analysis_data['tables'], list):
+            st.markdown("#### 📊 Data Tables")
+            for table in analysis_data['tables']:
+                if isinstance(table, dict) and table.get('title') and table.get('headers') and table.get('rows'):
+                    # Create a container for each table
+                    st.markdown(
+                        f'<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                        f'<h4 style="margin: 0 0 10px 0; color: #6f42c1; font-size: 16px;">📋 {table["title"]}</h4>',
+                        unsafe_allow_html=True
+                    )
+                    if table.get('subtitle'):
+                        st.markdown(f'<div style="color: #6c757d; font-style: italic; margin-bottom: 15px;">{table["subtitle"]}</div>', unsafe_allow_html=True)
+                    import pandas as pd
+                    df = pd.DataFrame(table['rows'], columns=table['headers'])
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+                    st.markdown('</div>', unsafe_allow_html=True)
+    except Exception:
+        pass
 
     # 6) Interpretations (if available) — ensure lists render properly
     try:
