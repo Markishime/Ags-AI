@@ -5760,24 +5760,31 @@ def parse_all_tables_from_formatted_analysis(formatted_text):
     
     # If no HTML tables found, try to parse markdown tables
     if not all_tables:
+        logger.info("🔍 DEBUG - No HTML tables found, trying markdown tables")
         try:
             # Look for markdown tables (lines with | separators)
             lines = formatted_text.split('\n')
+            logger.info(f"🔍 DEBUG - Total lines in formatted text: {len(lines)}")
+            
             markdown_tables = []
             current_table = []
             in_table = False
             
-            for line in lines:
+            for line_num, line in enumerate(lines):
                 line = line.strip()
-                if '|' in line and not line.startswith('|') and not any(char in line for char in ['**', '##']):
+                # Check if this line looks like a markdown table row
+                if '|' in line and line.count('|') >= 2:  # At least 2 separators for a table
+                    logger.info(f"🔍 DEBUG - Found potential table row at line {line_num}: {line[:50]}...")
                     # This might be a table row
                     if not in_table:
                         in_table = True
                         current_table = []
+                        logger.info(f"🔍 DEBUG - Starting new table at line {line_num}")
                     current_table.append(line)
-                elif in_table and (not line or '|' not in line):
+                elif in_table and (not line or '|' not in line or line.count('|') < 2):
                     # End of table
                     if current_table:
+                        logger.info(f"🔍 DEBUG - Ending table at line {line_num} with {len(current_table)} rows")
                         markdown_tables.append(current_table)
                         current_table = []
                     in_table = False
@@ -5786,25 +5793,58 @@ def parse_all_tables_from_formatted_analysis(formatted_text):
             if current_table:
                 markdown_tables.append(current_table)
             
+            logger.info(f"🔍 DEBUG - Found {len(markdown_tables)} markdown table groups")
+            
             # Parse markdown tables
             for i, table_lines in enumerate(markdown_tables, 1):
+                logger.info(f"🔍 DEBUG - Processing table group {i} with {len(table_lines)} lines")
                 try:
                     if len(table_lines) < 2:  # Need at least header and one data row
+                        logger.info(f"🔍 DEBUG - Skipping table {i}: too few lines ({len(table_lines)})")
                         continue
                     
-                    # First line is headers
-                    headers = [cell.strip() for cell in table_lines[0].split('|') if cell.strip()]
+                    # Skip separator lines (lines with only |, :, -, and spaces)
+                    filtered_lines = []
+                    for line in table_lines:
+                        # Skip separator lines
+                        if not re.match(r'^[\s\|\-\:]+$', line):
+                            filtered_lines.append(line)
+                    
+                    if len(filtered_lines) < 2:
+                        continue
+                    
+                    # First non-separator line is headers
+                    headers = [cell.strip() for cell in filtered_lines[0].split('|') if cell.strip()]
                     
                     # Rest are data rows
                     rows = []
-                    for line in table_lines[1:]:
+                    for line in filtered_lines[1:]:
                         row_data = [cell.strip() for cell in line.split('|') if cell.strip()]
+                        # Ensure row has same number of columns as headers
                         if len(row_data) == len(headers):
                             rows.append(row_data)
+                        elif len(row_data) > 0:  # If row has data but wrong number of columns
+                            # Pad or truncate to match headers
+                            while len(row_data) < len(headers):
+                                row_data.append('')
+                            row_data = row_data[:len(headers)]
+                            rows.append(row_data)
                     
-                    if rows:
+                    if rows and headers:
+                        # Try to extract table title from preceding text
+                        title = f"Table {i}"
+                        
+                        # Look for preceding heading in the original text
+                        table_start_pos = formatted_text.find(filtered_lines[0])
+                        if table_start_pos > 0:
+                            # Look backwards for headings
+                            preceding_text = formatted_text[:table_start_pos]
+                            heading_match = re.search(r'####\s+(.+?)(?:\n|$)', preceding_text)
+                            if heading_match:
+                                title = heading_match.group(1).strip()
+                        
                         all_tables.append({
-                            'title': f"Table {i}",
+                            'title': title,
                             'headers': headers,
                             'rows': rows,
                             'subtitle': None
@@ -5908,11 +5948,19 @@ def display_step1_data_analysis(analysis_data):
     # First, try to parse all types of tables from formatted_analysis
     formatted_analysis = analysis_data.get('formatted_analysis', '')
     if formatted_analysis and isinstance(formatted_analysis, str):
+        logger.info(f"🔍 DEBUG - Step 1 formatted_analysis length: {len(formatted_analysis)}")
+        logger.info(f"🔍 DEBUG - Step 1 formatted_analysis contains tables: {'|' in formatted_analysis}")
+        
         all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
+        logger.info(f"🔍 DEBUG - Step 1 parsed {len(all_tables)} tables")
+        
         if all_tables:
             st.markdown("#### Data Tables")
             for i, table in enumerate(all_tables, 1):
+                logger.info(f"🔍 DEBUG - Displaying table {i}: {table['title']} with {len(table['rows'])} rows")
                 display_table(table, f"Table {i}: {table['title']}")
+        else:
+            logger.warning("🔍 DEBUG - No tables found in Step 1 formatted_analysis")
     
     # Display nutrient comparisons
     if 'nutrient_comparisons' in analysis_data:
