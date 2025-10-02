@@ -6063,6 +6063,23 @@ def _extract_and_render_markdown_tables(raw_text: str) -> str:
                 re.MULTILINE
             )
             matches = list(table_pattern.finditer(text))
+        
+        # Also check for Step 5 specific format: <tables> <table id='...'></table> </tables>
+        step5_pattern = re.compile(
+            r'<tables>\s*<table\s+id=[\'"](?P<id>[^\'"]+)[\'"]>\s*</table>\s*</tables>',
+            re.MULTILINE | re.IGNORECASE
+        )
+        step5_matches = list(step5_pattern.finditer(text))
+        
+        # If Step 5 format detected, show placeholder for now
+        if step5_matches:
+            for match in step5_matches:
+                table_id = match.group('id')
+                st.markdown(f"#### 📋 {table_id.replace('_', ' ').title()} Table")
+                st.info(f"Table data for {table_id} will be populated during analysis.")
+                st.markdown("")
+            # Remove Step 5 table placeholders from text
+            text = step5_pattern.sub('', text)
 
         for i, m in enumerate(matches):
             table_block = m.group('table')
@@ -9298,6 +9315,12 @@ def display_step1_data_analysis(analysis_data):
         # Sanitize persona and enforce neutral tone before rendering
         detailed_text = sanitize_persona_and_enforce_article(detailed_text)
         
+        # Process placeholder tables BEFORE markdown extraction to avoid conflicts
+        try:
+            display_step1_placeholder_tables(analysis_data, detailed_text)
+        except Exception as e:
+            logger.error(f"Error generating placeholder tables for Step 1: {e}")
+        
         # Remove large noisy blocks (e.g., Detected Formats dumps) before parsing tables
         try:
             import re as _re
@@ -9319,12 +9342,6 @@ def display_step1_data_analysis(analysis_data):
                     f'</div>',
                     unsafe_allow_html=True
                 )
-
-        # If LLM left placeholders like "<insert table: ...>", auto-generate the corresponding tables
-        try:
-            display_step1_placeholder_tables(analysis_data, detailed_text)
-        except Exception as e:
-            logger.error(f"Error generating placeholder tables for Step 1: {e}")
     
     # 4. NUTRIENT STATUS TABLES - Display comprehensive nutrient analysis tables
     display_nutrient_status_tables(analysis_data)
