@@ -154,6 +154,7 @@ import pandas as pd
 import plotly.graph_objects as go
 # Use our configured Firestore client instead of direct import
 import logging
+from bs4 import BeautifulSoup
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -5584,6 +5585,240 @@ def display_visualization(viz_data, index, step_number):
     else:
         st.info(f"Visualization type '{viz_type}' not supported")
 
+def parse_html_tables_from_formatted_analysis(formatted_text):
+    """Parse HTML tables from formatted analysis text and convert to standard table format"""
+    import re
+    
+    if not formatted_text or not isinstance(formatted_text, str):
+        return []
+    
+    try:
+        # Parse HTML content
+        soup = BeautifulSoup(formatted_text, 'html.parser')
+        tables = soup.find_all('table')
+        
+        parsed_tables = []
+        for i, table in enumerate(tables, 1):
+            try:
+                # Extract table title from preceding heading or use default
+                title = f"Table {i}"
+                
+                # Look for preceding h3, h4, h5 tags for title
+                prev_element = table.find_previous(['h3', 'h4', 'h5'])
+                if prev_element:
+                    title = prev_element.get_text().strip()
+                
+                # Extract headers
+                headers = []
+                header_row = table.find('thead')
+                if header_row:
+                    header_cells = header_row.find_all(['th', 'td'])
+                    headers = [cell.get_text().strip() for cell in header_cells]
+                else:
+                    # If no thead, try first row
+                    first_row = table.find('tr')
+                    if first_row:
+                        header_cells = first_row.find_all(['th', 'td'])
+                        headers = [cell.get_text().strip() for cell in header_cells]
+                
+                if not headers:
+                    continue
+                
+                # Extract rows
+                rows = []
+                tbody = table.find('tbody')
+                if tbody:
+                    row_elements = tbody.find_all('tr')
+                else:
+                    row_elements = table.find_all('tr')[1:]  # Skip header row
+                
+                for row in row_elements:
+                    cells = row.find_all(['td', 'th'])
+                    if cells:
+                        row_data = []
+                        for cell in cells:
+                            # Handle colspan
+                            colspan = int(cell.get('colspan', 1))
+                            cell_text = cell.get_text().strip()
+                            row_data.append(cell_text)
+                            # Add empty cells for colspan
+                            for _ in range(colspan - 1):
+                                row_data.append('')
+                        
+                        # Ensure row has same length as headers
+                        while len(row_data) < len(headers):
+                            row_data.append('')
+                        row_data = row_data[:len(headers)]  # Truncate if too long
+                        
+                        rows.append(row_data)
+                
+                if rows:
+                    parsed_tables.append({
+                        'title': title,
+                        'headers': headers,
+                        'rows': rows,
+                        'subtitle': None
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error parsing HTML table {i}: {e}")
+                continue
+        
+        logger.info(f"✅ Parsed {len(parsed_tables)} HTML tables from formatted analysis")
+        return parsed_tables
+        
+    except Exception as e:
+        logger.error(f"Error parsing HTML tables: {e}")
+        return []
+
+def parse_all_tables_from_formatted_analysis(formatted_text):
+    """Parse all types of tables from formatted analysis text and convert to standard table format"""
+    import re
+    
+    if not formatted_text or not isinstance(formatted_text, str):
+        return []
+    
+    all_tables = []
+    
+    # First, try to parse HTML tables
+    try:
+        soup = BeautifulSoup(formatted_text, 'html.parser')
+        html_tables = soup.find_all('table')
+        
+        for i, table in enumerate(html_tables, 1):
+            try:
+                # Extract table title from preceding heading or use default
+                title = f"Table {i}"
+                
+                # Look for preceding h3, h4, h5 tags for title
+                prev_element = table.find_previous(['h3', 'h4', 'h5'])
+                if prev_element:
+                    title = prev_element.get_text().strip()
+                
+                # Extract headers
+                headers = []
+                header_row = table.find('thead')
+                if header_row:
+                    header_cells = header_row.find_all(['th', 'td'])
+                    headers = [cell.get_text().strip() for cell in header_cells]
+                else:
+                    # If no thead, try first row
+                    first_row = table.find('tr')
+                    if first_row:
+                        header_cells = first_row.find_all(['th', 'td'])
+                        headers = [cell.get_text().strip() for cell in header_cells]
+                
+                if not headers:
+                    continue
+                
+                # Extract rows
+                rows = []
+                tbody = table.find('tbody')
+                if tbody:
+                    row_elements = tbody.find_all('tr')
+                else:
+                    row_elements = table.find_all('tr')[1:]  # Skip header row
+                
+                for row in row_elements:
+                    cells = row.find_all(['td', 'th'])
+                    if cells:
+                        row_data = []
+                        for cell in cells:
+                            # Handle colspan
+                            colspan = int(cell.get('colspan', 1))
+                            cell_text = cell.get_text().strip()
+                            row_data.append(cell_text)
+                            # Add empty cells for colspan
+                            for _ in range(colspan - 1):
+                                row_data.append('')
+                        
+                        # Ensure row has same length as headers
+                        while len(row_data) < len(headers):
+                            row_data.append('')
+                        row_data = row_data[:len(headers)]  # Truncate if too long
+                        
+                        rows.append(row_data)
+                
+                if rows:
+                    all_tables.append({
+                        'title': title,
+                        'headers': headers,
+                        'rows': rows,
+                        'subtitle': None
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error parsing HTML table {i}: {e}")
+                continue
+        
+        logger.info(f"✅ Parsed {len(all_tables)} HTML tables from formatted analysis")
+        
+    except Exception as e:
+        logger.error(f"Error parsing HTML tables: {e}")
+    
+    # If no HTML tables found, try to parse markdown tables
+    if not all_tables:
+        try:
+            # Look for markdown tables (lines with | separators)
+            lines = formatted_text.split('\n')
+            markdown_tables = []
+            current_table = []
+            in_table = False
+            
+            for line in lines:
+                line = line.strip()
+                if '|' in line and not line.startswith('|') and not any(char in line for char in ['**', '##']):
+                    # This might be a table row
+                    if not in_table:
+                        in_table = True
+                        current_table = []
+                    current_table.append(line)
+                elif in_table and (not line or '|' not in line):
+                    # End of table
+                    if current_table:
+                        markdown_tables.append(current_table)
+                        current_table = []
+                    in_table = False
+            
+            # Don't forget the last table
+            if current_table:
+                markdown_tables.append(current_table)
+            
+            # Parse markdown tables
+            for i, table_lines in enumerate(markdown_tables, 1):
+                try:
+                    if len(table_lines) < 2:  # Need at least header and one data row
+                        continue
+                    
+                    # First line is headers
+                    headers = [cell.strip() for cell in table_lines[0].split('|') if cell.strip()]
+                    
+                    # Rest are data rows
+                    rows = []
+                    for line in table_lines[1:]:
+                        row_data = [cell.strip() for cell in line.split('|') if cell.strip()]
+                        if len(row_data) == len(headers):
+                            rows.append(row_data)
+                    
+                    if rows:
+                        all_tables.append({
+                            'title': f"Table {i}",
+                            'headers': headers,
+                            'rows': rows,
+                            'subtitle': None
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error parsing markdown table {i}: {e}")
+                    continue
+            
+            logger.info(f"✅ Parsed {len(all_tables)} markdown tables from formatted analysis")
+            
+        except Exception as e:
+            logger.error(f"Error parsing markdown tables: {e}")
+    
+    return all_tables
+
 def display_table(table_data, title):
     """Display a table with enhanced error handling and data validation"""
     if not table_data or not isinstance(table_data, dict):
@@ -5668,6 +5903,15 @@ def display_step1_data_analysis(analysis_data):
     """Display Step 1: Data Analysis content"""
     st.markdown("### 📊 Data Analysis Results")
     
+    # First, try to parse all types of tables from formatted_analysis
+    formatted_analysis = analysis_data.get('formatted_analysis', '')
+    if formatted_analysis and isinstance(formatted_analysis, str):
+        all_tables = parse_all_tables_from_formatted_analysis(formatted_analysis)
+        if all_tables:
+            st.markdown("#### Data Tables")
+            for i, table in enumerate(all_tables, 1):
+                display_table(table, f"Table {i}: {table['title']}")
+    
     # Display nutrient comparisons
     if 'nutrient_comparisons' in analysis_data:
         st.markdown("#### Nutrient Level Comparisons")
@@ -5691,9 +5935,9 @@ def display_step1_data_analysis(analysis_data):
             logger.error(f"Error displaying visualizations: {e}")
             st.error("Error displaying visualizations")
     
-    # Display tables
+    # Display tables from analysis_data['tables'] (fallback)
     if 'tables' in analysis_data and analysis_data['tables']:
-        st.markdown("#### Data Tables")
+        st.markdown("#### Additional Data Tables")
         try:
             tables = analysis_data['tables']
             if isinstance(tables, list):
