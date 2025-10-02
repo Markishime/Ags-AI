@@ -3835,6 +3835,17 @@ class PDFReportGenerator:
             r'My recommendation[,\s]*',
             r'My suggestion[,\s]*',
             r'My advice[,\s]*',
+            r'As an experienced agronomist[,\s]*',
+            r'As an agronomist with over two decades[,\s]*',
+            r'As a seasoned agronomist[,\s]*',
+            r'As your trusted agronomist[,\s]*',
+            r'As an agricultural expert[,\s]*',
+            r'As a professional agronomist[,\s]*',
+            r'Drawing from my decades of experience[,\s]*',
+            r'With my extensive experience[,\s]*',
+            r'Based on my expertise[,\s]*',
+            r'In my expert opinion[,\s]*',
+            r'My professional assessment[,\s]*',
         ]
         
         cleaned_text = text

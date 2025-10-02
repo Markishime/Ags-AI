@@ -5179,6 +5179,16 @@ def sanitize_persona_and_enforce_article(text):
             r"^[\t ]*As\s+a\s+consulting\s+agronomist[,\s:]+",
             r"^[\t ]*As\s+your\s+agronomist[,\s:]+",
             r"^[\t ]*As\s+an\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+an\s+agronomist\s+with\s+over\s+two\s+decades[,\s:]+",
+            r"^[\t ]*As\s+a\s+seasoned\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+your\s+trusted\s+agronomist[,\s:]+",
+            r"^[\t ]*As\s+an\s+agricultural\s+expert[,\s:]+",
+            r"^[\t ]*As\s+a\s+professional\s+agronomist[,\s:]+",
+            r"^[\t ]*Drawing\s+from\s+my\s+decades\s+of\s+experience[,\s:]+",
+            r"^[\t ]*With\s+my\s+extensive\s+experience[,\s:]+",
+            r"^[\t ]*Based\s+on\s+my\s+expertise[,\s:]+",
+            r"^[\t ]*From\s+my\s+decades\s+of\s+experience[,\s:]+",
+            r"^[\t ]*In\s+my\s+professional\s+opinion[,\s:]+",
         ]
         for pattern in persona_line_patterns:
             cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
@@ -5187,6 +5197,16 @@ def sanitize_persona_and_enforce_article(text):
             r"(\n|^)\s*As\s+an\s+experienced\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+your\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+an\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+an\s+agronomist\s+with\s+over\s+two\s+decades[,\s:]+",
+            r"(\n|^)\s*As\s+a\s+seasoned\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+your\s+trusted\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+an\s+agricultural\s+expert[,\s:]+",
+            r"(\n|^)\s*As\s+a\s+professional\s+agronomist[,\s:]+",
+            r"(\n|^)\s*Drawing\s+from\s+my\s+decades\s+of\s+experience[,\s:]+",
+            r"(\n|^)\s*With\s+my\s+extensive\s+experience[,\s:]+",
+            r"(\n|^)\s*Based\s+on\s+my\s+expertise[,\s:]+",
+            r"(\n|^)\s*From\s+my\s+decades\s+of\s+experience[,\s:]+",
+            r"(\n|^)\s*In\s+my\s+professional\s+opinion[,\s:]+",
         ]
         for pattern in inline_persona_patterns:
             cleaned = re.sub(pattern, '\n', cleaned, flags=re.IGNORECASE)
@@ -5194,6 +5214,7 @@ def sanitize_persona_and_enforce_article(text):
         # Replace specific possessive pronouns with "The"
         possessive_replacements = [
             (r"\bour\b", "The"),
+            (r"\byour\b", ""),
         ]
         for pattern, replacement in possessive_replacements:
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
@@ -5204,15 +5225,24 @@ def sanitize_persona_and_enforce_article(text):
             (r"\bmy\s+first\s+step\b", "first step"),
             (r"\bmy\s+recommendation\b", "recommendation"),
             (r"\bmy\s+assessment\b", "assessment"),
+            (r"\bmy\s+expertise\b", "expertise"),
+            (r"\bmy\s+professional\s+assessment\b", "assessment"),
+            (r"\bmy\s+decades\s+of\s+experience\b", "decades of experience"),
+            (r"\bmy\s+extensive\s+experience\b", "extensive experience"),
             (r"\bI\s+recommend\b", "recommend"),
             (r"\bI\s+suggest\b", "suggest"),
+            (r"\bI\s+advise\b", "advise"),
             (r"\bwe\s+recommend\b", "recommend"),
             (r"\bwe\s+suggest\b", "suggest"),
             (r"\bI\s+conclude\b", "conclude"),
             (r"\bI\s+observe\b", "observe"),
             (r"\bI\s+see\b", "analysis shows"),
             (r"\bThe\s+I\s+see\b", "The analysis shows"),
+            (r"\bI\s+believe\b", "believe"),
+            (r"\bI\s+think\b", "think"),
             (r"\bmy\b", ""),
+            (r"\bI\b", ""),
+            (r"\bwe\b", ""),
         ]
         for pattern, replacement in first_person_replacements:
             cleaned = re.sub(pattern, replacement, cleaned, flags=re.IGNORECASE)
