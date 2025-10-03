@@ -13152,18 +13152,37 @@ def display_regenerative_agriculture_content(analysis_data):
             fa_match = re.search(r"Formatted Analysis:\s*(.*)$", detailed_text, re.DOTALL | re.IGNORECASE)
             if fa_match and fa_match.group(1).strip():
                 detailed_text = fa_match.group(1).strip()
+            # Sanitize
             detailed_text = sanitize_persona_and_enforce_article(detailed_text)
 
-            # Use markdown normalization for better formatting
-            normalized_content = normalize_markdown_block_for_step3(detailed_text)
+            # First render any markdown tables and strip them from text to avoid duplication
+            try:
+                detailed_text_no_md_tables = _extract_and_render_markdown_tables(detailed_text)
+            except Exception:
+                detailed_text_no_md_tables = detailed_text
 
+            # Process embedded HTML tables (<tables> and bare <table>)
+            try:
+                processed_text = process_html_tables(detailed_text_no_md_tables)
+            except Exception:
+                processed_text = detailed_text_no_md_tables
+
+            # Render heading
             st.markdown("#### 📋 Detailed Analysis")
-            st.markdown(
-                f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
-                f'<div style="color: #2c3e50; line-height: 1.7;">{normalized_content}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+
+            # Split into paragraphs and render; render table HTML directly
+            paragraphs = processed_text.split('\n\n') if '\n\n' in processed_text else [processed_text]
+            for paragraph in paragraphs:
+                if isinstance(paragraph, str) and paragraph.strip():
+                    if '<table' in paragraph and '</table>' in paragraph:
+                        st.markdown(paragraph, unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{sanitize_persona_and_enforce_article(paragraph.strip())}</p>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
     except Exception:
         pass
 
