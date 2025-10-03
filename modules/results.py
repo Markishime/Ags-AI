@@ -6102,12 +6102,82 @@ def display_formatted_economic_tables(formatted_text, analysis_context=None):
                                 populated = True
                     # Try forecast
                     if not populated and table_id and table_id.lower() in ['forecast', 'economic_forecast']:
-                        forecast = analysis_context.get('economic_forecast') or analysis_context.get('forecast')
+                        forecast = analysis_context.get('economic_forecast') or analysis_context.get('forecast') or {}
+                        # Attempt to build a multi-year ROI/Profit table (Year 1 to Year 5) per hectare
                         if isinstance(forecast, dict):
-                            # If contains scenarios as columns
-                            # Try flattening to rows of key/value pairs
-                            if render_dataframe_from_kv_dict(title, forecast):
-                                populated = True
+                            try:
+                                current_yield = forecast.get('current_yield_tonnes_per_ha') or forecast.get('current_yield') or 0
+                                land_size = forecast.get('land_size_hectares') or 1
+                                # Resolve FFB price per tonne (RM)
+                                def _resolve_price(data: dict) -> float:
+                                    keys = ['ffb_price_rm_per_tonne','ffb_price_rm_tonne','ffb_price','price_rm_per_tonne','price_per_tonne_rm','price_per_tonne']
+                                    for k in keys:
+                                        if k in data:
+                                            try:
+                                                return float(data[k])
+                                            except Exception:
+                                                continue
+                                    return 0.0
+                                price_rm_t = _resolve_price(forecast)
+                                # Find investment cost per ha if available
+                                cost_per_ha = None
+                                total_cost = None
+                                # From scenarios
+                                scenarios = forecast.get('investment_scenarios') or forecast.get('scenarios') or {}
+                                if isinstance(scenarios, dict) and len(scenarios) == 1:
+                                    only = list(scenarios.values())[0]
+                                    total_cost = only.get('total_cost') or only.get('cost')
+                                    cph = only.get('cost_per_hectare') or only.get('cost_per_ha')
+                                    if not cph and isinstance(total_cost, (int, float)) and isinstance(land_size, (int, float)) and land_size:
+                                        cost_per_ha = float(total_cost) / float(land_size)
+                                    elif isinstance(cph, (int, float)):
+                                        cost_per_ha = float(cph)
+                                # Direct keys
+                                if cost_per_ha is None:
+                                    cph2 = forecast.get('cost_per_hectare') or forecast.get('cost_per_ha')
+                                    if isinstance(cph2, (int, float)):
+                                        cost_per_ha = float(cph2)
+
+                                five_year = forecast.get('five_year_projection') or {}
+                                # Build per-hectare table if we have price and yield projection
+                                if price_rm_t and isinstance(five_year, dict):
+                                    # Assemble years 1..5 delta yield vs current
+                                    years = list(range(1, 6))
+                                    rows_built = []
+                                    for y in years:
+                                        proj = five_year.get(f'year_{y}', current_yield)
+                                        try:
+                                            proj = float(proj)
+                                        except Exception:
+                                            proj = current_yield
+                                        try:
+                                            cy = float(current_yield)
+                                        except Exception:
+                                            cy = 0.0
+                                        addl_yield_per_ha = max(proj - cy, 0.0)
+                                        addl_revenue_per_ha = addl_yield_per_ha * float(price_rm_t)
+                                        # Profit per ha: subtract Year 1 investment if known; assume no recurring costs
+                                        if y == 1 and isinstance(cost_per_ha, (int, float)):
+                                            profit_per_ha = addl_revenue_per_ha - float(cost_per_ha)
+                                        else:
+                                            profit_per_ha = addl_revenue_per_ha
+                                        roi_pct = (profit_per_ha / float(cost_per_ha) * 100.0) if (y == 1 and isinstance(cost_per_ha, (int, float)) and cost_per_ha) else (profit_per_ha / float(cost_per_ha) * 100.0 if isinstance(cost_per_ha, (int, float)) and cost_per_ha else None)
+                                        rows_built.append([
+                                            f"Year {y}",
+                                            f"RM {addl_revenue_per_ha:,.0f}",
+                                            f"RM {profit_per_ha:,.0f}",
+                                            (f"{roi_pct:.1f}%" if isinstance(roi_pct, (int, float)) else "N/A")
+                                        ])
+
+                                    headers_built = ["Year", "Additional Revenue (RM/ha)", "Profit (RM/ha)", "ROI (%)"]
+                                    if render_dataframe_from_rows(title, headers_built, rows_built):
+                                        populated = True
+                                # If no five_year_projection, try generic flatten
+                                if not populated:
+                                    if render_dataframe_from_kv_dict(title, forecast):
+                                        populated = True
+                            except Exception:
+                                populated = False
                         elif isinstance(forecast, list):
                             if forecast and isinstance(forecast[0], dict) and render_dataframe_from_rows(title, list(forecast[0].keys()), [list(d.values()) for d in forecast]):
                                 populated = True
