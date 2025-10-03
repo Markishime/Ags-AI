@@ -4688,6 +4688,27 @@ class PromptAnalyzer:
             text_parts.append(f"**Current Yield:** {current_yield:.1f} tonnes/hectare")
             text_parts.append(f"**Land Size:** {land_size:.1f} hectares")
             text_parts.append("")
+
+            # Add Scenario-Based Economic Projections (Year 1, per Hectare) table
+            text_parts.append("### 📊 Scenario-Based Economic Projections (Year 1, per Hectare)")
+            text_parts.append("")
+            text_parts.append("<tables>")
+            text_parts.append('<table id="forecast" title="Scenario-Based Economic Projections (Year 1, per Hectare)">')
+            text_parts.append("<thead>")
+            text_parts.append("<tr><th>Year</th><th>Additional Revenue (RM/ha)</th><th>Profit (RM/ha)</th><th>ROI (%)</th></tr>")
+            text_parts.append("</thead>")
+            text_parts.append("<tbody>")
+            text_parts.append("<tr><td>Year 1</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
+            text_parts.append("<tr><td>Year 2</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
+            text_parts.append("<tr><td>Year 3</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
+            text_parts.append("<tr><td>Year 4</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
+            text_parts.append("<tr><td>Year 5</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
+            text_parts.append("</tbody>")
+            text_parts.append("</table>")
+            text_parts.append("</tables>")
+            text_parts.append("")
+            text_parts.append("**Note:** This table will be populated with actual projections based on your specific yield improvements and economic parameters.")
+            text_parts.append("")
             
             if scenarios:
                 text_parts.append("### 📊 Investment Scenarios Analysis\n")
