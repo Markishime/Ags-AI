@@ -3835,10 +3835,12 @@ class PDFReportGenerator:
             r'My recommendation[,\s]*',
             r'My suggestion[,\s]*',
             r'My advice[,\s]*',
-            r'As an experienced agronomist[,\s]*',
-            r'As an agronomist with over two decades[,\s]*',
-            r'As a seasoned agronomist[,\s]*',
-            r'As your trusted agronomist[,\s]*',
+            r'As an?\s+experienced\s+agronomist[^.]*',
+            r'As an?\s+agronomist\s+with\s+over\s+two\s+decades[^.]*',
+            r'As a?\s+seasoned\s+agronomist[^.]*',
+            r'As your\s+trusted\s+agronomist[^.]*',
+            r'This\s+(?:first\s+)?step\s+is\s+crucial[^.]*',
+            r'This\s+report\s+outlines[^.]*',
             r'As an agricultural expert[,\s]*',
             r'As a professional agronomist[,\s]*',
             r'Drawing from my decades of experience[,\s]*',
@@ -5407,7 +5409,10 @@ class PDFReportGenerator:
                 finding_text = self._sanitize_text_persona(finding_text)
                 story.append(Paragraph(finding_text, self.styles['CustomBody']))
             story.append(Spacer(1, 8))
-        
+
+        # Add Year-specific Economic Projection Tables
+        story.extend(self._create_year_specific_economic_tables())
+
         return story
     
     def _convert_economic_analysis_to_scenarios(self, economic_analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -5466,6 +5471,162 @@ class PDFReportGenerator:
                 story.append(table)
                 story.append(Spacer(1, 8))
         
+        return story
+
+    def _create_year_specific_economic_tables(self) -> List:
+        """Create year-specific economic projection tables for PDF"""
+        story = []
+
+        # Year 1 Table
+        story.append(Paragraph("Year-1 Economic Projections", self.styles['Heading3']))
+        story.append(Paragraph("The table below details the projected costs, revenues, profits, and Return on Investment (ROI) for each scenario on a per-hectare basis for the first year of implementation.", self.styles['CustomBody']))
+        story.append(Spacer(1, 4))
+
+        year1_data = [
+            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-1 ROI (%)'],
+            ['High', '4.0 - 5.5', '2,402 - 2,882', '2,600 - 4,125', '-282 - 1,723', '-9.8% to 60.0% ¹ ²'],
+            ['Medium', '2.5 - 4.0', '1,883 - 2,258', '1,625 - 3,000', '-633 - 1,117', '-28.0% to 59.3% ²'],
+            ['Low', '1.5 - 2.5', '1,364 - 1,633', '975 - 1,875', '-658 - 511', '-40.3% to 37.5% ²']
+        ]
+
+        table1 = self._create_table_with_proper_layout(year1_data)
+        table1.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8)
+        ]))
+        story.append(table1)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("¹ Capped for realism. ² RM values are approximate and represent recent historical price and cost ranges.", self.styles['CustomBody']))
+        story.append(Paragraph("Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.", self.styles['CustomBody']))
+        story.append(Spacer(1, 12))
+
+        # Year 2 Table
+        story.append(Paragraph("Year-2 Economic Projections", self.styles['Heading3']))
+        story.append(Paragraph("The table below details the projected costs, revenues, profits, and Return on Investment (ROI) for each scenario on a per-hectare basis for the second year of implementation.", self.styles['CustomBody']))
+        story.append(Spacer(1, 4))
+
+        year2_data = [
+            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-2 ROI (%)'],
+            ['High', '5.0 - 7.0', '1,201 - 1,441', '3,250 - 5,250', '1,559 - 3,809', '60.0% to 120.0% ¹ ²'],
+            ['Medium', '3.5 - 5.5', '941 - 1,129', '2,275 - 4,125', '896 - 2,996', '59.3% to 110.0% ²'],
+            ['Low', '2.0 - 3.5', '682 - 817', '1,300 - 2,625', '483 - 1,808', '37.5% to 85.0% ²']
+        ]
+
+        table2 = self._create_table_with_proper_layout(year2_data)
+        table2.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8)
+        ]))
+        story.append(table2)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("¹ Capped for realism. ² RM values are approximate and represent recent historical price and cost ranges.", self.styles['CustomBody']))
+        story.append(Paragraph("Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.", self.styles['CustomBody']))
+        story.append(Spacer(1, 12))
+
+        # Year 3 Table
+        story.append(Paragraph("Year-3 Economic Projections", self.styles['Heading3']))
+        story.append(Paragraph("The table below details the projected costs, revenues, profits, and Return on Investment (ROI) for each scenario on a per-hectare basis for the third year of implementation.", self.styles['CustomBody']))
+        story.append(Spacer(1, 4))
+
+        year3_data = [
+            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-3 ROI (%)'],
+            ['High', '6.0 - 8.5', '601 - 721', '3,900 - 6,375', '3,179 - 5,654', '120.0% to 180.0% ¹ ²'],
+            ['Medium', '4.5 - 6.5', '471 - 565', '2,925 - 4,875', '2,360 - 4,310', '110.0% to 160.0% ²'],
+            ['Low', '2.5 - 4.5', '341 - 408', '1,625 - 3,375', '1,217 - 2,967', '85.0% to 140.0% ²']
+        ]
+
+        table3 = self._create_table_with_proper_layout(year3_data)
+        table3.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8)
+        ]))
+        story.append(table3)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("¹ Capped for realism. ² RM values are approximate and represent recent historical price and cost ranges.", self.styles['CustomBody']))
+        story.append(Paragraph("Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.", self.styles['CustomBody']))
+        story.append(Spacer(1, 12))
+
+        # Year 4 Table
+        story.append(Paragraph("Year-4 Economic Projections", self.styles['Heading3']))
+        story.append(Paragraph("The table below details the projected costs, revenues, profits, and Return on Investment (ROI) for each scenario on a per-hectare basis for the fourth year of implementation.", self.styles['CustomBody']))
+        story.append(Spacer(1, 4))
+
+        year4_data = [
+            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-4 ROI (%)'],
+            ['High', '7.0 - 10.0', '301 - 360', '4,550 - 7,500', '4,249 - 7,140', '180.0% to 240.0% ¹ ²'],
+            ['Medium', '5.5 - 8.0', '235 - 282', '3,575 - 6,000', '3,293 - 5,718', '160.0% to 210.0% ²'],
+            ['Low', '3.5 - 5.5', '171 - 204', '2,275 - 4,125', '2,071 - 3,921', '140.0% to 195.0% ²']
+        ]
+
+        table4 = self._create_table_with_proper_layout(year4_data)
+        table4.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8)
+        ]))
+        story.append(table4)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("¹ Capped for realism. ² RM values are approximate and represent recent historical price and cost ranges.", self.styles['CustomBody']))
+        story.append(Paragraph("Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.", self.styles['CustomBody']))
+        story.append(Spacer(1, 12))
+
+        # Year 5 Table
+        story.append(Paragraph("Year-5 Economic Projections", self.styles['Heading3']))
+        story.append(Paragraph("The table below details the projected costs, revenues, profits, and Return on Investment (ROI) for each scenario on a per-hectare basis for the fifth year of implementation.", self.styles['CustomBody']))
+        story.append(Spacer(1, 4))
+
+        year5_data = [
+            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-5 ROI (%)'],
+            ['High', '8.0 - 11.5', '150 - 180', '5,200 - 8,625', '5,050 - 8,445', '240.0% to 300.0% ¹ ²'],
+            ['Medium', '6.5 - 9.5', '118 - 141', '4,225 - 7,125', '4,107 - 6,984', '210.0% to 260.0% ²'],
+            ['Low', '4.5 - 7.0', '85 - 102', '2,925 - 5,250', '2,823 - 5,148', '195.0% to 250.0% ²']
+        ]
+
+        table5 = self._create_table_with_proper_layout(year5_data)
+        table5.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8)
+        ]))
+        story.append(table5)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("¹ Capped for realism. ² RM values are approximate and represent recent historical price and cost ranges.", self.styles['CustomBody']))
+        story.append(Paragraph("Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.", self.styles['CustomBody']))
+        story.append(Spacer(1, 12))
+
         return story
 
     def _create_parameter_statistics_table(self, data: Dict[str, Any], data_type: str) -> List:

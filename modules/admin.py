@@ -697,44 +697,356 @@ Ground Magnesium Limestone (GML) | per tonne | 200 - 300
 Copper Sulphate (CuSO₄) | per kg | 25 - 35
 Labour & Application | per hectare | 100 - 150
 
-High Investment Scenario
-This scenario aims for a full and rapid correction of all identified nutrient deficiencies and soil acidity to maximize yield response in the first year.
+Investment Scenario Analysis
+The following table details the projected costs, revenues, and return on investment (ROI) for each of the three scenarios across Years 1-5. The scenarios are designed to correct the severe soil acidity and multi-nutrient deficiencies identified in the analysis.
 
-Metric | Projected Range
----|---
-Projected Yield Improvement | 4.0 - 6.0 t/ha
-**Total Investment Cost** | **RM 2,905 - RM 3,747**
-*- Copper Sulphate Cost* | *RM 370 - RM 518*
-Incremental Revenue | RM 2,600 - RM 4,500
-**Net Profit / Loss** | **-RM 1,147 to RM 1,595**
-**Return on Investment (ROI)** | **-31% to 55%**
+Multi-Year Economic Impact Forecast by Investment Scenario (Years 1-5)
 
-Medium Investment Scenario
-This scenario provides a balanced approach, addressing the most critical deficiencies with a moderate investment level for a steady yield improvement.
-
-Metric | Projected Range
----|---
-Projected Yield Improvement | 2.5 - 4.0 t/ha
-**Total Investment Cost** | **RM 2,283 - RM 2,942**
-*- Copper Sulphate Cost* | *RM 278 - RM 389*
-Incremental Revenue | RM 1,625 - RM 3,000
-**Net Profit / Loss** | **-RM 1,317 to RM 717**
-**Return on Investment (ROI)** | **-45% to 31%**
-
-Low Investment Scenario
-This scenario focuses on a minimal investment to address the most severe deficiencies, aiming to prevent further yield decline and achieve a modest recovery.
-
-Metric | Projected Range
----|---
-Projected Yield Improvement | 1.0 - 2.5 t/ha
-**Total Investment Cost** | **RM 1,706 - RM 2,193**
-*- Copper Sulphate Cost* | *RM 185 - RM 259*
-Incremental Revenue | RM 650 - RM 1,875
-**Net Profit / Loss** | **-RM 1,543 to RM 169**
-**Return on Investment (ROI)** | **-70% to 10%**
+Scenario | Year | Projected Yield Improvement (t/ha) | Total Cost/ha (RM) | Additional Revenue/ha (RM) | Net Profit/ha (RM) | ROI (%)
+---|---|---|---|---|---|---|---
+High | Year 1 | 5.0 - 7.0 | 2,940 - 3,613 | 3,250 - 5,250 | -363 - 2,310 | -10% to 60%
+High | Year 2 | 6.0 - 8.0 | 1,470 - 1,807 | 3,900 - 6,000 | 2,093 - 4,193 | 60% to 120%
+High | Year 3 | 6.5 - 9.0 | 735 - 903 | 4,225 - 6,750 | 3,322 - 5,847 | 120% to 180%
+High | Year 4 | 7.0 - 10.0 | 368 - 452 | 4,550 - 7,500 | 4,098 - 7,048 | 180% to 240%
+High | Year 5 | 7.5 - 11.0 | 184 - 226 | 4,875 - 8,250 | 4,649 - 8,024 | 240% to 300%
+Medium | Year 1 | 3.5 - 5.0 | 2,358 - 2,895 | 2,275 - 3,750 | -620 - 1,392 | -21% to 59%
+Medium | Year 2 | 4.0 - 6.0 | 1,179 - 1,447 | 2,600 - 4,500 | 773 - 3,053 | 59% to 110%
+Medium | Year 3 | 4.5 - 7.0 | 589 - 724 | 2,925 - 5,250 | 2,201 - 4,526 | 110% to 160%
+Medium | Year 4 | 5.0 - 8.0 | 295 - 362 | 3,250 - 6,000 | 2,888 - 5,638 | 160% to 210%
+Medium | Year 5 | 5.5 - 9.0 | 147 - 181 | 3,575 - 6,750 | 3,428 - 6,569 | 210% to 260%
+Low | Year 1 | 2.0 - 3.5 | 1,777 - 2,177 | 1,300 - 2,625 | -877 - 848 | -40% to 48%
+Low | Year 2 | 2.5 - 4.0 | 888 - 1,088 | 1,625 - 3,000 | 287 - 1,912 | 48% to 95%
+Low | Year 3 | 3.0 - 4.5 | 444 - 544 | 1,950 - 3,375 | 1,406 - 2,831 | 95% to 140%
+Low | Year 4 | 3.5 - 5.0 | 222 - 272 | 2,275 - 3,750 | 2,003 - 3,478 | 140% to 185%
+Low | Year 5 | 4.0 - 5.5 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
 
 Footnote: RM values are approximate and represent recent historical price and cost ranges.
 Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.
+
+High Investment Scenario
+This scenario involves a comprehensive program to correct all identified major and minor nutrient deficiencies.
+
+<tables>
+<table title="High-Investment Scenario: Year 1 Economic Forecast (per Hectare)">
+<thead>
+<tr>
+<th>Item</th>
+<th>Application Rate (per ha)</th>
+<th>Cost Range (RM)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GML</td>
+<td>2.0 t</td>
+<td>300 - 400</td>
+</tr>
+<tr>
+<td>EFB</td>
+<td>40.0 t</td>
+<td>2,000 - 3,200</td>
+</tr>
+<tr>
+<td>MOP</td>
+<td>444 kg</td>
+<td>1,243 - 1,421</td>
+</tr>
+<tr>
+<td>Urea</td>
+<td>370 kg</td>
+<td>814 - 962</td>
+</tr>
+<tr>
+<td>Rock Phosphate</td>
+<td>296 kg</td>
+<td>266 - 326</td>
+</tr>
+<tr>
+<td>Kieserite</td>
+<td>222 kg</td>
+<td>311 - 377</td>
+</tr>
+<tr>
+<td>Copper Sulphate (CuSO₄)</td>
+<td>14.8 kg</td>
+<td>222 - 296</td>
+</tr>
+<tr>
+<td>Zinc Sulphate (ZnSO₄)</td>
+<td>14.8 kg</td>
+<td>148 - 222</td>
+</tr>
+<tr>
+<td>Application Cost</td>
+<td>-</td>
+<td>100 - 150</td>
+</tr>
+<tr>
+<td><strong>Total Investment Cost</strong></td>
+<td></td>
+<td><strong>5,404 - 7,354</strong></td>
+</tr>
+<tr>
+<td colspan="3"></td>
+</tr>
+<tr>
+<td>Projected Year 1 Yield Improvement</td>
+<td colspan="2">4.0 - 6.0 t/ha</td>
+</tr>
+<tr>
+<td><strong>Projected Additional Revenue</strong></td>
+<td colspan="2"><strong>2,600 - 4,500</strong></td>
+</tr>
+<tr>
+<td><strong>Projected Net Profit</strong></td>
+<td colspan="2"><strong>-4,754 - (-904)</strong></td>
+</tr>
+<tr>
+<td><strong>Projected Year 1 ROI</strong></td>
+<td colspan="2"><strong>-65% to -17%</strong></td>
+</tr>
+</tbody>
+</table>
+</tables>
+
+Table 7: High Investment Scenario - Year 2 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-2 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+High | 6.0 - 8.0 | 1,470 - 1,807 | 3,900 - 6,000 | 2,093 - 4,193 | 60% to 120%
+
+Table 8: High Investment Scenario - Year 3 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-3 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+High | 6.5 - 9.0 | 735 - 903 | 4,225 - 6,750 | 3,322 - 5,847 | 120% to 180%
+
+Table 9: High Investment Scenario - Year 4 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-4 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+High | 7.0 - 10.0 | 368 - 452 | 4,550 - 7,500 | 4,098 - 7,048 | 180% to 240%
+
+Table 10: High Investment Scenario - Year 5 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-5 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+High | 7.5 - 11.0 | 184 - 226 | 4,875 - 8,250 | 4,649 - 8,024 | 240% to 300%
+
+Medium Investment Scenario
+This scenario provides a balanced nutrient program, addressing critical deficiencies with moderate application rates.
+
+<tables>
+<table title="Medium-Investment Scenario: Year 1 Economic Forecast (per Hectare)">
+<thead>
+<tr>
+<th>Item</th>
+<th>Application Rate (per ha)</th>
+<th>Cost Range (RM)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GML</td>
+<td>1.0 t</td>
+<td>150 - 200</td>
+</tr>
+<tr>
+<td>EFB</td>
+<td>20.0 t</td>
+<td>1,000 - 1,600</td>
+</tr>
+<tr>
+<td>MOP</td>
+<td>296 kg</td>
+<td>829 - 947</td>
+</tr>
+<tr>
+<td>Urea</td>
+<td>222 kg</td>
+<td>488 - 577</td>
+</tr>
+<tr>
+<td>Rock Phosphate</td>
+<td>148 kg</td>
+<td>133 - 163</td>
+</tr>
+<tr>
+<td>Kieserite</td>
+<td>148 kg</td>
+<td>207 - 252</td>
+</tr>
+<tr>
+<td>Copper Sulphate (CuSO₄)</td>
+<td>7.4 kg</td>
+<td>111 - 148</td>
+</tr>
+<tr>
+<td>Zinc Sulphate (ZnSO₄)</td>
+<td>7.4 kg</td>
+<td>74 - 111</td>
+</tr>
+<tr>
+<td>Application Cost</td>
+<td>-</td>
+<td>100 - 150</td>
+</tr>
+<tr>
+<td><strong>Total Investment Cost</strong></td>
+<td></td>
+<td><strong>3,092 - 4,148</strong></td>
+</tr>
+<tr>
+<td colspan="3"></td>
+</tr>
+<tr>
+<td>Projected Year 1 Yield Improvement</td>
+<td colspan="2">2.5 - 4.0 t/ha</td>
+</tr>
+<tr>
+<td><strong>Projected Additional Revenue</strong></td>
+<td colspan="2"><strong>1,625 - 3,000</strong></td>
+</tr>
+<tr>
+<td><strong>Projected Net Profit</strong></td>
+<td colspan="2"><strong>-2,523 - (-92)</strong></td>
+</tr>
+<tr>
+<td><strong>Projected Year 1 ROI</strong></td>
+<td colspan="2"><strong>-61% to -3%</strong></td>
+</tr>
+</tbody>
+</table>
+</tables>
+
+Table 11: Medium Investment Scenario - Year 2 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-2 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Medium | 4.0 - 6.0 | 1,179 - 1,447 | 2,600 - 4,500 | 773 - 3,053 | 59% to 110%
+
+Table 12: Medium Investment Scenario - Year 3 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-3 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Medium | 4.5 - 7.0 | 589 - 724 | 2,925 - 5,250 | 2,201 - 4,526 | 110% to 160%
+
+Table 13: Medium Investment Scenario - Year 4 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-4 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Medium | 5.0 - 8.0 | 295 - 362 | 3,250 - 6,000 | 2,888 - 5,638 | 160% to 210%
+
+Table 14: Medium Investment Scenario - Year 5 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-5 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Medium | 5.5 - 9.0 | 147 - 181 | 3,575 - 6,750 | 3,428 - 6,569 | 210% to 260%
+
+Low Investment Scenario
+This scenario prioritizes the most critical nutrient inputs with a minimal budget, deferring major soil amendment.
+
+<tables>
+<table title="Low-Investment Scenario: Year 1 Economic Forecast (per Hectare)">
+<thead>
+<tr>
+<th>Item</th>
+<th>Application Rate (per ha)</th>
+<th>Cost Range (RM)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GML</td>
+<td>0.5 t</td>
+<td>75 - 100</td>
+</tr>
+<tr>
+<td>MOP</td>
+<td>222 kg</td>
+<td>622 - 710</td>
+</tr>
+<tr>
+<td>Urea</td>
+<td>148 kg</td>
+<td>326 - 385</td>
+</tr>
+<tr>
+<td>Rock Phosphate</td>
+<td>74 kg</td>
+<td>67 - 81</td>
+</tr>
+<tr>
+<td>Kieserite</td>
+<td>74 kg</td>
+<td>104 - 126</td>
+</tr>
+<tr>
+<td>Copper Sulphate (CuSO₄)</td>
+<td>3.7 kg</td>
+<td>56 - 74</td>
+</tr>
+<tr>
+<td>Zinc Sulphate (ZnSO₄)</td>
+<td>3.7 kg</td>
+<td>37 - 56</td>
+</tr>
+<tr>
+<td>Application Cost</td>
+<td>-</td>
+<td>100 - 150</td>
+</tr>
+<tr>
+<td><strong>Total Investment Cost</strong></td>
+<td></td>
+<td><strong>1,387 - 1,682</strong></td>
+</tr>
+<tr>
+<td colspan="3"></td>
+</tr>
+<tr>
+<td>Projected Year 1 Yield Improvement</td>
+<td colspan="2">1.0 - 2.5 t/ha</td>
+</tr>
+<tr>
+<td><strong>Projected Additional Revenue</strong></td>
+<td colspan="2"><strong>650 - 1,875</strong></td>
+</tr>
+<tr>
+<td><strong>Projected Net Profit</strong></td>
+<td colspan="2"><strong>-1,032 - 488</strong></td>
+</tr>
+<tr>
+<td><strong>Projected Year 1 ROI</strong></td>
+<td colspan="2"><strong>-61% to 35%</strong></td>
+</tr>
+</tbody>
+</table>
+</tables>
+
+Table 15: Low Investment Scenario - Year 2 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-2 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Low | 2.5 - 4.0 | 888 - 1,088 | 1,625 - 3,000 | 287 - 1,912 | 48% to 95%
+
+Table 16: Low Investment Scenario - Year 3 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-3 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Low | 3.0 - 4.5 | 444 - 544 | 1,950 - 3,375 | 1,406 - 2,831 | 95% to 140%
+
+Table 17: Low Investment Scenario - Year 4 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-4 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Low | 3.5 - 5.0 | 222 - 272 | 2,275 - 3,750 | 2,003 - 3,478 | 140% to 185%
+
+Table 18: Low Investment Scenario - Year 5 Economic Impact
+
+Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-5 ROI (%)
+---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
+Low | 4.0 - 5.5 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
 
 Step 6: Forecast Graph
 Generate yield projection graph (5 years):

@@ -1,3 +1,30 @@
+import streamlit as st
+import sys
+import os
+from datetime import datetime
+import pandas as pd
+import plotly.graph_objects as go
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Add utils to path
+sys.path.append(os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), 'utils'))
+
+# Import utilities
+from utils.firebase_config import get_firestore_client, COLLECTIONS
+from google.cloud.firestore import Query, FieldFilter
+from utils.pdf_utils import PDFReportGenerator
+from utils.analysis_engine import AnalysisEngine
+from utils.ocr_utils import extract_data_from_image
+from modules.admin import get_active_prompt
+from utils.feedback_system import (
+    display_feedback_section as display_feedback_section_util)
+
+
 def normalize_markdown_block_for_step3(text):
     """Normalize inline dense markdown into readable headings and lists for Step 3.
 
@@ -146,32 +173,6 @@ def display_step1_placeholder_tables(analysis_data, detailed_text):
     except Exception as outer_e:
         logger.error(f"display_step1_placeholder_tables error: {outer_e}")
 
-import streamlit as st
-import sys
-import os
-from datetime import datetime
-import pandas as pd
-import plotly.graph_objects as go
-# Use our configured Firestore client instead of direct import
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Add utils to path
-sys.path.append(os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), 'utils'))
-
-# Import utilities
-from utils.firebase_config import get_firestore_client, COLLECTIONS
-from google.cloud.firestore import Query, FieldFilter
-from utils.pdf_utils import PDFReportGenerator
-from utils.analysis_engine import AnalysisEngine
-from utils.ocr_utils import extract_data_from_image
-from modules.admin import get_active_prompt
-from utils.feedback_system import (
-    display_feedback_section as display_feedback_section_util)
 
 def add_responsive_css():
     """Add responsive CSS styling for optimal viewing across devices"""
@@ -2091,217 +2092,225 @@ def process_html_tables(text):
         logger.warning("BeautifulSoup not available, using regex fallback for table parsing")
         return process_html_tables_regex(text)
     
-    # We support two forms:
-    # 1) <tables> ... one or more <table> ... </tables>
-    # 2) Bare <table> ... </table> blocks without a <tables> wrapper
+    # Find all HTML table blocks - handle both <tables> and <TABLE> formats
+    table_pattern = r'<tables>(.*?)</tables>|<TABLE>(.*?)</TABLE>'
+    table_blocks = re.findall(table_pattern, text, re.DOTALL)
+    
     processed_text = text
-
-    def build_table_html(title, headers, rows):
-        # Align row column counts to headers length
-        normalized_rows = []
-        for r in rows:
-            if len(r) < len(headers):
-                r = r + [''] * (len(headers) - len(r))
-            elif len(r) > len(headers):
-                r = r[:len(headers)]
-            normalized_rows.append(r)
-
-        table_html = f"""
-        <div style="margin: 20px 0; overflow-x: auto;">
-            <h4 style="color: #2c3e50; margin-bottom: 15px; font-weight: 600;">{title}</h4>
-            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                <thead>
-                    <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
-        """
-        for header in headers:
-            table_html += f'<th style="padding: 12px 15px; text-align: left; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2);">{header}</th>'
-        table_html += """
-                    </tr>
-                </thead>
-                <tbody>
-        """
-        for i, row in enumerate(normalized_rows):
-            row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
-            table_html += f'<tr style="{row_style}">'
-            for cell in row:
-                table_html += f'<td style="padding: 10px 15px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;">{cell}</td>'
-            table_html += '</tr>'
-        table_html += """
-                </tbody>
-            </table>
-        </div>
-        """
-        return table_html
-
-    def extract_headers_and_rows(table_tag):
-        # Try thead first
-        headers = []
-        thead = table_tag.find('thead')
-        if thead:
-            header_row = thead.find('tr')
-            if header_row:
-                headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
-
-        # Build rows from tbody or all trs
-        rows = []
-        tbody = table_tag.find('tbody')
-        tr_list = tbody.find_all('tr') if tbody else table_tag.find_all('tr')
-        for tr in tr_list:
-            cells = tr.find_all(['td', 'th'])
-            row = [c.get_text(strip=True) for c in cells]
-            # Skip empty or separator rows
-            if not any(cell for cell in row):
-                continue
-            rows.append(row)
-
-        # If no headers, infer from first non-empty row
-        if not headers and rows:
-            inferred = rows[0]
-            headers = [h if h else f"Col {i+1}" for i, h in enumerate(inferred)]
-            rows = rows[1:]
-
-        return headers, rows
-
-    # 1) Replace any <tables> wrapper blocks (may contain multiple tables)
-    wrapper_pattern = re.compile(r'<tables>([\s\S]*?)</tables>', re.IGNORECASE)
-    for m in list(wrapper_pattern.finditer(processed_text)):
-        inner = m.group(1)
-        soup = BeautifulSoup(inner, 'html.parser')
-        tables = soup.find_all('table')
-        built_blocks = []
-        for t in tables:
-            title = t.get('title', 'Table')
-            headers, rows = extract_headers_and_rows(t)
-            if headers and rows:
-                built_blocks.append(build_table_html(title, headers, rows))
-        replacement = "\n".join(built_blocks) if built_blocks else inner
-        processed_text = processed_text.replace(m.group(0), replacement)
-
-    # 2) Handle bare <table> blocks not inside <tables>
-    # Do multiple passes until no more bare tables that are not inside a <tables> wrapper
-    bare_table_pattern = re.compile(r'<table[^>]*>([\s\S]*?)</table>', re.IGNORECASE)
-    for m in list(bare_table_pattern.finditer(processed_text)):
-        # Skip if this match is already within a <tables>...</tables> we processed
-        # Simple heuristic: if substring around has '<tables>' before and '</tables>' after, skip
-        start_idx, end_idx = m.start(), m.end()
-        window_start = max(0, start_idx - 200)
-        window_end = min(len(processed_text), end_idx + 200)
-        window = processed_text[window_start:window_end].lower()
-        if '<tables>' in window and '</tables>' in window:
+    
+    for table_block_tuple in table_blocks:
+        # Extract the non-empty table block
+        table_block = table_block_tuple[0] if table_block_tuple[0] else table_block_tuple[1]
+        try:
+            # Parse the HTML table - handle both standard HTML and custom TABLE format
+            soup = BeautifulSoup(table_block, 'html.parser')
+            table = soup.find('table')
+            
+            if table:
+                # Extract table title
+                title = table.get('title', 'Table')
+                
+                # Extract headers
+                thead = table.find('thead')
+                headers = []
+                if thead:
+                    header_row = thead.find('tr')
+                    if header_row:
+                        headers = [th.get_text(strip=True) for th in header_row.find_all(['th', 'td'])]
+                
+                # Extract rows
+                tbody = table.find('tbody')
+                rows = []
+                if tbody:
+                    for tr in tbody.find_all('tr'):
+                        row = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                        if row:  # Only add non-empty rows
+                            rows.append(row)
+            else:
+                # Handle custom TABLE format with <TITLE>, <HEADERS>, <ROWS>
+                title_match = re.search(r'<TITLE>(.*?)</TITLE>', table_block, re.DOTALL)
+                title = title_match.group(1).strip() if title_match else "Table"
+                
+                # Extract headers
+                headers = []
+                header_pattern = r'<HEADERS>(.*?)</HEADERS>'
+                header_match = re.search(header_pattern, table_block, re.DOTALL)
+                if header_match:
+                    header_text = header_match.group(1)
+                    headers = re.findall(r'<HEADER>(.*?)</HEADER>', header_text)
+                
+                # Extract rows
+                rows = []
+                row_pattern = r'<ROWS>(.*?)</ROWS>'
+                rows_match = re.search(row_pattern, table_block, re.DOTALL)
+                if rows_match:
+                    rows_text = rows_match.group(1)
+                    row_matches = re.findall(r'<ROW>(.*?)</ROW>', rows_text, re.DOTALL)
+                    for row_match in row_matches:
+                        cells = re.findall(r'<CELL>(.*?)</CELL>', row_match)
+                        if cells:
+                            rows.append([cell.strip() for cell in cells])
+                
+                # Create a styled HTML table
+                if headers and rows:
+                    # Create table HTML with proper styling
+                    table_html = f"""
+                    <div style="margin: 20px 0; overflow-x: auto;">
+                        <h4 style="color: #2c3e50; margin-bottom: 15px; font-weight: 600;">{title}</h4>
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <thead>
+                                <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                    """
+                    
+                    # Add headers
+                    for header in headers:
+                        table_html += f'<th style="padding: 12px 15px; text-align: left; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2);">{header}</th>'
+                    
+                    table_html += """
+                                </tr>
+                            </thead>
+                            <tbody>
+                    """
+                    
+                    # Add rows
+                    for i, row in enumerate(rows):
+                        row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
+                        table_html += f'<tr style="{row_style}">'
+                        for cell in row:
+                            # Handle colspan if present
+                            if cell == '' and len(row) < len(headers):
+                                continue
+                            table_html += f'<td style="padding: 10px 15px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;">{cell}</td>'
+                        table_html += '</tr>'
+                    
+                    table_html += """
+                            </tbody>
+                        </table>
+                    </div>
+                    """
+                    
+                    # Replace the original table block with the styled HTML
+                    # Handle both <tables> and <TABLE> formats
+                    if table_block_tuple[0]:  # <tables> format
+                        original_block = f'<tables>{table_block}</tables>'
+                    else:  # <TABLE> format
+                        original_block = f'<TABLE>{table_block}</TABLE>'
+                    processed_text = processed_text.replace(original_block, table_html)
+                    
+        except Exception as e:
+            # If parsing fails, keep the original text
+            logger.warning(f"Failed to parse HTML table: {str(e)}")
             continue
-        soup = BeautifulSoup(m.group(0), 'html.parser')
-        t = soup.find('table')
-        if not t:
-            continue
-        title = t.get('title', 'Table')
-        headers, rows = extract_headers_and_rows(t)
-        if headers and rows:
-            processed_text = processed_text.replace(m.group(0), build_table_html(title, headers, rows))
-
+    
     return processed_text
 
 def process_html_tables_regex(text):
     """Fallback function to process HTML tables using regex when BeautifulSoup is not available"""
     import re
-
+    
+    # Find all HTML table blocks - handle both <tables> and <TABLE> formats
+    table_pattern = r'<tables>(.*?)</tables>|<TABLE>(.*?)</TABLE>'
+    table_blocks = re.findall(table_pattern, text, re.DOTALL)
+    
     processed_text = text
-
-    def build_table_html(title, headers, rows):
-        # Align rows
-        normalized_rows = []
-        for r in rows:
-            if len(r) < len(headers):
-                r = r + [''] * (len(headers) - len(r))
-            elif len(r) > len(headers):
-                r = r[:len(headers)]
-            normalized_rows.append(r)
-        table_html = f"""
-        <div style=\"margin: 20px 0; overflow-x: auto;\">
-            <h4 style=\"color: #2c3e50; margin-bottom: 15px; font-weight: 600;\">{title}</h4>
-            <table style=\"width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);\">
-                <thead>
-                    <tr style=\"background: linear-gradient(135deg, #667eea, #764ba2); color: white;\">
-        """
-        for header in headers:
-            table_html += f'<th style=\"padding: 12px 15px; text-align: left; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2);\">{header}</th>'
-        table_html += """
-                    </tr>
-                </thead>
-                <tbody>
-        """
-        for i, row in enumerate(normalized_rows):
-            row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
-            table_html += f'<tr style=\"{row_style}\">'
-            for cell in row:
-                table_html += f'<td style=\"padding: 10px 15px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;\">{cell}</td>'
-            table_html += '</tr>'
-        table_html += """
-                </tbody>
-            </table>
-        </div>
-        """
-        return table_html
-
-    # Helper: extract tables within a wrapper (case-insensitive)
-    wrapper_pattern = re.compile(r'<tables>([\s\S]*?)</tables>', re.IGNORECASE)
-    for m in list(wrapper_pattern.finditer(processed_text)):
-        inner = m.group(1)
-        # Find all <table ...>...</table>
-        tables = re.findall(r'<table[^>]*>([\s\S]*?)</table>', inner, re.IGNORECASE)
-        built_blocks = []
-        for tb in tables:
-            title_match = re.search(r'<table[^>]*title=\"([^\"]*)\"', inner, re.IGNORECASE)
-            title = title_match.group(1) if title_match else "Table"
-            # Try to get thead headers
-            header_match = re.search(r'<thead[^>]*>\s*<tr[^>]*>([\s\S]*?)</tr>\s*</thead>', tb, re.IGNORECASE)
+    
+    for table_block_tuple in table_blocks:
+        # Extract the non-empty table block
+        table_block = table_block_tuple[0] if table_block_tuple[0] else table_block_tuple[1]
+        try:
+            # Extract table title - handle both standard HTML and custom TABLE format
+            title_match = re.search(r'<table[^>]*title="([^"]*)"', table_block)
+            if title_match:
+                title = title_match.group(1)
+            else:
+                # Handle custom TABLE format
+                title_match = re.search(r'<TITLE>(.*?)</TITLE>', table_block, re.DOTALL)
+                title = title_match.group(1).strip() if title_match else "Table"
+            
+            # Extract headers - handle both formats
             headers = []
+            header_pattern = r'<thead>.*?<tr>(.*?)</tr>.*?</thead>'
+            header_match = re.search(header_pattern, table_block, re.DOTALL)
             if header_match:
-                headers = [h.strip() for h in re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', header_match.group(1), re.IGNORECASE)]
-            # Rows
-            tbody_match = re.search(r'<tbody[^>]*>([\s\S]*?)</tbody>', tb, re.IGNORECASE)
+                header_cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', header_match.group(1))
+                headers = [cell.strip() for cell in header_cells]
+            else:
+                # Handle custom TABLE format
+                header_pattern = r'<HEADERS>(.*?)</HEADERS>'
+                header_match = re.search(header_pattern, table_block, re.DOTALL)
+                if header_match:
+                    header_text = header_match.group(1)
+                    headers = re.findall(r'<HEADER>(.*?)</HEADER>', header_text)
+            
+            # Extract rows - handle both formats
             rows = []
-            body_src = tbody_match.group(1) if tbody_match else tb
-            for row_html in re.findall(r'<tr[^>]*>([\s\S]*?)</tr>', body_src, re.IGNORECASE):
-                cells = [c.strip() for c in re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', row_html, re.IGNORECASE)]
-                if any(cells):
-                    rows.append(cells)
-            if not headers and rows:
-                headers = [h if h else f"Col {i+1}" for i, h in enumerate(rows[0])]
-                rows = rows[1:]
+            row_pattern = r'<tbody>(.*?)</tbody>'
+            tbody_match = re.search(row_pattern, table_block, re.DOTALL)
+            if tbody_match:
+                row_matches = re.findall(r'<tr>(.*?)</tr>', tbody_match.group(1), re.DOTALL)
+                for row_match in row_matches:
+                    cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row_match)
+                    if cells:
+                        rows.append([cell.strip() for cell in cells])
+            else:
+                # Handle custom TABLE format
+                row_pattern = r'<ROWS>(.*?)</ROWS>'
+                rows_match = re.search(row_pattern, table_block, re.DOTALL)
+                if rows_match:
+                    rows_text = rows_match.group(1)
+                    row_matches = re.findall(r'<ROW>(.*?)</ROW>', rows_text, re.DOTALL)
+                    for row_match in row_matches:
+                        cells = re.findall(r'<CELL>(.*?)</CELL>', row_match)
+                        if cells:
+                            rows.append([cell.strip() for cell in cells])
+            
+            # Create a styled HTML table
             if headers and rows:
-                built_blocks.append(build_table_html(title, headers, rows))
-        replacement = "\n".join(built_blocks) if built_blocks else inner
-        processed_text = processed_text.replace(m.group(0), replacement)
-
-    # Bare tables outside wrappers
-    for m in list(re.finditer(r'<table[^>]*>([\s\S]*?)</table>', processed_text, re.IGNORECASE)):
-        # Skip if within a wrapper; approximate by checking nearby text
-        start_idx, end_idx = m.start(), m.end()
-        window_start = max(0, start_idx - 200)
-        window_end = min(len(processed_text), end_idx + 200)
-        window = processed_text[window_start:window_end].lower()
-        if '<tables>' in window and '</tables>' in window:
+                table_html = f"""
+                <div style="margin: 20px 0; overflow-x: auto;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px; font-weight: 600;">{title}</h4>
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                """
+                
+                # Add headers
+                for header in headers:
+                    table_html += f'<th style="padding: 12px 15px; text-align: left; font-weight: 600; border-right: 1px solid rgba(255,255,255,0.2);">{header}</th>'
+                
+                table_html += """
+                            </tr>
+                        </thead>
+                        <tbody>
+                """
+                
+                # Add rows
+                for i, row in enumerate(rows):
+                    row_style = "background: #f8f9fa;" if i % 2 == 0 else "background: white;"
+                    table_html += f'<tr style="{row_style}">'
+                    for cell in row:
+                        table_html += f'<td style="padding: 10px 15px; border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;">{cell}</td>'
+                    table_html += '</tr>'
+                
+                table_html += """
+                        </tbody>
+                    </table>
+                </div>
+                """
+                
+                # Replace the original table block with the styled HTML
+                # Handle both <tables> and <TABLE> formats
+                if table_block_tuple[0]:  # <tables> format
+                    original_block = f'<tables>{table_block}</tables>'
+                else:  # <TABLE> format
+                    original_block = f'<TABLE>{table_block}</TABLE>'
+                processed_text = processed_text.replace(original_block, table_html)
+                
+        except Exception as e:
+            # If parsing fails, keep the original text
+            logger.warning(f"Failed to parse HTML table with regex: {str(e)}")
             continue
-        full = m.group(0)
-        title_match = re.search(r'<table[^>]*title=\"([^\"]*)\"', full, re.IGNORECASE)
-        title = title_match.group(1) if title_match else "Table"
-        header_match = re.search(r'<thead[^>]*>\s*<tr[^>]*>([\s\S]*?)</tr>\s*</thead>', full, re.IGNORECASE)
-        headers = []
-        if header_match:
-            headers = [h.strip() for h in re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', header_match.group(1), re.IGNORECASE)]
-        body_src_match = re.search(r'<tbody[^>]*>([\s\S]*?)</tbody>', full, re.IGNORECASE)
-        body_src = body_src_match.group(1) if body_src_match else full
-        rows = []
-        for row_html in re.findall(r'<tr[^>]*>([\s\S]*?)</tr>', body_src, re.IGNORECASE):
-            cells = [c.strip() for c in re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', row_html, re.IGNORECASE)]
-            if any(cells):
-                rows.append(cells)
-        if not headers and rows:
-            headers = [h if h else f"Col {i+1}" for i, h in enumerate(rows[0])]
-            rows = rows[1:]
-        if headers and rows:
-            processed_text = processed_text.replace(full, build_table_html(title, headers, rows))
-
+    
     return processed_text
 
 def convert_structured_to_samples(structured_data):
@@ -3219,7 +3228,7 @@ def calculate_parameter_statistics(samples):
     return param_stats
 
 def clean_finding_text(text):
-    """Clean finding text by removing all 'Key Finding' prefixes and normalizing"""
+    """Clean finding text by removing all 'Key Finding' prefixes and persona text, then normalizing"""
     import re
 
     # Remove all variations of "Key finding X:" and "Key Finding X:" prefixes
@@ -3235,6 +3244,9 @@ def clean_finding_text(text):
     # Pattern 4: Remove duplicate "Key Finding" patterns that might remain
     text = re.sub(r'Key Finding \d+:\s*Key finding \d+:\s*', '', text)
     text = re.sub(r'^(Key Finding \d+:\s*)+', '', text)
+
+    # Apply persona cleaning to remove any persona text
+    text = sanitize_persona_and_enforce_article(text)
 
     # Clean up extra spaces and normalize
     text = re.sub(r'\s+', ' ', text).strip()
@@ -5246,6 +5258,8 @@ def sanitize_persona_and_enforce_article(text):
         # Also remove inline occurrences that may follow headings
         inline_persona_patterns = [
             r"(\n|^)\s*As\s+an\s+experienced\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+your\s+consulting\s+agronomist[,\s:]+",
+            r"(\n|^)\s*As\s+a\s+consulting\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+your\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+an\s+agronomist[,\s:]+",
             r"(\n|^)\s*As\s+an\s+agronomist\s+with\s+over\s+two\s+decades[,\s:]+",
@@ -5741,8 +5755,8 @@ def display_step3_solution_recommendations(analysis_data):
             for i, solution in enumerate(solutions, 1):
                 if isinstance(solution, dict):
                     st.markdown(f"**Solution {i}:** {solution.get('name', 'Unknown')}")
-                    st.markdown(f"- Description: {solution.get('description', 'N/A')}")
-                    st.markdown(f"- Impact: {solution.get('impact', 'N/A')}")
+                    st.markdown(f"- Description: {sanitize_persona_and_enforce_article(solution.get('description', 'N/A'))}")
+                    st.markdown(f"- Impact: {sanitize_persona_and_enforce_article(solution.get('impact', 'N/A'))}")
                     st.markdown("---")
     
     # Display recommendations
@@ -5875,7 +5889,7 @@ def display_step5_economic_forecast(analysis_data):
                 fa_text_top = analysis_data['detailed_analysis']
         
         if isinstance(fa_text_top, str) and ('<table' in fa_text_top):
-            display_formatted_economic_tables(fa_text_top, analysis_context=analysis_data)
+            display_formatted_economic_tables(fa_text_top)
     except Exception as e:
         logger.error(f"Error parsing Step 5 formatted tables: {e}")
         pass
@@ -5927,7 +5941,7 @@ def display_step5_economic_forecast(analysis_data):
                 m = _re.search(r"Formatted Analysis:\s*(.*?)(?=\n\n|\Z)", analysis_data['detailed_analysis'], _re.DOTALL | _re.IGNORECASE)
                 fa_text = m.group(1).strip() if m and m.group(1).strip() else analysis_data['detailed_analysis']
             if isinstance(fa_text, str) and ('<tables>' in fa_text or '<table' in fa_text):
-                display_formatted_economic_tables(fa_text, analysis_context=analysis_data)
+                display_formatted_economic_tables(fa_text)
         except Exception as e:
             logger.error(f"Error in Case A table detection: {e}")
             pass
@@ -5936,7 +5950,7 @@ def display_step5_economic_forecast(analysis_data):
             # Check if this contains formatted analysis with tables
             if isinstance(forecast_data, str) and ('<tables>' in forecast_data or '<table' in forecast_data):
                 # Parse and display formatted tables
-                display_formatted_economic_tables(forecast_data, analysis_context=analysis_data)
+                display_formatted_economic_tables(forecast_data)
             else:
                 # Create a forecast overview container
                 overview_html = '<div style="background: linear-gradient(135deg, #f8f9fa, #ffffff); padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #007bff;">'
@@ -5990,217 +6004,88 @@ def display_step5_economic_forecast(analysis_data):
             logger.error(f"Error displaying tables: {e}")
             st.error("Error displaying tables")
 
-def display_formatted_economic_tables(formatted_text, analysis_context=None):
-    """Parse and display tables from formatted economic analysis text.
-    If a table is empty but tagged with an id (e.g., 'assumptions', 'forecast'),
-    attempt to populate from analysis_context when available.
-    """
+def display_formatted_economic_tables(formatted_text):
+    """Parse and display tables from formatted economic analysis text."""
     try:
         import pandas as pd
-        from bs4 import BeautifulSoup
         import re
 
+        # First apply persona sanitization to the entire text
         formatted_text = sanitize_persona_and_enforce_article(formatted_text)
 
-        # Use BeautifulSoup for robust parsing and to access table attributes like id/title
-        soup = BeautifulSoup(formatted_text, 'html.parser')
-
-        # Collect all tables whether inside <tables> or bare
+        # Find all table sections - support multiple patterns:
+        # 1. <tables> wrapper with <table title="...">
+        # 2. Bare <table title="...">
+        # 3. Bare <table> without title
+        
         tables = []
-        for wrapper in soup.find_all('tables'):
-            tables.extend(wrapper.find_all('table'))
-        # Add bare tables not wrapped
-        for t in soup.find_all('table'):
-            if t not in tables:
-                tables.append(t)
+        
+        # Pattern 1: <tables> wrapper with titled tables
+        tables_wrapper_pattern = r'<tables>\s*<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>\s*</tables>'
+        tables_wrapper_matches = re.findall(tables_wrapper_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+        tables.extend(tables_wrapper_matches)
+        
+        # Pattern 2: Bare titled tables (not inside <tables> wrapper)
+        bare_titled_pattern = r'(?<!<tables>\s*)<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>(?!\s*</tables>)'
+        bare_titled_matches = re.findall(bare_titled_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+        tables.extend(bare_titled_matches)
+        
+        # Pattern 3: Untitled tables as fallback
+        if not tables:
+            untitled = re.findall(r'<table[^>]*>([\s\S]*?)</table>', formatted_text, re.DOTALL | re.IGNORECASE)
+            tables = [(f"Table {i+1}", t) for i, t in enumerate(untitled)]
 
-        def render_dataframe_from_kv_dict(title, kv_dict):
-            try:
-                df = pd.DataFrame([
-                    {"Parameter": k, "Value": v} for k, v in kv_dict.items()
-                ])
-                apply_table_styling()
-                st.markdown(f"#### 📋 {title}")
-                st.dataframe(df, width='stretch')
-                st.markdown("")
-                return True
-            except Exception as _e:
-                return False
-
-        def render_dataframe_from_rows(title, headers, rows):
-            try:
-                if headers and rows:
-                    df = pd.DataFrame(rows, columns=headers)
-                elif rows:
-                    # Infer headers from first row
-                    headers = rows[0]
-                    df = pd.DataFrame(rows[1:], columns=headers) if len(rows) > 1 else pd.DataFrame()
-                else:
-                    return False
-                apply_table_styling()
-                st.markdown(f"#### 📋 {title}")
-                st.dataframe(df, width='stretch')
-                st.markdown("")
-                return True
-            except Exception as _e:
-                return False
-
-        for idx, table in enumerate(tables, 1):
-            title = table.get('title') or f"Table {idx}"
-            table_id = table.get('id')
+        for i, (title, table_content) in enumerate(tables):
+            st.markdown(f"#### 📋 {title}")
 
             # Extract headers and rows
-            headers = []
-            rows = []
-            thead = table.find('thead')
-            if thead:
-                header_row = thead.find('tr')
-                if header_row:
-                    headers = [re.sub(r'<[^>]+>', '', th.get_text()).strip() for th in header_row.find_all(['th', 'td'])]
+            thead_pattern = r'<thead[^>]*>(.*?)</thead>'
+            tbody_pattern = r'<tbody[^>]*>(.*?)</tbody>'
 
-            tbody = table.find('tbody')
-            tr_list = tbody.find_all('tr') if tbody else table.find_all('tr')
-            for tr in tr_list:
-                cells = [re.sub(r'<[^>]+>', '', td.get_text()).strip() for td in tr.find_all(['td', 'th'])]
-                if any(cells):
-                    rows.append(cells)
+            thead_match = re.search(thead_pattern, table_content, re.DOTALL | re.IGNORECASE)
+            tbody_match = re.search(tbody_pattern, table_content, re.DOTALL | re.IGNORECASE)
 
-            # If no headers, infer from first row
-            if not headers and rows:
-                headers = rows[0]
-                rows = rows[1:] if len(rows) > 1 else []
+            if thead_match and tbody_match:
+                # Parse headers
+                header_row = re.findall(r'<th[^>]*>(.*?)</th>', thead_match.group(1), re.DOTALL | re.IGNORECASE)
+                headers = [re.sub(r'<[^>]+>', '', h).strip() for h in header_row]
 
-            # If table is empty, attempt to populate by id from analysis_context
-            populated = False
-            if (not headers and not rows) and analysis_context and isinstance(analysis_context, dict):
-                try:
-                    # Try assumptions
-                    if table_id and table_id.lower() in ['assumptions', 'economic_assumptions']:
-                        # Prefer explicit economic_assumptions dict
-                        assumptions_data = analysis_context.get('economic_assumptions')
-                        if isinstance(assumptions_data, dict) and render_dataframe_from_kv_dict(title, assumptions_data):
-                            populated = True
-                        elif isinstance(analysis_context.get('assumptions'), dict) and render_dataframe_from_kv_dict(title, analysis_context['assumptions']):
-                            populated = True
-                        elif isinstance(analysis_context.get('assumptions'), list):
-                            # List of dicts or strings
-                            items = analysis_context['assumptions']
-                            if items and isinstance(items[0], dict):
-                                # Merge keys into columns
-                                df = pd.DataFrame(items)
-                                apply_table_styling()
-                                st.markdown(f"#### 📋 {title}")
-                                st.dataframe(df, width='stretch')
-                                st.markdown("")
-                                populated = True
-                            elif items and isinstance(items[0], str):
-                                df = pd.DataFrame({"Assumption": items})
-                                apply_table_styling()
-                                st.markdown(f"#### 📋 {title}")
-                                st.dataframe(df, width='stretch')
-                                st.markdown("")
-                                populated = True
-                    # Try forecast
-                    if not populated and table_id and table_id.lower() in ['forecast', 'economic_forecast']:
-                        forecast = analysis_context.get('economic_forecast') or analysis_context.get('forecast') or {}
-                        # Attempt to build a multi-year ROI/Profit table (Year 1 to Year 5) per hectare
-                        if isinstance(forecast, dict):
-                            try:
-                                current_yield = forecast.get('current_yield_tonnes_per_ha') or forecast.get('current_yield') or 0
-                                land_size = forecast.get('land_size_hectares') or 1
-                                # Resolve FFB price per tonne (RM)
-                                def _resolve_price(data: dict) -> float:
-                                    keys = ['ffb_price_rm_per_tonne','ffb_price_rm_tonne','ffb_price','price_rm_per_tonne','price_per_tonne_rm','price_per_tonne']
-                                    for k in keys:
-                                        if k in data:
-                                            try:
-                                                return float(data[k])
-                                            except Exception:
-                                                continue
-                                    return 0.0
-                                price_rm_t = _resolve_price(forecast)
-                                # Find investment cost per ha if available
-                                cost_per_ha = None
-                                total_cost = None
-                                # From scenarios
-                                scenarios = forecast.get('investment_scenarios') or forecast.get('scenarios') or {}
-                                if isinstance(scenarios, dict) and len(scenarios) == 1:
-                                    only = list(scenarios.values())[0]
-                                    total_cost = only.get('total_cost') or only.get('cost')
-                                    cph = only.get('cost_per_hectare') or only.get('cost_per_ha')
-                                    if not cph and isinstance(total_cost, (int, float)) and isinstance(land_size, (int, float)) and land_size:
-                                        cost_per_ha = float(total_cost) / float(land_size)
-                                    elif isinstance(cph, (int, float)):
-                                        cost_per_ha = float(cph)
-                                # Direct keys
-                                if cost_per_ha is None:
-                                    cph2 = forecast.get('cost_per_hectare') or forecast.get('cost_per_ha')
-                                    if isinstance(cph2, (int, float)):
-                                        cost_per_ha = float(cph2)
+                # Parse rows
+                rows = []
+                row_matches = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_match.group(1), re.DOTALL | re.IGNORECASE)
+                for row_match in row_matches:
+                    cells = re.findall(r'<td[^>]*>(.*?)</td>', row_match, re.DOTALL | re.IGNORECASE)
+                    clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
+                    if clean_cells:
+                        rows.append(clean_cells)
 
-                                five_year = forecast.get('five_year_projection') or {}
-                                # Build per-hectare table if we have price and yield projection
-                                if price_rm_t and isinstance(five_year, dict):
-                                    # Assemble years 1..5 delta yield vs current
-                                    years = list(range(1, 6))
-                                    rows_built = []
-                                    for y in years:
-                                        proj = five_year.get(f'year_{y}', current_yield)
-                                        try:
-                                            proj = float(proj)
-                                        except Exception:
-                                            proj = current_yield
-                                        try:
-                                            cy = float(current_yield)
-                                        except Exception:
-                                            cy = 0.0
-                                        addl_yield_per_ha = max(proj - cy, 0.0)
-                                        addl_revenue_per_ha = addl_yield_per_ha * float(price_rm_t)
-                                        # Profit per ha: subtract Year 1 investment if known; assume no recurring costs
-                                        if y == 1 and isinstance(cost_per_ha, (int, float)):
-                                            profit_per_ha = addl_revenue_per_ha - float(cost_per_ha)
-                                        else:
-                                            profit_per_ha = addl_revenue_per_ha
-                                        roi_pct = (profit_per_ha / float(cost_per_ha) * 100.0) if (y == 1 and isinstance(cost_per_ha, (int, float)) and cost_per_ha) else (profit_per_ha / float(cost_per_ha) * 100.0 if isinstance(cost_per_ha, (int, float)) and cost_per_ha else None)
-                                        rows_built.append([
-                                            f"Year {y}",
-                                            f"RM {addl_revenue_per_ha:,.0f}",
-                                            f"RM {profit_per_ha:,.0f}",
-                                            (f"{roi_pct:.1f}%" if isinstance(roi_pct, (int, float)) else "N/A")
-                                        ])
-
-                                    headers_built = ["Year", "Additional Revenue (RM/ha)", "Profit (RM/ha)", "ROI (%)"]
-                                    if render_dataframe_from_rows(title, headers_built, rows_built):
-                                        populated = True
-                                # If no five_year_projection, try generic flatten
-                                if not populated:
-                                    if render_dataframe_from_kv_dict(title, forecast):
-                                        populated = True
-                            except Exception:
-                                populated = False
-                        elif isinstance(forecast, list):
-                            if forecast and isinstance(forecast[0], dict) and render_dataframe_from_rows(title, list(forecast[0].keys()), [list(d.values()) for d in forecast]):
-                                populated = True
-                    # Try searching in generic 'tables' list
-                    if not populated and isinstance(analysis_context.get('tables'), list):
-                        for t in analysis_context['tables']:
-                            if isinstance(t, dict):
-                                # Match by id or title
-                                if (table_id and t.get('id') == table_id) or (title and t.get('title') == title):
-                                    hdrs = t.get('headers')
-                                    rws = t.get('rows')
-                                    if isinstance(hdrs, list) and isinstance(rws, list) and render_dataframe_from_rows(title, hdrs, rws):
-                                        populated = True
-                                        break
-                except Exception as _e:
-                    populated = False
-
-            # Render parsed or populated table
-            if not populated:
-                if not render_dataframe_from_rows(title, headers, rows):
-                    st.markdown(f"#### 📋 {title}")
+                if headers and rows:
+                    df = pd.DataFrame(rows, columns=headers)
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+                else:
                     st.markdown("No data found in table.")
-                    st.markdown("")
+            else:
+                # Try naive row parsing without explicit thead/tbody
+                row_matches = re.findall(r'<tr[^>]*>([\s\S]*?)</tr>', table_content, re.DOTALL | re.IGNORECASE)
+                rows = []
+                for row_match in row_matches:
+                    cells = re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', row_match, re.DOTALL | re.IGNORECASE)
+                    clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
+                    if clean_cells:
+                        rows.append(clean_cells)
+                if rows:
+                    # Use first row as header if plausible
+                    headers = rows[0]
+                    body = rows[1:] if len(rows) > 1 else []
+                    import pandas as pd
+                    df = pd.DataFrame(body, columns=headers if body else None)
+                    apply_table_styling()
+                    st.dataframe(df, width='stretch')
+                else:
+                    st.markdown("Table format not recognized.")
+
+            st.markdown("")
 
     except Exception as e:
         logger.error(f"Error displaying formatted economic tables: {e}")
@@ -7006,7 +6891,7 @@ def display_references_section(results_data):
                 if ref.get('tags'):
                     st.markdown(f"**Tags:** {', '.join(ref['tags'])}")
                 if ref.get('content'):
-                    st.markdown(f"**Content:** {ref['content'][:500]}{'...' if len(ref['content']) > 500 else ''}")
+                    st.markdown(f"**Content:** {sanitize_persona_and_enforce_article(ref['content'][:500])}{'...' if len(ref['content']) > 500 else ''}")
                 st.markdown(f"**Relevance Score:** {ref.get('relevance_score', 0):.2f}")
     
     
@@ -11992,9 +11877,9 @@ def display_issue_diagnosis_content(analysis_data):
     if 'identified_issues' in analysis_data:
         for issue in analysis_data['identified_issues']:
             st.markdown(f"**{issue.get('parameter', 'Unknown Parameter')}:**")
-            st.markdown(f"- Issue: {issue.get('issue_type', 'Unknown')}")
-            st.markdown(f"- Severity: {issue.get('severity', 'Unknown')}")
-            st.markdown(f"- Cause: {issue.get('cause', 'Unknown')}")
+            st.markdown(f"- Issue: {sanitize_persona_and_enforce_article(issue.get('issue_type', 'Unknown'))}")
+            st.markdown(f"- Severity: {sanitize_persona_and_enforce_article(issue.get('severity', 'Unknown'))}")
+            st.markdown(f"- Cause: {sanitize_persona_and_enforce_article(issue.get('cause', 'Unknown'))}")
             st.markdown("---")
 
 def display_structured_solutions(detailed_text):
@@ -13222,37 +13107,18 @@ def display_regenerative_agriculture_content(analysis_data):
             fa_match = re.search(r"Formatted Analysis:\s*(.*)$", detailed_text, re.DOTALL | re.IGNORECASE)
             if fa_match and fa_match.group(1).strip():
                 detailed_text = fa_match.group(1).strip()
-            # Sanitize
             detailed_text = sanitize_persona_and_enforce_article(detailed_text)
 
-            # First render any markdown tables and strip them from text to avoid duplication
-            try:
-                detailed_text_no_md_tables = _extract_and_render_markdown_tables(detailed_text)
-            except Exception:
-                detailed_text_no_md_tables = detailed_text
+            # Use markdown normalization for better formatting
+            normalized_content = normalize_markdown_block_for_step3(detailed_text)
 
-            # Process embedded HTML tables (<tables> and bare <table>)
-            try:
-                processed_text = process_html_tables(detailed_text_no_md_tables)
-            except Exception:
-                processed_text = detailed_text_no_md_tables
-
-            # Render heading
             st.markdown("#### 📋 Detailed Analysis")
-
-            # Split into paragraphs and render; render table HTML directly
-            paragraphs = processed_text.split('\n\n') if '\n\n' in processed_text else [processed_text]
-            for paragraph in paragraphs:
-                if isinstance(paragraph, str) and paragraph.strip():
-                    if '<table' in paragraph and '</table>' in paragraph:
-                        st.markdown(paragraph, unsafe_allow_html=True)
-                    else:
-                        st.markdown(
-                            f'<div style="margin-bottom: 18px; padding: 15px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                            f'<p style="margin: 0; line-height: 1.8; font-size: 16px; color: #2c3e50;">{sanitize_persona_and_enforce_article(paragraph.strip())}</p>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
+                f'<div style="color: #2c3e50; line-height: 1.7;">{normalized_content}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
     except Exception:
         pass
 
@@ -13940,12 +13806,12 @@ def display_regenerative_strategies(analysis_data):
     
     for strategy in strategies:
         with st.expander(f"🌿 {strategy.get('name', 'Strategy')}", expanded=False):
-            st.markdown(f"**Description:** {strategy.get('description', '')}")
+            st.markdown(f"**Description:** {sanitize_persona_and_enforce_article(strategy.get('description', ''))}")
             
             if 'benefits' in strategy:
                 st.markdown("**Benefits:**")
                 for benefit in strategy['benefits']:
-                    st.markdown(f"• {benefit}")
+                    st.markdown(f"• {sanitize_persona_and_enforce_article(benefit)}")
             
             col1, col2 = st.columns(2)
             with col1:

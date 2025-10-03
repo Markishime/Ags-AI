@@ -3244,7 +3244,7 @@ class PromptAnalyzer:
             return {
                 'step_number': step_num,
                 'step_title': step_title,
-                'summary': f"Step {step_num} analysis completed with enhanced fallback processing",
+                'summary': self._clean_persona_wording(f"Step {step_num} analysis completed with enhanced fallback processing"),
                 'detailed_analysis': self._clean_persona_wording(f"Due to LLM unavailability, this step has been processed using enhanced fallback methods. The system has analyzed available soil and leaf data using MPOB standards and provided basic recommendations."),
                 'key_findings': [
                     "Analysis completed using fallback processing methods",
@@ -3407,9 +3407,9 @@ class PromptAnalyzer:
                 result = {
                     'step_number': step['number'],
                     'step_title': step['title'],
-                    'summary': parsed_data.get('summary', 'Analysis completed'),
+                    'summary': self._clean_persona_wording(parsed_data.get('summary', 'Analysis completed')),
                     'detailed_analysis': self._clean_persona_wording(parsed_data.get('detailed_analysis', 'Detailed analysis not available')),
-                    'key_findings': parsed_data.get('key_findings', []),
+                    'key_findings': [self._clean_persona_wording(str(finding)) if isinstance(finding, str) else finding for finding in parsed_data.get('key_findings', [])],
                     'analysis': parsed_data  # Store the full parsed data for display
                 }
                 
@@ -3472,7 +3472,7 @@ class PromptAnalyzer:
             return {
                 'step_number': step['number'],
                 'step_title': step['title'],
-                'summary': 'Analysis completed',
+                'summary': self._clean_persona_wording('Analysis completed'),
                 'detailed_analysis': self._clean_persona_wording(response[:500] + "..." if len(response) > 500 else response),
                 'confidence_level': 'Medium',
                 'analysis': {'raw_response': response}
@@ -3656,7 +3656,7 @@ class PromptAnalyzer:
         # Provide meaningful fallback content based on step type
         step_fallbacks = {
             1: {
-                'summary': 'Data analysis completed using fallback processing',
+                'summary': self._clean_persona_wording('Data analysis completed using fallback processing'),
                 'detailed_analysis': self._clean_persona_wording('Soil and leaf data has been processed and validated. Please check your Google API quota to get detailed AI analysis.'),
                 'key_findings': [
                     'Data has been successfully extracted and validated',
@@ -3666,7 +3666,7 @@ class PromptAnalyzer:
                 ]
             },
             2: {
-                'summary': 'Issue diagnosis completed using standard analysis',
+                'summary': self._clean_persona_wording('Issue diagnosis completed using standard analysis'),
                 'detailed_analysis': self._clean_persona_wording('Standard agronomic issue detection has been performed. AI-powered diagnosis requires Google API access.'),
                 'key_findings': [
                     'Standard nutrient level analysis completed',
@@ -3676,7 +3676,7 @@ class PromptAnalyzer:
                 ]
             },
             3: {
-                'summary': 'Solution recommendations prepared',
+                'summary': self._clean_persona_wording('Solution recommendations prepared'),
                 'detailed_analysis': self._clean_persona_wording('Basic solution framework has been established. Detailed AI recommendations require Google API access.'),
                 'key_findings': [
                     'Standard solution approaches identified',
@@ -3686,7 +3686,7 @@ class PromptAnalyzer:
                 ]
             },
             4: {
-                'summary': 'Regenerative agriculture strategies outlined',
+                'summary': self._clean_persona_wording('Regenerative agriculture strategies outlined'),
                 'detailed_analysis': self._clean_persona_wording('Standard regenerative practices have been identified. AI integration requires Google API access.'),
                 'key_findings': [
                     'Standard regenerative practices identified',
@@ -3696,7 +3696,7 @@ class PromptAnalyzer:
                 ]
             },
             5: {
-                'summary': 'Economic impact assessment prepared',
+                'summary': self._clean_persona_wording('Economic impact assessment prepared'),
                 'detailed_analysis': self._clean_persona_wording('Basic economic framework established. Detailed AI calculations require Google API access.'),
                 'key_findings': [
                     'Basic economic framework established',
@@ -3706,7 +3706,7 @@ class PromptAnalyzer:
                 ]
             },
             6: {
-                'summary': 'Yield forecast framework prepared',
+                'summary': self._clean_persona_wording('Yield forecast framework prepared'),
                 'detailed_analysis': self._clean_persona_wording('Basic yield projection structure established. Detailed AI forecasts require Google API access.'),
                 'key_findings': [
                     'Basic yield projection framework established',
@@ -3824,7 +3824,7 @@ class PromptAnalyzer:
             result = {
                 'step_number': step['number'],
                 'step_title': step['title'],
-                'summary': 'Agronomic issues identified through standard analysis',
+                'summary': self._clean_persona_wording('Agronomic issues identified through standard analysis'),
                 'detailed_analysis': self._clean_persona_wording('Based on soil and leaf analysis, several agronomic issues have been identified that may be affecting palm health and yield potential. These issues require targeted interventions to optimize production.'),
                 'key_findings': [
                     'Soil pH levels may be outside optimal range for oil palm cultivation',
@@ -4688,27 +4688,6 @@ class PromptAnalyzer:
             text_parts.append(f"**Current Yield:** {current_yield:.1f} tonnes/hectare")
             text_parts.append(f"**Land Size:** {land_size:.1f} hectares")
             text_parts.append("")
-
-            # Add Scenario-Based Economic Projections (Year 1, per Hectare) table
-            text_parts.append("### 📊 Scenario-Based Economic Projections (Year 1, per Hectare)")
-            text_parts.append("")
-            text_parts.append("<tables>")
-            text_parts.append('<table id="forecast" title="Scenario-Based Economic Projections (Year 1, per Hectare)">')
-            text_parts.append("<thead>")
-            text_parts.append("<tr><th>Year</th><th>Additional Revenue (RM/ha)</th><th>Profit (RM/ha)</th><th>ROI (%)</th></tr>")
-            text_parts.append("</thead>")
-            text_parts.append("<tbody>")
-            text_parts.append("<tr><td>Year 1</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
-            text_parts.append("<tr><td>Year 2</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
-            text_parts.append("<tr><td>Year 3</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
-            text_parts.append("<tr><td>Year 4</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
-            text_parts.append("<tr><td>Year 5</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>")
-            text_parts.append("</tbody>")
-            text_parts.append("</table>")
-            text_parts.append("</tables>")
-            text_parts.append("")
-            text_parts.append("**Note:** This table will be populated with actual projections based on your specific yield improvements and economic parameters.")
-            text_parts.append("")
             
             if scenarios:
                 text_parts.append("### 📊 Investment Scenarios Analysis\n")
@@ -5125,6 +5104,7 @@ class PromptAnalyzer:
         # Remove common persona phrases
         persona_patterns = [
             r'As your consulting agronomist[,\s]*',
+            r'As a consulting agronomist[,\s]*',
             r'As your agronomist[,\s]*',
             r'As your consultant[,\s]*',
             r'As your advisor[,\s]*',
@@ -7395,7 +7375,7 @@ class AnalysisEngine:
             return {
                 'step_number': step.get('number', 0),
                 'step_title': step.get('title', 'Error Step'),
-                'summary': 'Step processing failed',
+                'summary': self._clean_persona_wording('Step processing failed'),
                 'detailed_analysis': self._clean_persona_wording(f'Critical error in step processing: {str(error)}'),
                 'key_findings': ['Processing error occurred'],
                 'fallback_mode': True,
@@ -7403,10 +7383,13 @@ class AnalysisEngine:
             }
 
     def _finalize_analysis_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
-        """Finalize and validate analysis results, ensuring no nested arrays"""
+        """Finalize and validate analysis results, ensuring no nested arrays and cleaning all persona text"""
         try:
             # Flatten nested arrays to prevent Firestore storage issues
             results = self._flatten_analysis_results(results)
+
+            # Apply comprehensive persona cleaning to all text content
+            results = self._clean_all_persona_text(results)
 
             # Add final validation checks
             results['final_validation'] = {
@@ -7431,6 +7414,65 @@ class AnalysisEngine:
         except Exception as e:
             self.logger.error(f"Error finalizing analysis results: {str(e)}")
             return results
+
+    def _clean_persona_wording(self, text: str) -> str:
+        """Clean persona wording from text"""
+        if not isinstance(text, str):
+            return str(text)
+
+        # Remove common persona phrases
+        persona_patterns = [
+            r'As your consulting agronomist[,\s]*',
+            r'As a consulting agronomist[,\s]*',
+            r'As your agronomist[,\s]*',
+            r'As your consultant[,\s]*',
+            r'As your advisor[,\s]*',
+            r'Based on my analysis[,\s]*',
+            r'In my professional opinion[,\s]*',
+            r'I recommend[,\s]*',
+            r'I suggest[,\s]*',
+            r'I advise[,\s]*',
+            r'From my experience[,\s]*',
+            r'In my assessment[,\s]*',
+            r'My recommendation[,\s]*',
+            r'My suggestion[,\s]*',
+            r'My advice[,\s]*',
+            r'As an experienced agronomist[,\s]*',
+            r'As an agronomist with over two decades[,\s]*',
+            r'As a seasoned agronomist[,\s]*',
+            r'As your trusted agronomist[,\s]*',
+            r'As an agricultural expert[,\s]*',
+            r'As a professional agronomist[,\s]*',
+            r'Drawing from my decades of experience[,\s]*',
+            r'With my extensive experience[,\s]*',
+            r'Based on my expertise[,\s]*',
+            r'In my expert opinion[,\s]*',
+            r'My professional assessment[,\s]*',
+        ]
+
+        cleaned_text = text
+        for pattern in persona_patterns:
+            cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.IGNORECASE)
+
+        return cleaned_text.strip()
+
+    def _clean_all_persona_text(self, data: Any) -> Any:
+        """Recursively clean all persona text from analysis results"""
+        try:
+            if isinstance(data, dict):
+                cleaned_dict = {}
+                for key, value in data.items():
+                    cleaned_dict[key] = self._clean_all_persona_text(value)
+                return cleaned_dict
+            elif isinstance(data, list):
+                return [self._clean_all_persona_text(item) for item in data]
+            elif isinstance(data, str):
+                return self._clean_persona_wording(data)
+            else:
+                return data
+        except Exception as e:
+            self.logger.error(f"Error cleaning persona text: {str(e)}")
+            return data
 
     def _flatten_analysis_results(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Flatten nested arrays in analysis results to prevent Firestore storage issues"""
