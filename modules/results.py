@@ -5778,6 +5778,11 @@ def display_step2_issue_diagnosis(analysis_data):
         st.markdown("#### 📋 Summary")
         summary_text = analysis_data['summary']
         if isinstance(summary_text, str) and summary_text.strip():
+            try:
+                # Remove any raw dict dumps if the LLM leaked them into the summary
+                summary_text = _strip_step5_raw_economic_blocks(summary_text)
+            except Exception:
+                pass
             st.markdown(
                 f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
                 f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{sanitize_persona_and_enforce_article(summary_text.strip())}</p>'
@@ -5857,6 +5862,14 @@ def display_step5_economic_forecast(analysis_data):
     """Display Step 5: Economic Impact Forecast content with consistent formatting"""
     st.markdown("### 💰 Economic Impact Forecast")
 
+    # Pre-filter: remove any raw LLM economic dict dumps from known text fields
+    try:
+        for key in ['formatted_analysis', 'detailed_analysis', 'economic_forecast']:
+            if key in analysis_data and isinstance(analysis_data[key], str):
+                analysis_data[key] = _strip_step5_raw_economic_blocks(analysis_data[key])
+    except Exception:
+        pass
+
     # Display summary if available
     if 'summary' in analysis_data and analysis_data['summary']:
         st.markdown("#### 📋 Summary")
@@ -5888,8 +5901,25 @@ def display_step5_economic_forecast(analysis_data):
                 # Fall back to the entire detailed_analysis if no Formatted Analysis section
                 fa_text_top = analysis_data['detailed_analysis']
         
+        # HTML tables
         if isinstance(fa_text_top, str) and ('<table' in fa_text_top):
             display_formatted_economic_tables(fa_text_top)
+        
+        # Markdown tables (e.g., "Table X: Title | ...") including inline caption/header fixes
+        if isinstance(analysis_data.get('detailed_analysis'), str):
+            md_text = analysis_data['detailed_analysis']
+            # Prefer explicit formatted analysis block when present
+            try:
+                import re as _re
+                m3 = _re.search(r"Formatted Analysis:\s*(.*)$", md_text, _re.DOTALL | _re.IGNORECASE)
+                if m3 and m3.group(1).strip():
+                    md_text = m3.group(1).strip()
+            except Exception:
+                pass
+            md_text = _fix_step5_inline_caption_markdown(md_text)
+            # Render only tables; suppress remaining narrative from formatted analysis
+            _ = _extract_and_render_markdown_tables(md_text)
+            # Do not render leftover narrative from formatted analysis in Step 5
     except Exception as e:
         logger.error(f"Error parsing Step 5 formatted tables: {e}")
         pass
@@ -5940,8 +5970,14 @@ def display_step5_economic_forecast(analysis_data):
                 import re as _re
                 m = _re.search(r"Formatted Analysis:\s*(.*?)(?=\n\n|\Z)", analysis_data['detailed_analysis'], _re.DOTALL | _re.IGNORECASE)
                 fa_text = m.group(1).strip() if m and m.group(1).strip() else analysis_data['detailed_analysis']
-            if isinstance(fa_text, str) and ('<tables>' in fa_text or '<table' in fa_text):
-                display_formatted_economic_tables(fa_text)
+            if isinstance(fa_text, str):
+                # Prefer HTML table rendering if present
+                if ('<tables>' in fa_text or '<table' in fa_text):
+                    display_formatted_economic_tables(fa_text)
+                # Also support markdown tables inside the formatted block
+                fa_text_fixed = _fix_step5_inline_caption_markdown(fa_text)
+                # Only render tables; suppress remaining narrative from formatted analysis
+                _ = _extract_and_render_markdown_tables(fa_text_fixed)
         except Exception as e:
             logger.error(f"Error in Case A table detection: {e}")
             pass
@@ -6010,8 +6046,12 @@ def display_formatted_economic_tables(formatted_text):
         import pandas as pd
         import re
 
-        # First apply persona sanitization to the entire text
+        # First apply persona sanitization and strip raw economic dict dumps
         formatted_text = sanitize_persona_and_enforce_article(formatted_text)
+        try:
+            formatted_text = _strip_step5_raw_economic_blocks(formatted_text)
+        except Exception:
+            pass
 
         # Find all table sections - support multiple patterns:
         # 1. <tables> wrapper with <table title="...">
@@ -6236,6 +6276,60 @@ def _extract_and_render_markdown_tables(raw_text: str) -> str:
     except Exception as e:
         logger.error(f"Error in _extract_and_render_markdown_tables: {e}")
         return raw_text
+
+def _fix_step5_inline_caption_markdown(text: str) -> str:
+    """Ensure markdown table captions like 'Table X: Title' are on a separate line
+    from the table header row. Some LLM outputs place the caption and the first
+    header '|' on the same line; this prevents the parser from detecting the table.
+    Also normalize any accidental multiple spaces around pipes.
+    """
+    try:
+        if not isinstance(text, str) or not text:
+            return text
+        import re
+        fixed = text
+        # Insert newline between caption and header if they are on the same line
+        fixed = re.sub(r"(Table\s*\d+\s*:\s*[^\n|]*?)\s*(\|)", r"\1\n\2", fixed, flags=re.IGNORECASE)
+        # Sometimes captions are immediately followed by alignment row; still add newline
+        fixed = re.sub(r"(Table\s*\d+\s*:\s*[^\n]*?)\s*(\|[:\-\s|]+\|)", r"\1\n\2", fixed, flags=re.IGNORECASE)
+        # Normalize spaces around pipe characters in header lines to reduce parsing issues
+        def normalize_pipes(line: str) -> str:
+            line = re.sub(r"\s*\|\s*", " | ", line)
+            # Ensure line starts/ends with a single pipe if it already had pipes
+            if '|' in line:
+                line = line.strip()
+            return line
+        fixed_lines = []
+        for ln in fixed.split('\n'):
+            if '|' in ln:
+                fixed_lines.append(normalize_pipes(ln))
+            else:
+                fixed_lines.append(ln)
+        return '\n'.join(fixed_lines)
+    except Exception:
+        return text
+
+def _strip_step5_raw_economic_blocks(text: str) -> str:
+    """Remove raw dict dumps such as 'Economic Analysis: {...}' or repeated
+    'Investment Scenarios: {...}' blocks to avoid noisy duplication beneath the
+    formatted tables.
+    """
+    try:
+        if not isinstance(text, str) or not text:
+            return text
+        import re
+        cleaned = text
+        # Remove blocks starting with 'Economic Analysis:' followed by braces-ish content
+        cleaned = re.sub(r"(?is)\n?Economic Analysis\s*:\s*\{[\s\S]*?(?=\n\n|\Z)", "", cleaned)
+        # Also remove 'Investment Scenarios:' raw dicts if present
+        cleaned = re.sub(r"(?is)\n?Investment Scenarios\s*:\s*\{[\s\S]*?(?=\n\n|\Z)", "", cleaned)
+        # Remove duplicated 'Economic Analysis:' headings without content
+        cleaned = re.sub(r"(?im)^Economic Analysis\s*:\s*$", "", cleaned)
+        # Collapse excessive blank lines introduced by removals
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned
+    except Exception:
+        return text
 
 def filter_known_sections_from_text(text):
     """Filter out known sections from raw text to prevent raw LLM output display"""

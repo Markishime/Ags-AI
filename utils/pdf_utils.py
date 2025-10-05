@@ -5410,8 +5410,8 @@ class PDFReportGenerator:
                 story.append(Paragraph(finding_text, self.styles['CustomBody']))
             story.append(Spacer(1, 8))
 
-        # Add Year-specific Economic Projection Tables
-        story.extend(self._create_year_specific_economic_tables())
+        # Add 5-Year Economic Projection Tables using actual data
+        story.extend(self._create_5_year_economic_tables(economic_forecast))
 
         return story
     
@@ -5433,6 +5433,311 @@ class PDFReportGenerator:
         }
         
         return scenarios
+
+    def _create_5_year_economic_tables(self, economic_forecast: Dict[str, Any]) -> List:
+        """Create 5-year economic projection tables using actual forecast data"""
+        story = []
+        
+        if not economic_forecast or not economic_forecast.get('scenarios'):
+            return story
+        
+        scenarios = economic_forecast['scenarios']
+        
+        # Create overview section
+        story.append(Paragraph("5-Year Economic Projections", self.styles['Heading3']))
+        story.append(Paragraph("The following tables detail the projected costs, revenues, profits, and Return on Investment (ROI) for each investment scenario over a 5-year period.", self.styles['CustomBody']))
+        story.append(Spacer(1, 8))
+        
+        # Create tables for each investment scenario
+        for scenario_name, scenario_data in scenarios.items():
+            if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                yearly_data = scenario_data['yearly_data']
+                
+                if yearly_data:
+                    # Scenario header
+                    story.append(Paragraph(f"{scenario_name.title()} Investment Scenario", self.styles['Heading4']))
+                    story.append(Spacer(1, 4))
+                    
+                    # Create comprehensive table
+                    table_data = [
+                        ['Year', 'Yield (t/ha)', 'Additional Yield (t/ha)', 'Additional Revenue (RM)', 'Cost (RM)', 'Net Profit (RM)', 'Cumulative Profit (RM)', 'ROI (%)']
+                    ]
+                    
+                    cumulative_profit_low = 0
+                    cumulative_profit_high = 0
+                    
+                    for year_data in yearly_data:
+                        cumulative_profit_low += year_data['net_profit_low']
+                        cumulative_profit_high += year_data['net_profit_high']
+                        
+                        table_data.append([
+                            f"Year {year_data['year']}",
+                            f"{year_data['yield_low']:.1f} - {year_data['yield_high']:.1f}",
+                            f"{year_data['additional_yield_low']:.1f} - {year_data['additional_yield_high']:.1f}",
+                            f"{year_data['additional_revenue_low']:,.0f} - {year_data['additional_revenue_high']:,.0f}",
+                            f"{year_data['cost_low']:,.0f} - {year_data['cost_high']:,.0f}",
+                            f"{year_data['net_profit_low']:,.0f} - {year_data['net_profit_high']:,.0f}",
+                            f"{cumulative_profit_low:,.0f} - {cumulative_profit_high:,.0f}",
+                            f"{year_data['roi_low']:.1f} - {year_data['roi_high']:.1f}"
+                        ])
+                    
+                    # Create table
+                    table = self._create_table_with_proper_layout(table_data)
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('FONTSIZE', (0, 1), (-1, -1), 7),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+                    ]))
+                    story.append(table)
+                    story.append(Spacer(1, 4))
+                    
+                    # Add summary metrics
+                    story.append(Paragraph("Investment Summary:", self.styles['Heading5']))
+                    
+                    summary_data = [
+                        ['Metric', 'Value'],
+                        ['Total Investment', scenario_data.get('total_cost_range', 'N/A')],
+                        ['5-Year Cumulative Profit', scenario_data.get('cumulative_net_profit_range', 'N/A')],
+                        ['5-Year ROI', scenario_data.get('roi_5year_range', 'N/A')],
+                        ['Payback Period', scenario_data.get('payback_period_range', 'N/A')]
+                    ]
+                    
+                    summary_table = self._create_table_with_proper_layout(summary_data)
+                    summary_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 9),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('FONTSIZE', (0, 1), (-1, -1), 8)
+                    ]))
+                    story.append(summary_table)
+                    story.append(Spacer(1, 12))
+        
+        # Add Year 2-5 specific economic forecast tables
+        story.extend(self._create_year_2_5_specific_tables(economic_forecast))
+        
+        # Add assumptions and disclaimers
+        if economic_forecast.get('assumptions'):
+            story.append(Paragraph("Assumptions:", self.styles['Heading4']))
+            for assumption in economic_forecast['assumptions']:
+                story.append(Paragraph(f"• {assumption}", self.styles['CustomBody']))
+            story.append(Spacer(1, 8))
+        
+        story.append(Paragraph("Disclaimer: All financial values are approximate and represent recent historical price and cost ranges. Actual results may vary based on field conditions, market prices, and implementation effectiveness.", self.styles['CustomBody']))
+        
+        return story
+
+    def _create_year_2_5_specific_tables(self, economic_forecast: Dict[str, Any] = None) -> List:
+        """Create Year 2-5 specific economic forecast tables for PDF using dynamic data"""
+        story = []
+        
+        # Economic Forecast Assumptions
+        story.append(Paragraph("Economic Forecast Assumptions", self.styles['Heading3']))
+        story.append(Paragraph("The following table outlines the price and cost ranges used for this forecast. These values are based on recent historical data for the Malaysian market.", self.styles['CustomBody']))
+        story.append(Spacer(1, 8))
+        
+        assumptions_data = [
+            ['Parameter', 'Value / Range (RM)'],
+            ['FFB Price', '650 - 750 per tonne'],
+            ['Ground Magnesium Limestone (GML)', '180 - 220 per tonne'],
+            ['Ammonium Sulphate (AS)', '1,300 - 1,500 per tonne'],
+            ['CIRP (Rock Phosphate)', '600 - 750 per tonne'],
+            ['Muriate of Potash (MOP)', '2,200 - 2,500 per tonne'],
+            ['Kieserite (Mg)', '1,200 - 1,400 per tonne'],
+            ['Copper Sulphate (CuSO₄)', '15 - 18 per kg']
+        ]
+        
+        assumptions_table = self._create_table_with_proper_layout(assumptions_data)
+        assumptions_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8)
+        ]))
+        story.append(assumptions_table)
+        story.append(Paragraph("Table 1: Economic Forecast Assumptions", self.styles['Caption']))
+        story.append(Spacer(1, 12))
+        
+        # If we have economic forecast data, use dynamic calculations
+        if economic_forecast and economic_forecast.get('scenarios'):
+            scenarios = economic_forecast['scenarios']
+            table_counter = 2
+            
+            # Display separate tables for each year (Year 2, 3, 4, 5)
+            for year_num in range(2, 6):  # Years 2, 3, 4, 5
+                story.append(Paragraph(f"Year {year_num} Economic Forecast", self.styles['Heading3']))
+                story.append(Spacer(1, 8))
+                
+                # Create a table for all scenarios for this specific year
+                table_data = [['Investment Scenario', 'Projected Yield Improvement (t/ha)', 'Additional Revenue (RM/ha)', 'Total Input Cost (RM/ha)', 'Micronutrient Cost (CuSO₄) (RM/ha)', 'Net Profit (RM/ha)', 'ROI (%)', 'Cumulative Profit (RM/ha)']]
+                
+                for scenario_name, scenario_data in scenarios.items():
+                    if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                        yearly_data = scenario_data['yearly_data']
+                        
+                        # Find the data for this specific year
+                        year_info = None
+                        for year_data_item in yearly_data:
+                            if year_data_item['year'] == year_num:
+                                year_info = year_data_item
+                                break
+                        
+                        if year_info:
+                            # Calculate cumulative profit up to this year
+                            cumulative_profit_low = 0
+                            cumulative_profit_high = 0
+                            
+                            # Sum up profits from Year 1 to current year
+                            for i in range(year_num):
+                                if i < len(yearly_data):
+                                    cumulative_profit_low += yearly_data[i]['net_profit_low']
+                                    cumulative_profit_high += yearly_data[i]['net_profit_high']
+                            
+                            table_data.append([
+                                f"{scenario_name.title()}-Investment",
+                                f"{year_info['additional_yield_low']:.1f} - {year_info['additional_yield_high']:.1f}",
+                                f"RM {year_info['additional_revenue_low']:,.0f} - RM {year_info['additional_revenue_high']:,.0f}",
+                                f"RM {year_info['cost_low']:,.0f} - RM {year_info['cost_high']:,.0f}",
+                                f"RM {year_info['cost_low'] * 0.1:,.0f} - RM {year_info['cost_high'] * 0.1:,.0f}",
+                                f"RM {year_info['net_profit_low']:,.0f} - RM {year_info['net_profit_high']:,.0f}",
+                                f"{year_info['roi_low']:.1f} - {year_info['roi_high']:.1f}",
+                                f"RM {cumulative_profit_low:,.0f} - RM {cumulative_profit_high:,.0f}"
+                            ])
+                
+                if len(table_data) > 1:  # Ensure we have data rows
+                    year_table = self._create_table_with_proper_layout(table_data)
+                    year_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('FONTSIZE', (0, 1), (-1, -1), 7),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+                    ]))
+                    story.append(year_table)
+                    
+                    # Add scenario descriptions
+                    story.append(Paragraph("Scenario Descriptions:", self.styles['Heading5']))
+                    scenario_descriptions = {
+                        'high': "High-Investment: Aggressive application of soil conditioners and complete, balanced fertilizer program for rapid yield recovery.",
+                        'medium': "Medium-Investment: Balanced approach addressing key deficiencies with moderate application rates for positive return.",
+                        'low': "Low-Investment: Critical interventions at minimal rates to stabilize plantation and achieve modest yield gains."
+                    }
+                    
+                    for desc_key, desc_text in scenario_descriptions.items():
+                        story.append(Paragraph(f"• {desc_key.title()}-Investment: {desc_text}", self.styles['CustomBody']))
+                    
+                    story.append(Paragraph(f"Table {table_counter}: Year {year_num} Economic Forecast - All Investment Scenarios", self.styles['Caption']))
+                    story.append(Spacer(1, 12))
+                    table_counter += 1
+        
+        else:
+            # Fallback to static calculations if no dynamic data available
+            story.append(Paragraph("Note: Dynamic economic calculations are not available. Static estimates are shown below.", self.styles['CustomBody']))
+            story.append(Spacer(1, 8))
+            
+            # Static data for each year and scenario
+            static_data = {
+                2: {
+                    'high': ['5.0 - 6.5', 'RM 3,250 - RM 4,875', 'RM 1,200 - RM 1,400', 'RM 111 - RM 133', 'RM 1,939 - RM 3,342', '162% - 239%', 'RM 1,738 - RM 4,697'],
+                    'medium': ['3.5 - 4.5', 'RM 2,275 - RM 3,375', 'RM 980 - RM 1,140', 'RM 111 - RM 133', 'RM 1,184 - RM 2,102', '121% - 184%', 'RM 522 - RM 2,770'],
+                    'low': ['2.0 - 3.0', 'RM 1,300 - RM 2,250', 'RM 760 - RM 890', 'RM 111 - RM 133', 'RM 429 - RM 1,227', '56% - 138%', 'RM -370 - RM 1,583']
+                },
+                3: {
+                    'high': ['6.0 - 7.5', 'RM 3,900 - RM 5,625', 'RM 1,200 - RM 1,400', 'RM 111 - RM 133', 'RM 2,589 - RM 4,092', '216% - 292%', 'RM 4,327 - RM 8,789'],
+                    'medium': ['4.0 - 5.0', 'RM 2,600 - RM 3,750', 'RM 980 - RM 1,140', 'RM 111 - RM 133', 'RM 1,509 - RM 2,477', '154% - 217%', 'RM 2,031 - RM 5,247'],
+                    'low': ['2.5 - 3.5', 'RM 1,625 - RM 2,625', 'RM 760 - RM 890', 'RM 111 - RM 133', 'RM 754 - RM 1,602', '99% - 180%', 'RM 384 - RM 3,185']
+                },
+                4: {
+                    'high': ['5.5 - 7.0', 'RM 3,575 - RM 5,250', 'RM 1,200 - RM 1,400', 'RM 111 - RM 133', 'RM 2,264 - RM 3,717', '189% - 265%', 'RM 6,591 - RM 12,506'],
+                    'medium': ['3.8 - 4.8', 'RM 2,470 - RM 3,600', 'RM 980 - RM 1,140', 'RM 111 - RM 133', 'RM 1,379 - RM 2,327', '141% - 204%', 'RM 3,410 - RM 7,574'],
+                    'low': ['2.3 - 3.3', 'RM 1,495 - RM 2,475', 'RM 760 - RM 890', 'RM 111 - RM 133', 'RM 624 - RM 1,452', '82% - 163%', 'RM 1,008 - RM 4,637']
+                },
+                5: {
+                    'high': ['5.0 - 6.5', 'RM 3,250 - RM 4,875', 'RM 1,200 - RM 1,400', 'RM 111 - RM 133', 'RM 1,939 - RM 3,342', '162% - 239%', 'RM 8,530 - RM 16,848'],
+                    'medium': ['3.5 - 4.5', 'RM 2,275 - RM 3,375', 'RM 980 - RM 1,140', 'RM 111 - RM 133', 'RM 1,184 - RM 2,102', '121% - 184%', 'RM 4,594 - RM 9,676'],
+                    'low': ['2.0 - 3.0', 'RM 1,300 - RM 2,250', 'RM 760 - RM 890', 'RM 111 - RM 133', 'RM 429 - RM 1,227', '56% - 138%', 'RM 1,437 - RM 5,864']
+                }
+            }
+            
+            table_counter = 2
+            
+            # Display separate tables for each year
+            for year_num in range(2, 6):
+                story.append(Paragraph(f"Year {year_num} Economic Forecast", self.styles['Heading3']))
+                story.append(Spacer(1, 8))
+                
+                table_data = [['Investment Scenario', 'Projected Yield Improvement (t/ha)', 'Additional Revenue (RM/ha)', 'Total Input Cost (RM/ha)', 'Micronutrient Cost (CuSO₄) (RM/ha)', 'Net Profit (RM/ha)', 'ROI (%)', 'Cumulative Profit (RM/ha)']]
+                
+                for scenario_name in ['high', 'medium', 'low']:
+                    if year_num in static_data and scenario_name in static_data[year_num]:
+                        data = static_data[year_num][scenario_name]
+                        table_data.append([
+                            f"{scenario_name.title()}-Investment",
+                            data[0],
+                            data[1],
+                            data[2],
+                            data[3],
+                            data[4],
+                            data[5],
+                            data[6]
+                        ])
+                
+                if len(table_data) > 1:
+                    year_table = self._create_table_with_proper_layout(table_data)
+                    year_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                        ('FONTSIZE', (0, 1), (-1, -1), 7),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+                    ]))
+                    story.append(year_table)
+                    
+                    # Add scenario descriptions
+                    story.append(Paragraph("Scenario Descriptions:", self.styles['Heading5']))
+                    scenario_descriptions = {
+                        'high': "High-Investment: Aggressive application of soil conditioners and complete, balanced fertilizer program for rapid yield recovery.",
+                        'medium': "Medium-Investment: Balanced approach addressing key deficiencies with moderate application rates for positive return.",
+                        'low': "Low-Investment: Critical interventions at minimal rates to stabilize plantation and achieve modest yield gains."
+                    }
+                    
+                    for desc_key, desc_text in scenario_descriptions.items():
+                        story.append(Paragraph(f"• {desc_key.title()}-Investment: {desc_text}", self.styles['CustomBody']))
+                    
+                    story.append(Paragraph(f"Table {table_counter}: Year {year_num} Economic Forecast - All Investment Scenarios", self.styles['Caption']))
+                    story.append(Spacer(1, 12))
+                    table_counter += 1
+        
+        # Summary note
+        story.append(Paragraph("Note: All financial values are approximate and represent recent historical price and cost ranges. Actual results may vary based on field conditions, market prices, and implementation effectiveness.", self.styles['CustomBody']))
+        
+        return story
 
     def _create_step6_forecast_tables(self, step: Dict[str, Any]) -> List:
         """Create forecast tables for Step 6: Yield Forecast"""
@@ -6284,43 +6589,48 @@ class PDFReportGenerator:
             
             # Remove Economic Forecast Assumptions section as requested
 
-            # Year-1 Economic Impact Forecast per Hectare
-            year1 = econ.get('year_1', {}) if isinstance(econ, dict) else {}
-            if year1:
-                story.append(Paragraph("💹 Year-1 Economic Impact Forecast per Hectare", self.styles['Heading2']))
-                story.append(Spacer(1, 6))
-                # Build a simple key/value table from known fields, falling back gracefully
-                keys = [
-                    ('new_yield_tpha', 'New Yield (t/ha)'),
-                    ('additional_yield_tpha', 'Additional Yield (t/ha)'),
-                    ('additional_revenue_rm', 'Additional Revenue (RM)'),
-                    ('cost_per_hectare_rm', 'Cost per Hectare (RM)'),
-                    # Prefer range if available; fall back to roi_percentage with cap note
-                    ('roi_percentage_range', 'ROI (%)'),
-                    ('payback_months', 'Payback (months)')
-                ]
-                rows = []
-                for k, label in keys:
-                    v = year1.get(k)
-                    if v not in (None, ''):
-                        # Apply ROI cap or pass-through range text
-                        if k == 'roi_percentage_range' and isinstance(v, str):
-                            display_value = v
-                        elif 'roi_percentage' in k and isinstance(v, (int, float)):
-                            display_value = f"{60}% (Capped for realism - maximum sustainable ROI)" if v > 60 else f"{v:.1f}%"
-                        else:
-                            display_value = str(v)
-                        rows.append([label, display_value])
-                if rows:
-                    table = self._create_table_with_proper_layout([["Metric", "Value"]] + rows, [self.content_width*0.5, self.content_width*0.5], font_size=9)
-                if table:
-                    story.append(table)
-                story.append(Spacer(1, 12))
-                
-                # Remove assumptions subsection under Year-1 as requested
-                
-                # Add note
-                story.append(Paragraph("<i>Note: RM values are based on current market rates and typical plantation economics.</i>", self.styles['CustomBody']))
+            # Show all 5 years if yearly data is available in scenarios
+            if scenarios:
+                # Use the comprehensive 5-year economic tables
+                story.extend(self._create_5_year_economic_tables(econ))
+            else:
+                # Fallback to Year-1 only display if no scenario data available
+                year1 = econ.get('year_1', {}) if isinstance(econ, dict) else {}
+                if year1:
+                    story.append(Paragraph("💹 Year-1 Economic Impact Forecast per Hectare", self.styles['Heading2']))
+                    story.append(Spacer(1, 6))
+                    # Build a simple key/value table from known fields, falling back gracefully
+                    keys = [
+                        ('new_yield_tpha', 'New Yield (t/ha)'),
+                        ('additional_yield_tpha', 'Additional Yield (t/ha)'),
+                        ('additional_revenue_rm', 'Additional Revenue (RM)'),
+                        ('cost_per_hectare_rm', 'Cost per Hectare (RM)'),
+                        # Prefer range if available; fall back to roi_percentage with cap note
+                        ('roi_percentage_range', 'ROI (%)'),
+                        ('payback_months', 'Payback (months)')
+                    ]
+                    rows = []
+                    for k, label in keys:
+                        v = year1.get(k)
+                        if v not in (None, ''):
+                            # Apply ROI cap or pass-through range text
+                            if k == 'roi_percentage_range' and isinstance(v, str):
+                                display_value = v
+                            elif 'roi_percentage' in k and isinstance(v, (int, float)):
+                                display_value = f"{60}% (Capped for realism - maximum sustainable ROI)" if v > 60 else f"{v:.1f}%"
+                            else:
+                                display_value = str(v)
+                            rows.append([label, display_value])
+                    if rows:
+                        table = self._create_table_with_proper_layout([["Metric", "Value"]] + rows, [self.content_width*0.5, self.content_width*0.5], font_size=9)
+                    if table:
+                        story.append(table)
+                    story.append(Spacer(1, 12))
+
+                    # Remove assumptions subsection under Year-1 as requested
+
+                    # Add note
+                    story.append(Paragraph("<i>Note: RM values are based on current market rates and typical plantation economics.</i>", self.styles['CustomBody']))
         else:
             # Create a basic economic forecast when data is not available
             story.append(Paragraph("Economic Impact Assessment", self.styles['Heading2']))

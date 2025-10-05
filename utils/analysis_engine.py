@@ -2695,6 +2695,7 @@ class PromptAnalyzer:
             - Step Title: {step['title']}
             - Total Steps in Analysis: {total_step_count}
             - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
+            - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
 
             STEP {step['number']} INSTRUCTIONS FROM ACTIVE PROMPT:
             {step['description']}
@@ -2758,27 +2759,28 @@ class PromptAnalyzer:
             11. IMPORTANT: For ANY step that involves yield forecasting or 5-year projections, you MUST include yield_forecast with baseline_yield and 5-year projections for high/medium/low investment
             12. Use the actual current yield from land_yield_data as baseline_yield, not generic values
             13. If the step description mentions "forecast", "projection", "5-year", or "yield forecast", include yield_forecast data
-            14. MANDATORY: ALWAYS provide key_findings as a list of 4+ specific, actionable insights with quantified data
-            15. MANDATORY: ALWAYS provide detailed_analysis as comprehensive explanation in non-technical language
-            16. MANDATORY: ALWAYS provide summary as clear, concise overview of the analysis results
-            17. MANDATORY: Generate ALL answers accurately and in detail - do not skip any aspect of the step instructions
-            18. MANDATORY: If step instructions mention "table" or "tables", you MUST create detailed, accurate tables with actual data from the uploaded samples
-            19. MANDATORY: If step instructions mention interpretation, provide comprehensive interpretation
-            20. MANDATORY: If step instructions mention analysis, provide thorough analysis of all data points
-            21. MANDATORY: Display all generated answers comprehensively in the UI - no missing details
-            22. MANDATORY: Ensure every instruction in the step description is addressed with detailed responses
-            23. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
-            24. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
-            25. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
-            26. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
-            27. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
-            28. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
-            29. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
-            30. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
-            31. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
-            32. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
-            33. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
-            34. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            14. CRITICAL FOR STEP 5: You MUST generate economic impact tables for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed breakdowns for each investment scenario (High, Medium, Low). Include yield improvements, costs, revenues, net profit, and ROI for each year. Do NOT limit to only Year 1 data.
+            15. MANDATORY: ALWAYS provide key_findings as a list of 4+ specific, actionable insights with quantified data
+            16. MANDATORY: ALWAYS provide detailed_analysis as comprehensive explanation in non-technical language
+            17. MANDATORY: ALWAYS provide summary as clear, concise overview of the analysis results
+            18. MANDATORY: Generate ALL answers accurately and in detail - do not skip any aspect of the step instructions
+            19. MANDATORY: If step instructions mention "table" or "tables", you MUST create detailed, accurate tables with actual data from the uploaded samples
+            20. MANDATORY: If step instructions mention interpretation, provide comprehensive interpretation
+            21. MANDATORY: If step instructions mention analysis, provide thorough analysis of all data points
+            22. MANDATORY: Display all generated answers comprehensively in the UI - no missing details
+            23. MANDATORY: Ensure every instruction in the step description is addressed with detailed responses
+            24. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
+            25. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
+            26. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
+            27. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
+            28. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
+            29. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
+            30. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
+            31. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
+            32. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
+            33. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
+            34. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
+            35. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
@@ -2833,7 +2835,7 @@ class PromptAnalyzer:
                     "Additional detailed insight addressing all step requirements",
                     "Comprehensive finding covering all aspects of the step instructions"
                 ],
-                "formatted_analysis": "Formatted analysis text following the step requirements with proper structure and formatting. Include tables, interpretations, and all requested analysis components.",
+                "formatted_analysis": "Formatted analysis text following the step requirements with proper structure and formatting. Include tables, interpretations, and all requested analysis components. FOR STEP 5: Include detailed economic impact tables for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with yield improvements, costs, revenues, net profit, and ROI for each year and each investment scenario.",
                 "specific_recommendations": [
                     {{
                         "action": "Format-specific recommendation based on data source analysis",
@@ -2935,6 +2937,33 @@ class PromptAnalyzer:
                         "year_3": "28.0-30.0 t/ha",
                         "year_4": "28.75-30.5 t/ha",
                         "year_5": "29.5-31.25 t/ha"
+                    }}
+                }},
+                "economic_analysis": {{
+                    "current_yield": 15.0,
+                    "land_size": 5.0,
+                    "investment_scenarios": {{
+                        "high": {{
+                            "year_1": {{"yield_improvement": "4.5-6.0 t/ha", "total_cost": "2,302-2,807 RM/ha", "additional_revenue": "2,925-4,500 RM/ha", "net_profit": "118-2,198 RM/ha", "roi": "4.2%-60.0%"}},
+                            "year_2": {{"yield_improvement": "5.5-7.5 t/ha", "total_cost": "1,200-1,400 RM/ha", "additional_revenue": "3,575-4,875 RM/ha", "net_profit": "2,375-3,475 RM/ha", "roi": "60%-120%"}},
+                            "year_3": {{"yield_improvement": "6.0-8.0 t/ha", "total_cost": "1,200-1,400 RM/ha", "additional_revenue": "3,900-5,200 RM/ha", "net_profit": "2,700-3,800 RM/ha", "roi": "120%-180%"}},
+                            "year_4": {{"yield_improvement": "6.5-8.5 t/ha", "total_cost": "1,200-1,400 RM/ha", "additional_revenue": "4,225-5,525 RM/ha", "net_profit": "3,025-4,125 RM/ha", "roi": "180%-240%"}},
+                            "year_5": {{"yield_improvement": "7.0-9.0 t/ha", "total_cost": "1,200-1,400 RM/ha", "additional_revenue": "4,550-5,850 RM/ha", "net_profit": "3,350-4,450 RM/ha", "roi": "240%-300%"}}
+                        }},
+                        "medium": {{
+                            "year_1": {{"yield_improvement": "2.5-4.0 t/ha", "total_cost": "1,731-2,107 RM/ha", "additional_revenue": "1,625-3,000 RM/ha", "net_profit": "-482-1,269 RM/ha", "roi": "-22.9%-60.0%"}},
+                            "year_2": {{"yield_improvement": "3.0-4.5 t/ha", "total_cost": "980-1,140 RM/ha", "additional_revenue": "1,950-2,925 RM/ha", "net_profit": "810-1,785 RM/ha", "roi": "60%-110%"}},
+                            "year_3": {{"yield_improvement": "3.5-5.0 t/ha", "total_cost": "980-1,140 RM/ha", "additional_revenue": "2,275-3,250 RM/ha", "net_profit": "1,135-2,110 RM/ha", "roi": "110%-160%"}},
+                            "year_4": {{"yield_improvement": "4.0-5.5 t/ha", "total_cost": "980-1,140 RM/ha", "additional_revenue": "2,600-3,575 RM/ha", "net_profit": "1,460-2,435 RM/ha", "roi": "160%-210%"}},
+                            "year_5": {{"yield_improvement": "4.5-6.0 t/ha", "total_cost": "980-1,140 RM/ha", "additional_revenue": "2,925-3,900 RM/ha", "net_profit": "1,785-2,760 RM/ha", "roi": "210%-260%"}}
+                        }},
+                        "low": {{
+                            "year_1": {{"yield_improvement": "1.5-2.5 t/ha", "total_cost": "1,031-1,250 RM/ha", "additional_revenue": "975-1,875 RM/ha", "net_profit": "-275-844 RM/ha", "roi": "-21.9%-60.0%"}},
+                            "year_2": {{"yield_improvement": "2.0-3.0 t/ha", "total_cost": "760-890 RM/ha", "additional_revenue": "1,300-2,250 RM/ha", "net_profit": "410-1,360 RM/ha", "roi": "60%-95%"}},
+                            "year_3": {{"yield_improvement": "2.5-3.5 t/ha", "total_cost": "760-890 RM/ha", "additional_revenue": "1,625-2,625 RM/ha", "net_profit": "735-1,735 RM/ha", "roi": "95%-140%"}},
+                            "year_4": {{"yield_improvement": "3.0-4.0 t/ha", "total_cost": "760-890 RM/ha", "additional_revenue": "1,950-3,000 RM/ha", "net_profit": "1,060-2,110 RM/ha", "roi": "140%-185%"}},
+                            "year_5": {{"yield_improvement": "3.5-4.5 t/ha", "total_cost": "760-890 RM/ha", "additional_revenue": "2,275-3,375 RM/ha", "net_profit": "1,385-2,485 RM/ha", "roi": "185%-230%"}}
+                        }}
                     }}
                 }},
                 "format_analysis": {{
@@ -3107,7 +3136,31 @@ class PromptAnalyzer:
             # Add economic forecast to Step 5 result
             if step['number'] == 5 and economic_forecast:
                 result['economic_forecast'] = economic_forecast
-                self.logger.info(f"Added economic forecast to Step 5 result: {economic_forecast}")
+                # Ensure the economic forecast includes yearly_data for Years 2-5
+                if 'scenarios' in economic_forecast:
+                    for scenario_name, scenario_data in economic_forecast['scenarios'].items():
+                        if isinstance(scenario_data, dict) and 'yearly_data' not in scenario_data:
+                            # Generate yearly data if missing
+                            results_generator = ResultsGenerator()
+                            # Parse new_yield_range (format: "15.0-20.0 t/ha")
+                            yield_range_str = scenario_data.get('new_yield_range', '15.0-20.0 t/ha')
+                            yield_low = float(yield_range_str.split('-')[0].strip())
+                            yield_high = float(yield_range_str.split('-')[1].split()[0].strip())
+                            
+                            # Parse total_cost_range (format: "RM 1,000-2,000")
+                            cost_range_str = scenario_data.get('total_cost_range', 'RM 1,000-2,000')
+                            cost_low = float(cost_range_str.replace('RM ', '').replace(',', '').split('-')[0].strip())
+                            cost_high = float(cost_range_str.replace('RM ', '').replace(',', '').split('-')[1].strip())
+                            
+                            yearly_data = results_generator._generate_5_year_economic_data(
+                                economic_forecast.get('land_size_hectares', 1),
+                                economic_forecast.get('current_yield_tonnes_per_ha', 10),
+                                yield_low, yield_high,
+                                cost_low, cost_high,
+                                650, 750, scenario_name
+                            )
+                            scenario_data['yearly_data'] = yearly_data
+                self.logger.info(f"Added complete economic forecast to Step 5 result with yearly_data")
             elif step['number'] == 5 and not economic_forecast:
                 # Generate fallback economic forecast if none was generated
                 results_generator = ResultsGenerator()
@@ -3116,7 +3169,7 @@ class PromptAnalyzer:
                     result['economic_forecast'] = fallback_forecast
                     self.logger.info(f"Generated fallback economic forecast for Step 5")
                 else:
-                    result['economic_forecast'] = results_generator._get_default_economic_forecast()
+                    result['economic_forecast'] = results_generator._get_default_economic_forecast(land_yield_data)
                     self.logger.info(f"Using default economic forecast for Step 5")
             
             # Add references to result
@@ -3441,9 +3494,8 @@ class PromptAnalyzer:
                         'interpretations': parsed_data.get('interpretations', [])
                     })
                 elif step['number'] == 5:  # Economic Impact Forecast
-                    result.update({
-                        'economic_analysis': parsed_data.get('economic_analysis', {})
-                    })
+                    # Don't include raw economic_analysis - only use properly formatted economic_forecast
+                    pass
                 elif step['number'] == 6:  # Forecast Graph
                     result.update({
                         'yield_forecast': parsed_data.get('yield_forecast', {}),
@@ -3753,9 +3805,8 @@ class PromptAnalyzer:
                 'regenerative_practices': []
             })
         elif step['number'] == 5:  # Economic Impact Forecast
-            result.update({
-                'economic_analysis': {}
-            })
+            # Don't include raw economic_analysis - only use properly formatted economic_forecast
+            pass
         elif step['number'] == 6:  # Forecast Graph
             # Generate fallback yield forecast with normalized baseline (t/ha)
             try:
@@ -4832,10 +4883,27 @@ class PromptAnalyzer:
                 text_parts.append(f"**1.** {findings}")
             text_parts.append("")
         
-        # Detailed Analysis
+        # Detailed Analysis (strip any Net Profit forecast blocks - should be in Step 5)
         if result.get('detailed_analysis'):
             detailed_text = result['detailed_analysis']
             if isinstance(detailed_text, str):
+                try:
+                    import re as _re
+                    # Remove sections headed by Net Profit Forecast headings and their immediate table blocks
+                    patterns = [
+                        r"(?im)^\s*#{1,6}\s*5-Year\s+Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\s*#{1,6}\s|\Z)",
+                        r"(?im)^\s*#{1,6}\s*Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\s*#{1,6}\s|\Z)",
+                        r"(?im)^\s*5-Year\s+Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\n|\Z)",
+                        r"(?im)^\s*Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\n|\Z)"
+                    ]
+                    cleaned = detailed_text
+                    for pat in patterns:
+                        cleaned = _re.sub(pat, "", cleaned, flags=_re.DOTALL)
+                    # Collapse excessive blank lines after removal
+                    cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
+                    detailed_text = cleaned
+                except Exception:
+                    pass
                 text_parts.append(f"## 📋 Detailed Analysis\n{detailed_text}\n")
             else:
                 text_parts.append(f"## 📋 Detailed Analysis\n{str(detailed_text)}\n")
@@ -5010,7 +5078,7 @@ class PromptAnalyzer:
             text_parts.append("- Regular monitoring and adjustment recommended for optimal outcomes")
             text_parts.append("")
 
-        # 📊 Detailed Data Tables
+        # 📊 Detailed Data Tables (skip Net Profit forecast tables for Step 6)
         if 'tables' in result and result['tables']:
             text_parts.append("## 📊 Detailed Data Tables\n")
             for table in result['tables']:
@@ -5021,6 +5089,15 @@ class PromptAnalyzer:
                         'Leaf Parameters Summary',
                         'Land and Yield Summary'
                     ]
+                    # Skip Net Profit forecast tables — these belong in Step 5
+                    try:
+                        title_lower = str(table['title']).lower()
+                        if 'net profit forecast' in title_lower or (
+                            'net profit' in title_lower and 'forecast' in title_lower
+                        ) or ('rm/ha' in title_lower and 'profit' in title_lower):
+                            continue
+                    except Exception:
+                        pass
                     if table['title'] in unwanted_tables:
                         continue
 
@@ -5888,13 +5965,15 @@ class ResultsGenerator:
     
     def generate_economic_forecast(self, land_yield_data: Dict[str, Any], 
                                  recommendations: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate economic forecast based on land/yield data and recommendations"""
+        """Generate 5-year economic forecast based on land/yield data and recommendations"""
         try:
             land_size = land_yield_data.get('land_size', 0)
             current_yield = land_yield_data.get('current_yield', 0)
             land_unit = land_yield_data.get('land_unit', 'hectares')
             yield_unit = land_yield_data.get('yield_unit', 'tonnes/hectare')
             palm_density = land_yield_data.get('palm_density', 148)  # Default 148 palms/ha
+            
+            self.logger.info(f"Economic forecast input data: land_size={land_size} {land_unit}, current_yield={current_yield} {yield_unit}, palm_density={palm_density}")
             
             # Convert to hectares and tonnes/hectare
             if land_unit == 'acres':
@@ -5913,14 +5992,18 @@ class ResultsGenerator:
             else:
                 current_yield_tonnes = current_yield
             
+            self.logger.info(f"Converted data: land_size_ha={land_size_ha}, current_yield_tonnes={current_yield_tonnes}, palm_density={palm_density}")
+            
+            # Use default forecast if land size or yield is 0, but still pass user data for better defaults
             if land_size_ha == 0 or current_yield_tonnes == 0:
-                return self._get_default_economic_forecast()
+                self.logger.warning(f"Land size or yield is 0 - using default forecast with user data: land_size_ha={land_size_ha}, current_yield_tonnes={current_yield_tonnes}")
+                return self._get_default_economic_forecast(land_yield_data)
             
             # Calculate investment scenarios with standardized FFB price ranges
-            # Use consistent FFB price range: RM 550-750 per tonne
-            ffb_price_low = 550  # RM per tonne
+            # Use consistent FFB price range: RM 650-750 per tonne (updated per user requirements)
+            ffb_price_low = 650  # RM per tonne
             ffb_price_high = 750  # RM per tonne
-            ffb_price_mid = (ffb_price_low + ffb_price_high) / 2  # RM 650 per tonne for calculations
+            ffb_price_mid = (ffb_price_low + ffb_price_high) / 2  # RM 700 per tonne for calculations
             
             # Check if Boron is recommended in the recommendations
             boron_recommended = False
@@ -5935,34 +6018,38 @@ class ResultsGenerator:
 
             scenarios = {}
             for investment_level in ['high', 'medium', 'low']:
-                # Cost per hectare ranges (including micronutrients, excluding Boron if not recommended)
+                # Enhanced cost per hectare ranges based on user requirements and soil/leaf analysis
+                # Costs include: GML, AS, CIRP, MOP, Kieserite, CuSO4, application, and labor
                 if investment_level == 'high':
-                    cost_per_ha_low = 800  # Increased to include micronutrients (Copper, Zinc, etc.)
-                    cost_per_ha_high = 1000
-                    yield_increase_low = 0.20  # 20% increase
-                    yield_increase_high = 0.30  # 30% increase
-                    # Reduce costs if Boron not recommended (subtract ~RM 50-100/ha for Boron)
+                    # High investment: Complete fertilizer program + soil conditioners + micronutrients
+                    cost_per_ha_low = 2395   # Based on user's Year 1 High scenario: RM 2,395-2,801
+                    cost_per_ha_high = 2801
+                    yield_increase_low = 0.25  # 25% increase (4.0-5.0 t/ha improvement)
+                    yield_increase_high = 0.35  # 35% increase
+                    # Reduce costs if Boron not recommended (subtract ~RM 200-300/ha for Boron)
                     if not boron_recommended:
-                        cost_per_ha_low -= 50
-                        cost_per_ha_high -= 100
+                        cost_per_ha_low -= 200
+                        cost_per_ha_high -= 300
                 elif investment_level == 'medium':
-                    cost_per_ha_low = 500  # Increased to include key micronutrients
-                    cost_per_ha_high = 700
-                    yield_increase_low = 0.15  # 15% increase
-                    yield_increase_high = 0.22  # 22% increase
-                    # Reduce costs if Boron not recommended (subtract ~RM 30-70/ha for Boron)
+                    # Medium investment: Balanced approach with moderate application rates
+                    cost_per_ha_low = 1957   # Based on user's Year 1 Medium scenario: RM 1,957-2,287
+                    cost_per_ha_high = 2287
+                    yield_increase_low = 0.18  # 18% increase (2.5-3.5 t/ha improvement)
+                    yield_increase_high = 0.25  # 25% increase
+                    # Reduce costs if Boron not recommended (subtract ~RM 150-200/ha for Boron)
                     if not boron_recommended:
-                        cost_per_ha_low -= 30
-                        cost_per_ha_high -= 70
+                        cost_per_ha_low -= 150
+                        cost_per_ha_high -= 200
                 else:  # low
-                    cost_per_ha_low = 300  # Basic micronutrient supplementation
-                    cost_per_ha_high = 450
-                    yield_increase_low = 0.08  # 8% increase
-                    yield_increase_high = 0.15  # 15% increase
-                    # Reduce costs if Boron not recommended (subtract ~RM 20-40/ha for Boron)
+                    # Low investment: Critical interventions at minimal rates
+                    cost_per_ha_low = 1519   # Based on user's Year 1 Low scenario: RM 1,519-1,774
+                    cost_per_ha_high = 1774
+                    yield_increase_low = 0.12  # 12% increase (1.5-2.5 t/ha improvement)
+                    yield_increase_high = 0.18  # 18% increase
+                    # Reduce costs if Boron not recommended (subtract ~RM 100-150/ha for Boron)
                     if not boron_recommended:
-                        cost_per_ha_low -= 20
-                        cost_per_ha_high -= 40
+                        cost_per_ha_low -= 100
+                        cost_per_ha_high -= 150
                 
                 # Calculate ranges for all metrics
                 total_cost_low = cost_per_ha_low * land_size_ha
@@ -5974,25 +6061,32 @@ class ResultsGenerator:
                 additional_yield_low = new_yield_low - current_yield_tonnes
                 additional_yield_high = new_yield_high - current_yield_tonnes
                 
-                # Revenue calculations with price ranges
-                additional_revenue_low = additional_yield_low * ffb_price_low * land_size_ha
-                additional_revenue_high = additional_yield_high * ffb_price_high * land_size_ha
+                # Generate 5-year economic projections
+                yearly_data = self._generate_5_year_economic_data(
+                    land_size_ha, current_yield_tonnes, new_yield_low, new_yield_high,
+                    total_cost_low, total_cost_high, ffb_price_low, ffb_price_high,
+                    investment_level
+                )
                 
-                # ROI calculations (range) - CAP AT 60% FOR REALISM
-                roi_low = ((additional_revenue_low - total_cost_high) / total_cost_high * 100) if total_cost_high > 0 else 0
-                roi_high = ((additional_revenue_high - total_cost_low) / total_cost_low * 100) if total_cost_low > 0 else 0
-
-                # Cap ROI at 60% for realism
+                # Calculate cumulative metrics
+                cumulative_net_profit_low = sum([year['net_profit_low'] for year in yearly_data])
+                cumulative_net_profit_high = sum([year['net_profit_high'] for year in yearly_data])
+                
+                # Calculate overall ROI over 5 years
+                roi_5year_low = (cumulative_net_profit_low / total_cost_high * 100) if total_cost_high > 0 else 0
+                roi_5year_high = (cumulative_net_profit_high / total_cost_low * 100) if total_cost_low > 0 else 0
+                
+                # Cap ROI at 200% for 5-year period (realistic for agriculture)
                 roi_capped_note = ""
-                if roi_high > 60:
-                    roi_high = 60
+                if roi_5year_high > 200:
+                    roi_5year_high = 200
                     roi_capped_note = " (Capped for realism)"
-                if roi_low > 60:
-                    roi_low = 60
+                if roi_5year_low > 200:
+                    roi_5year_low = 200
                 
-                # Payback calculations (range)
-                payback_low = (total_cost_low / (additional_revenue_high / 12)) if additional_revenue_high > 0 else 0
-                payback_high = (total_cost_high / (additional_revenue_low / 12)) if additional_revenue_low > 0 else 0
+                # Calculate payback period (when cumulative profit exceeds initial investment)
+                payback_year_low = self._calculate_payback_period(yearly_data, total_cost_low, 'low')
+                payback_year_high = self._calculate_payback_period(yearly_data, total_cost_high, 'high')
                 
                 scenarios[investment_level] = {
                     'investment_level': investment_level.title(),
@@ -6001,9 +6095,10 @@ class ResultsGenerator:
                     'current_yield': current_yield_tonnes,
                     'new_yield_range': f"{new_yield_low:.1f}-{new_yield_high:.1f} t/ha",
                     'additional_yield_range': f"{additional_yield_low:.1f}-{additional_yield_high:.1f} t/ha",
-                    'additional_revenue_range': f"RM {additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}",
-                    'roi_percentage_range': f"{roi_low:.0f}-{roi_high:.0f}%{roi_capped_note}",
-                    'payback_months_range': f"{payback_low:.1f}-{payback_high:.1f} months"
+                    'yearly_data': yearly_data,
+                    'cumulative_net_profit_range': f"RM {cumulative_net_profit_low:,.0f}-{cumulative_net_profit_high:,.0f}",
+                    'roi_5year_range': f"{roi_5year_low:.0f}-{roi_5year_high:.0f}%{roi_capped_note}",
+                    'payback_period_range': f"{payback_year_low:.1f}-{payback_year_high:.1f} years"
                 }
             
             return {
@@ -6014,11 +6109,13 @@ class ResultsGenerator:
                 'oil_palm_price_range_rm_per_tonne': f"RM {ffb_price_low}-{ffb_price_high}",
                 'scenarios': scenarios,
                 'assumptions': [
-                    'Yield improvements based on addressing identified nutrient issues',
-                    f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (current market range)',
+                    'Yield improvements based on addressing identified nutrient issues from soil/leaf analysis',
+                    f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (Malaysian market range)',
                     f'Palm density: {palm_density} palms per hectare',
-                    'Costs include fertilizer, micronutrients (B, Cu, Zn), application, and labor',
-                    'ROI calculated over 12-month period and capped at 60% for realism',
+                    'Costs include: GML (RM 180-220/t), AS (RM 1,300-1,500/t), CIRP (RM 600-750/t), MOP (RM 2,200-2,500/t), Kieserite (RM 1,200-1,400/t), CuSO4 (RM 15-18/kg), application, and labor',
+                    '5-year economic projections with realistic yield progression (Year 1: 60-70%, Year 2: 80-90%, Year 3: 100%, Years 4-5: 90-100%)',
+                    'ROI calculated over 5-year period and capped at 200% for realism',
+                    'All calculations based on actual land size, current yield, and soil/leaf analysis results',
                     'All financial values are approximate and represent recent historical price and cost ranges'
                 ]
             }
@@ -6027,25 +6124,212 @@ class ResultsGenerator:
             self.logger.error(f"Error generating economic forecast: {str(e)}")
             return self._get_default_economic_forecast()
     
-    def _get_default_economic_forecast(self) -> Dict[str, Any]:
-        """Get default economic forecast when data is insufficient"""
-        return {
-            'land_size_hectares': 0,
-            'current_yield_tonnes_per_ha': 0,
-            'palm_density_per_hectare': 148,
-            'total_palms': 0,
-            'oil_palm_price_range_rm_per_tonne': 'RM 550-750',
-            'scenarios': {
-                'high': {'message': 'Insufficient data for economic forecast'},
-                'medium': {'message': 'Insufficient data for economic forecast'},
-                'low': {'message': 'Insufficient data for economic forecast'}
-            },
-            'assumptions': [
-                'Economic forecast requires land size and current yield data',
-                'FFB price range: RM 550-750/tonne (current market range)',
-                'Palm density: 148 palms per hectare (default)',
+    def _generate_5_year_economic_data(self, land_size_ha: float, current_yield: float, 
+                                     new_yield_low: float, new_yield_high: float,
+                                     total_cost_low: float, total_cost_high: float,
+                                     ffb_price_low: float, ffb_price_high: float,
+                                     investment_level: str) -> List[Dict[str, Any]]:
+        """Generate 5-year economic projections with realistic yield progression"""
+        yearly_data = []
+        
+        # Define yield progression factors for each year (realistic for oil palm)
+        # Year 1: Initial impact, Year 2-3: Peak improvement, Year 4-5: Sustained benefits
+        yield_progression = {
+            'year_1': {'low': 0.6, 'high': 0.7},  # 60-70% of full potential
+            'year_2': {'low': 0.8, 'high': 0.9},  # 80-90% of full potential  
+            'year_3': {'low': 1.0, 'high': 1.0},  # 100% of full potential
+            'year_4': {'low': 0.95, 'high': 1.0}, # 95-100% sustained
+            'year_5': {'low': 0.9, 'high': 0.95}  # 90-95% sustained
+        }
+        
+        # Define maintenance costs per year (excluding initial investment)
+        # Based on user requirements: maintenance costs should be proportional to investment level
+        maintenance_cost_per_ha = {
+            'high': 1200,   # RM 1,200/ha/year for high investment maintenance (reduced from initial)
+            'medium': 980,  # RM 980/ha/year for medium investment maintenance
+            'low': 760      # RM 760/ha/year for low investment maintenance
+        }
+        
+        # Calculate additional yield for each year
+        additional_yield_base_low = new_yield_low - current_yield
+        additional_yield_base_high = new_yield_high - current_yield
+        
+        for year_num in range(1, 6):
+            year_key = f'year_{year_num}'
+            progression_low = yield_progression[year_key]['low']
+            progression_high = yield_progression[year_key]['high']
+            
+            # Calculate yield for this year
+            year_yield_low = current_yield + (additional_yield_base_low * progression_low)
+            year_yield_high = current_yield + (additional_yield_base_high * progression_high)
+            
+            # Calculate additional yield (above baseline)
+            additional_yield_low = year_yield_low - current_yield
+            additional_yield_high = year_yield_high - current_yield
+            
+            # Calculate revenue from additional yield
+            additional_revenue_low = additional_yield_low * ffb_price_low * land_size_ha
+            additional_revenue_high = additional_yield_high * ffb_price_high * land_size_ha
+            
+            # Calculate costs for this year
+            if year_num == 1:
+                # Year 1 includes initial investment
+                year_cost_low = total_cost_low
+                year_cost_high = total_cost_high
+            else:
+                # Years 2-5 only include maintenance costs
+                maintenance_cost = maintenance_cost_per_ha[investment_level] * land_size_ha
+                year_cost_low = maintenance_cost
+                year_cost_high = maintenance_cost
+            
+            # Calculate net profit for this year
+            net_profit_low = additional_revenue_low - year_cost_low
+            net_profit_high = additional_revenue_high - year_cost_high
+            
+            # Calculate ROI for this year (based on initial investment)
+            roi_low = (net_profit_low / total_cost_high * 100) if total_cost_high > 0 else 0
+            roi_high = (net_profit_high / total_cost_low * 100) if total_cost_low > 0 else 0
+            
+            yearly_data.append({
+                'year': year_num,
+                'yield_low': year_yield_low,
+                'yield_high': year_yield_high,
+                'additional_yield_low': additional_yield_low,
+                'additional_yield_high': additional_yield_high,
+                'additional_revenue_low': additional_revenue_low,
+                'additional_revenue_high': additional_revenue_high,
+                'cost_low': year_cost_low,
+                'cost_high': year_cost_high,
+                'net_profit_low': net_profit_low,
+                'net_profit_high': net_profit_high,
+                'roi_low': roi_low,
+                'roi_high': roi_high
+            })
+        
+        return yearly_data
+    
+    def _calculate_payback_period(self, yearly_data: List[Dict[str, Any]], 
+                                initial_investment: float, scenario: str) -> float:
+        """Calculate payback period in years when cumulative profit exceeds initial investment"""
+        cumulative_profit = 0
+        profit_key = f'net_profit_{scenario}'
+        
+        for year_data in yearly_data:
+            cumulative_profit += year_data[profit_key]
+            if cumulative_profit >= initial_investment:
+                # Calculate partial year if needed
+                if cumulative_profit > initial_investment:
+                    # Find the point in the year when payback occurs
+                    remaining_investment = initial_investment - (cumulative_profit - year_data[profit_key])
+                    if year_data[profit_key] > 0:
+                        partial_year = remaining_investment / year_data[profit_key]
+                        return year_data['year'] - 1 + partial_year
+                return year_data['year']
+        
+        # If payback doesn't occur within 5 years, return 5+
+        return 5.0
+    
+    def _get_default_economic_forecast(self, land_yield_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Get default economic forecast when data is insufficient, using user data if available"""
+        # Use user data if available, otherwise use defaults
+        if land_yield_data:
+            land_size = land_yield_data.get('land_size', 0)
+            current_yield = land_yield_data.get('current_yield', 0)
+            land_unit = land_yield_data.get('land_unit', 'hectares')
+            yield_unit = land_yield_data.get('yield_unit', 'tonnes/hectare')
+            palm_density = land_yield_data.get('palm_density', 148)
+            
+            # Convert to hectares and tonnes/hectare
+            if land_unit == 'acres':
+                land_size_ha = land_size * 0.404686
+            elif land_unit == 'square_meters':
+                land_size_ha = land_size / 10000.0
+            else:
+                land_size_ha = land_size
+            
+            if yield_unit == 'kg/hectare':
+                current_yield_tonnes = current_yield / 1000
+            elif yield_unit == 'tonnes/acre':
+                current_yield_tonnes = current_yield * 2.47105
+            elif yield_unit == 'kg/acre':
+                current_yield_tonnes = (current_yield / 1000) * 2.47105
+            else:
+                current_yield_tonnes = current_yield
+        else:
+            # Use default values when no user data is available
+            land_size_ha = 1.0
+            current_yield_tonnes = 10.0
+            palm_density = 148
+        
+        ffb_price_low = 650
+        ffb_price_high = 750
+        
+        # Generate 5-year data for all scenarios
+        scenarios = {}
+        for investment_level in ['high', 'medium', 'low']:
+            # Define yield improvement ranges for each investment level
+            if investment_level == 'high':
+                new_yield_low = current_yield_tonnes * 1.25  # 25% increase
+                new_yield_high = current_yield_tonnes * 1.35  # 35% increase
+                total_cost_low = 2000.0
+                total_cost_high = 3000.0
+            elif investment_level == 'medium':
+                new_yield_low = current_yield_tonnes * 1.18  # 18% increase
+                new_yield_high = current_yield_tonnes * 1.25  # 25% increase
+                total_cost_low = 1500.0
+                total_cost_high = 2200.0
+            else:  # low
+                new_yield_low = current_yield_tonnes * 1.12  # 12% increase
+                new_yield_high = current_yield_tonnes * 1.18  # 18% increase
+                total_cost_low = 1000.0
+                total_cost_high = 1500.0
+            
+            # Generate 5-year yearly data
+            yearly_data = self._generate_5_year_economic_data(
+                land_size_ha, current_yield_tonnes, new_yield_low, new_yield_high,
+                total_cost_low, total_cost_high, ffb_price_low, ffb_price_high,
+                investment_level
+            )
+            
+            # Calculate summary metrics
+            cumulative_profit_low = sum(year['net_profit_low'] for year in yearly_data)
+            cumulative_profit_high = sum(year['net_profit_high'] for year in yearly_data)
+            
+            scenarios[investment_level] = {
+                'new_yield_range': f"{new_yield_low:.1f}-{new_yield_high:.1f}",
+                'total_cost_range': f"RM {total_cost_low:,.0f}-{total_cost_high:,.0f}",
+                'cumulative_net_profit_range': f"RM {cumulative_profit_low:,.0f}-{cumulative_profit_high:,.0f}",
+                'roi_5year_range': f"{((cumulative_profit_low/total_cost_high)*100):.0f}%-{((cumulative_profit_high/total_cost_low)*100):.0f}%",
+                'payback_period_range': self._calculate_payback_period(yearly_data, total_cost_high, 'low'),
+                'yearly_data': yearly_data
+            }
+        
+        # Determine assumptions based on whether user data was used
+        if land_yield_data and land_size_ha > 0 and current_yield_tonnes > 0:
+            assumptions = [
+                f'Economic forecast based on user data: {land_size_ha:.1f} hectares, {current_yield_tonnes:.1f} t/ha current yield',
+                f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (current market range)',
+                f'Palm density: {palm_density} palms per hectare',
+                '5-year economic projections with realistic yield progression',
                 'All financial values are approximate and represent recent historical price and cost ranges'
             ]
+        else:
+            assumptions = [
+                'Economic forecast uses default values: 1 hectare, 10 t/ha current yield',
+                f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (current market range)',
+                f'Palm density: {palm_density} palms per hectare (default)',
+                '5-year economic projections with realistic yield progression',
+                'All financial values are approximate and represent recent historical price and cost ranges'
+            ]
+        
+        return {
+            'land_size_hectares': land_size_ha,
+            'current_yield_tonnes_per_ha': current_yield_tonnes,
+            'palm_density_per_hectare': palm_density,
+            'total_palms': int(land_size_ha * palm_density),
+            'oil_palm_price_range_rm_per_tonne': f'RM {ffb_price_low}-{ffb_price_high}',
+            'scenarios': scenarios,
+            'assumptions': assumptions
         }
 
 
@@ -7176,6 +7460,42 @@ class AnalysisEngine:
                         break
             except Exception as _e:
                 self.logger.warning(f"Could not build Step 2 issues: {_e}")
+
+            # Enhanced Step 5 processing with complete economic forecast
+            try:
+                for i, sr in enumerate(step_results):
+                    if sr and sr.get('step_number') == 5:
+                        # Always inject the complete economic forecast with yearly_data
+                        sr['economic_forecast'] = economic_forecast
+                        # Ensure scenarios have yearly_data for Years 2-5
+                        if economic_forecast and 'scenarios' in economic_forecast:
+                            for scenario_name, scenario_data in economic_forecast['scenarios'].items():
+                                if isinstance(scenario_data, dict) and 'yearly_data' not in scenario_data:
+                                    # Generate yearly data if missing
+                                    # Parse new_yield_range (format: "15.0-20.0 t/ha")
+                                    yield_range_str = scenario_data.get('new_yield_range', '15.0-20.0 t/ha')
+                                    yield_low = float(yield_range_str.split('-')[0].strip())
+                                    yield_high = float(yield_range_str.split('-')[1].split()[0].strip())
+                                    
+                                    # Parse total_cost_range (format: "RM 1,000-2,000")
+                                    cost_range_str = scenario_data.get('total_cost_range', 'RM 1,000-2,000')
+                                    cost_low = float(cost_range_str.replace('RM ', '').replace(',', '').split('-')[0].strip())
+                                    cost_high = float(cost_range_str.replace('RM ', '').replace(',', '').split('-')[1].strip())
+                                    
+                                    yearly_data = self.results_generator._generate_5_year_economic_data(
+                                        economic_forecast.get('land_size_hectares', 1),
+                                        economic_forecast.get('current_yield_tonnes_per_ha', 10),
+                                        yield_low, yield_high,
+                                        cost_low, cost_high,    
+                                        650, 750, scenario_name
+                                    )
+                                    scenario_data['yearly_data'] = yearly_data
+                        sr['economic_forecast_source'] = 'deterministic'
+                        step_results[i] = sr
+                        self.logger.info(f"Injected complete economic forecast with yearly_data into Step 5")
+                        break
+            except Exception as _e:
+                self.logger.warning(f"Could not inject economic forecast into Step 5: {_e}")
 
             # Calculate processing time
             end_time = datetime.now()
