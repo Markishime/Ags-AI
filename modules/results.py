@@ -7701,6 +7701,20 @@ def display_enhanced_step_result(step_result, step_number):
 
         display_forecast_graph_content(analysis_data, step_number, step_result.get('step_title', f'Step {step_number}'))
 
+        # Display Net Profit Forecast tables from Step 5 economic data
+        economic_forecast = analysis_data.get('economic_forecast', {})
+        if economic_forecast and 'scenarios' in economic_forecast:
+            st.markdown("### 💰 5-Year Net Profit Forecast (RM/ha)")
+
+            scenarios = economic_forecast['scenarios']
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                    yearly_data = scenario_data['yearly_data']
+
+                    if yearly_data and len(yearly_data) > 0:
+                        # Display accurate table from backend data
+                        display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
+
 def display_single_step_result(step_result, step_number):
     """Legacy function - redirects to enhanced display"""
     display_enhanced_step_result(step_result, step_number)

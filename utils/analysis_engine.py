@@ -4913,27 +4913,10 @@ class PromptAnalyzer:
                 text_parts.append(f"**1.** {findings}")
             text_parts.append("")
         
-        # Detailed Analysis (strip any Net Profit forecast blocks - should be in Step 5)
+        # Detailed Analysis (keep Net Profit forecast blocks as they are displayed in Step 6)
         if result.get('detailed_analysis'):
             detailed_text = result['detailed_analysis']
             if isinstance(detailed_text, str):
-                try:
-                    import re as _re
-                    # Remove sections headed by Net Profit Forecast headings and their immediate table blocks
-                    patterns = [
-                        r"(?im)^\s*#{1,6}\s*5-Year\s+Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\s*#{1,6}\s|\Z)",
-                        r"(?im)^\s*#{1,6}\s*Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\s*#{1,6}\s|\Z)",
-                        r"(?im)^\s*5-Year\s+Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\n|\Z)",
-                        r"(?im)^\s*Net\s+Profit\s+Forecast\s*\(RM/ha\).*?(?=\n\n|\Z)"
-                    ]
-                    cleaned = detailed_text
-                    for pat in patterns:
-                        cleaned = _re.sub(pat, "", cleaned, flags=_re.DOTALL)
-                    # Collapse excessive blank lines after removal
-                    cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
-                    detailed_text = cleaned
-                except Exception:
-                    pass
                 text_parts.append(f"## 📋 Detailed Analysis\n{detailed_text}\n")
             else:
                 text_parts.append(f"## 📋 Detailed Analysis\n{str(detailed_text)}\n")
