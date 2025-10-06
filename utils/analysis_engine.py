@@ -5134,6 +5134,14 @@ class PromptAnalyzer:
 
                     text_parts.append("")
 
+        # Net Profit Forecast - Include economic data from Step 5
+        text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
+        text_parts.append("")
+        text_parts.append("*Net profit projections based on economic analysis from Step 5*")
+        text_parts.append("")
+        text_parts.append("**Note:** Detailed net profit forecast tables are displayed in the analysis results based on the economic impact analysis from Step 5.")
+        text_parts.append("")
+
         return "\n".join(text_parts)
 
     def _generate_default_forecast(self, baseline_yield: float) -> Dict[str, Any]:

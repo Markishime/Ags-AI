@@ -5470,25 +5470,25 @@ def display_enhanced_step_result(step_result, step_number):
                 else:
                     detailed_text = str(detailed_text)
 
-        if isinstance(detailed_text, str) and detailed_text.strip():
-            # NUCLEAR FILTER: Remove the exact Economic Analysis block immediately
-            if "Economic Analysis: {'current_yield': 28.0, 'land_size': 31.0, 'investment_scenarios':" in detailed_text:
-                detailed_text = "Economic analysis data has been processed and is displayed in the formatted tables above."
-            elif "Economic Analysis: {" in detailed_text:
-                detailed_text = "Economic analysis data has been processed and is displayed in the formatted tables above."
-            else:
-                # Fallback filtering
-                import re
-                detailed_text = re.sub(r"Economic Analysis:\s*\{.*?\}", "", detailed_text, flags=re.DOTALL | re.IGNORECASE)
-                # Also remove any line that starts with Economic Analysis:
-                detailed_text = re.sub(r"^.*Economic Analysis:.*$", "", detailed_text, flags=re.MULTILINE | re.IGNORECASE)
-                # Clean up any remaining artifacts
-                detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
+            if isinstance(detailed_text, str) and detailed_text.strip():
+                # NUCLEAR FILTER: Remove the exact Economic Analysis block immediately
+                if "Economic Analysis: {'current_yield': 28.0, 'land_size': 31.0, 'investment_scenarios':" in detailed_text:
+                    detailed_text = "Economic analysis data has been processed and is displayed in the formatted tables above."
+                elif "Economic Analysis: {" in detailed_text:
+                    detailed_text = "Economic analysis data has been processed and is displayed in the formatted tables above."
+                else:
+                    # Fallback filtering
+                    import re
+                    detailed_text = re.sub(r"Economic Analysis:\s*\{.*?\}", "", detailed_text, flags=re.DOTALL | re.IGNORECASE)
+                    # Also remove any line that starts with Economic Analysis:
+                    detailed_text = re.sub(r"^.*Economic Analysis:.*$", "", detailed_text, flags=re.MULTILINE | re.IGNORECASE)
+                    # Clean up any remaining artifacts
+                    detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
 
                 # Parse and display structured content
                 parse_and_display_json_analysis(detailed_text)
-        else:
-            st.info("📋 No detailed analysis available for this step.")
+            else:
+                st.info("📋 No detailed analysis available for this step.")
 
     # Detailed Data Tables section removed as requested
     # 4. VISUALIZATIONS SECTION - Show if available (skip for Step 3)
@@ -5907,12 +5907,12 @@ def display_step5_economic_forecast(analysis_data):
 
             if summary_text.strip():
                 st.markdown("#### 📋 Summary")
-                st.markdown(
-                    f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+            st.markdown(
+                f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
                     f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{summary_text.strip()}</p>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
     return  # Exit immediately - no further processing
 
@@ -6310,7 +6310,7 @@ def filter_known_sections_from_text(text):
     """Filter out known sections from raw text to prevent raw LLM output display"""
     if not isinstance(text, str):
         return text
-
+    
     # NUCLEAR FILTER: Remove the exact Economic Analysis block immediately
     if "Economic Analysis: {'current_yield': 28.0, 'land_size': 31.0, 'investment_scenarios':" in text:
         return "Economic analysis data has been processed and is displayed in the formatted tables above."
@@ -7687,8 +7687,173 @@ def display_enhanced_step_result(step_result, step_number):
     
     # Display forecast graph only for Step 6
     if step_number == 6 and should_show_forecast_graph(step_result) and has_yield_forecast_data(analysis_data):
+        # Ensure Step 6 has access to economic forecast data from Step 5
+        # Check if economic forecast data is available in session state
+        economic_forecast = None
+        if hasattr(st, 'session_state') and 'stored_analysis_results' in st.session_state and st.session_state.stored_analysis_results:
+            latest_id = max(st.session_state.stored_analysis_results.keys())
+            latest_analysis = st.session_state.stored_analysis_results[latest_id]
+            if 'economic_forecast' in latest_analysis:
+                economic_forecast = latest_analysis['economic_forecast']
+                # Add economic forecast to analysis_data so Step 6 can access it
+                if 'economic_forecast' not in analysis_data:
+                    analysis_data['economic_forecast'] = economic_forecast
+
         display_forecast_graph_content(analysis_data, step_number, step_result.get('step_title', f'Step {step_number}'))
 
+        # Generate Net Profit Forecast tables as formatted text for Step 6
+        economic_forecast = analysis_data.get('economic_forecast', {})
+        if economic_forecast and 'scenarios' in economic_forecast:
+            try:
+                # Generate formatted text for net profit forecast
+                net_profit_text = generate_net_profit_forecast_text(economic_forecast)
+                if net_profit_text:
+                    st.markdown("### 💰 5-Year Net Profit Forecast (RM/ha)")
+                    st.markdown(net_profit_text)
+            except Exception as e:
+                logger.error(f"Error generating net profit forecast text: {e}")
+                st.error("Unable to generate net profit forecast tables")
+
+def generate_net_profit_forecast_text(economic_forecast):
+    """Generate formatted markdown text for net profit forecast tables"""
+    try:
+        if not economic_forecast:
+            logger.warning("Economic forecast is None or empty")
+            return "Net Profit Forecast (RM/ha) - No economic data available from Step 5"
+
+        if not isinstance(economic_forecast, dict):
+            logger.warning(f"Economic forecast is not a dict: {type(economic_forecast)}")
+            return "Net Profit Forecast (RM/ha) - Invalid economic data format"
+
+        if 'scenarios' not in economic_forecast:
+            logger.warning(f"Economic forecast missing scenarios key. Available keys: {list(economic_forecast.keys())}")
+            return "Net Profit Forecast (RM/ha) - Scenarios data not available from Step 5"
+
+        scenarios = economic_forecast['scenarios']
+        if not scenarios or not isinstance(scenarios, dict):
+            logger.warning(f"Scenarios is not a valid dict: {type(scenarios)}")
+            return "Net Profit Forecast (RM/ha) - Invalid scenarios data"
+
+        text_parts = []
+
+        for scenario_name, scenario_data in scenarios.items():
+            if not isinstance(scenario_data, dict):
+                logger.warning(f"Scenario {scenario_name} data is not a dict: {type(scenario_data)}")
+                continue
+
+            if 'yearly_data' not in scenario_data:
+                logger.warning(f"Scenario {scenario_name} missing yearly_data key. Available keys: {list(scenario_data.keys())}")
+                continue
+
+            yearly_data = scenario_data['yearly_data']
+            if not yearly_data:
+                logger.warning(f"Scenario {scenario_name} yearly_data is empty")
+                continue
+
+            if not isinstance(yearly_data, list):
+                logger.warning(f"Scenario {scenario_name} yearly_data is not a list: {type(yearly_data)}")
+                continue
+
+            if len(yearly_data) == 0:
+                logger.warning(f"Scenario {scenario_name} yearly_data list is empty")
+                continue
+
+            # Scenario title
+            scenario_titles = {
+                'high': 'High Investment Scenario',
+                'medium': 'Medium Investment Scenario',
+                'low': 'Low Investment Scenario'
+            }
+            scenario_title = scenario_titles.get(scenario_name.lower(), f"{scenario_name.title()} Investment Scenario")
+
+            text_parts.append(f"#### {scenario_title}")
+            text_parts.append("")
+
+            # Create markdown table
+            text_parts.append("| Year | Yield Improvement (t/ha) | Additional Revenue (RM/ha) | Total Input Cost (RM/ha) | Net Profit (RM/ha) | ROI (%) | Cumulative Net Profit (RM/ha) |")
+            text_parts.append("|------|--------------------------|----------------------------|---------------------------|-------------------|---------|--------------------------------|")
+
+            cumulative_low = 0
+            cumulative_high = 0
+
+            for year_data in yearly_data:
+                # Handle different data types - year_data might be dict, list, or other format
+                if isinstance(year_data, dict):
+                    year = year_data.get('year', '')
+
+                    # Extract values with fallbacks
+                    yield_improvement_low = year_data.get('additional_yield_low', 0)
+                    yield_improvement_high = year_data.get('additional_yield_high', 0)
+                    yield_improvement = ".1f"
+
+                    additional_revenue_low = year_data.get('additional_revenue_low', 0)
+                    additional_revenue_high = year_data.get('additional_revenue_high', 0)
+                    additional_revenue = ",.0f"
+
+                    cost_low = year_data.get('cost_low', 0)
+                    cost_high = year_data.get('cost_high', 0)
+                    total_cost = ",.0f"
+
+                    net_profit_low = year_data.get('net_profit_low', 0)
+                    net_profit_high = year_data.get('net_profit_high', 0)
+                    net_profit = ",.0f"
+
+                    roi_low = year_data.get('roi_low', 0)
+                    roi_high = year_data.get('roi_high', 0)
+                    roi = ".1f"
+
+                elif isinstance(year_data, list) and len(year_data) >= 7:
+                    # Handle list format [year, yield_low, yield_high, revenue_low, revenue_high, cost_low, cost_high, profit_low, profit_high, roi_low, roi_high]
+                    year = str(year_data[0]) if len(year_data) > 0 else ''
+
+                    yield_improvement_low = year_data[1] if len(year_data) > 1 else 0
+                    yield_improvement_high = year_data[2] if len(year_data) > 2 else 0
+                    yield_improvement = ".1f"
+
+                    additional_revenue_low = year_data[3] if len(year_data) > 3 else 0
+                    additional_revenue_high = year_data[4] if len(year_data) > 4 else 0
+                    additional_revenue = ",.0f"
+
+                    cost_low = year_data[5] if len(year_data) > 5 else 0
+                    cost_high = year_data[6] if len(year_data) > 6 else 0
+                    total_cost = ",.0f"
+
+                    net_profit_low = year_data[7] if len(year_data) > 7 else 0
+                    net_profit_high = year_data[8] if len(year_data) > 8 else 0
+                    net_profit = ",.0f"
+
+                    roi_low = year_data[9] if len(year_data) > 9 else 0
+                    roi_high = year_data[10] if len(year_data) > 10 else 0
+                    roi = ".1f"
+
+                else:
+                    # Skip invalid data
+                    logger.warning(f"Skipping invalid year_data format: {type(year_data)} - {year_data}")
+                    continue
+
+                # Calculate cumulative profits
+                try:
+                    cumulative_low += float(net_profit_low) if net_profit_low else 0
+                    cumulative_high += float(net_profit_high) if net_profit_high else 0
+                    cumulative_net_profit = ",.0f"
+                except (ValueError, TypeError):
+                    cumulative_net_profit = "N/A"
+
+                # Add table row
+                text_parts.append(f"| {year} | {yield_improvement} | {additional_revenue} | {total_cost} | {net_profit} | {roi} | {cumulative_net_profit} |")
+
+            text_parts.append("")
+            text_parts.append("*Per hectare calculations*")
+            text_parts.append("")
+
+        if text_parts:
+            return "\n".join(text_parts)
+        else:
+            return "Net Profit Forecast (RM/ha) - Data not available from Step 5"
+
+    except Exception as e:
+        logger.error(f"Error generating net profit forecast text: {e}")
+        return "Net Profit Forecast (RM/ha) - Error generating forecast data"
 
 def display_single_step_result(step_result, step_number):
     """Legacy function - redirects to enhanced display"""
@@ -13280,35 +13445,35 @@ def display_regenerative_agriculture_content(analysis_data):
                 if fa_match and fa_match.group(1).strip():
                     detailed_text = fa_match.group(1).strip()
 
-                # ABSOLUTE NUCLEAR FILTERING: Remove any Economic Analysis blocks
-                detailed_text = re.sub(r"Economic Analysis:\s*\{.*?\}", "", detailed_text, flags=re.DOTALL | re.IGNORECASE)
-                # Also remove any line that starts with Economic Analysis:
-                detailed_text = re.sub(r"^.*Economic Analysis:.*$", "", detailed_text, flags=re.MULTILINE | re.IGNORECASE)
-                # Clean up any remaining artifacts
-                detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
+                    # ABSOLUTE NUCLEAR FILTERING: Remove any Economic Analysis blocks
+                    detailed_text = re.sub(r"Economic Analysis:\s*\{.*?\}", "", detailed_text, flags=re.DOTALL | re.IGNORECASE)
+                    # Also remove any line that starts with Economic Analysis:
+                    detailed_text = re.sub(r"^.*Economic Analysis:.*$", "", detailed_text, flags=re.MULTILINE | re.IGNORECASE)
+                    # Clean up any remaining artifacts
+                    detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
 
-                # Only display if content remains after filtering
-                if detailed_text.strip():
-                    st.markdown("#### 📋 Detailed Analysis")
-                    st.markdown(
-                        f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
-                        f'<div style="color: #2c3e50; line-height: 1.7;">{detailed_text}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+                        # Only display if content remains after filtering
+                        if detailed_text.strip():
+                            st.markdown("#### 📋 Detailed Analysis")
+                            st.markdown(
+                                f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
+                                f'<div style="color: #2c3e50; line-height: 1.7;">{detailed_text}</div>'
+                                f'</div>',
+                                unsafe_allow_html=True
+                            )
 
             # Nuclear option: remove any Economic Analysis with braces
             if re.search(r"Economic Analysis:\s*\{", detailed_text, re.IGNORECASE):
                 detailed_text = re.sub(r"Economic Analysis:\s*\{.*?\}", "", detailed_text, flags=re.DOTALL)
 
-            # Remove raw Economic Analysis output from Step 6 Formatted Analysis
-            # This removes any "Economic Analysis:" followed by JSON-like braces
-            detailed_text = re.sub(
-                r"Economic Analysis:\s*\{.*?\}",
-                "",
-                detailed_text,
-                flags=re.DOTALL
-            )
+        # Remove raw Economic Analysis output from Step 6 Formatted Analysis
+        # This removes any "Economic Analysis:" followed by JSON-like braces
+        detailed_text = re.sub(
+            r"Economic Analysis:\s*\{.*?\}",
+            "",
+            detailed_text,
+            flags=re.DOTALL
+        )
 
             # Additional filtering for the specific pattern shown by user
             # Remove Economic Analysis with current_yield, land_size, and net_profit ranges
