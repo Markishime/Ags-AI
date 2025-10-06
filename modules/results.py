@@ -13452,15 +13452,15 @@ def display_regenerative_agriculture_content(analysis_data):
                     # Clean up any remaining artifacts
                     detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
 
-                        # Only display if content remains after filtering
-                        if detailed_text.strip():
-                            st.markdown("#### 📋 Detailed Analysis")
-                            st.markdown(
-                                f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
-                                f'<div style="color: #2c3e50; line-height: 1.7;">{detailed_text}</div>'
-                                f'</div>',
-                                unsafe_allow_html=True
-                            )
+                    # Only display if content remains after filtering
+                    if detailed_text.strip():
+                        st.markdown("#### 📋 Detailed Analysis")
+                        st.markdown(
+                            f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
+                            f'<div style="color: #2c3e50; line-height: 1.7;">{detailed_text}</div>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
 
             # Nuclear option: remove any Economic Analysis with braces
             if re.search(r"Economic Analysis:\s*\{", detailed_text, re.IGNORECASE):
@@ -13475,43 +13475,43 @@ def display_regenerative_agriculture_content(analysis_data):
             flags=re.DOTALL
         )
 
-            # Additional filtering for the specific pattern shown by user
-            # Remove Economic Analysis with current_yield, land_size, and net_profit ranges
-            detailed_text = re.sub(
-                r"Economic Analysis:\s*\{[^}]*current_yield[^}]*land_size[^}]*investment_scenarios[^}]*net_profit[^}]*RM/ha[^}]*(?:\{[^}]*\}[^}]*)*[^}]*\}",
-                "",
-                detailed_text,
-                flags=re.DOTALL
-            )
+        # Additional filtering for the specific pattern shown by user
+        # Remove Economic Analysis with current_yield, land_size, and net_profit ranges
+        detailed_text = re.sub(
+            r"Economic Analysis:\s*\{[^}]*current_yield[^}]*land_size[^}]*investment_scenarios[^}]*net_profit[^}]*RM/ha[^}]*(?:\{[^}]*\}[^}]*)*[^}]*\}",
+            "",
+            detailed_text,
+            flags=re.DOTALL
+        )
 
-            # Additional catch-all for Economic Analysis blocks with en-dash ranges
-            detailed_text = re.sub(
-                r"Economic Analysis:\s*\{[^}]*'current_yield'\s*:\s*[\d.]+\s*,?\s*'land_size'\s*:\s*[\d.]+\s*,?\s*'investment_scenarios'\s*:\s*\{[^}]*(?:'net_profit'\s*:\s*'[^']*RM/ha'[^}]*)*[^}]*\}\s*\}",
-                "",
-                detailed_text,
-                flags=re.DOTALL
-            )
+        # Additional catch-all for Economic Analysis blocks with en-dash ranges
+        detailed_text = re.sub(
+            r"Economic Analysis:\s*\{[^}]*'current_yield'\s*:\s*[\d.]+\s*,?\s*'land_size'\s*:\s*[\d.]+\s*,?\s*'investment_scenarios'\s*:\s*\{[^}]*(?:'net_profit'\s*:\s*'[^']*RM/ha'[^}]*)*[^}]*\}\s*\}",
+            "",
+            detailed_text,
+            flags=re.DOTALL
+        )
 
-            # Comprehensive filtering for the specific Economic Analysis block shown
-            detailed_text = re.sub(
-                r"Economic Analysis:\s*\{[^}]*current_yield[^}]*land_size[^}]*investment_scenarios[^}]*(?:year_\d+[^}]*yield_improvement[^}]*total_cost[^}]*additional_revenue[^}]*net_profit[^}]*roi[^}]*RM/ha[^}]*)*[^}]*(?:high|medium|low)[^}]*(?:year_\d+[^}]*)*[^}]*\}",
-                "",
-                detailed_text,
-                flags=re.DOTALL
-            )
+        # Comprehensive filtering for the specific Economic Analysis block shown
+        detailed_text = re.sub(
+            r"Economic Analysis:\s*\{[^}]*current_yield[^}]*land_size[^}]*investment_scenarios[^}]*(?:year_\d+[^}]*yield_improvement[^}]*total_cost[^}]*additional_revenue[^}]*net_profit[^}]*roi[^}]*RM/ha[^}]*)*[^}]*(?:high|medium|low)[^}]*(?:year_\d+[^}]*)*[^}]*\}",
+            "",
+            detailed_text,
+            flags=re.DOTALL
+        )
 
-            detailed_text = sanitize_persona_and_enforce_article(detailed_text)
+        detailed_text = sanitize_persona_and_enforce_article(detailed_text)
 
-            # Use markdown normalization for better formatting
-            normalized_content = normalize_markdown_block_for_step3(detailed_text)
+        # Use markdown normalization for better formatting
+        normalized_content = normalize_markdown_block_for_step3(detailed_text)
 
-            st.markdown("#### 📋 Detailed Analysis")
-            st.markdown(
-                f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
-                f'<div style="color: #2c3e50; line-height: 1.7;">{normalized_content}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+        st.markdown("#### 📋 Detailed Analysis")
+        st.markdown(
+            f'<div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #ffffff, #f8f9fa); border: 1px solid #e9ecef; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);">'
+            f'<div style="color: #2c3e50; line-height: 1.7;">{normalized_content}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
     except Exception:
         pass
 
