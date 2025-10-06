@@ -7701,19 +7701,98 @@ def display_enhanced_step_result(step_result, step_number):
 
         display_forecast_graph_content(analysis_data, step_number, step_result.get('step_title', f'Step {step_number}'))
 
-        # Display Net Profit Forecast tables from Step 5 economic data
+        # Generate Net Profit Forecast tables as formatted text for Step 6
         economic_forecast = analysis_data.get('economic_forecast', {})
         if economic_forecast and 'scenarios' in economic_forecast:
-            st.markdown("### 💰 5-Year Net Profit Forecast (RM/ha)")
+            try:
+                # Generate formatted text for net profit forecast
+                net_profit_text = generate_net_profit_forecast_text(economic_forecast)
+                if net_profit_text:
+                    st.markdown("### 💰 5-Year Net Profit Forecast (RM/ha)")
+                    st.markdown(net_profit_text)
+            except Exception as e:
+                logger.error(f"Error generating net profit forecast text: {e}")
+                st.error("Unable to generate net profit forecast tables")
 
-            scenarios = economic_forecast['scenarios']
-            for scenario_name, scenario_data in scenarios.items():
-                if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
-                    yearly_data = scenario_data['yearly_data']
+def generate_net_profit_forecast_text(economic_forecast):
+    """Generate formatted markdown text for net profit forecast tables"""
+    try:
+        if not economic_forecast or 'scenarios' not in economic_forecast:
+            return None
 
-                    if yearly_data and len(yearly_data) > 0:
-                        # Display accurate table from backend data
-                        display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
+        scenarios = economic_forecast['scenarios']
+        text_parts = []
+
+        for scenario_name, scenario_data in scenarios.items():
+            if not isinstance(scenario_data, dict) or 'yearly_data' not in scenario_data:
+                continue
+
+            yearly_data = scenario_data['yearly_data']
+            if not yearly_data or len(yearly_data) == 0:
+                continue
+
+            # Scenario title
+            scenario_titles = {
+                'high': 'High Investment Scenario',
+                'medium': 'Medium Investment Scenario',
+                'low': 'Low Investment Scenario'
+            }
+            scenario_title = scenario_titles.get(scenario_name.lower(), f"{scenario_name.title()} Investment Scenario")
+
+            text_parts.append(f"#### {scenario_title}")
+            text_parts.append("")
+
+            # Create markdown table
+            text_parts.append("| Year | Yield Improvement (t/ha) | Additional Revenue (RM/ha) | Total Input Cost (RM/ha) | Net Profit (RM/ha) | ROI (%) | Cumulative Net Profit (RM/ha) |")
+            text_parts.append("|------|--------------------------|----------------------------|---------------------------|-------------------|---------|--------------------------------|")
+
+            cumulative_low = 0
+            cumulative_high = 0
+
+            for year_data in yearly_data:
+                year = year_data.get('year', '')
+
+                # Extract values with fallbacks
+                yield_improvement_low = year_data.get('additional_yield_low', 0)
+                yield_improvement_high = year_data.get('additional_yield_high', 0)
+                yield_improvement = ".1f"
+
+                additional_revenue_low = year_data.get('additional_revenue_low', 0)
+                additional_revenue_high = year_data.get('additional_revenue_high', 0)
+                additional_revenue = ",.0f"
+
+                cost_low = year_data.get('cost_low', 0)
+                cost_high = year_data.get('cost_high', 0)
+                total_cost = ",.0f"
+
+                net_profit_low = year_data.get('net_profit_low', 0)
+                net_profit_high = year_data.get('net_profit_high', 0)
+                net_profit = ",.0f"
+
+                roi_low = year_data.get('roi_low', 0)
+                roi_high = year_data.get('roi_high', 0)
+                roi = ".1f"
+
+                # Calculate cumulative profits
+                cumulative_low += net_profit_low
+                cumulative_high += net_profit_high
+                cumulative_net_profit = ",.0f"
+
+                # Add table row
+                text_parts.append(f"| {year} | {yield_improvement} | {additional_revenue} | {total_cost} | {net_profit} | {roi} | {cumulative_net_profit} |")
+
+            text_parts.append("")
+            text_parts.append("*Per hectare calculations*")
+            text_parts.append("")
+
+        if text_parts:
+            return "\n".join(text_parts)
+        else:
+            return "Net Profit Forecast (RM/ha) - Data not available from Step 5"
+
+    except Exception as e:
+        logger.error(f"Error generating net profit forecast text: {e}")
+        return "Net Profit Forecast (RM/ha) - Error generating forecast data"
 
 def display_single_step_result(step_result, step_number):
     """Legacy function - redirects to enhanced display"""

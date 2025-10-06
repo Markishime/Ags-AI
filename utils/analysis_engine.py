@@ -5102,7 +5102,7 @@ class PromptAnalyzer:
                         'Leaf Parameters Summary',
                         'Land and Yield Summary'
                     ]
-                    # Skip Net Profit forecast tables — these belong in Step 5
+                        # Skip Net Profit forecast tables — these belong in Step 5
                     try:
                         title_lower = str(table['title']).lower()
                         if 'net profit forecast' in title_lower or (
@@ -5133,6 +5133,14 @@ class PromptAnalyzer:
                                 text_parts.append(row_str)
 
                     text_parts.append("")
+
+        # Net Profit Forecast - Include economic data from Step 5
+        text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
+        text_parts.append("")
+        text_parts.append("*Net profit projections based on economic analysis from Step 5*")
+        text_parts.append("")
+        text_parts.append("**Note:** Detailed net profit forecast tables are displayed in the analysis results based on the economic impact analysis from Step 5.")
+        text_parts.append("")
 
         return "\n".join(text_parts)
 
