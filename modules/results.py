@@ -5440,6 +5440,9 @@ def display_enhanced_step_result(step_result, step_number):
         # Sanitize persona and enforce neutral tone
         if isinstance(summary_text, str):
             summary_text = sanitize_persona_and_enforce_article(summary_text)
+            # For Step 6, remove any net profit placeholder/missing notices
+            if step_number == 6:
+                summary_text = filter_step6_net_profit_placeholders(summary_text)
         if isinstance(summary_text, str) and summary_text.strip():
             st.markdown(
                 f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
@@ -5484,6 +5487,10 @@ def display_enhanced_step_result(step_result, step_number):
                     detailed_text = re.sub(r"^.*Economic Analysis:.*$", "", detailed_text, flags=re.MULTILINE | re.IGNORECASE)
                     # Clean up any remaining artifacts
                     detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
+
+                # For Step 6, remove any net profit placeholder/missing notices
+                if step_number == 6:
+                    detailed_text = filter_step6_net_profit_placeholders(detailed_text)
 
                 # Parse and display structured content
                 parse_and_display_json_analysis(detailed_text)
@@ -5581,6 +5588,9 @@ def display_enhanced_step_result(step_result, step_number):
                 elif isinstance(value, str) and value.strip():
                     # Filter out raw dictionary patterns from string values
                     filtered_value = filter_known_sections_from_text(value)
+                    # For Step 6, remove any net profit placeholder/missing notices
+                    if step_number == 6:
+                        filtered_value = filter_step6_net_profit_placeholders(filtered_value)
                     if filtered_value.strip() and filtered_value != "Content filtered to prevent raw LLM output display.":
                         # Additional check: if the original value contained raw LLM patterns, don't display
                         original_filtered = filter_known_sections_from_text(str(value))
@@ -5913,6 +5923,35 @@ def display_step5_economic_forecast(analysis_data):
                 f'</div>',
                 unsafe_allow_html=True
             )
+
+    # Allow attaching a reference block to carry over to Step 6
+    try:
+        with st.expander("📎 Attach Reference Text for Step 6 (optional)", expanded=False):
+            default_ref = None
+            econ = analysis_data.get('economic_forecast', {}) if isinstance(analysis_data, dict) else {}
+            if isinstance(econ, dict):
+                default_ref = econ.get('reference_markdown') or econ.get('reference_text')
+            if hasattr(st, 'session_state'):
+                default_ref = st.session_state.get('step5_reference_text', default_ref)
+
+            ref_text = st.text_area(
+                "Paste your Step 5 reference tables/text to also display in Step 6:",
+                value=default_ref or "",
+                height=240,
+            )
+            col_a, col_b = st.columns([1,1])
+            with col_a:
+                if st.button("Save Reference for Step 6"):
+                    if hasattr(st, 'session_state'):
+                        st.session_state['step5_reference_text'] = ref_text.strip()
+                        st.success("Saved. This reference will appear in Step 6 under an expander.")
+            with col_b:
+                if st.button("Clear Reference"):
+                    if hasattr(st, 'session_state') and 'step5_reference_text' in st.session_state:
+                        del st.session_state['step5_reference_text']
+                        st.info("Cleared. Step 6 will not show a reference block unless added again.")
+    except Exception as e:
+        logger.debug(f"Step 5 reference input UI error: {e}")
 
     return  # Exit immediately - no further processing
 
@@ -7701,18 +7740,13 @@ def display_enhanced_step_result(step_result, step_number):
 
         display_forecast_graph_content(analysis_data, step_number, step_result.get('step_title', f'Step {step_number}'))
 
-        # Generate Net Profit Forecast tables as formatted text for Step 6
-        economic_forecast = analysis_data.get('economic_forecast', {})
-        if economic_forecast and 'scenarios' in economic_forecast:
-            try:
-                # Generate formatted text for net profit forecast
-                net_profit_text = generate_net_profit_forecast_text(economic_forecast)
-                if net_profit_text:
-                    st.markdown("### 💰 5-Year Net Profit Forecast (RM/ha)")
-                    st.markdown(net_profit_text)
-            except Exception as e:
-                logger.error(f"Error generating net profit forecast text: {e}")
-                st.error("Unable to generate net profit forecast tables")
+        # Removed Step 6 net profit forecast rendering; Step 5 already shows full economic tables
+
+        # Also show Step 5 reference tables/text when available
+        try:
+            display_step5_reference_in_step6(analysis_data)
+        except Exception as e:
+            logger.warning(f"Could not display Step 5 reference in Step 6: {e}")
 
 def generate_net_profit_forecast_text(economic_forecast):
     """Generate formatted markdown text for net profit forecast tables"""
@@ -7858,6 +7892,48 @@ def generate_net_profit_forecast_text(economic_forecast):
 def display_single_step_result(step_result, step_number):
     """Legacy function - redirects to enhanced display"""
     display_enhanced_step_result(step_result, step_number)
+
+def display_step5_reference_in_step6(analysis_data):
+    """Render Step 5 reference economic tables/text in Step 6 when provided.
+
+    Looks for markdown content in either analysis_data['economic_forecast']['reference_markdown']
+    or in st.session_state['step5_reference_text'] and displays it under an expander.
+    """
+    try:
+        reference_md = None
+
+        economic_data = analysis_data.get('economic_forecast') if isinstance(analysis_data, dict) else None
+        if isinstance(economic_data, dict):
+            reference_md = economic_data.get('reference_markdown') or economic_data.get('reference_text')
+
+        if not reference_md and hasattr(st, 'session_state'):
+            reference_md = st.session_state.get('step5_reference_text') or st.session_state.get('economic_reference_text')
+
+        if reference_md and isinstance(reference_md, str) and reference_md.strip():
+            with st.expander("📎 Step 5 Reference: Economic Forecast Tables", expanded=False):
+                st.markdown(reference_md)
+    except Exception as e:
+        logger.debug(f"display_step5_reference_in_step6 debug: {e}")
+
+def filter_step6_net_profit_placeholders(text):
+    """Remove Step 6 net profit placeholder/missing messages from any text blocks."""
+    try:
+        if not isinstance(text, str) or not text:
+            return text
+        patterns = [
+            r"\b5-Year Net Profit Forecast \(RM/ha\)\b.*?(?=\n\n|\Z)",
+            r"\bNet Profit Forecast \(RM/ha\) - .*?(?=\n\n|\Z)",
+            r"\bNote: The required Net Profit \(RM/ha\).*?(?=\n\n|\Z)",
+        ]
+        import re
+        filtered = text
+        for pat in patterns:
+            filtered = re.sub(pat, "", filtered, flags=re.IGNORECASE | re.DOTALL)
+        # Collapse extra blank lines
+        filtered = re.sub(r"\n\s*\n\s*\n+", "\n\n", filtered)
+        return filtered.strip()
+    except Exception:
+        return text
 
 def display_data_table(table_data, title):
     """Display a data table with proper formatting"""
