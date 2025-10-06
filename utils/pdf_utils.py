@@ -1468,15 +1468,13 @@ class PDFReportGenerator:
                     v = key_findings.get(k)
                     if isinstance(v, str) and v.strip():
                         # Try to parse JSON objects like {"finding": "...", "implication": "..."}
-                        from modules.results import _parse_json_finding
-                        parsed_finding = _parse_json_finding(v.strip())
+                        parsed_finding = self._safe_parse_json_finding(v.strip())
                         normalized_kf.append(parsed_finding)
             elif isinstance(key_findings, list):
                 for v in key_findings:
                     if isinstance(v, str) and v.strip():
                         # Try to parse JSON objects like {"finding": "...", "implication": "..."}
-                        from modules.results import _parse_json_finding
-                        parsed_finding = _parse_json_finding(v.strip())
+                        parsed_finding = self._safe_parse_json_finding(v.strip())
                         normalized_kf.append(parsed_finding)
 
             # Display the normalized findings
@@ -5414,6 +5412,26 @@ class PDFReportGenerator:
         story.extend(self._create_5_year_economic_tables(economic_forecast))
 
         return story
+
+    def _safe_parse_json_finding(self, text: str) -> str:
+        """Local, dependency-free parser for JSON-like finding strings used in PDFs.
+        Accepts strings like '{"finding": "...", "implication": "..."}' and returns a concise text.
+        """
+        try:
+            import json as _json
+            parsed = _json.loads(text)
+            if isinstance(parsed, dict):
+                finding = str(parsed.get('finding') or parsed.get('Finding') or '').strip()
+                implication = str(parsed.get('implication') or parsed.get('Implication') or '').strip()
+                if finding and implication:
+                    return f"{finding} — {implication}"
+                if finding:
+                    return finding
+                if implication:
+                    return implication
+        except Exception:
+            pass
+        return text
     
     def _convert_economic_analysis_to_scenarios(self, economic_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """Convert economic_analysis format to scenarios format for consistency"""

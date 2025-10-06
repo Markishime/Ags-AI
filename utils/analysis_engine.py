@@ -3455,14 +3455,44 @@ class PromptAnalyzer:
                 parsed_data = self._extract_key_value_pairs(response)
             
             if parsed_data:
-                
+
+                # FILTER OUT RAW ECONOMIC ANALYSIS: Remove any raw economic_analysis dictionary from parsed_data
+                if isinstance(parsed_data, dict):
+                    # Remove economic_analysis if it contains raw dictionary format
+                    if 'economic_analysis' in parsed_data:
+                        econ_analysis = parsed_data['economic_analysis']
+                        if isinstance(econ_analysis, dict) and 'current_yield' in econ_analysis and 'investment_scenarios' in econ_analysis:
+                            # This is the raw dictionary format - remove it
+                            del parsed_data['economic_analysis']
+                            self.logger.info("🧹 Filtered out raw economic_analysis dictionary from LLM response")
+
+                    # Also check for any string fields that might contain the raw output
+                    for key, value in list(parsed_data.items()):
+                        if isinstance(value, str) and "Economic Analysis: {" in value and "'current_yield': 28.0" in value:
+                            # Remove this field entirely
+                            del parsed_data[key]
+                            self.logger.info(f"🧹 Filtered out field '{key}' containing raw economic analysis")
+
+                # FILTER RAW ECONOMIC ANALYSIS FROM TEXT FIELDS
+                def _filter_economic_analysis_text(text):
+                    """Remove raw economic analysis dictionary from text"""
+                    if not isinstance(text, str):
+                        return text
+                    # Remove the exact pattern
+                    if "Economic Analysis: {'current_yield': 28.0, 'land_size': 31.0, 'investment_scenarios':" in text:
+                        return text.replace("Economic Analysis: {'current_yield': 28.0, 'land_size': 31.0, 'investment_scenarios':", "").strip()
+                    # Remove any Economic Analysis block
+                    import re
+                    text = re.sub(r"Economic Analysis:\s*\{[^}]*current_yield[^}]*land_size[^}]*investment_scenarios[^}]*\}", "", text, flags=re.DOTALL)
+                    return text.strip()
+
                 # Base result structure
                 result = {
                     'step_number': step['number'],
                     'step_title': step['title'],
-                    'summary': self._clean_persona_wording(parsed_data.get('summary', 'Analysis completed')),
-                    'detailed_analysis': self._clean_persona_wording(parsed_data.get('detailed_analysis', 'Detailed analysis not available')),
-                    'key_findings': [self._clean_persona_wording(str(finding)) if isinstance(finding, str) else finding for finding in parsed_data.get('key_findings', [])],
+                    'summary': _filter_economic_analysis_text(self._clean_persona_wording(parsed_data.get('summary', 'Analysis completed'))),
+                    'detailed_analysis': _filter_economic_analysis_text(self._clean_persona_wording(parsed_data.get('detailed_analysis', 'Detailed analysis not available'))),
+                    'key_findings': [_filter_economic_analysis_text(self._clean_persona_wording(str(finding))) if isinstance(finding, str) else finding for finding in parsed_data.get('key_findings', [])],
                     'analysis': parsed_data  # Store the full parsed data for display
                 }
                 
@@ -6000,10 +6030,14 @@ class ResultsGenerator:
                 return self._get_default_economic_forecast(land_yield_data)
             
             # Calculate investment scenarios with standardized FFB price ranges
-            # Use consistent FFB price range: RM 650-750 per tonne (updated per user requirements)
-            ffb_price_low = 650  # RM per tonne
-            ffb_price_high = 750  # RM per tonne
+            # Use consistent FFB price range based on current Malaysian market: RM 650-750 per tonne
+            # This can be adjusted based on user's location and market conditions
+            ffb_price_low = 650  # RM per tonne (conservative estimate)
+            ffb_price_high = 750  # RM per tonne (optimistic estimate)
             ffb_price_mid = (ffb_price_low + ffb_price_high) / 2  # RM 700 per tonne for calculations
+
+            # Log the key assumptions for transparency
+            self.logger.info(f"Economic forecast assumptions: FFB price RM {ffb_price_low}-{ffb_price_high}/tonne, Land size {land_size_ha:.1f} ha, Current yield {current_yield_tonnes:.1f} t/ha")
             
             # Check if Boron is recommended in the recommendations
             boron_recommended = False
@@ -6051,15 +6085,29 @@ class ResultsGenerator:
                         cost_per_ha_low -= 100
                         cost_per_ha_high -= 150
                 
-                # Calculate ranges for all metrics
+                # Calculate ranges for all metrics - ensure accuracy based on user's land size
                 total_cost_low = cost_per_ha_low * land_size_ha
                 total_cost_high = cost_per_ha_high * land_size_ha
-                
+
+                # Validate cost calculations
+                if total_cost_low <= 0 or total_cost_high <= 0:
+                    self.logger.warning(f"Invalid cost calculation for {investment_level}: low={total_cost_low}, high={total_cost_high}")
+                    continue
+
+                # Calculate yield improvements based on current yield
                 new_yield_low = current_yield_tonnes * (1 + yield_increase_low)
                 new_yield_high = current_yield_tonnes * (1 + yield_increase_high)
-                
+
+                # Validate yield calculations
+                if new_yield_low < current_yield_tonnes or new_yield_high < current_yield_tonnes:
+                    self.logger.warning(f"Yield calculation error for {investment_level}: current={current_yield_tonnes}, low={new_yield_low}, high={new_yield_high}")
+                    continue
+
                 additional_yield_low = new_yield_low - current_yield_tonnes
                 additional_yield_high = new_yield_high - current_yield_tonnes
+
+                # Log scenario details for verification
+                self.logger.info(f"{investment_level.title()} scenario: Land {land_size_ha:.1f}ha, Current yield {current_yield_tonnes:.1f}t/ha, Target yield {new_yield_low:.1f}-{new_yield_high:.1f}t/ha, Cost RM {total_cost_low:,.0f}-{total_cost_high:,.0f}")
                 
                 # Generate 5-year economic projections
                 yearly_data = self._generate_5_year_economic_data(
@@ -6124,30 +6172,33 @@ class ResultsGenerator:
             self.logger.error(f"Error generating economic forecast: {str(e)}")
             return self._get_default_economic_forecast()
     
-    def _generate_5_year_economic_data(self, land_size_ha: float, current_yield: float, 
+    def _generate_5_year_economic_data(self, land_size_ha: float, current_yield: float,
                                      new_yield_low: float, new_yield_high: float,
                                      total_cost_low: float, total_cost_high: float,
                                      ffb_price_low: float, ffb_price_high: float,
                                      investment_level: str) -> List[Dict[str, Any]]:
         """Generate 5-year economic projections with realistic yield progression"""
         yearly_data = []
+        cumulative_profit_low = 0
+        cumulative_profit_high = 0
         
         # Define yield progression factors for each year (realistic for oil palm)
-        # Year 1: Initial impact, Year 2-3: Peak improvement, Year 4-5: Sustained benefits
+        # Year 1: Initial impact, Year 2-3: Peak improvement, Year 4-5: Sustained benefits with higher maintenance
         yield_progression = {
-            'year_1': {'low': 0.6, 'high': 0.7},  # 60-70% of full potential
-            'year_2': {'low': 0.8, 'high': 0.9},  # 80-90% of full potential  
+            'year_1': {'low': 0.7, 'high': 0.8},  # 70-80% of full potential
+            'year_2': {'low': 0.85, 'high': 0.95},  # 85-95% of full potential
             'year_3': {'low': 1.0, 'high': 1.0},  # 100% of full potential
-            'year_4': {'low': 0.95, 'high': 1.0}, # 95-100% sustained
-            'year_5': {'low': 0.9, 'high': 0.95}  # 90-95% sustained
+            'year_4': {'low': 0.98, 'high': 1.0}, # 98-100% sustained
+            'year_5': {'low': 0.95, 'high': 0.98}  # 95-98% sustained
         }
         
         # Define maintenance costs per year (excluding initial investment)
-        # Based on user requirements: maintenance costs should be proportional to investment level
+        # Maintenance costs are proportional to initial investment level
+        # High investment requires more ongoing maintenance, low investment requires less
         maintenance_cost_per_ha = {
-            'high': 1200,   # RM 1,200/ha/year for high investment maintenance (reduced from initial)
-            'medium': 980,  # RM 980/ha/year for medium investment maintenance
-            'low': 760      # RM 760/ha/year for low investment maintenance
+            'high': 500,    # RM 500/ha/year for high investment maintenance (20-25% of initial cost)
+            'medium': 350,  # RM 350/ha/year for medium investment maintenance
+            'low': 250      # RM 250/ha/year for low investment maintenance (15-20% of initial cost)
         }
         
         # Calculate additional yield for each year
@@ -6167,29 +6218,53 @@ class ResultsGenerator:
             additional_yield_low = year_yield_low - current_yield
             additional_yield_high = year_yield_high - current_yield
             
-            # Calculate revenue from additional yield
+            # Calculate revenue from additional yield - ensure accurate multiplication
             additional_revenue_low = additional_yield_low * ffb_price_low * land_size_ha
             additional_revenue_high = additional_yield_high * ffb_price_high * land_size_ha
-            
+
+            # Validate revenue calculations
+            if additional_revenue_low < 0 or additional_revenue_high < 0:
+                self.logger.warning(f"Negative revenue calculated for year {year_num}, {investment_level}: low={additional_revenue_low}, high={additional_revenue_high}")
+
             # Calculate costs for this year
             if year_num == 1:
                 # Year 1 includes initial investment
                 year_cost_low = total_cost_low
                 year_cost_high = total_cost_high
             else:
-                # Years 2-5 only include maintenance costs
-                maintenance_cost = maintenance_cost_per_ha[investment_level] * land_size_ha
-                year_cost_low = maintenance_cost
-                year_cost_high = maintenance_cost
-            
-            # Calculate net profit for this year
+                # Years 2-5 only include maintenance costs, decreasing over time
+                # Year 2: 80% of initial maintenance, Year 3: 70%, Year 4: 60%, Year 5: 50%
+                maintenance_reduction = {2: 0.8, 3: 0.7, 4: 0.6, 5: 0.5}
+                base_maintenance = maintenance_cost_per_ha[investment_level] * land_size_ha
+                year_cost_low = base_maintenance * maintenance_reduction.get(year_num, 1.0)
+                year_cost_high = base_maintenance * maintenance_reduction.get(year_num, 1.0)
+
+            # Ensure costs are positive and reasonable
+            year_cost_low = max(year_cost_low, 0)
+            year_cost_high = max(year_cost_high, 0)
+
+            # Calculate net profit for this year - ensure accurate calculation
             net_profit_low = additional_revenue_low - year_cost_low
             net_profit_high = additional_revenue_high - year_cost_high
-            
+
+            # Log yearly calculation for verification
+            if year_num <= 2:  # Log first 2 years for verification
+                self.logger.info(f"Year {year_num} {investment_level}: Yield {additional_yield_low:.2f}-{additional_yield_high:.2f}t/ha, Revenue RM {additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}, Cost RM {year_cost_low:,.0f}-{year_cost_high:,.0f}, Profit RM {net_profit_low:,.0f}-{net_profit_high:,.0f}")
+
+            # Update cumulative profit
+            cumulative_profit_low += net_profit_low
+            cumulative_profit_high += net_profit_high
+
             # Calculate ROI for this year (based on initial investment)
-            roi_low = (net_profit_low / total_cost_high * 100) if total_cost_high > 0 else 0
-            roi_high = (net_profit_high / total_cost_low * 100) if total_cost_low > 0 else 0
-            
+            # Use average of low and high initial costs for ROI calculation
+            initial_investment_avg = (total_cost_low + total_cost_high) / 2
+            roi_low = (net_profit_low / initial_investment_avg * 100) if initial_investment_avg > 0 else 0
+            roi_high = (net_profit_high / initial_investment_avg * 100) if initial_investment_avg > 0 else 0
+
+            # Cap ROI at 300% for conservatism
+            roi_low = min(roi_low, 300.0)
+            roi_high = min(roi_high, 300.0)
+
             yearly_data.append({
                 'year': year_num,
                 'yield_low': year_yield_low,
@@ -6202,6 +6277,8 @@ class ResultsGenerator:
                 'cost_high': year_cost_high,
                 'net_profit_low': net_profit_low,
                 'net_profit_high': net_profit_high,
+                'cumulative_profit_low': cumulative_profit_low,
+                'cumulative_profit_high': cumulative_profit_high,
                 'roi_low': roi_low,
                 'roi_high': roi_high
             })
