@@ -2696,6 +2696,7 @@ class PromptAnalyzer:
             - Total Steps in Analysis: {total_step_count}
             - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
             - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
+            - {'CRITICAL: For Step 6 (Yield Forecast & Projections), you MUST NOT include any net profit forecasts, economic projections, cost-benefit analysis, or financial calculations. Focus ONLY on yield projections and production forecasts in tonnes per hectare. Do NOT mention or calculate any monetary values, ROI, or economic returns.' if step['number'] == 6 else ''}
 
             STEP {step['number']} INSTRUCTIONS FROM ACTIVE PROMPT:
             {step['description']}
@@ -2771,19 +2772,20 @@ class PromptAnalyzer:
             23. MANDATORY: Ensure every instruction in the step description is addressed with detailed responses
             24. CRITICAL: NEVER include raw JSON data, dictionaries, or structured data in your response text - this will be handled automatically by the system
             25. CRITICAL: Do NOT output data in formats like "Scenarios: {...}" or "Assumptions: {...}" - provide only natural language analysis
-            26. CRITICAL: For Step 6, provide yield forecast analysis in natural language only - do not include any raw economic data structures
-            27. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
-            28. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
-            29. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
-            30. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
-            31. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
-            32. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
-            33. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
-            34. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
-            35. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
-            36. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
-            37. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
-            38. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            26. CRITICAL: For Step 6, provide yield forecast analysis in natural language only - do not include any raw economic data structures or net profit forecasts
+            27. CRITICAL: Step 6 (Yield Forecast & Projections) MUST focus ONLY on physical yield projections in tonnes per hectare - NO financial calculations, net profit forecasts, ROI analysis, or economic projections
+            28. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
+            29. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
+            30. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
+            31. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
+            32. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
+            33. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
+            34. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
+            35. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
+            36. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
+            37. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
+            38. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
+            39. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
@@ -3105,10 +3107,12 @@ class PromptAnalyzer:
             
             result = self._parse_llm_response(response.content, step)
             
-            # Validate table generation if step description mentions "table"
-            if "table" in step['description'].lower():
+            # Validate table generation if step description mentions "table" OR if step is hardcoded to require tables (steps 2-6)
+            # Note: Step 5 tables are generated from economic_forecast data, not from LLM tables array
+            table_required = "table" in step['description'].lower() or step['number'] in [2, 3, 4, 6]
+            if table_required:
                 if 'tables' not in result or not result['tables']:
-                    self.logger.warning(f"Step {step['number']} mentions 'table' but no tables were generated. Adding fallback table.")
+                    self.logger.warning(f"Step {step['number']} requires tables but no tables were generated. Adding fallback table.")
                     # Add a fallback table structure
                     result['tables'] = [{
                         "title": f"Analysis Table for {step['title']}",
@@ -4984,6 +4988,8 @@ class PromptAnalyzer:
         if result.get('summary'):
             summary_text = result['summary']
             if isinstance(summary_text, str):
+                # Filter out any "Missing" text from Step 6 summary
+                summary_text = self._clean_text_field(summary_text)
                 text_parts.append(f"## Summary\n{summary_text}\n")
             else:
                 text_parts.append(f"## Summary\n{str(summary_text)}\n")
@@ -4995,14 +5001,18 @@ class PromptAnalyzer:
             if isinstance(findings, list):
                 for i, finding in enumerate(findings, 1):
                     if isinstance(finding, str):
+                        # Filter out any "Missing" text from key findings
+                        finding = self._clean_text_field(finding)
                         text_parts.append(f"**{i}.** {finding}")
                     else:
                         text_parts.append(f"**{i}.** {str(finding)}")
             elif isinstance(findings, str):
+                # Filter out any "Missing" text from key findings
+                findings = self._clean_text_field(findings)
                 text_parts.append(f"**1.** {findings}")
             text_parts.append("")
         
-        # Detailed Analysis (keep Net Profit forecast blocks as they are displayed in Step 6)
+        # Detailed Analysis
         if result.get('detailed_analysis'):
             detailed_text = result['detailed_analysis']
             if isinstance(detailed_text, str):
@@ -5011,7 +5021,30 @@ class PromptAnalyzer:
 
                 # FINAL NUCLEAR OPTION: If raw data still exists, replace entirely
                 if ('Scenarios:' in cleaned_detailed_text and 'investment_level' in cleaned_detailed_text) or \
-                   ('Assumptions:' in cleaned_detailed_text and ('item_0' in cleaned_detailed_text or 'yearly_data' in cleaned_detailed_text)):
+                   ('Assumptions:' in cleaned_detailed_text and ('item_0' in cleaned_detailed_text or 'yearly_data' in cleaned_detailed_text)) or \
+                   ('The Net Profit Forecast could not be generated' in cleaned_detailed_text) or \
+                   ('if Step 5 figures are missing' in cleaned_detailed_text) or \
+                   ('must be skipped to ensure accuracy' in cleaned_detailed_text) or \
+                   ('A line chart visualizing the net profit forecast would be generated here' in cleaned_detailed_text) or \
+                   ('Net Profit.*could not be generated' in cleaned_detailed_text) or \
+                   ('requires the specific Net Profit' in cleaned_detailed_text) or \
+                   ('data was not provided' in cleaned_detailed_text) or \
+                   ('operational instructions' in cleaned_detailed_text) or \
+                   ('5-Year Net Profit Forecast' in cleaned_detailed_text) or \
+                   ('This forecast reproduces the net profit projections' in cleaned_detailed_text) or \
+                   ('Based on the economic analysis conducted in Step 5' in cleaned_detailed_text) or \
+                   ('High-Investment Scenario:' in cleaned_detailed_text) or \
+                   ('Medium-Investment Scenario:' in cleaned_detailed_text) or \
+                   ('Low-Investment Scenario:' in cleaned_detailed_text) or \
+                   ('Year 1:' in cleaned_detailed_text and 'Year 2:' in cleaned_detailed_text) or \
+                   ('Projections assume continued yearly intervention' in cleaned_detailed_text) or \
+                   ('Profit values are approximate and based on the stated assumptions' in cleaned_detailed_text) or \
+                   ('Economic Forecast:' in cleaned_detailed_text) or \
+                   ('Land Size Hectares:' in cleaned_detailed_text) or \
+                   ('Current Yield Tonnes Per Ha:' in cleaned_detailed_text) or \
+                   ('This scenario involves high initial costs' in cleaned_detailed_text) or \
+                   ('This scenario is projected to yield consistent positive returns' in cleaned_detailed_text) or \
+                   ('This scenario offers the lowest financial risk' in cleaned_detailed_text):
                     cleaned_detailed_text = 'Economic analysis data has been processed and is displayed in the formatted tables below.'
                     self.logger.warning("FINAL NUCLEAR CLEANING: Replaced raw LLM data in Step 6 formatted text")
 
@@ -5019,70 +5052,6 @@ class PromptAnalyzer:
             else:
                 text_parts.append(f"## 📋 Detailed Analysis\n{str(detailed_text)}\n")
 
-        # Net Profit Forecast - Include economic data from Step 5
-        economic_forecast = result.get('economic_forecast', {})
-        if economic_forecast and 'scenarios' in economic_forecast:
-            scenarios = economic_forecast['scenarios']
-            if scenarios and isinstance(scenarios, dict):
-                text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
-                text_parts.append("")
-                text_parts.append("*Net profit projections based on economic analysis from Step 5*")
-                text_parts.append("")
-
-                # Display tables for each scenario
-                for scenario_name, scenario_data in scenarios.items():
-                    if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
-                        yearly_data = scenario_data['yearly_data']
-                        if yearly_data and len(yearly_data) > 0:
-                            # Scenario title mapping
-                            scenario_titles = {
-                                'high': 'High Investment Scenario',
-                                'medium': 'Medium Investment Scenario',
-                                'low': 'Low Investment Scenario'
-                            }
-                            scenario_title = scenario_titles.get(scenario_name.lower(), f"{scenario_name.title()} Investment Scenario")
-
-                            text_parts.append(f"### 🚀 {scenario_title}")
-                            text_parts.append("")
-                            text_parts.append("| Year | Yield Improvement (t/ha) | Revenue (RM/ha) | Input Cost (RM/ha) | Net Profit (RM/ha) | Cumulative Net Profit (RM/ha) |")
-                            text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|")
-
-                            cumulative_low = 0
-                            cumulative_high = 0
-
-                            for year_data in yearly_data:
-                                if isinstance(year_data, dict):
-                                    year = year_data.get('year', '')
-
-                                    # Extract values
-                                    yield_improvement_low = year_data.get('additional_yield_low', 0)
-                                    yield_improvement_high = year_data.get('additional_yield_high', 0)
-                                    additional_revenue_low = year_data.get('additional_revenue_low', 0)
-                                    additional_revenue_high = year_data.get('additional_revenue_high', 0)
-                                    cost_low = year_data.get('cost_low', 0)
-                                    cost_high = year_data.get('cost_high', 0)
-                                    net_profit_low = year_data.get('net_profit_low', 0)
-                                    net_profit_high = year_data.get('net_profit_high', 0)
-
-                                    # Calculate cumulative profits
-                                    cumulative_low += net_profit_low
-                                    cumulative_high += net_profit_high
-
-                                    # Format values
-                                    yield_improvement_val = f"{yield_improvement_low:.1f}-{yield_improvement_high:.1f}" if yield_improvement_low != yield_improvement_high else f"{yield_improvement_low:.1f}"
-                                    additional_revenue_val = f"{additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}" if additional_revenue_low != additional_revenue_high else f"{additional_revenue_low:,.0f}"
-                                    total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
-                                    net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
-                                    cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
-
-                                    text_parts.append(f"| {year} | {yield_improvement_val} | {additional_revenue_val} | {total_cost_val} | {net_profit_val} | {cumulative_val} |")
-
-                            text_parts.append("")
-                            text_parts.append("*Per hectare calculations*")
-                            text_parts.append("")
-        else:
-            # No fallback message - net profit forecast not displayed when data unavailable
-            pass
 
         return "\n".join(text_parts)
 
@@ -6305,6 +6274,22 @@ class ResultsGenerator:
 
         # Remove blocks starting with "Assumptions:" followed by JSON
         text = re.sub(r'Assumptions:\s*\{.*?\}(?=\s*(\n\n##|\Z))', 'Economic assumptions data has been processed and is displayed in formatted tables.', text, flags=re.DOTALL)
+
+        # Remove Net Profit Forecast "Missing" text patterns
+        text = re.sub(r'The Net Profit Forecast could not be generated.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'if Step 5 figures are missing.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'must be skipped to ensure accuracy.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'would be generated showing.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'Note on Missing Data.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'Projections assume continued yearly intervention.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'Profit values are approximate.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'A line chart visualizing the net profit forecast would be generated here.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'Net Profit Forecast.*Missing.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'Note:.*Missing Data.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'Net Profit.*could not be generated.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'requires the specific Net Profit.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'data was not provided.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'operational instructions.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL | re.IGNORECASE)
 
         return text
 
@@ -7821,19 +7806,7 @@ class AnalysisEngine:
             except Exception as _e:
                 self.logger.warning(f"Could not build Step 2 issues: {_e}")
 
-            # Enhanced Step 6 processing - inject economic forecast from Step 5
-            try:
-                for i, sr in enumerate(step_results):
-                    if sr and sr.get('step_number') == 6:
-                        # Clean economic forecast before injecting to prevent raw data leakage
-                        cleaned_economic_forecast = self.results_generator._clean_economic_forecast(economic_forecast)
-                        # Inject cleaned economic forecast from Step 5 for Net Profit tables
-                        sr['economic_forecast'] = cleaned_economic_forecast
-                        step_results[i] = sr
-                        self.logger.info("Injected cleaned economic forecast from Step 5 into Step 6 for Net Profit tables")
-                        break
-            except Exception as _e:
-                self.logger.warning(f"Could not inject economic forecast into Step 6: {_e}")
+            # Step 6 should NOT have economic forecast data injected - net profit forecasts removed from Step 6
 
             # Enhanced Step 5 processing with complete economic forecast
             try:
