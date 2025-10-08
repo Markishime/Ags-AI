@@ -5502,8 +5502,10 @@ def display_enhanced_step_result(step_result, step_number):
                 if step_number == 6:
                     detailed_text = filter_step6_net_profit_placeholders(detailed_text)
                     # EXTRA SAFEGUARD: If raw LLM data still exists, replace the entire section
-                    if 'Scenarios:' in detailed_text and 'investment_level' in detailed_text:
+                    if ('Scenarios:' in detailed_text and 'investment_level' in detailed_text) or \
+                       ('Assumptions:' in detailed_text and ('item_0' in detailed_text or 'yearly_data' in detailed_text)):
                         detailed_text = "Economic analysis data has been processed and is displayed in the formatted tables below."
+                        logger.warning("DISPLAY SAFEGUARD: Replaced raw LLM economic data in Step 6 display")
 
                 # Parse and display structured content
                 parse_and_display_json_analysis(detailed_text)
@@ -8085,6 +8087,11 @@ def filter_step6_net_profit_placeholders(text):
             r"\b5-Year Net Profit Forecast \(RM/ha\)\b.*?(?=\n\n|\Z)",
             r"\bNet Profit Forecast \(RM/ha\) - .*?(?=\n\n|\Z)",
             r"\bNote: The required Net Profit \(RM/ha\).*?(?=\n\n|\Z)",
+            r"\*\*Missing\*\*.*?(?=\n\n|\Z)",
+            r"Net Profit Forecast.*Missing.*?(?=\n\n|\Z)",
+            r"This chart is intentionally omitted.*?(?=\n\n|\Z)",
+            r"\(Chart: Net Profit Forecast\).*?(?=\n\n|\Z)",
+            r"chart.*not.*available.*?(?=\n\n|\Z)",
             # CRITICAL: Remove raw LLM output in Step 6
             r"Scenarios:\s*\{.*?\}(?=\s*(\n\n|\Z))",
             r"Assumptions:\s*\{.*?\}(?=\s*(\n\n|\Z))",

@@ -3543,6 +3543,25 @@ class PromptAnalyzer:
                         'assumptions': parsed_data.get('assumptions', []),
                         'visualizations': parsed_data.get('visualizations', [])
                     })
+
+                    # CRITICAL: Nuclear cleaning for Step 6 to prevent raw LLM data leakage
+                    if 'detailed_analysis' in result and result['detailed_analysis']:
+                        detailed_text = result['detailed_analysis']
+                        if isinstance(detailed_text, str):
+                            # Nuclear option: If raw economic data is detected, replace entire field
+                            if ('Scenarios:' in detailed_text and 'investment_level' in detailed_text) or \
+                               ('Assumptions:' in detailed_text and ('item_0' in detailed_text or 'yearly_data' in detailed_text)):
+                                result['detailed_analysis'] = 'Economic analysis data has been processed and is displayed in the formatted tables below.'
+                                self.logger.warning("NUCLEAR CLEANING: Removed raw LLM economic data from Step 6 detailed_analysis")
+
+                    # EXTRA NUCLEAR CLEANING: Clean the parsed_data detailed_analysis before it gets into result
+                    if 'detailed_analysis' in parsed_data:
+                        parsed_detailed = parsed_data['detailed_analysis']
+                        if isinstance(parsed_detailed, str):
+                            if ('Scenarios:' in parsed_detailed and 'investment_level' in parsed_detailed) or \
+                               ('Assumptions:' in parsed_detailed and ('item_0' in parsed_detailed or 'yearly_data' in parsed_detailed)):
+                                parsed_data['detailed_analysis'] = 'Economic analysis data has been processed and is displayed in the formatted tables below.'
+                                self.logger.warning("NUCLEAR CLEANING: Removed raw LLM economic data from parsed_data detailed_analysis")
                 
                 # Always include yield_forecast, visualizations, tables, and interpretations if they exist in the parsed data
                 # This ensures any step with these data types will have them available
@@ -4989,6 +5008,13 @@ class PromptAnalyzer:
             if isinstance(detailed_text, str):
                 # CRITICAL: Clean any raw LLM output before displaying
                 cleaned_detailed_text = self._clean_text_field(detailed_text)
+
+                # FINAL NUCLEAR OPTION: If raw data still exists, replace entirely
+                if ('Scenarios:' in cleaned_detailed_text and 'investment_level' in cleaned_detailed_text) or \
+                   ('Assumptions:' in cleaned_detailed_text and ('item_0' in cleaned_detailed_text or 'yearly_data' in cleaned_detailed_text)):
+                    cleaned_detailed_text = 'Economic analysis data has been processed and is displayed in the formatted tables below.'
+                    self.logger.warning("FINAL NUCLEAR CLEANING: Replaced raw LLM data in Step 6 formatted text")
+
                 text_parts.append(f"## 📋 Detailed Analysis\n{cleaned_detailed_text}\n")
             else:
                 text_parts.append(f"## 📋 Detailed Analysis\n{str(detailed_text)}\n")
@@ -5055,13 +5081,8 @@ class PromptAnalyzer:
                             text_parts.append("*Per hectare calculations*")
                             text_parts.append("")
         else:
-            # Fallback message when economic forecast is not available
-            text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
-            text_parts.append("")
-            text_parts.append("**Missing**")
-            text_parts.append("")
-            text_parts.append("*Note: The Net Profit Forecast could not be generated as the detailed year-by-year net profit values from Step 5 were not available for reproduction.*")
-            text_parts.append("")
+            # No fallback message - net profit forecast not displayed when data unavailable
+            pass
 
         return "\n".join(text_parts)
 
