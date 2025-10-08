@@ -6162,7 +6162,7 @@ class PDFReportGenerator:
         # Extract key economic metrics
         current_yield = economic_data.get('current_yield_tonnes_per_ha', 0)
         land_size = economic_data.get('land_size_hectares', 0)
-        oil_palm_price = economic_data.get('oil_palm_price_rm_per_tonne', 600)
+        oil_palm_price = economic_data.get('oil_palm_price_rm_per_tonne', 700)  # Default to midpoint of 650-750 range
         
         # Create metrics table
         metrics_data = []
@@ -6570,7 +6570,7 @@ class PDFReportGenerator:
             # Extract data based on the actual structure from analysis engine
             current_yield = econ.get('current_yield_tonnes_per_ha', 0)
             land_size = econ.get('land_size_hectares', 0)
-            oil_palm_price = econ.get('oil_palm_price_rm_per_tonne', 600)
+            oil_palm_price = econ.get('oil_palm_price_rm_per_tonne', 700)  # Default to midpoint of 650-750 range
             scenarios = econ.get('scenarios', {})
             
             # Ensure scenarios populated: fall back to step 5 investment_scenarios if needed

@@ -2673,7 +2673,7 @@ class PromptAnalyzer:
                 for prev_result in (previous_results or []):
                     if 'specific_recommendations' in prev_result:
                         recommendations.extend(prev_result['specific_recommendations'])
-                economic_forecast = results_generator.generate_economic_forecast(land_yield_data, recommendations)
+                economic_forecast = results_generator.generate_economic_forecast(land_yield_data, recommendations, previous_results)
             
             # Prepare context for the LLM
             _ = self._prepare_step_context(step, soil_params, leaf_params, land_yield_data, previous_results)
@@ -2687,8 +2687,8 @@ class PromptAnalyzer:
             
 
             # This ensures the LLM follows the exact steps configured by the user
-            system_prompt = f"""You are an expert agronomist specializing in oil palm cultivation in Malaysia with 20+ years of experience.
-            You must analyze the provided data according to the SPECIFIC step instructions from the active prompt configuration and provide detailed, accurate results.
+            system_prompt = f"""This is an expert agronomic analysis system for oil palm cultivation in Malaysia.
+            The analysis must be conducted according to the SPECIFIC step instructions from the active prompt configuration and provide detailed, accurate results using neutral, third-person language only.
 
             ANALYSIS CONTEXT:
             - This is Step {step['number']} of a {total_step_count} step analysis process
@@ -2769,18 +2769,21 @@ class PromptAnalyzer:
             21. MANDATORY: If step instructions mention analysis, provide thorough analysis of all data points
             22. MANDATORY: Display all generated answers comprehensively in the UI - no missing details
             23. MANDATORY: Ensure every instruction in the step description is addressed with detailed responses
-            24. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
-            25. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
-            26. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
-            27. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
-            28. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
-            29. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
-            30. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
-            31. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
-            32. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
-            33. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
-            34. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
-            35. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            24. CRITICAL: NEVER include raw JSON data, dictionaries, or structured data in your response text - this will be handled automatically by the system
+            25. CRITICAL: Do NOT output data in formats like "Scenarios: {...}" or "Assumptions: {...}" - provide only natural language analysis
+            26. CRITICAL: For Step 6, provide yield forecast analysis in natural language only - do not include any raw economic data structures
+            27. MANDATORY: For ALL steps: Provide specific_recommendations as a list of actionable recommendations with rates, timelines, and expected impacts
+            28. MANDATORY: For table generation: Use REAL sample data, not placeholder values. Include all samples in the table with proper headers and calculated statistics
+            29. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
+            30. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
+            31. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
+            32. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
+            33. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
+            34. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
+            35. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
+            36. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
+            37. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
+            38. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
@@ -3017,9 +3020,11 @@ class PromptAnalyzer:
                 }
             ]
             
-            Use actual data from the uploaded files. Include all available samples with their real parameter values. Do not use placeholder or example data."""
-            
-            human_prompt = f"""Please analyze the following data according to Step {step['number']} - {step['title']}:{table_instruction}
+            Use actual data from the uploaded files. Include all available samples with their real parameter values. Do not use placeholder or example data.
+
+            IMPORTANT: Use only neutral, third-person language. Avoid all first-person pronouns (I, me, my, we, our) and second-person pronouns (you, your)."""
+
+            human_prompt = f"""Analyze the following data according to Step {step['number']} - {step['title']}:{table_instruction}
             
             SOIL DATA:
             {self._format_soil_data_for_llm(soil_params)}
@@ -3165,7 +3170,13 @@ class PromptAnalyzer:
                 # Generate fallback economic forecast if none was generated
                 results_generator = ResultsGenerator()
                 if land_yield_data:
-                    fallback_forecast = results_generator.generate_economic_forecast(land_yield_data, [])
+                    # Collect recommendations from previous steps for fallback
+                    fallback_recommendations = []
+                    for prev_result in (previous_results or []):
+                        if 'specific_recommendations' in prev_result:
+                            fallback_recommendations.extend(prev_result['specific_recommendations'])
+
+                    fallback_forecast = results_generator.generate_economic_forecast(land_yield_data, fallback_recommendations, previous_results)
                     result['economic_forecast'] = fallback_forecast
                     self.logger.info(f"Generated fallback economic forecast for Step 5")
                 else:
@@ -3595,7 +3606,7 @@ class PromptAnalyzer:
             land = raw.get('land_yield_data', {}) if isinstance(raw, dict) else {}
 
             prompt = (
-                "You are an expert agronomist. Write an Executive Summary for an oil palm report. "
+                "Write an Executive Summary for an oil palm agronomic analysis report using neutral, third-person language. "
                 "Use ONLY the findings provided from this run. 120-220 words. Farmer-friendly. "
                 "Single paragraph. No headings, no bullets, no placeholders. Do not invent numbers.\n\n"
                 "Context from step-by-step results:\n" + "\n\n".join(lines[:10]) + "\n\n"
@@ -3961,6 +3972,9 @@ class PromptAnalyzer:
                 elif step_number == 5:  # Economic Impact Forecast
                     formatted_text = self._format_step5_text(result)
                 elif step_number == 6:  # Forecast Graph
+                    # Clean result to prevent raw economic data leakage before formatting
+                    if isinstance(result, dict):
+                        result = self.results_generator._clean_economic_forecast_for_result(result)
                     formatted_text = self._format_step6_text(result)
             except Exception as step_error:
                 self.logger.error(f"Error in step {step_number} formatting: {str(step_error)}")
@@ -4917,230 +4931,81 @@ class PromptAnalyzer:
         if result.get('detailed_analysis'):
             detailed_text = result['detailed_analysis']
             if isinstance(detailed_text, str):
-                text_parts.append(f"## 📋 Detailed Analysis\n{detailed_text}\n")
+                # CRITICAL: Clean any raw LLM output before displaying
+                cleaned_detailed_text = self._clean_text_field(detailed_text)
+                text_parts.append(f"## 📋 Detailed Analysis\n{cleaned_detailed_text}\n")
             else:
                 text_parts.append(f"## 📋 Detailed Analysis\n{str(detailed_text)}\n")
-        
-        # Yield Forecast - Always show this section
-        forecast = result.get('yield_forecast', {})
-        if not isinstance(forecast, dict):
-            self.logger.warning(f"Yield forecast is not a dictionary: {type(forecast)}")
-            forecast = {}
-        text_parts.append("## 📈 5-Year Yield Forecast\n")
-
-        # Show baseline yield
-        baseline_yield = forecast.get('baseline_yield', 0) if isinstance(forecast, dict) else 0
-        # Ensure baseline_yield is numeric
-        try:
-            baseline_yield = float(baseline_yield) if baseline_yield is not None else 0
-        except (ValueError, TypeError):
-            baseline_yield = 0
-
-        if baseline_yield <= 0:
-            # Use default baseline if not available
-            baseline_yield = 15.0  # Default oil palm yield
-            text_parts.append(f"**Current Yield Baseline:** {baseline_yield:.1f} tonnes/hectare (estimated)")
-        else:
-            text_parts.append(f"**Current Yield Baseline:** {baseline_yield:.1f} tonnes/hectare")
-        text_parts.append("")
-
-        # Years including baseline (0-5)
-        years = [0, 1, 2, 3, 4, 5]
-        year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
-
-        # Always show forecast tables, even if data is generated
-        if not (isinstance(forecast, dict) and forecast.get('high_investment')):
-            # Generate default forecast if not available
-            forecast = self._generate_default_forecast(baseline_yield)
-
-        # High Investment Scenario
-        if isinstance(forecast, dict) and forecast.get('high_investment'):
-            text_parts.append("### 🚀 High Investment Scenario")
-            text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
-            text_parts.append("|------|------------------|-------------|")
-
-            investment_data = forecast['high_investment']
-            if isinstance(investment_data, list):
-                # Old array format
-                for i, year in enumerate(years):
-                    if i < len(investment_data):
-                        yield_val = investment_data[i]
-                        if i == 0:
-                            improvement = "Baseline"
-                        else:
-                            # Check if yield_val is numeric before doing arithmetic
-                            try:
-                                if isinstance(yield_val, (int, float)) and isinstance(baseline_yield, (int, float)) and baseline_yield > 0:
-                                    improvement = f"+{((yield_val - baseline_yield) / baseline_yield * 100):.1f}%"
-                                else:
-                                    improvement = "N/A"
-                            except (TypeError, ValueError):
-                                improvement = "N/A"
-                        # Format yield_val safely
-                        try:
-                            if isinstance(yield_val, (int, float)):
-                                yield_display = f"{yield_val:.1f}"
-                            else:
-                                yield_display = str(yield_val)
-                        except (TypeError, ValueError):
-                            yield_display = str(yield_val)
-                        text_parts.append(f"| {year_labels[i]} | {yield_display} | {improvement} |")
-            elif isinstance(investment_data, dict):
-                # New range format
-                text_parts.append(f"| {year_labels[0]} | {baseline_yield:.1f} | Baseline |")
-                for i, year in enumerate(['year_1', 'year_2', 'year_3', 'year_4', 'year_5'], 1):
-                    if year in investment_data:
-                        yield_range = investment_data[year]
-                        text_parts.append(f"| {year_labels[i]} | {yield_range} | Range |")
-            text_parts.append("")
-
-        # Medium Investment Scenario
-        if isinstance(forecast, dict) and forecast.get('medium_investment'):
-            text_parts.append("### ⚖️ Medium Investment Scenario")
-            text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
-            text_parts.append("|------|------------------|-------------|")
-
-            investment_data = forecast['medium_investment']
-            if isinstance(investment_data, list):
-                # Old array format
-                for i, year in enumerate(years):
-                    if i < len(investment_data):
-                        yield_val = investment_data[i]
-                        if i == 0:
-                            improvement = "Baseline"
-                        else:
-                            # Check if yield_val is numeric before doing arithmetic
-                            try:
-                                if isinstance(yield_val, (int, float)) and isinstance(baseline_yield, (int, float)) and baseline_yield > 0:
-                                    improvement = f"+{((yield_val - baseline_yield) / baseline_yield * 100):.1f}%"
-                                else:
-                                    improvement = "N/A"
-                            except (TypeError, ValueError):
-                                improvement = "N/A"
-                        # Format yield_val safely
-                        try:
-                            if isinstance(yield_val, (int, float)):
-                                yield_display = f"{yield_val:.1f}"
-                            else:
-                                yield_display = str(yield_val)
-                        except (TypeError, ValueError):
-                            yield_display = str(yield_val)
-                        text_parts.append(f"| {year_labels[i]} | {yield_display} | {improvement} |")
-            elif isinstance(investment_data, dict):
-                # New range format
-                text_parts.append(f"| {year_labels[0]} | {baseline_yield:.1f} | Baseline |")
-                for i, year in enumerate(['year_1', 'year_2', 'year_3', 'year_4', 'year_5'], 1):
-                    if year in investment_data:
-                        yield_range = investment_data[year]
-                        text_parts.append(f"| {year_labels[i]} | {yield_range} | Range |")
-            text_parts.append("")
-
-        # Low Investment Scenario
-        if isinstance(forecast, dict) and forecast.get('low_investment'):
-            text_parts.append("### 💰 Low Investment Scenario")
-            text_parts.append("| Year | Yield (tonnes/ha) | Improvement |")
-            text_parts.append("|------|------------------|-------------|")
-
-            investment_data = forecast['low_investment']
-            if isinstance(investment_data, list):
-                # Old array format
-                for i, year in enumerate(years):
-                    if i < len(investment_data):
-                        yield_val = investment_data[i]
-                        if i == 0:
-                            improvement = "Baseline"
-                        else:
-                            # Check if yield_val is numeric before doing arithmetic
-                            try:
-                                if isinstance(yield_val, (int, float)) and isinstance(baseline_yield, (int, float)) and baseline_yield > 0:
-                                    improvement = f"+{((yield_val - baseline_yield) / baseline_yield * 100):.1f}%"
-                                else:
-                                    improvement = "N/A"
-                            except (TypeError, ValueError):
-                                improvement = "N/A"
-                        # Format yield_val safely
-                        try:
-                            if isinstance(yield_val, (int, float)):
-                                yield_display = f"{yield_val:.1f}"
-                            else:
-                                yield_display = str(yield_val)
-                        except (TypeError, ValueError):
-                            yield_display = str(yield_val)
-                        text_parts.append(f"| {year_labels[i]} | {yield_display} | {improvement} |")
-            elif isinstance(investment_data, dict):
-                # New range format
-                text_parts.append(f"| {year_labels[0]} | {baseline_yield:.1f} | Baseline |")
-                for i, year in enumerate(['year_1', 'year_2', 'year_3', 'year_4', 'year_5'], 1):
-                    if year in investment_data:
-                        yield_range = investment_data[year]
-                        text_parts.append(f"| {year_labels[i]} | {yield_range} | Range |")
-            text_parts.append("")
-
-        # Assumptions
-        if result.get('assumptions'):
-            text_parts.append("## Key Assumptions\n")
-            for assumption in result['assumptions']:
-                text_parts.append(f"- {assumption}")
-            text_parts.append("")
-        else:
-            # Default assumptions if not provided
-            text_parts.append("## Key Assumptions\n")
-            text_parts.append("- Yield improvements based on addressing identified nutrient issues")
-            text_parts.append("- Projections assume proper implementation of recommended practices")
-            text_parts.append("- Environmental factors and market conditions may affect actual results")
-            text_parts.append("- Regular monitoring and adjustment recommended for optimal outcomes")
-            text_parts.append("")
-
-        # 📊 Detailed Data Tables (skip Net Profit forecast tables for Step 6)
-        if 'tables' in result and result['tables']:
-            text_parts.append("## 📊 Detailed Data Tables\n")
-            for table in result['tables']:
-                if isinstance(table, dict) and 'title' in table and 'headers' in table and 'rows' in table:
-                    # Skip unwanted tables
-                    unwanted_tables = [
-                        'Soil Parameters Summary',
-                        'Leaf Parameters Summary',
-                        'Land and Yield Summary'
-                    ]
-                        # Skip Net Profit forecast tables — these belong in Step 5
-                    try:
-                        title_lower = str(table['title']).lower()
-                        if 'net profit forecast' in title_lower or (
-                            'net profit' in title_lower and 'forecast' in title_lower
-                        ) or ('rm/ha' in title_lower and 'profit' in title_lower):
-                            continue
-                    except Exception:
-                        pass
-                    if table['title'] in unwanted_tables:
-                        continue
-
-                    text_parts.append(f"### {table['title']}\n")
-
-                    # Create markdown table
-                    if table['headers'] and table['rows']:
-                        # Headers
-                        header_row = "| " + " | ".join(str(h) for h in table['headers']) + " |"
-                        text_parts.append(header_row)
-
-                        # Separator
-                        separator_row = "|" + "|".join("---" for _ in table['headers']) + "|"
-                        text_parts.append(separator_row)
-
-                        # Data rows
-                        for row in table['rows']:
-                            if isinstance(row, list):
-                                row_str = "| " + " | ".join(str(cell) if cell != 0 else "N/A" for cell in row) + " |"
-                                text_parts.append(row_str)
-
-                    text_parts.append("")
 
         # Net Profit Forecast - Include economic data from Step 5
-        text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
-        text_parts.append("")
-        text_parts.append("*Net profit projections based on economic analysis from Step 5*")
-        text_parts.append("")
-        text_parts.append("**Note:** Detailed net profit forecast tables are displayed in the analysis results based on the economic impact analysis from Step 5.")
-        text_parts.append("")
+        economic_forecast = result.get('economic_forecast', {})
+        if economic_forecast and 'scenarios' in economic_forecast:
+            scenarios = economic_forecast['scenarios']
+            if scenarios and isinstance(scenarios, dict):
+                text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
+                text_parts.append("")
+                text_parts.append("*Net profit projections based on economic analysis from Step 5*")
+                text_parts.append("")
+
+                # Display tables for each scenario
+                for scenario_name, scenario_data in scenarios.items():
+                    if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                        yearly_data = scenario_data['yearly_data']
+                        if yearly_data and len(yearly_data) > 0:
+                            # Scenario title mapping
+                            scenario_titles = {
+                                'high': 'High Investment Scenario',
+                                'medium': 'Medium Investment Scenario',
+                                'low': 'Low Investment Scenario'
+                            }
+                            scenario_title = scenario_titles.get(scenario_name.lower(), f"{scenario_name.title()} Investment Scenario")
+
+                            text_parts.append(f"### 🚀 {scenario_title}")
+                            text_parts.append("")
+                            text_parts.append("| Year | Yield Improvement (t/ha) | Revenue (RM/ha) | Input Cost (RM/ha) | Net Profit (RM/ha) | Cumulative Net Profit (RM/ha) |")
+                            text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|")
+
+                            cumulative_low = 0
+                            cumulative_high = 0
+
+                            for year_data in yearly_data:
+                                if isinstance(year_data, dict):
+                                    year = year_data.get('year', '')
+
+                                    # Extract values
+                                    yield_improvement_low = year_data.get('additional_yield_low', 0)
+                                    yield_improvement_high = year_data.get('additional_yield_high', 0)
+                                    additional_revenue_low = year_data.get('additional_revenue_low', 0)
+                                    additional_revenue_high = year_data.get('additional_revenue_high', 0)
+                                    cost_low = year_data.get('cost_low', 0)
+                                    cost_high = year_data.get('cost_high', 0)
+                                    net_profit_low = year_data.get('net_profit_low', 0)
+                                    net_profit_high = year_data.get('net_profit_high', 0)
+
+                                    # Calculate cumulative profits
+                                    cumulative_low += net_profit_low
+                                    cumulative_high += net_profit_high
+
+                                    # Format values
+                                    yield_improvement_val = f"{yield_improvement_low:.1f}-{yield_improvement_high:.1f}" if yield_improvement_low != yield_improvement_high else f"{yield_improvement_low:.1f}"
+                                    additional_revenue_val = f"{additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}" if additional_revenue_low != additional_revenue_high else f"{additional_revenue_low:,.0f}"
+                                    total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
+                                    net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
+                                    cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+
+                                    text_parts.append(f"| {year} | {yield_improvement_val} | {additional_revenue_val} | {total_cost_val} | {net_profit_val} | {cumulative_val} |")
+
+                            text_parts.append("")
+                            text_parts.append("*Per hectare calculations*")
+                            text_parts.append("")
+        else:
+            # Fallback message when economic forecast is not available
+            text_parts.append("## 💰 5-Year Net Profit Forecast (RM/ha)")
+            text_parts.append("")
+            text_parts.append("**Missing**")
+            text_parts.append("")
+            text_parts.append("*Note: The Net Profit Forecast could not be generated as the detailed year-by-year net profit values from Step 5 were not available for reproduction.*")
+            text_parts.append("")
 
         return "\n".join(text_parts)
 
@@ -5292,15 +5157,13 @@ class ResultsGenerator:
                 
                 recommendations.append(rec)
             
-            self.logger.info(f"Generated {len(recommendations)} recommendations")
             if len(recommendations) == 0:
-                self.logger.warning(f"No recommendations generated. Input issues count: {len(issues)}")
-                for i, issue in enumerate(issues[:3]):  # Log first 3 issues for debugging
-                    self.logger.warning(f"  Issue {i+1}: {issue.get('parameter', 'Unknown')} - {issue.get('status', 'Unknown')}")
-                
                 # Generate general maintenance recommendations when no specific issues are detected
-                self.logger.info("Generating general maintenance recommendations...")
+                self.logger.info("No specific issues detected, generating general maintenance recommendations...")
                 recommendations = self._generate_general_recommendations()
+                self.logger.info(f"Generated {len(recommendations)} general maintenance recommendations")
+            else:
+                self.logger.info(f"Generated {len(recommendations)} recommendations based on {len(issues)} detected issues")
             
             return recommendations
             
@@ -5984,18 +5847,19 @@ class ResultsGenerator:
                 'expected_result': f'{param} levels improve within 3-6 months'
             }
     
-    def generate_economic_forecast(self, land_yield_data: Dict[str, Any], 
-                                 recommendations: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate 5-year economic forecast based on land/yield data and recommendations"""
+    def generate_economic_forecast(self, land_yield_data: Dict[str, Any],
+                                 recommendations: List[Dict[str, Any]],
+                                 previous_results: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Generate 5-year economic forecast based on land/yield data, recommendations, and previous analysis results"""
         try:
             land_size = land_yield_data.get('land_size', 0)
             current_yield = land_yield_data.get('current_yield', 0)
             land_unit = land_yield_data.get('land_unit', 'hectares')
             yield_unit = land_yield_data.get('yield_unit', 'tonnes/hectare')
             palm_density = land_yield_data.get('palm_density', 148)  # Default 148 palms/ha
-            
+
             self.logger.info(f"Economic forecast input data: land_size={land_size} {land_unit}, current_yield={current_yield} {yield_unit}, palm_density={palm_density}")
-            
+
             # Convert to hectares and tonnes/hectare
             if land_unit == 'acres':
                 land_size_ha = land_size * 0.404686
@@ -6003,7 +5867,7 @@ class ResultsGenerator:
                 land_size_ha = land_size / 10000.0
             else:
                 land_size_ha = land_size
-            
+
             if yield_unit == 'kg/hectare':
                 current_yield_tonnes = current_yield / 1000
             elif yield_unit == 'tonnes/acre':
@@ -6012,14 +5876,22 @@ class ResultsGenerator:
                 current_yield_tonnes = (current_yield / 1000) * 2.47105
             else:
                 current_yield_tonnes = current_yield
-            
+
             self.logger.info(f"Converted data: land_size_ha={land_size_ha}, current_yield_tonnes={current_yield_tonnes}, palm_density={palm_density}")
-            
+
             # Use default forecast if land size or yield is 0, but still pass user data for better defaults
             if land_size_ha == 0 or current_yield_tonnes == 0:
                 self.logger.warning(f"Land size or yield is 0 - using default forecast with user data: land_size_ha={land_size_ha}, current_yield_tonnes={current_yield_tonnes}")
                 return self._get_default_economic_forecast(land_yield_data)
-            
+
+            # Analyze nutrient deficiencies from previous steps to determine realistic yield improvements
+            nutrient_analysis = self._analyze_nutrient_deficiencies(previous_results or [])
+            base_yield_improvement_low = nutrient_analysis['base_yield_improvement_low']
+            base_yield_improvement_high = nutrient_analysis['base_yield_improvement_high']
+
+            self.logger.info(f"Nutrient deficiency analysis: score={nutrient_analysis['deficiency_score']}, "
+                           f"yield_improvement={base_yield_improvement_low:.1%}-{base_yield_improvement_high:.1%}")
+
             # Calculate investment scenarios with standardized FFB price ranges
             # Use consistent FFB price range based on current Malaysian market: RM 650-750 per tonne
             # This can be adjusted based on user's location and market conditions
@@ -6029,7 +5901,7 @@ class ResultsGenerator:
 
             # Log the key assumptions for transparency
             self.logger.info(f"Economic forecast assumptions: FFB price RM {ffb_price_low}-{ffb_price_high}/tonne, Land size {land_size_ha:.1f} ha, Current yield {current_yield_tonnes:.1f} t/ha")
-            
+
             # Check if Boron is recommended in the recommendations
             boron_recommended = False
             if recommendations:
@@ -6042,39 +5914,45 @@ class ResultsGenerator:
                             break
 
             scenarios = {}
+
+            # Calculate dynamic costs based on actual recommendations
+            fertilizer_costs = self._calculate_fertilizer_costs(recommendations, land_size_ha)
+
             for investment_level in ['high', 'medium', 'low']:
-                # Enhanced cost per hectare ranges based on user requirements and soil/leaf analysis
-                # Costs include: GML, AS, CIRP, MOP, Kieserite, CuSO4, application, and labor
+                # Dynamic cost calculation and yield improvements based on nutrient deficiency analysis
                 if investment_level == 'high':
                     # High investment: Complete fertilizer program + soil conditioners + micronutrients
-                    cost_per_ha_low = 2395   # Based on user's Year 1 High scenario: RM 2,395-2,801
-                    cost_per_ha_high = 2801
-                    yield_increase_low = 0.25  # 25% increase (4.0-5.0 t/ha improvement)
-                    yield_increase_high = 0.35  # 35% increase
-                    # Reduce costs if Boron not recommended (subtract ~RM 200-300/ha for Boron)
-                    if not boron_recommended:
-                        cost_per_ha_low -= 200
-                        cost_per_ha_high -= 300
+                    base_cost_multiplier = 1.2  # 20% higher for premium application rates
+                    # High investment achieves 80-100% of potential yield improvement
+                    yield_increase_low = base_yield_improvement_low * 0.8
+                    yield_increase_high = base_yield_improvement_high * 1.0
                 elif investment_level == 'medium':
                     # Medium investment: Balanced approach with moderate application rates
-                    cost_per_ha_low = 1957   # Based on user's Year 1 Medium scenario: RM 1,957-2,287
-                    cost_per_ha_high = 2287
-                    yield_increase_low = 0.18  # 18% increase (2.5-3.5 t/ha improvement)
-                    yield_increase_high = 0.25  # 25% increase
-                    # Reduce costs if Boron not recommended (subtract ~RM 150-200/ha for Boron)
-                    if not boron_recommended:
-                        cost_per_ha_low -= 150
-                        cost_per_ha_high -= 200
+                    base_cost_multiplier = 1.0  # Standard application rates
+                    # Medium investment achieves 60-80% of potential yield improvement
+                    yield_increase_low = base_yield_improvement_low * 0.6
+                    yield_increase_high = base_yield_improvement_high * 0.8
                 else:  # low
                     # Low investment: Critical interventions at minimal rates
-                    cost_per_ha_low = 1519   # Based on user's Year 1 Low scenario: RM 1,519-1,774
-                    cost_per_ha_high = 1774
-                    yield_increase_low = 0.12  # 12% increase (1.5-2.5 t/ha improvement)
-                    yield_increase_high = 0.18  # 18% increase
-                    # Reduce costs if Boron not recommended (subtract ~RM 100-150/ha for Boron)
-                    if not boron_recommended:
-                        cost_per_ha_low -= 100
-                        cost_per_ha_high -= 150
+                    base_cost_multiplier = 0.8  # 20% lower for minimal application rates
+                    # Low investment achieves 40-60% of potential yield improvement
+                    yield_increase_low = base_yield_improvement_low * 0.4
+                    yield_increase_high = base_yield_improvement_high * 0.6
+
+                # Calculate costs based on fertilizer recommendations
+                cost_per_ha_low = fertilizer_costs['low'] * base_cost_multiplier
+                cost_per_ha_high = fertilizer_costs['high'] * base_cost_multiplier
+
+                # Ensure minimum costs for basic operations (application, labor)
+                min_cost = 800 if investment_level == 'high' else 600 if investment_level == 'medium' else 400
+                cost_per_ha_low = max(cost_per_ha_low, min_cost)
+                cost_per_ha_high = max(cost_per_ha_high, min_cost * 1.1)
+
+                # Reduce costs if Boron not recommended
+                if not boron_recommended:
+                    boron_reduction = 100 if investment_level == 'high' else 75 if investment_level == 'medium' else 50
+                    cost_per_ha_low -= boron_reduction
+                    cost_per_ha_high -= boron_reduction
                 
                 # Calculate ranges for all metrics - ensure accuracy based on user's land size
                 total_cost_low = cost_per_ha_low * land_size_ha
@@ -6173,23 +6051,25 @@ class ResultsGenerator:
         cumulative_profit_low = 0
         cumulative_profit_high = 0
         
-        # Define yield progression factors for each year (realistic for oil palm)
-        # Year 1: Initial impact, Year 2-3: Peak improvement, Year 4-5: Sustained benefits with higher maintenance
+        # Define yield progression factors for each year (realistic for oil palm nutrient correction)
+        # Year 1: Initial response to fertilization, Year 2-3: Peak nutrient uptake, Year 4-5: Sustained productivity
+        # More aggressive Year 1 progression to avoid negative profits
         yield_progression = {
-            'year_1': {'low': 0.7, 'high': 0.8},  # 70-80% of full potential
-            'year_2': {'low': 0.85, 'high': 0.95},  # 85-95% of full potential
-            'year_3': {'low': 1.0, 'high': 1.0},  # 100% of full potential
-            'year_4': {'low': 0.98, 'high': 1.0}, # 98-100% sustained
-            'year_5': {'low': 0.95, 'high': 0.98}  # 95-98% sustained
+            'year_1': {'low': 0.85, 'high': 0.95},  # 85-95% of full potential - stronger initial response
+            'year_2': {'low': 0.95, 'high': 1.0},   # 95-100% of full potential - peak performance
+            'year_3': {'low': 0.98, 'high': 1.0},   # 98-100% of full potential - sustained peak
+            'year_4': {'low': 0.95, 'high': 0.98},  # 95-98% sustained productivity
+            'year_5': {'low': 0.92, 'high': 0.95}   # 92-95% long-term sustained benefits
         }
         
         # Define maintenance costs per year (excluding initial investment)
         # Maintenance costs are proportional to initial investment level
         # High investment requires more ongoing maintenance, low investment requires less
-        maintenance_cost_per_ha = {
-            'high': 500,    # RM 500/ha/year for high investment maintenance (20-25% of initial cost)
-            'medium': 350,  # RM 350/ha/year for medium investment maintenance
-            'low': 250      # RM 250/ha/year for low investment maintenance (15-20% of initial cost)
+        # Costs increase slightly over time as palms mature and require more nutrients
+        base_maintenance_cost_per_ha = {
+            'high': 600,    # RM 600/ha/year for high investment maintenance
+            'medium': 400,  # RM 400/ha/year for medium investment maintenance
+            'low': 250      # RM 250/ha/year for low investment maintenance
         }
         
         # Calculate additional yield for each year
@@ -6223,12 +6103,12 @@ class ResultsGenerator:
                 year_cost_low = total_cost_low
                 year_cost_high = total_cost_high
             else:
-                # Years 2-5 only include maintenance costs, decreasing over time
-                # Year 2: 80% of initial maintenance, Year 3: 70%, Year 4: 60%, Year 5: 50%
-                maintenance_reduction = {2: 0.8, 3: 0.7, 4: 0.6, 5: 0.5}
-                base_maintenance = maintenance_cost_per_ha[investment_level] * land_size_ha
-                year_cost_low = base_maintenance * maintenance_reduction.get(year_num, 1.0)
-                year_cost_high = base_maintenance * maintenance_reduction.get(year_num, 1.0)
+                # Years 2-5 include maintenance costs that increase slightly as palms mature
+                # Year 2: base maintenance, Year 3-4: 110% of base, Year 5: 105% of base
+                maintenance_multiplier = {2: 1.0, 3: 1.1, 4: 1.1, 5: 1.05}
+                base_maintenance = base_maintenance_cost_per_ha[investment_level] * land_size_ha
+                year_cost_low = base_maintenance * maintenance_multiplier.get(year_num, 1.0)
+                year_cost_high = base_maintenance * maintenance_multiplier.get(year_num, 1.0)
 
             # Ensure costs are positive and reasonable
             year_cost_low = max(year_cost_low, 0)
@@ -6275,8 +6155,317 @@ class ResultsGenerator:
             })
         
         return yearly_data
-    
-    def _calculate_payback_period(self, yearly_data: List[Dict[str, Any]], 
+
+    def _clean_economic_forecast(self, economic_forecast: Dict[str, Any]) -> Dict[str, Any]:
+        """Clean economic forecast by removing raw scenarios and assumptions data for display, but preserve for table generation"""
+        if not economic_forecast or not isinstance(economic_forecast, dict):
+            return economic_forecast
+
+        # Create a copy to avoid modifying the original
+        cleaned = dict(economic_forecast)
+
+        # NOTE: Keep scenarios data for Net Profit table display in Step 6
+        # Only remove assumptions data as it's not needed for tables
+        if 'assumptions' in cleaned:
+            del cleaned['assumptions']
+
+        return cleaned
+
+    def _clean_economic_forecast_for_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Clean result dictionary to prevent raw economic data leakage in formatted text"""
+        if not result or not isinstance(result, dict):
+            return result
+
+        # Create a copy to avoid modifying the original
+        cleaned = dict(result)
+
+        # Clean economic_forecast if present (preserves scenarios for table display)
+        if 'economic_forecast' in cleaned:
+            cleaned['economic_forecast'] = self._clean_economic_forecast(cleaned['economic_forecast'])
+
+        # Remove any top-level raw scenarios/assumptions that are separate from economic_forecast
+        # (preserve scenarios within economic_forecast for table display)
+        if 'scenarios' in cleaned:
+            # If scenarios exist at top level and we have economic_forecast, remove the top-level ones
+            # as they are likely raw duplicates
+            if 'economic_forecast' in cleaned:
+                del cleaned['scenarios']
+        if 'assumptions' in cleaned:
+            del cleaned['assumptions']
+
+        # Clean any nested dictionaries that might contain raw economic data
+        for key, value in cleaned.items():
+            if isinstance(value, dict) and key != 'economic_forecast':
+                if 'assumptions' in value:
+                    cleaned[key] = self._clean_economic_forecast(value)
+
+        # Clean text fields that might contain raw JSON data
+        text_fields_to_clean = ['detailed_analysis', 'summary', 'key_findings']
+        for field in text_fields_to_clean:
+            if field in cleaned and isinstance(cleaned[field], str):
+                cleaned[field] = self._clean_text_field(cleaned[field])
+
+        return cleaned
+
+    def _clean_text_field(self, text: str) -> str:
+        """Clean text fields to remove raw JSON economic data"""
+        if not text or not isinstance(text, str):
+            return text
+
+        import re
+
+        # NUCLEAR OPTION: If text contains raw economic data, replace the entire field
+        if ('Scenarios:' in text and '{' in text) or ('Assumptions:' in text and '{' in text):
+            # Check if this looks like raw economic data (contains key indicators)
+            economic_indicators = ['investment_level', 'yearly_data', 'cost_per_hectare_range', 'total_cost_range', 'new_yield_range', 'current_yield', 'cumulative_net_profit_range', 'roi_5year_range']
+            if any(indicator in text for indicator in economic_indicators):
+                self.logger.warning("NUCLEAR CLEANING: Detected raw economic data in text field, replacing with safe message")
+                return 'Economic analysis data has been processed and is displayed in the formatted tables below.'
+
+        # Fallback: Remove specific patterns
+        # Remove blocks starting with "Scenarios:" followed by JSON
+        text = re.sub(r'Scenarios:\s*\{.*?\}(?=\s*(Assumptions:|\n\n##|\Z))', 'Economic scenarios data has been processed and is displayed in formatted tables.', text, flags=re.DOTALL)
+
+        # Remove blocks starting with "Assumptions:" followed by JSON
+        text = re.sub(r'Assumptions:\s*\{.*?\}(?=\s*(\n\n##|\Z))', 'Economic assumptions data has been processed and is displayed in formatted tables.', text, flags=re.DOTALL)
+
+        return text
+
+    def _analyze_nutrient_deficiencies(self, previous_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Analyze nutrient deficiencies from previous steps to determine realistic yield improvements"""
+        deficiency_score = 0
+        critical_deficiencies = []
+        moderate_deficiencies = []
+        minor_deficiencies = []
+
+        # Extract soil and leaf analysis results from previous steps
+        for result in previous_results:
+            if result.get('step_number') in [1, 2]:
+                soil_params = result.get('soil_parameters', {})
+                leaf_params = result.get('leaf_parameters', {})
+
+                # Analyze soil parameters for deficiencies
+                if soil_params and 'parameter_statistics' in soil_params:
+                    for param, stats in soil_params['parameter_statistics'].items():
+                        if isinstance(stats, dict):
+                            avg_value = stats.get('average', 0)
+                            optimal_range = self._get_optimal_range(param, 'soil')
+
+                            if optimal_range and avg_value > 0:
+                                deficiency_percent = self._calculate_deficiency_percent(avg_value, optimal_range)
+                                if deficiency_percent > 50:  # Critical deficiency
+                                    critical_deficiencies.append((param, deficiency_percent))
+                                    deficiency_score += 30
+                                elif deficiency_percent > 25:  # Moderate deficiency
+                                    moderate_deficiencies.append((param, deficiency_percent))
+                                    deficiency_score += 15
+                                elif deficiency_percent > 10:  # Minor deficiency
+                                    minor_deficiencies.append((param, deficiency_percent))
+                                    deficiency_score += 5
+
+                # Analyze leaf parameters for deficiencies
+                if leaf_params and 'parameter_statistics' in leaf_params:
+                    for param, stats in leaf_params['parameter_statistics'].items():
+                        if isinstance(stats, dict):
+                            avg_value = stats.get('average', 0)
+                            optimal_range = self._get_optimal_range(param, 'leaf')
+
+                            if optimal_range and avg_value > 0:
+                                deficiency_percent = self._calculate_deficiency_percent(avg_value, optimal_range)
+                                if deficiency_percent > 50:  # Critical deficiency
+                                    if param not in [d[0] for d in critical_deficiencies]:
+                                        critical_deficiencies.append((param, deficiency_percent))
+                                        deficiency_score += 30
+                                elif deficiency_percent > 25:  # Moderate deficiency
+                                    if param not in [d[0] for d in moderate_deficiencies]:
+                                        moderate_deficiencies.append((param, deficiency_percent))
+                                        deficiency_score += 15
+                                elif deficiency_percent > 10:  # Minor deficiency
+                                    if param not in [d[0] for d in minor_deficiencies]:
+                                        minor_deficiencies.append((param, deficiency_percent))
+                                        deficiency_score += 5
+
+        # Cap deficiency score at 300 (maximum realistic impact)
+        deficiency_score = min(deficiency_score, 300)
+
+        # Calculate realistic yield improvements based on deficiency severity
+        # Base improvement percentages that can be achieved through nutrient correction
+        if deficiency_score >= 200:  # Severe deficiencies
+            base_improvement_low = 0.25  # 25%
+            base_improvement_high = 0.40  # 40%
+        elif deficiency_score >= 150:  # Moderate-severe deficiencies
+            base_improvement_low = 0.20  # 20%
+            base_improvement_high = 0.35  # 35%
+        elif deficiency_score >= 100:  # Moderate deficiencies
+            base_improvement_low = 0.15  # 15%
+            base_improvement_high = 0.25  # 25%
+        elif deficiency_score >= 50:  # Mild deficiencies
+            base_improvement_low = 0.10  # 10%
+            base_improvement_high = 0.18  # 18%
+        else:  # Minimal deficiencies
+            base_improvement_low = 0.05  # 5%
+            base_improvement_high = 0.12  # 12%
+
+        return {
+            'deficiency_score': deficiency_score,
+            'critical_deficiencies': critical_deficiencies,
+            'moderate_deficiencies': moderate_deficiencies,
+            'minor_deficiencies': minor_deficiencies,
+            'base_yield_improvement_low': base_improvement_low,
+            'base_yield_improvement_high': base_improvement_high
+        }
+
+    def _get_optimal_range(self, parameter: str, param_type: str) -> tuple:
+        """Get optimal range for a parameter"""
+        # Standard optimal ranges for oil palm
+        optimal_ranges = {
+            'soil': {
+                'pH': (4.0, 5.5),
+                'organic_carbon': (2.0, 4.0),  # %
+                'total_nitrogen': (0.15, 0.25),  # %
+                'phosphorus': (15, 30),  # mg/kg
+                'potassium': (0.2, 0.4),  # cmol/kg
+                'magnesium': (0.3, 0.6),  # cmol/kg
+                'calcium': (1.0, 2.5),  # cmol/kg
+                'boron': (0.2, 0.5),  # mg/kg
+                'copper': (0.5, 1.5),  # mg/kg
+                'iron': (20, 50),  # mg/kg
+                'manganese': (5, 15),  # mg/kg
+                'zinc': (1, 3),  # mg/kg
+            },
+            'leaf': {
+                'nitrogen': (2.4, 2.8),  # %
+                'phosphorus': (0.14, 0.18),  # %
+                'potassium': (0.8, 1.2),  # %
+                'magnesium': (0.25, 0.35),  # %
+                'calcium': (0.5, 0.8),  # %
+                'boron': (15, 25),  # mg/kg
+                'copper': (5, 12),  # mg/kg
+                'iron': (50, 100),  # mg/kg
+                'manganese': (50, 150),  # mg/kg
+                'zinc': (15, 30),  # mg/kg
+            }
+        }
+
+        return optimal_ranges.get(param_type, {}).get(parameter.lower().replace(' ', '_'), None)
+
+    def _calculate_deficiency_percent(self, current_value: float, optimal_range: tuple) -> float:
+        """Calculate deficiency percentage based on optimal range"""
+        if not optimal_range or len(optimal_range) != 2:
+            return 0
+
+        min_optimal, max_optimal = optimal_range
+
+        if current_value >= min_optimal:
+            return 0  # No deficiency
+        else:
+            # Calculate how far below optimal minimum
+            deficit = min_optimal - current_value
+            return (deficit / min_optimal) * 100
+
+    def _calculate_fertilizer_costs(self, recommendations: List[Dict[str, Any]], land_size_ha: float) -> Dict[str, float]:
+        """Calculate fertilizer costs based on actual recommendations"""
+        # Standard fertilizer prices per tonne (RM)
+        fertilizer_prices = {
+            'gml': 200,        # Ground Magnesium Limestone
+            'as': 1300,        # Ammonium Sulphate
+            'cirp': 650,       # CIRP (Rock Phosphate)
+            'mop': 2300,       # Muriate of Potash
+            'kieserite': 1200, # Kieserite (Mg)
+            'boron': 1500,     # Boron/Borax
+            'cuso4': 16,       # Copper Sulphate (per kg)
+            'urea': 1400,      # Urea
+            'dap': 2500,       # DAP
+        }
+
+        total_cost_low = 0
+        total_cost_high = 0
+
+        for rec in recommendations:
+            if not isinstance(rec, dict):
+                continue
+
+            action = str(rec.get('action', '')).lower()
+            cost_estimate = rec.get('cost_estimate', '')
+
+            # Parse cost estimate if available
+            if cost_estimate:
+                # Extract numeric values from cost estimate strings
+                import re
+                cost_matches = re.findall(r'RM\s*([\d,]+)(?:\s*-\s*RM\s*([\d,]+))?', cost_estimate)
+                if cost_matches:
+                    low_cost = float(cost_matches[0][0].replace(',', ''))
+                    high_cost = float(cost_matches[0][1].replace(',', '')) if len(cost_matches[0]) > 1 and cost_matches[0][1] else low_cost
+                    total_cost_low += low_cost
+                    total_cost_high += high_cost
+                    continue
+
+            # Estimate costs based on fertilizer types mentioned in recommendations
+            fertilizer_found = False
+
+            for fertilizer, price in fertilizer_prices.items():
+                if fertilizer in action:
+                    fertilizer_found = True
+                    # Estimate application rate based on fertilizer type and recommendation level
+                    if 'high' in action or 'complete' in action or 'maximum' in action:
+                        rate_low, rate_high = 1.5, 2.0  # tonnes/ha
+                    elif 'medium' in action or 'moderate' in action:
+                        rate_low, rate_high = 1.0, 1.5  # tonnes/ha
+                    elif 'low' in action or 'minimum' in action or 'minimal' in action:
+                        rate_low, rate_high = 0.5, 1.0  # tonnes/ha
+                    else:
+                        rate_low, rate_high = 0.8, 1.2  # default
+
+                    # Special handling for copper sulphate (per kg, not per tonne)
+                    if fertilizer == 'cuso4':
+                        rate_low *= 1000  # Convert to kg
+                        rate_high *= 1000
+                        cost_low = rate_low * price / 1000  # Convert back to RM per ha
+                        cost_high = rate_high * price / 1000
+                    else:
+                        cost_low = rate_low * price
+                        cost_high = rate_high * price
+
+                    total_cost_low += cost_low
+                    total_cost_high += cost_high
+                    break
+
+            # If no specific fertilizer found, estimate based on general terms
+            if not fertilizer_found:
+                if any(term in action for term in ['fertilizer', 'nutrient', 'application']):
+                    # General fertilizer application cost
+                    if 'high' in action or 'complete' in action:
+                        cost_low, cost_high = 800, 1200
+                    elif 'medium' in action or 'moderate' in action:
+                        cost_low, cost_high = 500, 800
+                    else:
+                        cost_low, cost_high = 300, 500
+
+                    total_cost_low += cost_low
+                    total_cost_high += cost_high
+
+        # If no recommendations found, use conservative defaults
+        if total_cost_low == 0:
+            total_cost_low = 1000  # Minimum fertilizer cost
+            total_cost_high = 1500
+
+        # Add application and labor costs (20-30% of fertilizer costs)
+        application_cost_low = total_cost_low * 0.2
+        application_cost_high = total_cost_high * 0.3
+
+        total_cost_low += application_cost_low
+        total_cost_high += application_cost_high
+
+        # Scale by land size (costs are per hectare)
+        total_cost_low *= land_size_ha
+        total_cost_high *= land_size_ha
+
+        return {
+            'low': total_cost_low,
+            'high': total_cost_high
+        }
+
+    def _calculate_payback_period(self, yearly_data: List[Dict[str, Any]],
                                 initial_investment: float, scenario: str) -> float:
         """Calculate payback period in years when cumulative profit exceeds initial investment"""
         cumulative_profit = 0
@@ -6332,25 +6521,36 @@ class ResultsGenerator:
         ffb_price_low = 650
         ffb_price_high = 750
         
-        # Generate 5-year data for all scenarios
+        # Generate 5-year data for all scenarios with more realistic calculations
         scenarios = {}
         for investment_level in ['high', 'medium', 'low']:
-            # Define yield improvement ranges for each investment level
+            # Define yield improvement ranges based on current yield and realistic expectations
+            # Use more conservative improvements for higher baseline yields, more aggressive for lower yields
+            base_improvement_factor = max(0.05, min(0.3, (25.0 - current_yield_tonnes) / 25.0))  # Scale based on yield gap to 25 t/ha
+
             if investment_level == 'high':
-                new_yield_low = current_yield_tonnes * 1.25  # 25% increase
-                new_yield_high = current_yield_tonnes * 1.35  # 35% increase
-                total_cost_low = 2000.0
-                total_cost_high = 3000.0
+                improvement_multiplier_low = 1.4  # 40% of potential improvement
+                improvement_multiplier_high = 1.8  # 80% of potential improvement
+                cost_per_ha_low = 2500.0
+                cost_per_ha_high = 3500.0
             elif investment_level == 'medium':
-                new_yield_low = current_yield_tonnes * 1.18  # 18% increase
-                new_yield_high = current_yield_tonnes * 1.25  # 25% increase
-                total_cost_low = 1500.0
-                total_cost_high = 2200.0
+                improvement_multiplier_low = 1.0  # 25% of potential improvement
+                improvement_multiplier_high = 1.4  # 40% of potential improvement
+                cost_per_ha_low = 1800.0
+                cost_per_ha_high = 2500.0
             else:  # low
-                new_yield_low = current_yield_tonnes * 1.12  # 12% increase
-                new_yield_high = current_yield_tonnes * 1.18  # 18% increase
-                total_cost_low = 1000.0
-                total_cost_high = 1500.0
+                improvement_multiplier_low = 0.6  # 15% of potential improvement
+                improvement_multiplier_high = 1.0  # 25% of potential improvement
+                cost_per_ha_low = 1200.0
+                cost_per_ha_high = 1800.0
+
+            # Calculate yield improvements
+            new_yield_low = current_yield_tonnes * (1 + base_improvement_factor * improvement_multiplier_low)
+            new_yield_high = current_yield_tonnes * (1 + base_improvement_factor * improvement_multiplier_high)
+
+            # Scale costs by land size
+            total_cost_low = cost_per_ha_low * land_size_ha
+            total_cost_high = cost_per_ha_high * land_size_ha
             
             # Generate 5-year yearly data
             yearly_data = self._generate_5_year_economic_data(
@@ -6376,17 +6576,23 @@ class ResultsGenerator:
         if land_yield_data and land_size_ha > 0 and current_yield_tonnes > 0:
             assumptions = [
                 f'Economic forecast based on user data: {land_size_ha:.1f} hectares, {current_yield_tonnes:.1f} t/ha current yield',
+                'Yield improvements calculated based on nutrient deficiency analysis from soil/leaf testing',
                 f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (current market range)',
                 f'Palm density: {palm_density} palms per hectare',
-                '5-year economic projections with realistic yield progression',
+                '5-year economic projections with realistic nutrient correction progression',
+                'Year 1: Initial nutrient response, Years 2-3: Peak productivity, Years 4-5: Sustained benefits',
+                'Costs include fertilizer applications, soil conditioners, and maintenance programs',
                 'All financial values are approximate and represent recent historical price and cost ranges'
             ]
         else:
             assumptions = [
                 'Economic forecast uses default values: 1 hectare, 10 t/ha current yield',
+                'Yield improvements estimated based on typical nutrient deficiencies',
                 f'FFB price range: RM {ffb_price_low}-{ffb_price_high}/tonne (current market range)',
                 f'Palm density: {palm_density} palms per hectare (default)',
-                '5-year economic projections with realistic yield progression',
+                '5-year economic projections with realistic nutrient correction progression',
+                'Year 1: Initial nutrient response, Years 2-3: Peak productivity, Years 4-5: Sustained benefits',
+                'Costs include fertilizer applications, soil conditioners, and maintenance programs',
                 'All financial values are approximate and represent recent historical price and cost ranges'
             ]
         
@@ -7365,6 +7571,9 @@ class AnalysisEngine:
             self.logger.info("Starting enhanced comprehensive analysis")
             start_time = datetime.now()
 
+            # Initialize previous_results for comprehensive analysis (no prior steps)
+            previous_results = []
+
             # Step 0: Check for pre-processed structured OCR data first
             self.logger.info("Checking for pre-processed structured OCR data...")
             structured_soil_data, structured_leaf_data = self._get_structured_ocr_data()
@@ -7388,10 +7597,16 @@ class AnalysisEngine:
             else:
                 self.logger.info("No structured leaf data found in session state")
 
-            # Step 1: Preprocess raw data
+            # Step 1: Preprocess raw data (skip if already processed)
             self.logger.info("Preprocessing data...")
-            soil_data = self.preprocessor.preprocess_raw_data(soil_data)
-            leaf_data = self.preprocessor.preprocess_raw_data(leaf_data)
+            if not (soil_data and 'parameter_statistics' in soil_data):
+                soil_data = self.preprocessor.preprocess_raw_data(soil_data)
+            else:
+                self.logger.info("Soil data already processed, skipping preprocessing")
+            if not (leaf_data and 'parameter_statistics' in leaf_data):
+                leaf_data = self.preprocessor.preprocess_raw_data(leaf_data)
+            else:
+                self.logger.info("Leaf data already processed, skipping preprocessing")
             land_yield_data = self.preprocessor.preprocess_raw_data(land_yield_data)
 
             # Step 1: Process data (enhanced all-samples processing)
@@ -7468,7 +7683,7 @@ class AnalysisEngine:
 
             # Step 5: Generate economic forecast
             self.logger.info("Generating economic forecast...")
-            economic_forecast = self.results_generator.generate_economic_forecast(land_yield_data, recommendations)
+            economic_forecast = self.results_generator.generate_economic_forecast(land_yield_data, recommendations, previous_results)
 
             # Step 6: Process prompt steps with LLM (enhanced)
             self.logger.info("Processing analysis steps...")
@@ -7528,6 +7743,20 @@ class AnalysisEngine:
                         break
             except Exception as _e:
                 self.logger.warning(f"Could not build Step 2 issues: {_e}")
+
+            # Enhanced Step 6 processing - inject economic forecast from Step 5
+            try:
+                for i, sr in enumerate(step_results):
+                    if sr and sr.get('step_number') == 6:
+                        # Clean economic forecast before injecting to prevent raw data leakage
+                        cleaned_economic_forecast = self.results_generator._clean_economic_forecast(economic_forecast)
+                        # Inject cleaned economic forecast from Step 5 for Net Profit tables
+                        sr['economic_forecast'] = cleaned_economic_forecast
+                        step_results[i] = sr
+                        self.logger.info("Injected cleaned economic forecast from Step 5 into Step 6 for Net Profit tables")
+                        break
+            except Exception as _e:
+                self.logger.warning(f"Could not inject economic forecast into Step 6: {_e}")
 
             # Enhanced Step 5 processing with complete economic forecast
             try:

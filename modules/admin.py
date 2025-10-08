@@ -581,7 +581,7 @@ def show_prompt_templates_config():
             new_prompt_text = st.text_area(
                 "Complete Analysis Prompt *",
                 height=600,
-                value="""You are an expert agricultural consultant specializing in oil palm cultivation and nutrition analysis in Malaysia.
+                value="""This is an expert agricultural analysis system for oil palm cultivation and nutrition analysis in Malaysia using neutral, third-person language only.
 
 Based on the following lab analysis data and MPOB standards, provide a comprehensive analysis following these EXACT steps:
 

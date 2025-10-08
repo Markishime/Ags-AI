@@ -12,7 +12,7 @@ DEFAULT_AI_CONFIG = {
             'name': 'Standard Analysis Template',
             'description': 'Main template for analyzing lab data',
             'template': """
-You are an expert agricultural consultant specializing in oil palm cultivation and nutrition analysis.
+This is an expert agricultural analysis system for oil palm cultivation and nutrition analysis using neutral, third-person language only.
 
 Based on the following lab analysis data and MPOB standards, provide a comprehensive analysis:
 

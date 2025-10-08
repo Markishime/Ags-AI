@@ -5305,6 +5305,16 @@ def sanitize_persona_and_enforce_article(text):
             (r"\bThe\s+I\s+see\b", "The analysis shows"),
             (r"\bI\s+believe\b", "believe"),
             (r"\bI\s+think\b", "think"),
+            (r"\bI\s+have\s+conducted\b", "The analysis has"),
+            (r"\bI\s+have\s+performed\b", "The analysis has"),
+            (r"\bI\s+have\s+carried\s+out\b", "The analysis has"),
+            (r"\bI\s+have\s+undertaken\b", "The analysis has"),
+            (r"\bI\s+have\s+analyzed\b", "The analysis has"),
+            (r"\bI\s+have\s+examined\b", "The analysis has"),
+            (r"\bI\s+have\s+reviewed\b", "The analysis has"),
+            (r"\bI\s+have\s+studied\b", "The analysis has"),
+            (r"\bI\s+have\s+evaluated\b", "The analysis has"),
+            (r"\bI\s+have\s+conducted\s+a\s+thorough\s+analysis\b", "The analysis has been conducted thoroughly"),
             (r"\bmy\b", ""),
             (r"\bI\b", ""),
             (r"\bwe\b", ""),
@@ -5353,8 +5363,8 @@ def display_enhanced_step_result(step_result, step_number):
     
     analysis_data = step_result
     
-    # For STEP 5, strip any economic scenarios/assumptions keys from analysis_data to prevent leakage
-    if step_number == 5 and isinstance(analysis_data, dict):
+    # For STEP 5 and STEP 6, strip any economic scenarios/assumptions keys from analysis_data to prevent leakage
+    if (step_number == 5 or step_number == 6) and isinstance(analysis_data, dict):
         analysis_data = remove_economic_scenarios_from_analysis(analysis_data)
 
     # Normalize aliases and common mis-cased keys for all steps
@@ -5488,9 +5498,12 @@ def display_enhanced_step_result(step_result, step_number):
                     # Clean up any remaining artifacts
                     detailed_text = re.sub(r"\n\s*\n\s*\n+", "\n\n", detailed_text)
 
-                # For Step 6, remove any net profit placeholder/missing notices
+                # For Step 6, remove any net profit placeholder/missing notices AND raw LLM output
                 if step_number == 6:
                     detailed_text = filter_step6_net_profit_placeholders(detailed_text)
+                    # EXTRA SAFEGUARD: If raw LLM data still exists, replace the entire section
+                    if 'Scenarios:' in detailed_text and 'investment_level' in detailed_text:
+                        detailed_text = "Economic analysis data has been processed and is displayed in the formatted tables below."
 
                 # Parse and display structured content
                 parse_and_display_json_analysis(detailed_text)
@@ -5774,7 +5787,7 @@ def display_step1_data_analysis(analysis_data):
 def display_step3_solution_recommendations(analysis_data):
     """Display Step 3: Solution Recommendations content"""
     st.markdown("### 💡 Solution Recommendations")
-    
+
     # Display solutions
     if 'solutions' in analysis_data and analysis_data['solutions']:
         solutions = analysis_data['solutions']
@@ -5785,7 +5798,7 @@ def display_step3_solution_recommendations(analysis_data):
                     st.markdown(f"- Description: {sanitize_persona_and_enforce_article(solution.get('description', 'N/A'))}")
                     st.markdown(f"- Impact: {sanitize_persona_and_enforce_article(solution.get('impact', 'N/A'))}")
                     st.markdown("---")
-    
+
     # Display recommendations
     if 'recommendations' in analysis_data and analysis_data['recommendations']:
         st.markdown("#### Recommendations")
@@ -5795,6 +5808,51 @@ def display_step3_solution_recommendations(analysis_data):
                 st.markdown(f"{i}. {rec}")
         elif isinstance(recommendations, str):
             st.markdown(recommendations)
+
+    # Display interpretations if available
+    if 'interpretations' in analysis_data and analysis_data['interpretations']:
+        st.markdown("### 🔍 Detailed Interpretations")
+        interpretations = analysis_data['interpretations']
+
+        # Handle different interpretation formats
+        if isinstance(interpretations, list):
+            for idx, interpretation in enumerate(interpretations, 1):
+                # Handle both string and dict formats
+                if isinstance(interpretation, dict):
+                    # Extract text from dictionary format
+                    interpretation_text = interpretation.get('text', str(interpretation))
+                elif isinstance(interpretation, str):
+                    interpretation_text = interpretation
+                else:
+                    interpretation_text = str(interpretation)
+
+                if interpretation_text and isinstance(interpretation_text, str) and interpretation_text.strip():
+                    # Remove any existing "Interpretation X:" prefix to avoid duplication
+                    clean_interpretation = interpretation_text.strip()
+                    if clean_interpretation.startswith(f"Interpretation {idx}:"):
+                        clean_interpretation = clean_interpretation.replace(f"Interpretation {idx}:", "").strip()
+                    elif clean_interpretation.startswith(f"Detailed interpretation {idx}"):
+                        clean_interpretation = clean_interpretation.replace(f"Detailed interpretation {idx}", "").strip()
+
+                    st.markdown(
+                        f'<div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #6c757d; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
+                        f'<p style="margin: 0; line-height: 1.6; color: #2c3e50;">{sanitize_persona_and_enforce_article(clean_interpretation)}</p>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+
+    # Display tables if available
+    if 'tables' in analysis_data and analysis_data['tables']:
+        st.markdown("#### Data Tables")
+        try:
+            tables = analysis_data['tables']
+            if isinstance(tables, list):
+                for i, table_data in enumerate(tables, 1):
+                    if isinstance(table_data, dict):
+                        display_table(table_data, f"Table {i}")
+        except Exception as e:
+            logger.error(f"Error displaying tables: {e}")
+            st.error("Error displaying tables")
 
 def display_step2_issue_diagnosis(analysis_data):
     """Display Step 2: Issue Diagnosis content with consistent formatting"""
@@ -5968,42 +6026,56 @@ def display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
         for year_data in yearly_data:
             year = year_data['year']
 
-            # Extract actual values from yearly_data and format them properly
-            # Use low-high range format for all columns
+            # Extract actual values from yearly_data for calculations
+            # These values are already calculated in the analysis engine
             yield_improvement_low = year_data.get('additional_yield_low', 0)
             yield_improvement_high = year_data.get('additional_yield_high', 0)
-            yield_improvement = ".1f"
 
             additional_revenue_low = year_data.get('additional_revenue_low', 0)
             additional_revenue_high = year_data.get('additional_revenue_high', 0)
-            additional_revenue = ",.0f"
 
             cost_low = year_data.get('cost_low', 0)
             cost_high = year_data.get('cost_high', 0)
-            total_cost = ",.0f"
 
             net_profit_low = year_data.get('net_profit_low', 0)
             net_profit_high = year_data.get('net_profit_high', 0)
-            net_profit = ",.0f"
 
             roi_low = year_data.get('roi_low', 0)
             roi_high = year_data.get('roi_high', 0)
-            roi = ".1f"
 
             # Calculate cumulative profits
             cumulative_low += net_profit_low
             cumulative_high += net_profit_high
-            cumulative_net_profit = ",.0f"
+            # Format cumulative values for display
+            cumulative_net_profit = f"{cumulative_low:,.0f}" if cumulative_low == cumulative_high else f"{cumulative_low:,.0f}-{cumulative_high:,.0f}"
 
-            table_data.append({
-                'Year': year,
-                'Yield Improvement (t/ha)': yield_improvement,
-                'Additional Revenue (RM/ha)': additional_revenue,
-                'Total Input Cost (RM/ha)': total_cost,
-                'Net Profit (RM/ha)': net_profit,
-                'ROI (%)': roi,
-                'Cumulative Net Profit (RM/ha)': cumulative_net_profit
-            })
+            # Format values properly for display
+            try:
+                yield_improvement_val = f"{yield_improvement_low:.1f}-{yield_improvement_high:.1f}" if yield_improvement_low != yield_improvement_high else f"{yield_improvement_low:.1f}"
+                additional_revenue_val = f"{additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}" if additional_revenue_low != additional_revenue_high else f"{additional_revenue_low:,.0f}"
+                total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
+                net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
+                cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+
+                table_data.append({
+                    'Year': year,
+                    'Yield Improvement (t/ha)': yield_improvement_val,
+                    'Revenue (RM/ha)': additional_revenue_val,
+                    'Input Cost (RM/ha)': total_cost_val,
+                    'Net Profit (RM/ha)': net_profit_val,
+                    'Cumulative Net Profit (RM/ha)': cumulative_net_profit
+                })
+            except Exception as e:
+                logger.error(f"Error formatting table values: {e}")
+                # Fallback with unformatted values
+                table_data.append({
+                    'Year': year,
+                    'Yield Improvement (t/ha)': f"{yield_improvement_low:.1f}",
+                    'Revenue (RM/ha)': f"{additional_revenue_low:,.0f}",
+                    'Input Cost (RM/ha)': f"{cost_low:,.0f}",
+                    'Net Profit (RM/ha)': f"{net_profit_low:,.0f}",
+                    'Cumulative Net Profit (RM/ha)': f"{cumulative_low:,.0f}"
+                })
 
         # Create DataFrame and display
         df = pd.DataFrame(table_data)
@@ -6358,6 +6430,14 @@ def filter_known_sections_from_text(text):
     if "Economic Analysis: {" in text:
         return "Economic analysis data has been processed and is displayed in the formatted tables above."
 
+    # NUCLEAR FILTER: Remove raw Scenarios data
+    if "Scenarios: {" in text:
+        return "Economic scenarios data has been processed and is displayed in the formatted tables above."
+
+    # NUCLEAR FILTER: Remove raw Assumptions data
+    if "Assumptions: {" in text:
+        return "Economic assumptions data has been processed and is displayed in the formatted tables above."
+
     # Super-aggressive early filter for any leaked raw Soil Issues blocks
     try:
         if ('Soil Issues' in text) and ('Item' in text) and ('{"parameter"' in text or '"parameter":' in text):
@@ -6383,6 +6463,8 @@ def filter_known_sections_from_text(text):
         "Interpretations:",
         "Visualizations:",
         "Yield Forecast:",
+        "5-Year Yield Forecast",
+        "### 5-Year Yield Forecast",
         "Format Analysis:",
         "Economic Analysis:",
         "Investment Scenarios:",
@@ -6390,7 +6472,9 @@ def filter_known_sections_from_text(text):
         "Key Findings:",
         "(Chart to be generated from 'visualizations' data)",
         "Scenarios:",
-        "Assumptions:"
+        "Assumptions:",
+        "Scenarios: {",
+        "Assumptions: {"
     ]
     
     # More aggressive filtering - check for specific problematic text patterns
@@ -6445,6 +6529,17 @@ def filter_known_sections_from_text(text):
         # Step 5 Economic Impact patterns
         "Scenarios: {",
         "Assumptions: {",
+        "Scenarios:",
+        "Assumptions:",
+        "investment_level':",
+        "cost_per_hectare_range':",
+        "total_cost_range':",
+        "current_yield':",
+        "new_yield_range':",
+        "additional_yield_range':",
+        "yearly_data':",
+        "cumulative_net_profit_range':",
+        "roi_5year_range':",
         "'high': {",
         "'medium': {",
         "'low': {",
@@ -6553,6 +6648,20 @@ def filter_known_sections_from_text(text):
     # Additional nuclear check: remove any line containing Economic Analysis with braces
     import re
     if re.search(r"Economic Analysis:\s*\{", text, re.IGNORECASE):
+        return "Content filtered to prevent raw LLM output display."
+
+    # Nuclear check for Scenarios and Assumptions blocks
+    if re.search(r"Scenarios:\s*\{", text, re.IGNORECASE):
+        return "Content filtered to prevent raw LLM output display."
+
+    if re.search(r"Assumptions:\s*\{", text, re.IGNORECASE):
+        return "Content filtered to prevent raw LLM output display."
+
+    # Nuclear check for economic forecast data patterns
+    if re.search(r"investment_level.*cost_per_hectare_range.*current_yield", text, re.IGNORECASE):
+        return "Content filtered to prevent raw LLM output display."
+
+    if re.search(r"yearly_data.*cumulative_net_profit_range.*roi_5year_range", text, re.IGNORECASE):
         return "Content filtered to prevent raw LLM output display."
 
     # FINAL NUCLEAR CHECK: If the specific problematic block is detected, filter it
@@ -7727,20 +7836,66 @@ def display_enhanced_step_result(step_result, step_number):
     # Display forecast graph only for Step 6
     if step_number == 6 and should_show_forecast_graph(step_result) and has_yield_forecast_data(analysis_data):
         # Ensure Step 6 has access to economic forecast data from Step 5
-        # Check if economic forecast data is available in session state
         economic_forecast = None
+
+        # First try to get economic forecast from session state (preferred method)
         if hasattr(st, 'session_state') and 'stored_analysis_results' in st.session_state and st.session_state.stored_analysis_results:
             latest_id = max(st.session_state.stored_analysis_results.keys())
             latest_analysis = st.session_state.stored_analysis_results[latest_id]
             if 'economic_forecast' in latest_analysis:
                 economic_forecast = latest_analysis['economic_forecast']
-                # Add economic forecast to analysis_data so Step 6 can access it
-                if 'economic_forecast' not in analysis_data:
-                    analysis_data['economic_forecast'] = economic_forecast
+                logger.info(f"Retrieved economic forecast from session state for Step 6")
+
+        # Fallback: try to get economic forecast from current analysis_data if available
+        if not economic_forecast and 'economic_forecast' in analysis_data:
+            economic_forecast = analysis_data['economic_forecast']
+            logger.info(f"Using economic forecast from current analysis_data for Step 6")
+
+        # Fallback: try to reconstruct economic forecast from Step 5 data in session state
+        if not economic_forecast:
+            try:
+                # Look for Step 5 data in stored results
+                if hasattr(st, 'session_state') and 'stored_analysis_results' in st.session_state and st.session_state.stored_analysis_results:
+                    latest_id = max(st.session_state.stored_analysis_results.keys())
+                    latest_analysis = st.session_state.stored_analysis_results[latest_id]
+
+                    # Look for step 5 data
+                    step_by_step = latest_analysis.get('step_by_step_analysis', [])
+                    for step in step_by_step:
+                        if isinstance(step, dict) and step.get('step_number') == 5:
+                            if 'economic_forecast' in step:
+                                economic_forecast = step['economic_forecast']
+                                logger.info(f"Reconstructed economic forecast from Step 5 data for Step 6")
+                                break
+            except Exception as e:
+                logger.warning(f"Could not reconstruct economic forecast from Step 5: {e}")
+
+        # If we still don't have economic forecast, try to generate a basic one from available data
+        if not economic_forecast:
+            try:
+                logger.warning("No economic forecast found, attempting to generate basic forecast for Step 6")
+                # This is a fallback - in a real scenario, this should not happen
+                economic_forecast = {
+                    'scenarios': {
+                        'high': {'yearly_data': []},
+                        'medium': {'yearly_data': []},
+                        'low': {'yearly_data': []}
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Could not generate fallback economic forecast: {e}")
+
+        # Add cleaned economic forecast to analysis_data so Step 6 can access it
+        if economic_forecast and 'economic_forecast' not in analysis_data:
+            # Clean the economic forecast to prevent raw data leakage
+            cleaned_economic_forecast = remove_economic_scenarios_from_analysis({'economic_forecast': economic_forecast})
+            analysis_data['economic_forecast'] = cleaned_economic_forecast.get('economic_forecast', {})
+
+        # FINAL SAFEGUARD: Clean any remaining raw economic data in analysis_data
+        # This catches any raw data that might have leaked through from LLM responses
+        analysis_data = remove_economic_scenarios_from_analysis(analysis_data)
 
         display_forecast_graph_content(analysis_data, step_number, step_result.get('step_title', f'Step {step_number}'))
-
-        # Removed Step 6 net profit forecast rendering; Step 5 already shows full economic tables
 
         # Also show Step 5 reference tables/text when available
         try:
@@ -7804,8 +7959,8 @@ def generate_net_profit_forecast_text(economic_forecast):
             text_parts.append("")
 
             # Create markdown table
-            text_parts.append("| Year | Yield Improvement (t/ha) | Additional Revenue (RM/ha) | Total Input Cost (RM/ha) | Net Profit (RM/ha) | ROI (%) | Cumulative Net Profit (RM/ha) |")
-            text_parts.append("|------|--------------------------|----------------------------|---------------------------|-------------------|---------|--------------------------------|")
+            text_parts.append("| Year | Yield Improvement (t/ha) | Revenue (RM/ha) | Input Cost (RM/ha) | Net Profit (RM/ha) | Cumulative Net Profit (RM/ha) |")
+            text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|")
 
             cumulative_low = 0
             cumulative_high = 0
@@ -7818,23 +7973,18 @@ def generate_net_profit_forecast_text(economic_forecast):
                     # Extract values with fallbacks
                     yield_improvement_low = year_data.get('additional_yield_low', 0)
                     yield_improvement_high = year_data.get('additional_yield_high', 0)
-                    yield_improvement = ".1f"
 
                     additional_revenue_low = year_data.get('additional_revenue_low', 0)
                     additional_revenue_high = year_data.get('additional_revenue_high', 0)
-                    additional_revenue = ",.0f"
 
                     cost_low = year_data.get('cost_low', 0)
                     cost_high = year_data.get('cost_high', 0)
-                    total_cost = ",.0f"
 
                     net_profit_low = year_data.get('net_profit_low', 0)
                     net_profit_high = year_data.get('net_profit_high', 0)
-                    net_profit = ",.0f"
 
                     roi_low = year_data.get('roi_low', 0)
                     roi_high = year_data.get('roi_high', 0)
-                    roi = ".1f"
 
                 elif isinstance(year_data, list) and len(year_data) >= 7:
                     # Handle list format [year, yield_low, yield_high, revenue_low, revenue_high, cost_low, cost_high, profit_low, profit_high, roi_low, roi_high]
@@ -7869,12 +8019,23 @@ def generate_net_profit_forecast_text(economic_forecast):
                 try:
                     cumulative_low += float(net_profit_low) if net_profit_low else 0
                     cumulative_high += float(net_profit_high) if net_profit_high else 0
-                    cumulative_net_profit = ",.0f"
+                    cumulative_net_profit = f"{cumulative_low:,.0f}" if cumulative_low == cumulative_high else f"{cumulative_low:,.0f}-{cumulative_high:,.0f}"
                 except (ValueError, TypeError):
                     cumulative_net_profit = "N/A"
 
-                # Add table row
-                text_parts.append(f"| {year} | {yield_improvement} | {additional_revenue} | {total_cost} | {net_profit} | {roi} | {cumulative_net_profit} |")
+                # Format values for table row
+                try:
+                    yield_improvement_val = f"{yield_improvement_low:.1f}-{yield_improvement_high:.1f}" if yield_improvement_low != yield_improvement_high else f"{yield_improvement_low:.1f}"
+                    additional_revenue_val = f"{additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}" if additional_revenue_low != additional_revenue_high else f"{additional_revenue_low:,.0f}"
+                    total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
+                    net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
+                    cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+
+                    text_parts.append(f"| {year} | {yield_improvement_val} | {additional_revenue_val} | {total_cost_val} | {net_profit_val} | {cumulative_net_profit} |")
+                except Exception as e:
+                    logger.error(f"Error formatting table row values: {e}")
+                    # Fallback with simpler formatting
+                    text_parts.append(f"| {year} | {yield_improvement_low:.1f} | {additional_revenue_low:,.0f} | {cost_low:,.0f} | {net_profit_low:,.0f} | {cumulative_net_profit} |")
 
             text_parts.append("")
             text_parts.append("*Per hectare calculations*")
@@ -7924,6 +8085,9 @@ def filter_step6_net_profit_placeholders(text):
             r"\b5-Year Net Profit Forecast \(RM/ha\)\b.*?(?=\n\n|\Z)",
             r"\bNet Profit Forecast \(RM/ha\) - .*?(?=\n\n|\Z)",
             r"\bNote: The required Net Profit \(RM/ha\).*?(?=\n\n|\Z)",
+            # CRITICAL: Remove raw LLM output in Step 6
+            r"Scenarios:\s*\{.*?\}(?=\s*(\n\n|\Z))",
+            r"Assumptions:\s*\{.*?\}(?=\s*(\n\n|\Z))",
         ]
         import re
         filtered = text
@@ -8045,6 +8209,18 @@ def has_yield_forecast_data(analysis_data):
         return True
     elif 'analysis' in analysis_data and 'yield_forecast' in analysis_data['analysis'] and analysis_data['analysis']['yield_forecast']:
         return True
+    # Also check for economic_forecast which contains the forecast data for Step 6
+    elif 'economic_forecast' in analysis_data and analysis_data['economic_forecast']:
+        econ_forecast = analysis_data['economic_forecast']
+        if isinstance(econ_forecast, dict) and 'scenarios' in econ_forecast:
+            scenarios = econ_forecast['scenarios']
+            if scenarios and isinstance(scenarios, dict):
+                # Check if any scenario has yearly_data
+                for scenario_name, scenario_data in scenarios.items():
+                    if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                        yearly_data = scenario_data['yearly_data']
+                        if yearly_data and isinstance(yearly_data, list) and len(yearly_data) > 0:
+                            return True
     return False
 
 def should_show_visualizations(step_result):
@@ -8568,17 +8744,22 @@ def should_show_forecast_graph(step_result):
     # Ensure step_result is a dictionary
     if not isinstance(step_result, dict):
         return False
-    
+
+    step_number = step_result.get('step_number', 0)
     step_description = step_result.get('step_description', '')
     step_title = step_result.get('step_title', '')
-    
+
+    # Step 6 should always show forecast graph if it has economic forecast data
+    if step_number == 6:
+        return True
+
     # Specific keywords that indicate forecast graph should be shown
     forecast_keywords = [
         'forecast graph', '5-year yield forecast graph', '5-year yield forecast',
         'yield projection graph', '5-year forecast graph', 'forecast graph generate',
         'yield projection graph (5 years)', '5-year yield projection graph'
     ]
-    
+
     # Check if any specific forecast keywords are in the step description or title
     combined_text = f"{step_title} {step_description}".lower()
     return any(keyword in combined_text for keyword in forecast_keywords)
@@ -13277,7 +13458,7 @@ def display_step3_solution_recommendations(analysis_data):
     
     # 4. ANALYSIS RESULTS SECTION - Show actual LLM results (same as other steps)
     # This section shows the main analysis results from the LLM
-    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'specific_recommendations', 'interpretations', 'tables', 'data_format_recommendations', 'format_analysis'])
+    excluded_keys = set(['summary', 'key_findings', 'detailed_analysis', 'formatted_analysis', 'step_number', 'step_title', 'step_description', 'visualizations', 'yield_forecast', 'references', 'search_timestamp', 'prompt_instructions', 'specific_recommendations', 'interpretations', 'tables', 'data_format_recommendations', 'format_analysis', 'scenarios', 'assumptions'])
     excluded_keys.update(['Key Findings','Specific Recommendations','Interpretations','Tables','Visualizations','Yield Forecast','Format Analysis','Data Format Recommendations'])
     other_fields = [k for k in analysis_data.keys() if k not in excluded_keys and analysis_data.get(k) is not None and analysis_data.get(k) != ""]
     
@@ -13726,6 +13907,27 @@ def display_economic_impact_content(analysis_data):
         # Display any additional tables from analysis data
         display_analysis_tables(analysis_data.get('tables'), "Economic Analysis Data Tables")
 
+        # Also check for tables in detailed_analysis content for Step 4
+        if step_number == 4 and 'detailed_analysis' in analysis_data:
+            detailed_text = analysis_data['detailed_analysis']
+            if isinstance(detailed_text, str):
+                # Look for table patterns in detailed analysis
+                import re
+                table_patterns = [
+                    r'<table[^>]*>.*?</table>',
+                    r'Table \d+:\s*(.*?)(?=\n\n|\nTable|\Z)',
+                    r'\|.*\|.*?\|.*\|.*?\|.*\|.*?\|.*\|.*?\|.*\|.*?\|',
+                ]
+
+                for pattern in table_patterns:
+                    matches = re.findall(pattern, detailed_text, re.DOTALL)
+                    if matches:
+                        st.markdown("#### 📊 Additional Tables from Analysis")
+                        for i, table_content in enumerate(matches[:3]):  # Limit to first 3 tables
+                            st.markdown(f"**Table {i+1}:**")
+                            st.markdown(table_content)
+                            st.markdown("---")
+
         # Do not display investment scenarios or assumptions
     
     elif econ_data:
@@ -14004,10 +14206,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
             )
             
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Add assumptions note as specified in the step instructions
-            st.info("📝 **Assumptions:** Projections require yearly follow-up and adaptive adjustments based on actual field conditions and market changes.")
-            
+
         except ImportError:
             st.info("Plotly not available for forecast graph display")
             # Fallback table display
