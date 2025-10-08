@@ -4803,7 +4803,63 @@ class PromptAnalyzer:
                         text_parts.append(f"| {investment_level} | {cost_per_ha:,.0f} | {total_cost:,.0f} | {new_yield:.1f} | {additional_yield:.1f} | {additional_revenue:,.0f} | {roi:.1f}% | {payback:.1f} |")
                 
                 text_parts.append("")
-                
+
+                # Add detailed 5-year net profit forecast tables for each scenario
+                text_parts.append("### 💰 5-Year Net Profit Forecast (RM/ha)\n")
+                text_parts.append("*Detailed year-by-year economic projections based on nutrient investment scenarios*\n")
+
+                # Display tables for each scenario
+                for scenario_name, scenario_data in scenarios.items():
+                    if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                        yearly_data = scenario_data['yearly_data']
+                        if yearly_data and len(yearly_data) > 0:
+                            # Scenario title mapping
+                            scenario_titles = {
+                                'high': 'High Investment Scenario',
+                                'medium': 'Medium Investment Scenario',
+                                'low': 'Low Investment Scenario'
+                            }
+                            scenario_title = scenario_titles.get(scenario_name.lower(), f"{scenario_name.title()} Investment Scenario")
+
+                            text_parts.append(f"#### 🚀 {scenario_title}")
+                            text_parts.append("")
+                            text_parts.append("| Year | Yield Improvement (t/ha) | Revenue (RM/ha) | Input Cost (RM/ha) | Net Profit (RM/ha) | Cumulative Net Profit (RM/ha) |")
+                            text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|")
+
+                            cumulative_low = 0
+                            cumulative_high = 0
+
+                            for year_data in yearly_data:
+                                if isinstance(year_data, dict):
+                                    year = year_data.get('year', '')
+
+                                    # Extract values
+                                    yield_improvement_low = year_data.get('additional_yield_low', 0)
+                                    yield_improvement_high = year_data.get('additional_yield_high', 0)
+                                    additional_revenue_low = year_data.get('additional_revenue_low', 0)
+                                    additional_revenue_high = year_data.get('additional_revenue_high', 0)
+                                    cost_low = year_data.get('cost_low', 0)
+                                    cost_high = year_data.get('cost_high', 0)
+                                    net_profit_low = year_data.get('net_profit_low', 0)
+                                    net_profit_high = year_data.get('net_profit_high', 0)
+
+                                    # Calculate cumulative profits
+                                    cumulative_low += net_profit_low
+                                    cumulative_high += net_profit_high
+
+                                    # Format values
+                                    yield_improvement_val = f"{yield_improvement_low:.1f}-{yield_improvement_high:.1f}" if yield_improvement_low != yield_improvement_high else f"{yield_improvement_low:.1f}"
+                                    additional_revenue_val = f"{additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}" if additional_revenue_low != additional_revenue_high else f"{additional_revenue_low:,.0f}"
+                                    total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
+                                    net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
+                                    cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+
+                                    text_parts.append(f"| {year} | {yield_improvement_val} | {additional_revenue_val} | {total_cost_val} | {net_profit_val} | {cumulative_val} |")
+
+                            text_parts.append("")
+                            text_parts.append("*Per hectare calculations showing progressive yield improvements and profitability over 5 years*")
+                            text_parts.append("")
+
                 # Add assumptions
                 assumptions = econ_forecast.get('assumptions', [])
                 if assumptions:
