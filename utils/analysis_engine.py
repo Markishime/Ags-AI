@@ -2695,7 +2695,7 @@ class PromptAnalyzer:
             - Step Title: {step['title']}
             - Total Steps in Analysis: {total_step_count}
             - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
-            - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
+            - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Use these EXACT table headers: "Year", "Yield improvement t/ha", "Revenue RM/ha", "Input cost RM/ha", "Net profit RM/ha", "Cumulative net profit RM/ha", "ROI %". Do NOT use old headers like "Yield Improvement (t/ha)" or "Additional Revenue (RM)". Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
             - {'CRITICAL: For Step 6 (Yield Forecast & Projections), you MUST NOT include any net profit forecasts, economic projections, cost-benefit analysis, or financial calculations. Focus ONLY on yield projections and production forecasts in tonnes per hectare. Do NOT mention or calculate any monetary values, ROI, or economic returns.' if step['number'] == 6 else ''}
 
             STEP {step['number']} INSTRUCTIONS FROM ACTIVE PROMPT:
@@ -4846,7 +4846,7 @@ class PromptAnalyzer:
 
                             text_parts.append(f"#### 🚀 {scenario_title}")
                             text_parts.append("")
-                            text_parts.append("| Year | Yield Improvement (t/ha) | Revenue (RM/ha) | Input Cost (RM/ha) | Net Profit (RM/ha) | Cumulative Net Profit (RM/ha) |")
+                            text_parts.append("| Year | Yield improvement t/ha | Revenue RM/ha | Input cost RM/ha | Net profit RM/ha | Cumulative net profit RM/ha |")
                             text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|")
 
                             cumulative_low = 0
@@ -4938,6 +4938,74 @@ class PromptAnalyzer:
                 text_parts.append("")
                 text_parts.append("**Note:** RM values are approximate and represent recent historical price and cost ranges.")
                 text_parts.append("")
+
+                # Create structured tables for display system
+                structured_tables = []
+                for scenario_name, scenario_data in scenarios.items():
+                    if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                        yearly_data = scenario_data['yearly_data']
+                        if yearly_data and len(yearly_data) > 0:
+                            # Scenario title mapping
+                            scenario_titles = {
+                                'high': 'High Investment Scenario',
+                                'medium': 'Medium Investment Scenario',
+                                'low': 'Low Investment Scenario'
+                            }
+                            scenario_title = scenario_titles.get(scenario_name.lower(), f"{scenario_name.title()} Investment Scenario")
+
+                            # Create table data
+                            table_rows = []
+                            cumulative_low = 0
+                            cumulative_high = 0
+
+                            for year_data in yearly_data:
+                                if isinstance(year_data, dict):
+                                    year = year_data.get('year', '')
+
+                                    # Extract values
+                                    yield_improvement_low = year_data.get('additional_yield_low', 0)
+                                    yield_improvement_high = year_data.get('additional_yield_high', 0)
+                                    additional_revenue_low = year_data.get('additional_revenue_low', 0)
+                                    additional_revenue_high = year_data.get('additional_revenue_high', 0)
+                                    cost_low = year_data.get('cost_low', 0)
+                                    cost_high = year_data.get('cost_high', 0)
+                                    net_profit_low = year_data.get('net_profit_low', 0)
+                                    net_profit_high = year_data.get('net_profit_high', 0)
+
+                                    # Calculate cumulative profits
+                                    cumulative_low += net_profit_low
+                                    cumulative_high += net_profit_high
+
+                                    # Format values
+                                    yield_improvement_val = f"{yield_improvement_low:.1f}-{yield_improvement_high:.1f}" if yield_improvement_low != yield_improvement_high else f"{yield_improvement_low:.1f}"
+                                    additional_revenue_val = f"{additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}" if additional_revenue_low != additional_revenue_high else f"{additional_revenue_low:,.0f}"
+                                    total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
+                                    net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
+                                    cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+
+                                    table_rows.append([
+                                        year,
+                                        yield_improvement_val,
+                                        additional_revenue_val,
+                                        total_cost_val,
+                                        net_profit_val,
+                                        cumulative_val
+                                    ])
+
+                            # Create structured table
+                            structured_table = {
+                                'title': f'5-Year Economic Forecast: {scenario_title}',
+                                'headers': ['Year', 'Yield improvement t/ha', 'Revenue RM/ha', 'Input cost RM/ha', 'Net profit RM/ha', 'Cumulative net profit RM/ha'],
+                                'rows': table_rows
+                            }
+                            structured_tables.append(structured_table)
+
+                # Add structured tables to result if they don't exist
+                if structured_tables and ('tables' not in result or not result['tables']):
+                    result['tables'] = structured_tables
+                elif structured_tables and 'tables' in result:
+                    # Merge with existing tables
+                    result['tables'].extend(structured_tables)
 
         # 📊 Detailed Data Tables
         if 'tables' in result and result['tables']:
@@ -6035,9 +6103,11 @@ class ResultsGenerator:
                 cumulative_net_profit_low = sum([year['net_profit_low'] for year in yearly_data])
                 cumulative_net_profit_high = sum([year['net_profit_high'] for year in yearly_data])
                 
-                # Calculate overall ROI over 5 years
-                roi_5year_low = (cumulative_net_profit_low / total_cost_high * 100) if total_cost_high > 0 else 0
-                roi_5year_high = (cumulative_net_profit_high / total_cost_low * 100) if total_cost_low > 0 else 0
+                # Calculate overall ROI over 5 years (using per-hectare values)
+                cost_per_ha_low = total_cost_low / land_size_ha if land_size_ha > 0 else 0
+                cost_per_ha_high = total_cost_high / land_size_ha if land_size_ha > 0 else 0
+                roi_5year_low = (cumulative_net_profit_low / cost_per_ha_high * 100) if cost_per_ha_high > 0 else 0
+                roi_5year_high = (cumulative_net_profit_high / cost_per_ha_low * 100) if cost_per_ha_low > 0 else 0
                 
                 # Cap ROI at 200% for 5-year period (realistic for agriculture)
                 roi_capped_note = ""
@@ -6047,9 +6117,9 @@ class ResultsGenerator:
                 if roi_5year_low > 200:
                     roi_5year_low = 200
                 
-                # Calculate payback period (when cumulative profit exceeds initial investment)
-                payback_year_low = self._calculate_payback_period(yearly_data, total_cost_low, 'low')
-                payback_year_high = self._calculate_payback_period(yearly_data, total_cost_high, 'high')
+                # Calculate payback period (when cumulative profit exceeds initial investment per hectare)
+                payback_year_low = self._calculate_payback_period(yearly_data, cost_per_ha_low, 'low')
+                payback_year_high = self._calculate_payback_period(yearly_data, cost_per_ha_high, 'high')
                 
                 scenarios[investment_level] = {
                     'investment_level': investment_level.title(),
@@ -6135,24 +6205,24 @@ class ResultsGenerator:
             additional_yield_low = year_yield_low - current_yield
             additional_yield_high = year_yield_high - current_yield
             
-            # Calculate revenue from additional yield - ensure accurate multiplication
-            additional_revenue_low = additional_yield_low * ffb_price_low * land_size_ha
-            additional_revenue_high = additional_yield_high * ffb_price_high * land_size_ha
+            # Calculate revenue from additional yield per hectare - ensure accurate multiplication
+            additional_revenue_low = additional_yield_low * ffb_price_low  # RM/ha
+            additional_revenue_high = additional_yield_high * ffb_price_high  # RM/ha
 
             # Validate revenue calculations
             if additional_revenue_low < 0 or additional_revenue_high < 0:
                 self.logger.warning(f"Negative revenue calculated for year {year_num}, {investment_level}: low={additional_revenue_low}, high={additional_revenue_high}")
 
-            # Calculate costs for this year
+            # Calculate costs for this year per hectare
             if year_num == 1:
-                # Year 1 includes initial investment
-                year_cost_low = total_cost_low
-                year_cost_high = total_cost_high
+                # Year 1 includes initial investment per hectare
+                year_cost_low = total_cost_low / land_size_ha if land_size_ha > 0 else 0
+                year_cost_high = total_cost_high / land_size_ha if land_size_ha > 0 else 0
             else:
                 # Years 2-5 include maintenance costs that increase slightly as palms mature
                 # Year 2: base maintenance, Year 3-4: 110% of base, Year 5: 105% of base
                 maintenance_multiplier = {2: 1.0, 3: 1.1, 4: 1.1, 5: 1.05}
-                base_maintenance = base_maintenance_cost_per_ha[investment_level] * land_size_ha
+                base_maintenance = base_maintenance_cost_per_ha[investment_level]
                 year_cost_low = base_maintenance * maintenance_multiplier.get(year_num, 1.0)
                 year_cost_high = base_maintenance * maintenance_multiplier.get(year_num, 1.0)
 
@@ -6166,9 +6236,9 @@ class ResultsGenerator:
 
             # Log yearly calculation for verification
             if year_num <= 2:  # Log first 2 years for verification
-                self.logger.info(f"Year {year_num} {investment_level}: Yield {additional_yield_low:.2f}-{additional_yield_high:.2f}t/ha, Revenue RM {additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}, Cost RM {year_cost_low:,.0f}-{year_cost_high:,.0f}, Profit RM {net_profit_low:,.0f}-{net_profit_high:,.0f}")
+                self.logger.info(f"Year {year_num} {investment_level}: Yield {additional_yield_low:.2f}-{additional_yield_high:.2f}t/ha, Revenue RM {additional_revenue_low:,.0f}-{additional_revenue_high:,.0f}/ha, Cost RM {year_cost_low:,.0f}-{year_cost_high:,.0f}/ha, Profit RM {net_profit_low:,.0f}-{net_profit_high:,.0f}/ha")
 
-            # Update cumulative profit
+            # Update cumulative profit per hectare
             cumulative_profit_low += net_profit_low
             cumulative_profit_high += net_profit_high
 

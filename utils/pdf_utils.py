@@ -600,11 +600,17 @@ class PDFReportGenerator:
     def _generate_executive_summary_for_pdf(self, analysis_results: Dict[str, Any]) -> str:
         """Generate the exact Executive Summary that mirrors the results page."""
         try:
-            # Use the exact executive summary text provided
-            # Use dynamic summary generation instead of hardcoded text
+            # First, check if there's already a generated executive summary from the results page
+            if isinstance(analysis_results, dict) and 'executive_summary' in analysis_results:
+                existing_summary = analysis_results['executive_summary']
+                if isinstance(existing_summary, str) and existing_summary.strip():
+                    logger.info(f"🔍 DEBUG - Executive Summary: Using existing summary from results page, length: {len(existing_summary)}")
+                    return existing_summary
+
+            # If no existing summary, generate dynamic summary
             executive_summary = self._generate_dynamic_executive_summary(analysis_results)
 
-            logger.info(f"🔍 DEBUG - Executive Summary: Generated fixed text, length: {len(executive_summary)}")
+            logger.info(f"🔍 DEBUG - Executive Summary: Generated dynamic text, length: {len(executive_summary)}")
 
             return executive_summary
 
@@ -3345,19 +3351,19 @@ class PDFReportGenerator:
             if 'N_%' in leaf_params:
                 leaf_n = leaf_params['N_%'].get('average', 0)
                 if leaf_n > 0:
-                    if leaf_n < 2.5:
+                    if leaf_n < 2.6:
                         findings.append({
-                            'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.5-3.5%. This indicates poor nitrogen uptake and affects photosynthesis.",
+                            'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below MPOB optimal range of 2.6-3.2%. This indicates poor nitrogen uptake and affects photosynthesis.",
                             'source': 'Leaf Analysis - Nitrogen'
                         })
-                    elif leaf_n > 3.5:
+                    elif leaf_n > 3.2:
                         findings.append({
-                            'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.5-3.5%. This may cause nutrient imbalances and delayed maturity.",
+                            'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above MPOB optimal range of 2.6-3.2%. This may cause nutrient imbalances and delayed maturity.",
                             'source': 'Leaf Analysis - Nitrogen'
                         })
                     else:
                         findings.append({
-                            'finding': f"Leaf nitrogen is optimal at {leaf_n:.1f}%, within recommended range for healthy palm growth.",
+                            'finding': f"Leaf nitrogen is optimal at {leaf_n:.1f}%, within MPOB recommended range for healthy palm growth.",
                             'source': 'Leaf Analysis - Nitrogen'
                         })
             
@@ -3365,19 +3371,19 @@ class PDFReportGenerator:
             if 'P_%' in leaf_params:
                 leaf_p = leaf_params['P_%'].get('average', 0)
                 if leaf_p > 0:
-                    if leaf_p < 0.15:
+                    if leaf_p < 0.16:
                         findings.append({
-                            'finding': f"Leaf phosphorus is deficient at {leaf_p:.2f}%, below optimal range of 0.15-0.25%. This limits energy transfer and root development.",
+                            'finding': f"Leaf phosphorus is deficient at {leaf_p:.2f}%, below MPOB optimal range of 0.16-0.22%. This limits energy transfer and root development.",
                             'source': 'Leaf Analysis - Phosphorus'
                         })
-                    elif leaf_p > 0.25:
+                    elif leaf_p > 0.22:
                         findings.append({
-                            'finding': f"Leaf phosphorus is high at {leaf_p:.2f}%, above optimal range of 0.15-0.25%. This may indicate over-fertilization.",
+                            'finding': f"Leaf phosphorus is high at {leaf_p:.2f}%, above MPOB optimal range of 0.16-0.22%. This may indicate over-fertilization.",
                             'source': 'Leaf Analysis - Phosphorus'
                         })
                     else:
                         findings.append({
-                            'finding': f"Leaf phosphorus is adequate at {leaf_p:.2f}%, within optimal range for proper plant function.",
+                            'finding': f"Leaf phosphorus is adequate at {leaf_p:.2f}%, within MPOB optimal range for proper plant function.",
                             'source': 'Leaf Analysis - Phosphorus'
                         })
             
@@ -3385,19 +3391,19 @@ class PDFReportGenerator:
             if 'K_%' in leaf_params:
                 leaf_k = leaf_params['K_%'].get('average', 0)
                 if leaf_k > 0:
-                    if leaf_k < 1.0:
+                    if leaf_k < 1.3:
                         findings.append({
-                            'finding': f"Leaf potassium is deficient at {leaf_k:.1f}%, below optimal range of 1.0-1.5%. This affects water regulation and disease resistance.",
+                            'finding': f"Leaf potassium is deficient at {leaf_k:.1f}%, below MPOB optimal range of 1.3-1.7%. This affects water regulation and disease resistance.",
                             'source': 'Leaf Analysis - Potassium'
                         })
-                    elif leaf_k > 1.5:
+                    elif leaf_k > 1.7:
                         findings.append({
-                            'finding': f"Leaf potassium is high at {leaf_k:.1f}%, above optimal range of 1.0-1.5%. This may cause nutrient imbalances.",
+                            'finding': f"Leaf potassium is high at {leaf_k:.1f}%, above MPOB optimal range of 1.3-1.7%. This may cause nutrient imbalances.",
                             'source': 'Leaf Analysis - Potassium'
                         })
                     else:
                         findings.append({
-                            'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within recommended range for healthy palm growth.",
+                            'finding': f"Leaf potassium is optimal at {leaf_k:.1f}%, within MPOB recommended range for healthy palm growth.",
                             'source': 'Leaf Analysis - Potassium'
                         })
             
@@ -3405,19 +3411,19 @@ class PDFReportGenerator:
             if 'Mg_%' in leaf_params:
                 leaf_mg = leaf_params['Mg_%'].get('average', 0)
                 if leaf_mg > 0:
-                    if leaf_mg < 0.2:
+                    if leaf_mg < 0.28:
                         findings.append({
-                            'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below optimal range of 0.2-0.3%. This affects chlorophyll production and photosynthesis.",
+                            'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}%, below MPOB optimal range of 0.28-0.38%. This affects chlorophyll production and photosynthesis.",
                             'source': 'Leaf Analysis - Magnesium'
                         })
-                    elif leaf_mg > 0.3:
+                    elif leaf_mg > 0.38:
                         findings.append({
-                            'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above optimal range of 0.2-0.3%. This may indicate over-fertilization.",
+                            'finding': f"Leaf magnesium is high at {leaf_mg:.2f}%, above MPOB optimal range of 0.28-0.38%. This may indicate over-fertilization.",
                             'source': 'Leaf Analysis - Magnesium'
                         })
                     else:
                         findings.append({
-                            'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within optimal range for healthy palm growth.",
+                            'finding': f"Leaf magnesium is adequate at {leaf_mg:.2f}%, within MPOB optimal range for healthy palm growth.",
                             'source': 'Leaf Analysis - Magnesium'
                         })
             
@@ -3427,17 +3433,17 @@ class PDFReportGenerator:
                 if leaf_ca > 0:
                     if leaf_ca < 0.5:
                         findings.append({
-                            'finding': f"Leaf calcium is deficient at {leaf_ca:.1f}%, below optimal range of 0.5-1.0%. This affects cell wall strength and fruit quality.",
+                            'finding': f"Leaf calcium is deficient at {leaf_ca:.1f}%, below MPOB optimal range of 0.5-0.7%. This affects cell wall strength and fruit quality.",
                             'source': 'Leaf Analysis - Calcium'
                         })
-                    elif leaf_ca > 1.0:
+                    elif leaf_ca > 0.7:
                         findings.append({
-                            'finding': f"Leaf calcium is high at {leaf_ca:.1f}%, above optimal range of 0.5-1.0%. This may cause nutrient imbalances.",
+                            'finding': f"Leaf calcium is high at {leaf_ca:.1f}%, above MPOB optimal range of 0.5-0.7%. This may cause nutrient imbalances.",
                             'source': 'Leaf Analysis - Calcium'
                         })
                     else:
                         findings.append({
-                            'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within recommended range for healthy palm growth.",
+                            'finding': f"Leaf calcium is optimal at {leaf_ca:.1f}%, within MPOB recommended range for healthy palm growth.",
                             'source': 'Leaf Analysis - Calcium'
                         })
             
@@ -5603,7 +5609,7 @@ class PDFReportGenerator:
                 story.append(Spacer(1, 8))
                 
                 # Create a table for all scenarios for this specific year
-                table_data = [['Investment Scenario', 'Projected Yield Improvement (t/ha)', 'Additional Revenue (RM/ha)', 'Total Input Cost (RM/ha)', 'Micronutrient Cost (CuSO₄) (RM/ha)', 'Net Profit (RM/ha)', 'ROI (%)', 'Cumulative Profit (RM/ha)']]
+                table_data = [['Investment Scenario', 'Yield improvement t/ha', 'Revenue RM/ha', 'Input cost RM/ha', 'Micronutrient Cost (CuSO₄) RM/ha', 'Net profit RM/ha', 'ROI %', 'Cumulative net profit RM/ha']]
                 
                 for scenario_name, scenario_data in scenarios.items():
                     if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
@@ -5705,7 +5711,7 @@ class PDFReportGenerator:
                 story.append(Paragraph(f"Year {year_num} Economic Forecast", self.styles['Heading3']))
                 story.append(Spacer(1, 8))
                 
-                table_data = [['Investment Scenario', 'Projected Yield Improvement (t/ha)', 'Additional Revenue (RM/ha)', 'Total Input Cost (RM/ha)', 'Micronutrient Cost (CuSO₄) (RM/ha)', 'Net Profit (RM/ha)', 'ROI (%)', 'Cumulative Profit (RM/ha)']]
+                table_data = [['Investment Scenario', 'Yield improvement t/ha', 'Revenue RM/ha', 'Input cost RM/ha', 'Micronutrient Cost (CuSO₄) RM/ha', 'Net profit RM/ha', 'ROI %', 'Cumulative net profit RM/ha']]
                 
                 for scenario_name in ['high', 'medium', 'low']:
                     if year_num in static_data and scenario_name in static_data[year_num]:
@@ -5806,7 +5812,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 4))
 
         year1_data = [
-            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-1 ROI (%)'],
+            ['Scenario', 'Yield improvement t/ha', 'Input cost RM/ha', 'Revenue RM/ha', 'Net profit RM/ha', 'Year-1 ROI %'],
             ['High', '4.0 - 5.5', '2,402 - 2,882', '2,600 - 4,125', '-282 - 1,723', '-9.8% to 60.0% ¹ ²'],
             ['Medium', '2.5 - 4.0', '1,883 - 2,258', '1,625 - 3,000', '-633 - 1,117', '-28.0% to 59.3% ²'],
             ['Low', '1.5 - 2.5', '1,364 - 1,633', '975 - 1,875', '-658 - 511', '-40.3% to 37.5% ²']
@@ -5836,7 +5842,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 4))
 
         year2_data = [
-            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-2 ROI (%)'],
+            ['Scenario', 'Yield improvement t/ha', 'Input cost RM/ha', 'Revenue RM/ha', 'Net profit RM/ha', 'Year-2 ROI (%)'],
             ['High', '5.0 - 7.0', '1,201 - 1,441', '3,250 - 5,250', '1,559 - 3,809', '60.0% to 120.0% ¹ ²'],
             ['Medium', '3.5 - 5.5', '941 - 1,129', '2,275 - 4,125', '896 - 2,996', '59.3% to 110.0% ²'],
             ['Low', '2.0 - 3.5', '682 - 817', '1,300 - 2,625', '483 - 1,808', '37.5% to 85.0% ²']
@@ -5866,7 +5872,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 4))
 
         year3_data = [
-            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-3 ROI (%)'],
+            ['Scenario', 'Yield improvement t/ha', 'Input cost RM/ha', 'Revenue RM/ha', 'Net profit RM/ha', 'Year-3 ROI (%)'],
             ['High', '6.0 - 8.5', '601 - 721', '3,900 - 6,375', '3,179 - 5,654', '120.0% to 180.0% ¹ ²'],
             ['Medium', '4.5 - 6.5', '471 - 565', '2,925 - 4,875', '2,360 - 4,310', '110.0% to 160.0% ²'],
             ['Low', '2.5 - 4.5', '341 - 408', '1,625 - 3,375', '1,217 - 2,967', '85.0% to 140.0% ²']
@@ -5896,7 +5902,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 4))
 
         year4_data = [
-            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-4 ROI (%)'],
+            ['Scenario', 'Yield improvement t/ha', 'Input cost RM/ha', 'Revenue RM/ha', 'Net profit RM/ha', 'Year-4 ROI (%)'],
             ['High', '7.0 - 10.0', '301 - 360', '4,550 - 7,500', '4,249 - 7,140', '180.0% to 240.0% ¹ ²'],
             ['Medium', '5.5 - 8.0', '235 - 282', '3,575 - 6,000', '3,293 - 5,718', '160.0% to 210.0% ²'],
             ['Low', '3.5 - 5.5', '171 - 204', '2,275 - 4,125', '2,071 - 3,921', '140.0% to 195.0% ²']
@@ -5926,7 +5932,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 4))
 
         year5_data = [
-            ['Scenario', 'Projected Yield Improvement (t/ha)', 'Total Investment Cost (RM/ha)', 'Additional Revenue (RM/ha)', 'Net Profit (RM/ha)', 'Year-5 ROI (%)'],
+            ['Scenario', 'Yield improvement t/ha', 'Input cost RM/ha', 'Revenue RM/ha', 'Net profit RM/ha', 'Year-5 ROI (%)'],
             ['High', '8.0 - 11.5', '150 - 180', '5,200 - 8,625', '5,050 - 8,445', '240.0% to 300.0% ¹ ²'],
             ['Medium', '6.5 - 9.5', '118 - 141', '4,225 - 7,125', '4,107 - 6,984', '210.0% to 260.0% ²'],
             ['Low', '4.5 - 7.0', '85 - 102', '2,925 - 5,250', '2,823 - 5,148', '195.0% to 250.0% ²']
@@ -6170,7 +6176,9 @@ class PDFReportGenerator:
             metrics_data.append(['Current Yield', f"{current_yield:.1f} tonnes/ha"])
         if land_size > 0:
             metrics_data.append(['Land Size', f"{land_size:.1f} hectares"])
-        metrics_data.append(['Oil Palm Price', f"RM {oil_palm_price:.0f}/tonne"])
+        # Use FFB price range instead of single oil palm price
+        ffb_price_range = economic_data.get('oil_palm_price_range_rm_per_tonne', 'RM 650-750')
+        metrics_data.append(['FFB Price Range', f"{ffb_price_range}/tonne"])
         
         if metrics_data:
             # Use proper column widths for economic metrics table
@@ -6598,11 +6606,9 @@ class PDFReportGenerator:
             if total_palms > 0:
                 story.append(Paragraph(f"<b>Total Palms:</b> {total_palms:,} palms", self.styles['CustomBody']))
             
-            # Handle both old single price and new range format
-            if isinstance(oil_palm_price, str) and '-' in oil_palm_price:
-                story.append(Paragraph(f"<b>Oil Palm Price:</b> {oil_palm_price}", self.styles['CustomBody']))
-            else:
-                story.append(Paragraph(f"<b>Oil Palm Price:</b> RM {oil_palm_price:.0f}/tonne", self.styles['CustomBody']))
+            # Use FFB price range for consistency
+            ffb_price_range = econ.get('oil_palm_price_range_rm_per_tonne', 'RM 650-750')
+            story.append(Paragraph(f"<b>FFB Price Range:</b> {ffb_price_range}/tonne", self.styles['CustomBody']))
             story.append(Spacer(1, 12))
             
             # Remove Economic Forecast Assumptions section as requested

@@ -702,7 +702,7 @@ The following table details the projected costs, revenues, and return on investm
 
 Multi-Year Economic Impact Forecast by Investment Scenario (Years 1-5)
 
-Scenario | Year | Projected Yield Improvement (t/ha) | Total Cost/ha (RM) | Additional Revenue/ha (RM) | Net Profit/ha (RM) | ROI (%)
+Scenario | Year | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | ROI %
 ---|---|---|---|---|---|---|---
 High | Year 1 | 5.0 - 7.0 | 2,940 - 3,613 | 3,250 - 5,250 | -363 - 2,310 | -10% to 60%
 High | Year 2 | 6.0 - 8.0 | 1,470 - 1,807 | 3,900 - 6,000 | 2,093 - 4,193 | 60% to 120%
@@ -811,25 +811,25 @@ This scenario involves a comprehensive program to correct all identified major a
 
 Table 7: High Investment Scenario - Year 2 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-2 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-2 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 High | 6.0 - 8.0 | 1,470 - 1,807 | 3,900 - 6,000 | 2,093 - 4,193 | 60% to 120%
 
 Table 8: High Investment Scenario - Year 3 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-3 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-3 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 High | 6.5 - 9.0 | 735 - 903 | 4,225 - 6,750 | 3,322 - 5,847 | 120% to 180%
 
 Table 9: High Investment Scenario - Year 4 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-4 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-4 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 High | 7.0 - 10.0 | 368 - 452 | 4,550 - 7,500 | 4,098 - 7,048 | 180% to 240%
 
 Table 10: High Investment Scenario - Year 5 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-5 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-5 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 High | 7.5 - 11.0 | 184 - 226 | 4,875 - 8,250 | 4,649 - 8,024 | 240% to 300%
 
@@ -921,25 +921,25 @@ This scenario provides a balanced nutrient program, addressing critical deficien
 
 Table 11: Medium Investment Scenario - Year 2 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-2 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-2 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Medium | 4.0 - 6.0 | 1,179 - 1,447 | 2,600 - 4,500 | 773 - 3,053 | 59% to 110%
 
 Table 12: Medium Investment Scenario - Year 3 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-3 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-3 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Medium | 4.5 - 7.0 | 589 - 724 | 2,925 - 5,250 | 2,201 - 4,526 | 110% to 160%
 
 Table 13: Medium Investment Scenario - Year 4 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-4 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-4 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Medium | 5.0 - 8.0 | 295 - 362 | 3,250 - 6,000 | 2,888 - 5,638 | 160% to 210%
 
 Table 14: Medium Investment Scenario - Year 5 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-5 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-5 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Medium | 5.5 - 9.0 | 147 - 181 | 3,575 - 6,750 | 3,428 - 6,569 | 210% to 260%
 
@@ -1026,25 +1026,25 @@ This scenario prioritizes the most critical nutrient inputs with a minimal budge
 
 Table 15: Low Investment Scenario - Year 2 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-2 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-2 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Low | 2.5 - 4.0 | 888 - 1,088 | 1,625 - 3,000 | 287 - 1,912 | 48% to 95%
 
 Table 16: Low Investment Scenario - Year 3 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-3 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-3 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Low | 3.0 - 4.5 | 444 - 544 | 1,950 - 3,375 | 1,406 - 2,831 | 95% to 140%
 
 Table 17: Low Investment Scenario - Year 4 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-4 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-4 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Low | 3.5 - 5.0 | 222 - 272 | 2,275 - 3,750 | 2,003 - 3,478 | 140% to 185%
 
 Table 18: Low Investment Scenario - Year 5 Economic Impact
 
-Scenario | Projected Yield Improvement (t/ha) | Total Investment Cost (RM/ha) | Additional Revenue (RM/ha) | Net Profit (RM/ha) | Year-5 ROI (%)
+Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-5 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
 Low | 4.0 - 5.5 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
 
