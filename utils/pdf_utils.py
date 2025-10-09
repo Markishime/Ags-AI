@@ -605,7 +605,11 @@ class PDFReportGenerator:
                 existing_summary = analysis_results['executive_summary']
                 if isinstance(existing_summary, str) and existing_summary.strip():
                     logger.info(f"🔍 DEBUG - Executive Summary: Using existing summary from results page, length: {len(existing_summary)}")
+                    logger.info(f"🔍 DEBUG - Executive Summary content: {existing_summary[:200]}...")
                     return existing_summary
+            else:
+                logger.info(f"🔍 DEBUG - Executive Summary: No existing summary found in analysis_results")
+                logger.info(f"🔍 DEBUG - analysis_results keys: {list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'Not a dict'}")
 
             # If no existing summary, generate dynamic summary
             executive_summary = self._generate_dynamic_executive_summary(analysis_results)

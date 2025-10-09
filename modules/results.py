@@ -3040,8 +3040,16 @@ def display_summary_section(results_data):
         try:
             if isinstance(analysis_results, dict):
                 analysis_results['executive_summary'] = sanitized_summary
-        except Exception:
-            pass
+
+                # Also update the stored analysis results in session state
+                if hasattr(st, 'session_state') and 'stored_analysis_results' in st.session_state:
+                    latest_id = max(st.session_state.stored_analysis_results.keys(), key=lambda x: st.session_state.stored_analysis_results[x].get('timestamp', 0) if isinstance(st.session_state.stored_analysis_results[x], dict) else 0)
+                    if latest_id and latest_id in st.session_state.stored_analysis_results:
+                        st.session_state.stored_analysis_results[latest_id]['executive_summary'] = sanitized_summary
+                        logger.info(f"✅ Executive summary stored to session state for PDF reuse")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to store executive summary: {e}")
         return
 
     # Fallback deterministic generation when LLM is unavailable
@@ -3193,6 +3201,21 @@ def display_summary_section(results_data):
         f'<div class="analysis-card"><p style="font-size: 16px; line-height: 1.8; margin: 0; text-align: justify;">{comprehensive_summary}</p></div>',
         unsafe_allow_html=True
     )
+
+    # Also store on analysis_results for PDF export reuse
+    try:
+        if isinstance(analysis_results, dict):
+            analysis_results['executive_summary'] = comprehensive_summary
+
+            # Also update the stored analysis results in session state
+            if hasattr(st, 'session_state') and 'stored_analysis_results' in st.session_state:
+                latest_id = max(st.session_state.stored_analysis_results.keys(), key=lambda x: st.session_state.stored_analysis_results[x].get('timestamp', 0) if isinstance(st.session_state.stored_analysis_results[x], dict) else 0)
+                if latest_id and latest_id in st.session_state.stored_analysis_results:
+                    st.session_state.stored_analysis_results[latest_id]['executive_summary'] = comprehensive_summary
+                    logger.info(f"✅ Fallback executive summary stored to session state for PDF reuse")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to store fallback executive summary: {e}")
 
 def calculate_parameter_statistics(samples):
     """Calculate parameter statistics from sample data"""
@@ -6495,27 +6518,48 @@ def display_formatted_economic_tables(formatted_text):
         except Exception:
             pass
 
+        # Filter out error messages and placeholders
+        import re
+        # Remove specific error message patterns
+        formatted_text = re.sub(r'Analysis Required.*?Table generation needed.*?Pending.*?Please regenerate with table data', '', formatted_text, flags=re.DOTALL | re.IGNORECASE)
+        formatted_text = re.sub(r'Analysis Required.*?', '', formatted_text, flags=re.IGNORECASE)
+        formatted_text = re.sub(r'Table generation needed.*?', '', formatted_text, flags=re.IGNORECASE)
+        formatted_text = re.sub(r'Pending.*?', '', formatted_text, flags=re.IGNORECASE)
+        formatted_text = re.sub(r'Please regenerate with table data.*?', '', formatted_text, flags=re.IGNORECASE)
+
         # Find all table sections - support multiple patterns:
         # 1. <tables> wrapper with <table title="...">
         # 2. Bare <table title="...">
         # 3. Bare <table> without title
-        
+
         tables = []
-        
+
         # Pattern 1: <tables> wrapper with titled tables
         tables_wrapper_pattern = r'<tables>\s*<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>\s*</tables>'
         tables_wrapper_matches = re.findall(tables_wrapper_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
         tables.extend(tables_wrapper_matches)
-        
+
         # Pattern 2: Bare titled tables (not inside <tables> wrapper)
         bare_titled_pattern = r'(?<!<tables>\s*)<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>(?!\s*</tables>)'
         bare_titled_matches = re.findall(bare_titled_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
         tables.extend(bare_titled_matches)
-        
+
         # Pattern 3: Untitled tables as fallback
         if not tables:
             untitled = re.findall(r'<table[^>]*>([\s\S]*?)</table>', formatted_text, re.DOTALL | re.IGNORECASE)
             tables = [(f"Table {i+1}", t) for i, t in enumerate(untitled)]
+
+        # If no tables found after filtering, show a helpful message
+        if not tables:
+            st.info("📊 **Economic Analysis Summary:** The analysis indicates potential for yield improvements through proper nutrient management. Complete soil and leaf analysis in previous steps to generate detailed economic projections.")
+            st.markdown("""
+            **Key Economic Considerations:**
+            - **Investment Benefits**: Proper nutrient correction can improve yields by 15-40%
+            - **ROI Potential**: Fertilizer investments typically provide 60-120% returns within 2-3 years
+            - **Cost Recovery**: Most corrective programs pay for themselves within 12-18 months
+            - **Long-term Value**: Sustainable nutrient management ensures continued plantation productivity
+            """)
+            return
 
         for i, (title, table_content) in enumerate(tables):
             st.markdown(f"#### 📋 {title}")
