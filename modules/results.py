@@ -4303,6 +4303,66 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                 if cec_avg < 10:
                     soil_issues.append(f"Cation exchange capacity measured at {cec_avg:.1f} meq% (low, optimal: >10 meq%). Low CEC indicates poor nutrient retention capacity and may require soil amendment.")
 
+            # Extract nitrogen data - try different possible parameter names
+            n_avg = None
+            for n_key in ['N (%)', 'Nitrogen (%)', 'N_%', 'N', 'Nitrogen_%', 'Nitrogen']:
+                if n_key in soil_stats:
+                    n_data = soil_stats[n_key]
+                    if isinstance(n_data, dict) and 'average' in n_data:
+                        n_avg = n_data['average']
+                        break
+                    elif isinstance(n_data, (int, float)):
+                        n_avg = n_data
+                        break
+
+            # Extract organic carbon data - try different possible parameter names
+            oc_avg = None
+            for oc_key in ['Org. C (%)', 'Organic C (%)', 'Organic Carbon (%)', 'Org_C_%', 'Organic_C_%']:
+                if oc_key in soil_stats:
+                    oc_data = soil_stats[oc_key]
+                    if isinstance(oc_data, dict) and 'average' in oc_data:
+                        oc_avg = oc_data['average']
+                        break
+                    elif isinstance(oc_data, (int, float)):
+                        oc_avg = oc_data
+                        break
+
+            # Extract total phosphorus data - try different possible parameter names
+            tp_avg = None
+            for tp_key in ['Total P (mg/kg)', 'Total Phosphorus (mg/kg)', 'Total_P_mg_kg', 'Total_P']:
+                if tp_key in soil_stats:
+                    tp_data = soil_stats[tp_key]
+                    if isinstance(tp_data, dict) and 'average' in tp_data:
+                        tp_avg = tp_data['average']
+                        break
+                    elif isinstance(tp_data, (int, float)):
+                        tp_avg = tp_data
+                        break
+
+            # Extract calcium data - try different possible parameter names
+            ca_avg = None
+            for ca_key in ['Exch. Ca (meq%)', 'Exchangeable Ca (meq%)', 'Ca (meq%)', 'Exchangeable_Ca_meq%', 'Ca_meq%']:
+                if ca_key in soil_stats:
+                    ca_data = soil_stats[ca_key]
+                    if isinstance(ca_data, dict) and 'average' in ca_data:
+                        ca_avg = ca_data['average']
+                        break
+                    elif isinstance(ca_data, (int, float)):
+                        ca_avg = ca_data
+                        break
+
+            # Extract magnesium data - try different possible parameter names
+            mg_avg = None
+            for mg_key in ['Exch. Mg (meq%)', 'Exchangeable Mg (meq%)', 'Mg (meq%)', 'Exchangeable_Mg_meq%', 'Mg_meq%']:
+                if mg_key in soil_stats:
+                    mg_data = soil_stats[mg_key]
+                    if isinstance(mg_data, dict) and 'average' in mg_data:
+                        mg_avg = mg_data['average']
+                        break
+                    elif isinstance(mg_data, (int, float)):
+                        mg_avg = mg_data
+                        break
+
         # If no data found in parameter_statistics, try direct access to soil_params
         elif soil_params and isinstance(soil_params, dict):
 
@@ -4373,43 +4433,43 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         except ValueError:
                             pass
 
-                    # Try to extract phosphorus values - ONLY as last resort if parameter_statistics failed
-                    p_matches = re.findall(r'phosphorus[^0-9]*([0-9.]+)', step_text_lower)
-                    if p_matches and not 'phosphorus' in soil_analysis_details:
-                        logger.warning(f"⚠️ Using text parsing fallback for phosphorus - found {len(p_matches)} matches: {p_matches}")
-                        try:
-                            p_val = float(p_matches[0])
-                            if p_val > 0:
-                                logger.warning(f"⚠️ Using text-parsed phosphorus value: {p_val} mg/kg")
-                                soil_analysis_details['phosphorus'] = {
-                                    'value': p_val,
-                                    'status': 'Low' if p_val < 15 else 'Optimal',
-                                    'optimal_range': '>15 mg/kg',
-                                    'unit': 'mg/kg'
-                                }
-                                if p_val < 15:
-                                    soil_issues.append(f"Available phosphorus measured at {p_val:.1f} mg/kg (deficient, optimal: >15 mg/kg). Phosphorus deficiency limits root development, flower initiation, and fruit set in oil palm.")
-                        except ValueError:
-                            pass
+                    # DISABLED: Text parsing fallback for phosphorus - should use parameter_statistics
+                    # p_matches = re.findall(r'phosphorus[^0-9]*([0-9.]+)', step_text_lower)
+                    # if p_matches and not 'phosphorus' in soil_analysis_details:
+                    #     logger.warning(f"⚠️ Using text parsing fallback for phosphorus - found {len(p_matches)} matches: {p_matches}")
+                    #     try:
+                    #         p_val = float(p_matches[0])
+                    #         if p_val > 0:
+                    #             logger.warning(f"⚠️ Using text-parsed phosphorus value: {p_val} mg/kg")
+                    #             soil_analysis_details['phosphorus'] = {
+                    #                 'value': p_val,
+                    #                 'status': 'Low' if p_val < 15 else 'Optimal',
+                    #                 'optimal_range': '>15 mg/kg',
+                    #                 'unit': 'mg/kg'
+                    #             }
+                    #             if p_val < 15:
+                    #                 soil_issues.append(f"Available phosphorus measured at {p_val:.1f} mg/kg (deficient, optimal: >15 mg/kg). Phosphorus deficiency limits root development, flower initiation, and fruit set in oil palm.")
+                    #     except ValueError:
+                    #         pass
 
-                    # Try to extract potassium values - ONLY as last resort if parameter_statistics failed
-                    k_matches = re.findall(r'potassium[^0-9]*([0-9.]+)', step_text_lower)
-                    if k_matches and not 'potassium' in soil_analysis_details:
-                        logger.warning(f"⚠️ Using text parsing fallback for potassium - found {len(k_matches)} matches: {k_matches}")
-                        try:
-                            k_val = float(k_matches[0])
-                            if k_val > 0:
-                                logger.warning(f"⚠️ Using text-parsed potassium value: {k_val} meq%")
-                                soil_analysis_details['potassium'] = {
-                                    'value': k_val,
-                                    'status': 'Low' if k_val < 0.15 else 'Optimal',
-                                    'optimal_range': '>0.15 meq%',
-                                    'unit': 'meq%'
-                                }
-                                if k_val < 0.15:
-                                    soil_issues.append(f"Exchangeable potassium measured at {k_val:.2f} meq% (deficient, optimal: >0.15 meq%). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
-                        except ValueError:
-                            pass
+                    # DISABLED: Text parsing fallback for potassium - should use parameter_statistics
+                    # k_matches = re.findall(r'potassium[^0-9]*([0-9.]+)', step_text_lower)
+                    # if k_matches and not 'potassium' in soil_analysis_details:
+                    #     logger.warning(f"⚠️ Using text parsing fallback for potassium - found {len(k_matches)} matches: {k_matches}")
+                    #     try:
+                    #         k_val = float(k_matches[0])
+                    #         if k_val > 0:
+                    #             logger.warning(f"⚠️ Using text-parsed potassium value: {k_val} meq%")
+                    #             soil_analysis_details['potassium'] = {
+                    #                 'value': k_val,
+                    #                 'status': 'Low' if k_val < 0.15 else 'Optimal',
+                    #                 'optimal_range': '>0.15 meq%',
+                    #                 'unit': 'meq%'
+                    #             }
+                    #             if k_val < 0.15:
+                    #                 soil_issues.append(f"Exchangeable potassium measured at {k_val:.2f} meq% (deficient, optimal: >0.15 meq%). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
+                    #     except ValueError:
+                    #         pass
 
         # Extract detailed leaf nutrient analysis data
         leaf_analysis_details = {}
@@ -4442,6 +4502,54 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                 }
                 if n_avg < 2.6:
                     nutrient_deficiencies.append(f"Leaf nitrogen measured at {n_avg:.2f}% (deficient, optimal range: 2.6-3.2%). Nitrogen deficiency causes chlorosis, reduced photosynthesis, and poor fruit development in oil palm.")
+
+            # Extract phosphorus data - try different possible parameter names
+            p_avg = None
+            for p_key in ['P (%)', 'Phosphorus (%)', 'P_%', 'P', 'Phosphorus_%', 'Phosphorus']:
+                if p_key in leaf_stats:
+                    p_data = leaf_stats[p_key]
+                    if isinstance(p_data, dict) and 'average' in p_data:
+                        p_avg = p_data['average']
+                        break
+                    elif isinstance(p_data, (int, float)):
+                        p_avg = p_data
+                        break
+
+            # Extract magnesium data - try different possible parameter names
+            mg_avg = None
+            for mg_key in ['Mg (%)', 'Magnesium (%)', 'Mg_%', 'Mg', 'Magnesium_%', 'Magnesium']:
+                if mg_key in leaf_stats:
+                    mg_data = leaf_stats[mg_key]
+                    if isinstance(mg_data, dict) and 'average' in mg_data:
+                        mg_avg = mg_data['average']
+                        break
+                    elif isinstance(mg_data, (int, float)):
+                        mg_avg = mg_data
+                        break
+
+            # Extract calcium data - try different possible parameter names
+            ca_avg = None
+            for ca_key in ['Ca (%)', 'Calcium (%)', 'Ca_%', 'Ca', 'Calcium_%', 'Calcium']:
+                if ca_key in leaf_stats:
+                    ca_data = leaf_stats[ca_key]
+                    if isinstance(ca_data, dict) and 'average' in ca_data:
+                        ca_avg = ca_data['average']
+                        break
+                    elif isinstance(ca_data, (int, float)):
+                        ca_avg = ca_data
+                        break
+
+            # Extract boron data - try different possible parameter names
+            b_avg = None
+            for b_key in ['B (mg/kg)', 'Boron (mg/kg)', 'B_mg_kg', 'B', 'Boron_mg_kg', 'Boron']:
+                if b_key in leaf_stats:
+                    b_data = leaf_stats[b_key]
+                    if isinstance(b_data, dict) and 'average' in b_data:
+                        b_avg = b_data['average']
+                        break
+                    elif isinstance(b_data, (int, float)):
+                        b_avg = b_data
+                        break
 
             # Extract potassium data - try different possible parameter names
             k_avg = None
@@ -4549,66 +4657,66 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         except ValueError:
                             pass
 
-                    # Try to extract potassium values from leaf - ONLY as last resort if parameter_statistics failed
-                    k_matches = re.findall(r'leaf potassium[^0-9]*([0-9.]+)', step_text_lower)
-                    if k_matches and not 'potassium' in leaf_analysis_details:
-                        logger.warning(f"⚠️ Using text parsing fallback for leaf potassium - found {len(k_matches)} matches: {k_matches}")
-                        try:
-                            k_val = float(k_matches[0])
-                            if k_val > 0:
-                                logger.warning(f"⚠️ Using text-parsed leaf potassium value: {k_val}%")
-                                leaf_analysis_details['potassium'] = {
-                                    'value': k_val,
-                                    'status': 'Low' if k_val < 1.3 else 'High' if k_val > 1.7 else 'Optimal',
-                                    'optimal_range': '1.3-1.7%',
-                                    'unit': '%'
-                                }
-                                if k_val < 1.3:
-                                    nutrient_deficiencies.append(f"Leaf potassium measured at {k_val:.2f}% (deficient, optimal range: 1.3-1.7%). Potassium deficiency affects water balance, disease resistance, and fruit quality.")
-                        except ValueError:
-                            pass
+                    # DISABLED: Text parsing fallback for leaf potassium - should use parameter_statistics
+                    # k_matches = re.findall(r'leaf potassium[^0-9]*([0-9.]+)', step_text_lower)
+                    # if k_matches and not 'potassium' in leaf_analysis_details:
+                    #     logger.warning(f"⚠️ Using text parsing fallback for leaf potassium - found {len(k_matches)} matches: {k_matches}")
+                    #     try:
+                    #         k_val = float(k_matches[0])
+                    #         if k_val > 0:
+                    #             logger.warning(f"⚠️ Using text-parsed leaf potassium value: {k_val}%")
+                    #             leaf_analysis_details['potassium'] = {
+                    #                 'value': k_val,
+                    #                 'status': 'Low' if k_val < 1.3 else 'High' if k_val > 1.7 else 'Optimal',
+                    #                 'optimal_range': '1.3-1.7%',
+                    #                 'unit': '%'
+                    #             }
+                    #             if k_val < 1.3:
+                    #                 nutrient_deficiencies.append(f"Leaf potassium measured at {k_val:.2f}% (deficient, optimal range: 1.3-1.7%). Potassium deficiency affects water balance, disease resistance, and fruit quality.")
+                    #     except ValueError:
+                    #         pass
 
-                    # Try to extract copper values - ONLY as last resort if parameter_statistics failed
-                    cu_matches = re.findall(r'copper[^0-9]*([0-9.]+)', step_text_lower)
-                    if cu_matches and not 'copper' in leaf_analysis_details:
-                        logger.warning(f"⚠️ Using text parsing fallback for copper - found {len(cu_matches)} matches: {cu_matches}")
-                        try:
-                            cu_val = float(cu_matches[0])
-                            if cu_val > 0:
-                                logger.warning(f"⚠️ Using text-parsed copper value: {cu_val} mg/kg")
-                                leaf_analysis_details['copper'] = {
-                                    'value': cu_val,
-                                    'status': 'Low' if cu_val < 6.0 else 'High' if cu_val > 10.0 else 'Optimal',
-                                    'optimal_range': '6.0-10.0 mg/kg',
-                                    'unit': 'mg/kg'
-                                }
-                                # Set cu_leaf for consolidated findings (fallback)
-                                if cu_leaf == 0:  # Only set if not already set from parameter statistics
-                                    cu_leaf = cu_val
-                                if cu_val < 6.0:
-                                    nutrient_deficiencies.append(f"Leaf copper measured at {cu_val:.1f} mg/kg (deficient, optimal range: 6.0-10.0 mg/kg). Copper deficiency affects enzyme function and lignin formation in palm fronds.")
-                        except ValueError:
-                            pass
+                    # DISABLED: Text parsing fallback for copper - should use parameter_statistics
+                    # cu_matches = re.findall(r'copper[^0-9]*([0-9.]+)', step_text_lower)
+                    # if cu_matches and not 'copper' in leaf_analysis_details:
+                    #     logger.warning(f"⚠️ Using text parsing fallback for copper - found {len(cu_matches)} matches: {cu_matches}")
+                    #     try:
+                    #         cu_val = float(cu_matches[0])
+                    #         if cu_val > 0:
+                    #             logger.warning(f"⚠️ Using text-parsed copper value: {cu_val} mg/kg")
+                    #             leaf_analysis_details['copper'] = {
+                    #                 'value': cu_val,
+                    #                 'status': 'Low' if cu_val < 6.0 else 'High' if cu_val > 10.0 else 'Optimal',
+                    #                 'optimal_range': '6.0-10.0 mg/kg',
+                    #                 'unit': 'mg/kg'
+                    #             }
+                    #             # Set cu_leaf for consolidated findings (fallback)
+                    #             if cu_leaf == 0:  # Only set if not already set from parameter statistics
+                    #                 cu_leaf = cu_val
+                    #             if cu_val < 6.0:
+                    #                 nutrient_deficiencies.append(f"Leaf copper measured at {cu_val:.1f} mg/kg (deficient, optimal range: 6.0-10.0 mg/kg). Copper deficiency affects enzyme function and lignin formation in palm fronds.")
+                    #     except ValueError:
+                    #         pass
 
-                    # Try to extract zinc values
-                    zn_matches = re.findall(r'zinc[^0-9]*([0-9.]+)', step_text_lower)
-                    if zn_matches and not 'zinc' in leaf_analysis_details:
-                        try:
-                            zn_val = float(zn_matches[0])
-                            if zn_val > 0:
-                                leaf_analysis_details['zinc'] = {
-                                    'value': zn_val,
-                                    'status': 'Low' if zn_val < 15 else 'High' if zn_val > 25 else 'Optimal',
-                                    'optimal_range': '15-25 mg/kg',
-                                    'unit': 'mg/kg'
-                                }
-                                # Set zn_leaf for consolidated findings (fallback)
-                                if zn_leaf == 0:  # Only set if not already set from parameter statistics
-                                    zn_leaf = zn_val
-                                if zn_val < 15:
-                                    nutrient_deficiencies.append(f"Leaf zinc measured at {zn_val:.1f} mg/kg (deficient, optimal range: 15-25 mg/kg). Zinc deficiency impacts hormone production and chlorophyll synthesis.")
-                        except ValueError:
-                            pass
+                    # DISABLED: Text parsing fallback for zinc - should use parameter_statistics
+                    # zn_matches = re.findall(r'zinc[^0-9]*([0-9.]+)', step_text_lower)
+                    # if zn_matches and not 'zinc' in leaf_analysis_details:
+                    #     try:
+                    #         zn_val = float(zn_matches[0])
+                    #         if zn_val > 0:
+                    #             leaf_analysis_details['zinc'] = {
+                    #                 'value': zn_val,
+                    #                 'status': 'Low' if zn_val < 15 else 'High' if zn_val > 25 else 'Optimal',
+                    #                 'optimal_range': '15-25 mg/kg',
+                    #                 'unit': 'mg/kg'
+                    #             }
+                    #             # Set zn_leaf for consolidated findings (fallback)
+                    #             if zn_leaf == 0:  # Only set if not already set from parameter statistics
+                    #                 zn_leaf = zn_val
+                    #             if zn_val < 15:
+                    #                 nutrient_deficiencies.append(f"Leaf zinc measured at {zn_val:.1f} mg/kg (deficient, optimal range: 15-25 mg/kg). Zinc deficiency impacts hormone production and chlorophyll synthesis.")
+                    #     except ValueError:
+                    #         pass
 
         # Process step results to extract additional findings and recommendations
         if step_results and isinstance(step_results, list):
