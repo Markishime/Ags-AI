@@ -4847,8 +4847,8 @@ class PromptAnalyzer:
 
                             text_parts.append(f"#### 🚀 {scenario_title}")
                             text_parts.append("")
-                            text_parts.append("| Year | Yield improvement t/ha | Revenue RM/ha | Input cost RM/ha | Net profit RM/ha | Cumulative net profit RM/ha |")
-                            text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|")
+                            text_parts.append("| Year | Yield improvement t/ha | Revenue RM/ha | Input cost RM/ha | Net profit RM/ha | Cumulative net profit RM/ha | ROI % |")
+                            text_parts.append("|------|--------------------------|-----------------|-------------------|-------------------|--------------------------------|-------|")
 
                             cumulative_low = 0
                             cumulative_high = 0
@@ -4866,6 +4866,8 @@ class PromptAnalyzer:
                                     cost_high = year_data.get('cost_high', 0)
                                     net_profit_low = year_data.get('net_profit_low', 0)
                                     net_profit_high = year_data.get('net_profit_high', 0)
+                                    roi_low = year_data.get('roi_low', 0)
+                                    roi_high = year_data.get('roi_high', 0)
 
                                     # Calculate cumulative profits
                                     cumulative_low += net_profit_low
@@ -4877,8 +4879,9 @@ class PromptAnalyzer:
                                     total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
                                     net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
                                     cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+                                    roi_val = f"{roi_low:.1f}%-{roi_high:.1f}%" if roi_low != roi_high else f"{roi_low:.1f}%"
 
-                                    text_parts.append(f"| {year} | {yield_improvement_val} | {additional_revenue_val} | {total_cost_val} | {net_profit_val} | {cumulative_val} |")
+                                    text_parts.append(f"| {year} | {yield_improvement_val} | {additional_revenue_val} | {total_cost_val} | {net_profit_val} | {cumulative_val} | {roi_val} |")
 
                             text_parts.append("")
                             text_parts.append("*Per hectare calculations showing progressive yield improvements and profitability over 5 years*")
@@ -4958,6 +4961,7 @@ class PromptAnalyzer:
                             table_rows = []
                             cumulative_low = 0
                             cumulative_high = 0
+                            initial_investment_avg = 0  # For ROI calculation
 
                             for year_data in yearly_data:
                                 if isinstance(year_data, dict):
@@ -4972,6 +4976,8 @@ class PromptAnalyzer:
                                     cost_high = year_data.get('cost_high', 0)
                                     net_profit_low = year_data.get('net_profit_low', 0)
                                     net_profit_high = year_data.get('net_profit_high', 0)
+                                    roi_low = year_data.get('roi_low', 0)
+                                    roi_high = year_data.get('roi_high', 0)
 
                                     # Calculate cumulative profits
                                     cumulative_low += net_profit_low
@@ -4983,6 +4989,7 @@ class PromptAnalyzer:
                                     total_cost_val = f"{cost_low:,.0f}-{cost_high:,.0f}" if cost_low != cost_high else f"{cost_low:,.0f}"
                                     net_profit_val = f"{net_profit_low:,.0f}-{net_profit_high:,.0f}" if net_profit_low != net_profit_high else f"{net_profit_low:,.0f}"
                                     cumulative_val = f"{cumulative_low:,.0f}-{cumulative_high:,.0f}" if cumulative_low != cumulative_high else f"{cumulative_low:,.0f}"
+                                    roi_val = f"{roi_low:.1f}%-{roi_high:.1f}%" if roi_low != roi_high else f"{roi_low:.1f}%"
 
                                     table_rows.append([
                                         year,
@@ -4990,13 +4997,14 @@ class PromptAnalyzer:
                                         additional_revenue_val,
                                         total_cost_val,
                                         net_profit_val,
-                                        cumulative_val
+                                        cumulative_val,
+                                        roi_val
                                     ])
 
                             # Create structured table
                             structured_table = {
                                 'title': f'5-Year Economic Forecast: {scenario_title}',
-                                'headers': ['Year', 'Yield improvement t/ha', 'Revenue RM/ha', 'Input cost RM/ha', 'Net profit RM/ha', 'Cumulative net profit RM/ha'],
+                                'headers': ['Year', 'Yield improvement t/ha', 'Revenue RM/ha', 'Input cost RM/ha', 'Net profit RM/ha', 'Cumulative net profit RM/ha', 'ROI %'],
                                 'rows': table_rows
                             }
                             structured_tables.append(structured_table)
