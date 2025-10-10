@@ -2694,6 +2694,8 @@ class PromptAnalyzer:
             - This is Step {step['number']} of a {total_step_count} step analysis process
             - Step Title: {step['title']}
             - Total Steps in Analysis: {total_step_count}
+            - {'CRITICAL: For Step 1 (Data Analysis), when generating "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards", you MUST NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.' if step['number'] == 1 else ''}
+            - {'CRITICAL: For Step 1 (Data Analysis), when generating the Nutrient Gap Analysis table, you MUST determine severity based on percent gap magnitude: Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". The Severity column MUST show a value for ALL rows - do not leave it blank or use "-".' if step['number'] == 1 else ''}
             - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
             - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Use these EXACT table headers: "Year", "Yield improvement t/ha", "Revenue RM/ha", "Input cost RM/ha", "Net profit RM/ha", "Cumulative net profit RM/ha", "ROI %". Do NOT use old headers like "Yield Improvement (t/ha)" or "Additional Revenue (RM)". Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
             - {'CRITICAL: For Step 6 (Yield Forecast & Projections), you MUST NOT include any net profit forecasts, economic projections, cost-benefit analysis, or financial calculations. Focus ONLY on yield projections and production forecasts in tonnes per hectare. Do NOT mention or calculate any monetary values, ROI, or economic returns.' if step['number'] == 6 else ''}
@@ -2739,8 +2741,10 @@ class PromptAnalyzer:
             - For soil parameter tables, use titles like "Soil Parameters Summary", "Soil Analysis Results", or "Soil Nutrient Status"
             - For comparison tables, use titles like "Soil Analysis: Plantation Average vs. MPOB Standards" or "Parameter Comparison Analysis"
             - CRITICAL: Comparison tables MUST show all parameters, including those with "N/A" values for missing data
+            - CRITICAL: For "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards", you MUST NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.
             - CRITICAL: For Nutrient Gap Analysis tables, you MUST sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last)
             - CRITICAL: Nutrient Gap Analysis tables must show the most severe deficiencies at the top of the table
+            - CRITICAL: For Nutrient Gap Analysis tables, the Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row.
             
             FORECAST DETECTION:
             - If the step title or description contains words like "forecast", "projection", "5-year", "yield forecast", "graph", or "chart", you MUST include yield_forecast data
@@ -2779,13 +2783,15 @@ class PromptAnalyzer:
             30. MANDATORY: For table generation: If the step mentions specific parameters, include those parameters in the table with their actual values from all samples
             31. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
             32. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
-            33. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
-            34. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
-            35. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
-            36. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
-            37. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
-            38. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
-            39. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            33. MANDATORY: For "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards": DO NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.
+            34. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
+            35. MANDATORY: For Nutrient Gap Analysis tables: Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row.
+            36. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
+            37. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
+            38. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
+            39. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
+            40. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
+            41. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
@@ -4380,51 +4386,178 @@ class PromptAnalyzer:
 
         # Parameter Analysis Matrix
         text_parts.append("## Parameter Analysis Matrix\n")
-        text_parts.append("| Parameter | Average Value | MPOB Standard | Deviation (%) | Status | Priority | Cost Impact (RM/ha) |")
-        text_parts.append("|-----------|---------------|---------------|---------------|--------|----------|-------------------|")
+        text_parts.append("| Parameter | Average Value | MPOB Standard | Status | Priority | Cost Impact (RM/ha) |")
+        text_parts.append("|-----------|---------------|---------------|--------|----------|-------------------|")
 
         # Generate matrix rows based on actual data
         params_data = []
+
+        # Helper function to determine status based on gap percentage
+        def get_status_from_gap(gap_percent):
+            if gap_percent <= 5:
+                return 'Balanced'
+            elif gap_percent <= 15:
+                return 'Low'
+            else:
+                return 'Critically Low'
         
         # Add parameters only if they exist in the data
         if soil_ph:
-            params_data.append(('Soil pH', soil_ph, '5.0–6.0', ((soil_ph-5.25)/5.25)*100, 'Below Optimal' if soil_ph < 5.0 or soil_ph > 6.0 else 'Optimal', 'Critical' if soil_ph < 5.0 or soil_ph > 6.0 else 'Low', 750))
+            # Calculate gap percentage for pH range 5.0-6.0
+            ph_min, ph_max = 5.0, 6.0
+            if soil_ph < ph_min:
+                gap_percent = ((ph_min - soil_ph) / ph_min) * 100
+            elif soil_ph > ph_max:
+                gap_percent = ((soil_ph - ph_max) / ph_max) * 100
+            else:
+                gap_percent = 0
+
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Soil pH', soil_ph, '5.0–6.0', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 750))
         
         if oc_val:
-            params_data.append(('Soil Organic C (%)', oc_val, '1.5–2.5', ((oc_val-2.0)/2.0)*100, 'Critically Low' if oc_val < 1.5 else 'Optimal', 'High' if oc_val < 1.5 else 'Low', 'N/A'))
-        
+            # Calculate gap percentage for Organic C range 1.5-2.5
+            oc_min, oc_max = 1.5, 2.5
+            if oc_val < oc_min:
+                gap_percent = ((oc_min - oc_val) / oc_min) * 100
+            elif oc_val > oc_max:
+                gap_percent = ((oc_val - oc_max) / oc_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Soil Organic C (%)', oc_val, '1.5–2.5', gap_percent, status, 'High' if status == 'Critically Low' else 'Low', 'N/A'))
+
         if cec_val:
-            params_data.append(('Soil CEC (meq%)', cec_val, '15–25', ((cec_val-20)/20)*100, 'Critically Low' if cec_val < 15 else 'Optimal', 'Critical' if cec_val < 15 else 'Low', 'N/A'))
-        
+            # Calculate gap percentage for CEC range 15-25
+            cec_min, cec_max = 15, 25
+            if cec_val < cec_min:
+                gap_percent = ((cec_min - cec_val) / cec_min) * 100
+            elif cec_val > cec_max:
+                gap_percent = ((cec_val - cec_max) / cec_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Soil CEC (meq%)', cec_val, '15–25', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 'N/A'))
+
         if avail_p:
-            params_data.append(('Soil Avail. P (mg/kg)', avail_p, '10–20', ((avail_p-15)/15)*100, 'Critically Low' if avail_p < 10 else 'Optimal', 'High' if avail_p < 10 else 'Low', 300))
-        
+            # Calculate gap percentage for Available P range 10-20
+            p_min, p_max = 10, 20
+            if avail_p < p_min:
+                gap_percent = ((p_min - avail_p) / p_min) * 100
+            elif avail_p > p_max:
+                gap_percent = ((avail_p - p_max) / p_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Soil Avail. P (mg/kg)', avail_p, '10–20', gap_percent, status, 'High' if status == 'Critically Low' else 'Low', 300))
+
         if k_soil:
-            params_data.append(('Soil Exch. K (meq%)', k_soil, '0.20–0.40', ((k_soil-0.30)/0.30)*100, 'Critically Low' if k_soil < 0.20 else 'Optimal', 'Critical' if k_soil < 0.20 else 'Low', 1600))
-        
+            # Calculate gap percentage for Exchangeable K range 0.20-0.40
+            k_min, k_max = 0.20, 0.40
+            if k_soil < k_min:
+                gap_percent = ((k_min - k_soil) / k_min) * 100
+            elif k_soil > k_max:
+                gap_percent = ((k_soil - k_max) / k_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Soil Exch. K (meq%)', k_soil, '0.20–0.40', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 1600))
+
         if mg_soil:
-            params_data.append(('Soil Exch. Mg (meq%)', mg_soil, '0.6–1.2', ((mg_soil-0.9)/0.9)*100, 'Critically Low' if mg_soil < 0.6 else 'Optimal', 'Critical' if mg_soil < 0.6 else 'Low', 225))
+            # Calculate gap percentage for Exchangeable Mg range 0.6-1.2
+            mg_min, mg_max = 0.6, 1.2
+            if mg_soil < mg_min:
+                gap_percent = ((mg_min - mg_soil) / mg_min) * 100
+            elif mg_soil > mg_max:
+                gap_percent = ((mg_soil - mg_max) / mg_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Soil Exch. Mg (meq%)', mg_soil, '0.6–1.2', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 225))
         
         if n_leaf:
-            params_data.append(('Leaf N (%)', n_leaf, '2.4–2.8', ((n_leaf-2.6)/2.6)*100, 'Below Optimal' if n_leaf < 2.4 or n_leaf > 2.8 else 'Optimal', 'High' if n_leaf < 2.4 or n_leaf > 2.8 else 'Low', 450))
-        
+            # Calculate gap percentage for Leaf N range 2.4-2.8
+            n_min, n_max = 2.4, 2.8
+            if n_leaf < n_min:
+                gap_percent = ((n_min - n_leaf) / n_min) * 100
+            elif n_leaf > n_max:
+                gap_percent = ((n_leaf - n_max) / n_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf N (%)', n_leaf, '2.4–2.8', gap_percent, status, 'High' if status == 'Critically Low' else 'Low', 450))
+
         if k_leaf:
-            params_data.append(('Leaf K (%)', k_leaf, '0.9–1.3', ((k_leaf-1.05)/1.05)*100, 'Critically Low' if k_leaf < 0.9 else 'Optimal', 'Critical' if k_leaf < 0.9 else 'Low', 1600))
-        
+            # Calculate gap percentage for Leaf K range 0.9-1.3
+            k_min, k_max = 0.9, 1.3
+            if k_leaf < k_min:
+                gap_percent = ((k_min - k_leaf) / k_min) * 100
+            elif k_leaf > k_max:
+                gap_percent = ((k_leaf - k_max) / k_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf K (%)', k_leaf, '0.9–1.3', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 1600))
+
         if mg_leaf:
-            params_data.append(('Leaf Mg (%)', mg_leaf, '0.25–0.45', ((mg_leaf-0.30)/0.30)*100, 'Critically Low' if mg_leaf < 0.25 else 'Optimal', 'Critical' if mg_leaf < 0.25 else 'Low', 225))
+            # Calculate gap percentage for Leaf Mg range 0.25-0.45
+            mg_min, mg_max = 0.25, 0.45
+            if mg_leaf < mg_min:
+                gap_percent = ((mg_min - mg_leaf) / mg_min) * 100
+            elif mg_leaf > mg_max:
+                gap_percent = ((mg_leaf - mg_max) / mg_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf Mg (%)', mg_leaf, '0.25–0.45', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 225))
         
         if ca_leaf:
-            params_data.append(('Leaf Ca (%)', ca_leaf, '0.5–0.9', ((ca_leaf-0.60)/0.60)*100, 'Optimal', 'Low', 0))
-        
+            # Calculate gap percentage for Leaf Ca range 0.5-0.9
+            ca_min, ca_max = 0.5, 0.9
+            if ca_leaf < ca_min:
+                gap_percent = ((ca_min - ca_leaf) / ca_min) * 100
+            elif ca_leaf > ca_max:
+                gap_percent = ((ca_leaf - ca_max) / ca_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf Ca (%)', ca_leaf, '0.5–0.9', gap_percent, status, 'Low', 0))
+
         if b_leaf:
-            params_data.append(('Leaf B (mg/kg)', b_leaf, '18–28', ((b_leaf-23)/23)*100, 'Optimal', 'Low', 0))
-        
+            # Calculate gap percentage for Leaf B range 18-28
+            b_min, b_max = 18, 28
+            if b_leaf < b_min:
+                gap_percent = ((b_min - b_leaf) / b_min) * 100
+            elif b_leaf > b_max:
+                gap_percent = ((b_leaf - b_max) / b_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf B (mg/kg)', b_leaf, '18–28', gap_percent, status, 'Low', 0))
+
         if cu_leaf:
-            params_data.append(('Leaf Cu (mg/kg)', cu_leaf, '8–18', ((cu_leaf-13)/13)*100, 'Critically Low' if cu_leaf < 8 else 'Optimal', 'High' if cu_leaf < 8 else 'Low', 75))
-        
+            # Calculate gap percentage for Leaf Cu range 8-18
+            cu_min, cu_max = 8, 18
+            if cu_leaf < cu_min:
+                gap_percent = ((cu_min - cu_leaf) / cu_min) * 100
+            elif cu_leaf > cu_max:
+                gap_percent = ((cu_leaf - cu_max) / cu_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf Cu (mg/kg)', cu_leaf, '8–18', gap_percent, status, 'High' if status == 'Critically Low' else 'Low', 75))
+
         if zn_leaf:
-            params_data.append(('Leaf Zn (mg/kg)', zn_leaf, '18–35', ((zn_leaf-26.5)/26.5)*100, 'Critically Low' if zn_leaf < 18 else 'Optimal', 'High' if zn_leaf < 18 else 'Low', 75))
+            # Calculate gap percentage for Leaf Zn range 18-35
+            zn_min, zn_max = 18, 35
+            if zn_leaf < zn_min:
+                gap_percent = ((zn_min - zn_leaf) / zn_min) * 100
+            elif zn_leaf > zn_max:
+                gap_percent = ((zn_leaf - zn_max) / zn_max) * 100
+            else:
+                gap_percent = 0
+            status = get_status_from_gap(gap_percent)
+            params_data.append(('Leaf Zn (mg/kg)', zn_leaf, '18–35', gap_percent, status, 'High' if status == 'Critically Low' else 'Low', 75))
 
         for param, avg_val, mpob_std, deviation, status, priority, cost in params_data:
             if isinstance(avg_val, float):
@@ -4434,7 +4567,7 @@ class PromptAnalyzer:
                     val_str = f"{avg_val:.3f}"
             else:
                 val_str = str(avg_val)
-            text_parts.append("| {} | {} | {} | {:.1f}% | {} | {} | {} |".format(param, val_str, mpob_std, deviation, status, priority, cost))
+            text_parts.append("| {} | {} | {} | {} | {} | {} |".format(param, val_str, mpob_std, status, priority, cost))
 
         text_parts.append("\n**Notes:** Costs reflect the High-Investment scenario for corrective actions.\n")
 
