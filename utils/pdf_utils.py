@@ -267,14 +267,6 @@ class PDFReportGenerator:
                 story.append(Paragraph("Executive Summary", self.styles['Heading2']))
                 story.append(Paragraph("Summary could not be generated due to technical issues.", self.styles['Normal']))
             
-            try:
-                # 4. Key Findings - COPY FROM RESULTS PAGE
-                if options.get('include_key_findings', True):
-                    story.extend(self._create_consolidated_key_findings_section(analysis_data))
-            except Exception as e:
-                logger.error(f"Error creating key findings: {str(e)}")
-                story.append(Paragraph("Key Findings", self.styles['Heading2']))
-                story.append(Paragraph("Key findings could not be generated due to technical issues.", self.styles['Normal']))
             
             try:
                 # 4b. Top-level Data Tables (copy behavior from results page)
@@ -7433,50 +7425,6 @@ class PDFReportGenerator:
         """Create data quality summary table with robust data - disabled"""
         return []
 
-    def _create_consolidated_key_findings_section(self, analysis_data: Dict[str, Any]) -> List:
-        """Create consolidated key findings section by calling the results module function"""
-        story = []
-        
-        try:
-            # Import the results module function directly
-            from modules.results import generate_consolidated_key_findings
-            
-            # Extract step results for key findings generation
-            step_results = analysis_data.get('step_by_step_analysis', [])
-            if not step_results:
-                # Try alternative locations
-                step_results = analysis_data.get('analysis_results', [])
-                if not step_results:
-                    step_results = [analysis_data]  # Use the whole analysis data as a single step
-            
-            # Generate consolidated key findings
-            consolidated_findings = generate_consolidated_key_findings(analysis_data, step_results)
-            
-            if consolidated_findings:
-                story.append(Paragraph("🌱 Consolidated Findings", self.styles['Heading2']))
-                story.append(Spacer(1, 12))
-                
-                for finding in consolidated_findings:
-                    if isinstance(finding, dict):
-                        title = finding.get('title', 'Finding')
-                        description = finding.get('description', 'No description available')
-                        
-                        story.append(Paragraph(title, self.styles['Heading4']))
-                        story.append(Paragraph(description, self.styles['Normal']))
-                        story.append(Spacer(1, 8))
-                    else:
-                        story.append(Paragraph(str(finding), self.styles['Normal']))
-                        story.append(Spacer(1, 6))
-            else:
-                story.append(Paragraph("🌱 Consolidated Findings", self.styles['Heading2']))
-                story.append(Spacer(1, 12))
-                story.append(Paragraph("No consolidated findings available.", self.styles['Normal']))
-        
-        except Exception as e:
-            logger.error(f"Error creating consolidated key findings section: {str(e)}")
-            story.append(Paragraph("Error generating key findings section", self.styles['Normal']))
-
-        return story
 
     def _create_comprehensive_visualizations_section(self, analysis_data: Dict[str, Any]) -> List:
         """Create comprehensive visualizations section with all charts and graphs"""
