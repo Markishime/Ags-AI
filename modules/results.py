@@ -4110,13 +4110,17 @@ def generate_consolidated_key_findings(analysis_results, step_results):
         leaf_params = None
         land_yield_data = None
 
+        logger.info("🔍 Extracting nutrient data for consolidated findings")
+
         # Try the same data sources as display_raw_data_section
         # 1. From analysis_results directly (soil_data, leaf_data)
         if isinstance(analysis_results, dict):
             if 'soil_data' in analysis_results:
                 soil_params = analysis_results['soil_data']
+                logger.info(f"✅ Found soil_data in analysis_results: {type(soil_params)}")
             if 'leaf_data' in analysis_results:
                 leaf_params = analysis_results['leaf_data']
+                logger.info(f"✅ Found leaf_data in analysis_results: {type(leaf_params)}")
 
         # 2. From analysis_results.raw_data (legacy format)
         if not soil_params and not leaf_params and isinstance(analysis_results, dict) and 'raw_data' in analysis_results:
@@ -4124,24 +4128,45 @@ def generate_consolidated_key_findings(analysis_results, step_results):
             if isinstance(raw_data, dict):
                 if 'soil_data' in raw_data:
                     soil_params = raw_data['soil_data']
+                    logger.info(f"✅ Found soil_data in raw_data: {type(soil_params)}")
                 elif 'soil_parameters' in raw_data:
                     soil_params = raw_data['soil_parameters']
+                    logger.info(f"✅ Found soil_parameters in raw_data: {type(soil_params)}")
 
                 if 'leaf_data' in raw_data:
                     leaf_params = raw_data['leaf_data']
+                    logger.info(f"✅ Found leaf_data in raw_data: {type(leaf_params)}")
                 elif 'leaf_parameters' in raw_data:
                     leaf_params = raw_data['leaf_parameters']
+                    logger.info(f"✅ Found leaf_parameters in raw_data: {type(leaf_params)}")
 
         # 3. Try session state structured data (this is where the data actually is)
         if not soil_params and hasattr(st, 'session_state') and hasattr(st.session_state, 'structured_soil_data') and st.session_state.structured_soil_data:
             from utils.analysis_engine import AnalysisEngine
             engine = AnalysisEngine()
             soil_params = engine._convert_structured_to_analysis_format(st.session_state.structured_soil_data, 'soil')
+            logger.info(f"✅ Converted structured soil data: {type(soil_params)}")
 
         if not leaf_params and hasattr(st, 'session_state') and hasattr(st.session_state, 'structured_leaf_data') and st.session_state.structured_leaf_data:
             from utils.analysis_engine import AnalysisEngine
             engine = AnalysisEngine()
             leaf_params = engine._convert_structured_to_analysis_format(st.session_state.structured_leaf_data, 'leaf')
+            logger.info(f"✅ Converted structured leaf data: {type(leaf_params)}")
+
+        # Log what we found
+        if soil_params:
+            logger.info(f"Soil params keys: {list(soil_params.keys()) if isinstance(soil_params, dict) else 'Not dict'}")
+            if isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
+                logger.info(f"Soil parameter_statistics keys: {list(soil_params['parameter_statistics'].keys())}")
+        else:
+            logger.warning("❌ No soil_params found")
+
+        if leaf_params:
+            logger.info(f"Leaf params keys: {list(leaf_params.keys()) if isinstance(leaf_params, dict) else 'Not dict'}")
+            if isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
+                logger.info(f"Leaf parameter_statistics keys: {list(leaf_params['parameter_statistics'].keys())}")
+        else:
+            logger.warning("❌ No leaf_params found")
 
         # Extract land_yield_data if available
         if isinstance(analysis_results, dict):
@@ -4152,6 +4177,39 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
         # Extract detailed soil analysis data
         soil_analysis_details = {}
+
+        # Calculate averages from parameter_statistics (same as comprehensive data analysis tables)
+        soil_averages = {}
+        leaf_averages = {}
+
+        if soil_params and 'parameter_statistics' in soil_params:
+            soil_stats = soil_params['parameter_statistics']
+            logger.info(f"✅ Processing soil parameter_statistics with {len(soil_stats)} parameters")
+            # Calculate averages for consolidated findings
+            for param, stats in soil_stats.items():
+                if isinstance(stats, dict) and 'average' in stats:
+                    avg_val = stats['average']
+                    if isinstance(avg_val, (int, float)) and avg_val > 0:
+                        soil_averages[param] = avg_val
+                        logger.info(f"Soil average: {param} = {avg_val}")
+        else:
+            logger.warning("❌ No soil parameter_statistics found")
+
+        if leaf_params and 'parameter_statistics' in leaf_params:
+            leaf_stats = leaf_params['parameter_statistics']
+            logger.info(f"✅ Processing leaf parameter_statistics with {len(leaf_stats)} parameters")
+            # Calculate averages for consolidated findings
+            for param, stats in leaf_stats.items():
+                if isinstance(stats, dict) and 'average' in stats:
+                    avg_val = stats['average']
+                    if isinstance(avg_val, (int, float)) and avg_val > 0:
+                        leaf_averages[param] = avg_val
+                        logger.info(f"Leaf average: {param} = {avg_val}")
+        else:
+            logger.warning("❌ No leaf parameter_statistics found")
+
+        logger.info(f"Final soil_averages: {soil_averages}")
+        logger.info(f"Final leaf_averages: {leaf_averages}")
 
         # Check if data is in parameter_statistics format
         if soil_params and 'parameter_statistics' in soil_params:
@@ -4181,7 +4239,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract phosphorus data - try different possible parameter names
             p_avg = None
-            for p_key in ['Available_P_mg_kg', 'P_mg_kg', 'Phosphorus_mg_kg', 'Available_P']:
+            for p_key in ['Avail P (mg/kg)', 'Available P (mg/kg)', 'P (mg/kg)', 'Available_P_mg_kg', 'P_mg_kg', 'Phosphorus_mg_kg', 'Available_P']:
                 if p_key in soil_stats:
                     p_data = soil_stats[p_key]
                     if isinstance(p_data, dict) and 'average' in p_data:
@@ -4203,7 +4261,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract potassium data - try different possible parameter names
             k_avg = None
-            for k_key in ['Exchangeable_K_meq%', 'K_meq%', 'Potassium_meq%', 'Exchangeable_K']:
+            for k_key in ['Exch. K (meq%)', 'Exchangeable K (meq%)', 'K (meq%)', 'Exchangeable_K_meq%', 'K_meq%', 'Potassium_meq%', 'Exchangeable_K']:
                 if k_key in soil_stats:
                     k_data = soil_stats[k_key]
                     if isinstance(k_data, dict) and 'average' in k_data:
@@ -4225,7 +4283,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract CEC data - try different possible parameter names
             cec_avg = None
-            for cec_key in ['CEC_meq%', 'CEC', 'Cation_Exchange_Capacity']:
+            for cec_key in ['CEC (meq%)', 'CEC (meq%)', 'Cation Exchange Capacity (meq%)', 'CEC_meq%', 'CEC', 'Cation_Exchange_Capacity']:
                 if cec_key in soil_stats:
                     cec_data = soil_stats[cec_key]
                     if isinstance(cec_data, dict) and 'average' in cec_data:
@@ -4285,7 +4343,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
         if not soil_analysis_details and step_results:
             for step in step_results:
                 if not isinstance(step, dict):
-                    continue
+                                        continue
 
                 step_text = ""
                 for field in ['detailed_analysis', 'analysis_text', 'content', 'description', 'result', 'summary']:
@@ -4315,12 +4373,14 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         except ValueError:
                             pass
 
-                    # Try to extract phosphorus values
+                    # Try to extract phosphorus values - ONLY as last resort if parameter_statistics failed
                     p_matches = re.findall(r'phosphorus[^0-9]*([0-9.]+)', step_text_lower)
                     if p_matches and not 'phosphorus' in soil_analysis_details:
+                        logger.warning(f"⚠️ Using text parsing fallback for phosphorus - found {len(p_matches)} matches: {p_matches}")
                         try:
                             p_val = float(p_matches[0])
                             if p_val > 0:
+                                logger.warning(f"⚠️ Using text-parsed phosphorus value: {p_val} mg/kg")
                                 soil_analysis_details['phosphorus'] = {
                                     'value': p_val,
                                     'status': 'Low' if p_val < 15 else 'Optimal',
@@ -4332,12 +4392,14 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         except ValueError:
                             pass
 
-                    # Try to extract potassium values
+                    # Try to extract potassium values - ONLY as last resort if parameter_statistics failed
                     k_matches = re.findall(r'potassium[^0-9]*([0-9.]+)', step_text_lower)
                     if k_matches and not 'potassium' in soil_analysis_details:
+                        logger.warning(f"⚠️ Using text parsing fallback for potassium - found {len(k_matches)} matches: {k_matches}")
                         try:
                             k_val = float(k_matches[0])
                             if k_val > 0:
+                                logger.warning(f"⚠️ Using text-parsed potassium value: {k_val} meq%")
                                 soil_analysis_details['potassium'] = {
                                     'value': k_val,
                                     'status': 'Low' if k_val < 0.15 else 'Optimal',
@@ -4351,12 +4413,17 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
         # Extract detailed leaf nutrient analysis data
         leaf_analysis_details = {}
+
+        # Calculate cu_leaf and zn_leaf for consolidated findings
+        cu_leaf = 0
+        zn_leaf = 0
+
         if leaf_params and 'parameter_statistics' in leaf_params:
             leaf_stats = leaf_params['parameter_statistics']
 
             # Extract nitrogen data - try different possible parameter names
             n_avg = None
-            for n_key in ['N_%', 'N', 'Nitrogen_%', 'Nitrogen']:
+            for n_key in ['N (%)', 'Nitrogen (%)', 'N_%', 'N', 'Nitrogen_%', 'Nitrogen']:
                 if n_key in leaf_stats:
                     n_data = leaf_stats[n_key]
                     if isinstance(n_data, dict) and 'average' in n_data:
@@ -4378,7 +4445,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract potassium data - try different possible parameter names
             k_avg = None
-            for k_key in ['K_%', 'K', 'Potassium_%', 'Potassium']:
+            for k_key in ['K (%)', 'Potassium (%)', 'K_%', 'K', 'Potassium_%', 'Potassium']:
                 if k_key in leaf_stats:
                     k_data = leaf_stats[k_key]
                     if isinstance(k_data, dict) and 'average' in k_data:
@@ -4400,7 +4467,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract copper data - try different possible parameter names
             cu_avg = None
-            for cu_key in ['Cu_mg_kg', 'Cu', 'Copper_mg_kg', 'Copper']:
+            for cu_key in ['Cu (mg/kg)', 'Copper (mg/kg)', 'Cu_mg_kg', 'Cu', 'Copper_mg_kg', 'Copper']:
                 if cu_key in leaf_stats:
                     cu_data = leaf_stats[cu_key]
                     if isinstance(cu_data, dict) and 'average' in cu_data:
@@ -4417,12 +4484,14 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                     'optimal_range': '6.0-10.0 mg/kg',
                     'unit': 'mg/kg'
                 }
+                # Set cu_leaf for consolidated findings
+                cu_leaf = cu_avg
                 if cu_avg < 6.0:
                     nutrient_deficiencies.append(f"Leaf copper measured at {cu_avg:.1f} mg/kg (deficient, optimal range: 6.0-10.0 mg/kg). Copper deficiency affects enzyme function and lignin formation in palm fronds.")
 
             # Extract zinc data - try different possible parameter names
             zn_avg = None
-            for zn_key in ['Zn_mg_kg', 'Zn', 'Zinc_mg_kg', 'Zinc']:
+            for zn_key in ['Zn (mg/kg)', 'Zinc (mg/kg)', 'Zn_mg_kg', 'Zn', 'Zinc_mg_kg', 'Zinc']:
                 if zn_key in leaf_stats:
                     zn_data = leaf_stats[zn_key]
                     if isinstance(zn_data, dict) and 'average' in zn_data:
@@ -4439,6 +4508,8 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                     'optimal_range': '15-25 mg/kg',
                     'unit': 'mg/kg'
                 }
+                # Set zn_leaf for consolidated findings
+                zn_leaf = zn_avg
                 if zn_avg < 15:
                     nutrient_deficiencies.append(f"Leaf zinc measured at {zn_avg:.1f} mg/kg (deficient, optimal range: 15-25 mg/kg). Zinc deficiency impacts hormone production and chlorophyll synthesis.")
 
@@ -4459,12 +4530,14 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                     step_text_lower = step_text.lower()
                     import re
 
-                    # Try to extract nitrogen values
+                    # Try to extract nitrogen values - ONLY as last resort if parameter_statistics failed
                     n_matches = re.findall(r'nitrogen[^0-9]*([0-9.]+)', step_text_lower)
                     if n_matches and not 'nitrogen' in leaf_analysis_details:
+                        logger.warning(f"⚠️ Using text parsing fallback for nitrogen - found {len(n_matches)} matches: {n_matches}")
                         try:
                             n_val = float(n_matches[0])
                             if n_val > 0:
+                                logger.warning(f"⚠️ Using text-parsed nitrogen value: {n_val}%")
                                 leaf_analysis_details['nitrogen'] = {
                                     'value': n_val,
                                     'status': 'Low' if n_val < 2.6 else 'High' if n_val > 3.2 else 'Optimal',
@@ -4476,12 +4549,14 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         except ValueError:
                             pass
 
-                    # Try to extract potassium values from leaf
+                    # Try to extract potassium values from leaf - ONLY as last resort if parameter_statistics failed
                     k_matches = re.findall(r'leaf potassium[^0-9]*([0-9.]+)', step_text_lower)
                     if k_matches and not 'potassium' in leaf_analysis_details:
+                        logger.warning(f"⚠️ Using text parsing fallback for leaf potassium - found {len(k_matches)} matches: {k_matches}")
                         try:
                             k_val = float(k_matches[0])
                             if k_val > 0:
+                                logger.warning(f"⚠️ Using text-parsed leaf potassium value: {k_val}%")
                                 leaf_analysis_details['potassium'] = {
                                     'value': k_val,
                                     'status': 'Low' if k_val < 1.3 else 'High' if k_val > 1.7 else 'Optimal',
@@ -4493,18 +4568,23 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         except ValueError:
                             pass
 
-                    # Try to extract copper values
+                    # Try to extract copper values - ONLY as last resort if parameter_statistics failed
                     cu_matches = re.findall(r'copper[^0-9]*([0-9.]+)', step_text_lower)
                     if cu_matches and not 'copper' in leaf_analysis_details:
+                        logger.warning(f"⚠️ Using text parsing fallback for copper - found {len(cu_matches)} matches: {cu_matches}")
                         try:
                             cu_val = float(cu_matches[0])
                             if cu_val > 0:
+                                logger.warning(f"⚠️ Using text-parsed copper value: {cu_val} mg/kg")
                                 leaf_analysis_details['copper'] = {
                                     'value': cu_val,
                                     'status': 'Low' if cu_val < 6.0 else 'High' if cu_val > 10.0 else 'Optimal',
                                     'optimal_range': '6.0-10.0 mg/kg',
                                     'unit': 'mg/kg'
                                 }
+                                # Set cu_leaf for consolidated findings (fallback)
+                                if cu_leaf == 0:  # Only set if not already set from parameter statistics
+                                    cu_leaf = cu_val
                                 if cu_val < 6.0:
                                     nutrient_deficiencies.append(f"Leaf copper measured at {cu_val:.1f} mg/kg (deficient, optimal range: 6.0-10.0 mg/kg). Copper deficiency affects enzyme function and lignin formation in palm fronds.")
                         except ValueError:
@@ -4522,6 +4602,9 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                                     'optimal_range': '15-25 mg/kg',
                                     'unit': 'mg/kg'
                                 }
+                                # Set zn_leaf for consolidated findings (fallback)
+                                if zn_leaf == 0:  # Only set if not already set from parameter statistics
+                                    zn_leaf = zn_val
                                 if zn_val < 15:
                                     nutrient_deficiencies.append(f"Leaf zinc measured at {zn_val:.1f} mg/kg (deficient, optimal range: 15-25 mg/kg). Zinc deficiency impacts hormone production and chlorophyll synthesis.")
                         except ValueError:
@@ -4591,12 +4674,54 @@ def generate_consolidated_key_findings(analysis_results, step_results):
         if soil_issues:
             soil_description = f"Soil analysis has identified {len(soil_issues)} critical issues requiring immediate attention. "
 
-            # Add detailed soil parameter status
+            # Add detailed soil parameter status using correct averages
             soil_details = []
-            if soil_analysis_details:
-                for param, details in soil_analysis_details.items():
-                    if details['status'] != 'Optimal':
-                        soil_details.append(f"{param.title()}: {details['value']:.2f} {details['unit']} ({details['status']}, optimal: {details['optimal_range']})")
+            if soil_averages:
+                # Use the same MPOB standards as the Step 1 tables
+                soil_mpob_standards = {
+                    'pH': (5.0, 6.0),
+                    'N (%)': (0.15, 0.25),
+                    'Nitrogen (%)': (0.15, 0.25),
+                    'Organic Carbon (%)': (2.0, 4.0),
+                    'Org. C (%)': (2.0, 4.0),
+                    'Total P (mg/kg)': (400, 800),
+                    'Available P (mg/kg)': (15, 30),
+                    'Avail P (mg/kg)': (15, 30),
+                    'Exchangeable K (meq%)': (0.15, 0.3),
+                    'Exch. K (meq%)': (0.15, 0.3),
+                    'Exchangeable Ca (meq%)': (2.0, 8.0),
+                    'Exch. Ca (meq%)': (2.0, 8.0),
+                    'Exchangeable Mg (meq%)': (0.8, 2.0),
+                    'Exch. Mg (meq%)': (0.8, 2.0),
+                    'CEC (meq%)': (12.0, 25.0),
+                    'C.E.C (meq%)': (12.0, 25.0)
+                }
+
+                for param, avg_val in soil_averages.items():
+                    # Get MPOB optimal range for this parameter (param is already the display name)
+                    optimal_range = soil_mpob_standards.get(param)
+                    if optimal_range:
+                        opt_min, opt_max = optimal_range
+                        # Determine status based on average vs optimal range
+                        if opt_min <= avg_val <= opt_max:
+                            status = "Optimal"
+                        elif avg_val < opt_min:
+                            status = "Low"
+                        else:
+                            status = "High"
+                        opt_display = f"{opt_min}-{opt_max}"
+
+                        # Determine unit
+                        unit = ""
+                        if 'mg/kg' in param:
+                            unit = "mg/kg"
+                        elif 'meq%' in param:
+                            unit = "meq%"
+                        elif '%' in param:
+                            unit = "%"
+
+                        if status != "Optimal":
+                            soil_details.append(f"{param}: {avg_val:.2f} {unit} ({status}, optimal: {opt_display})")
 
             if soil_details:
                 soil_description += f"Key measurements include: {'; '.join(soil_details)}. "
@@ -4613,12 +4738,44 @@ def generate_consolidated_key_findings(analysis_results, step_results):
         if nutrient_deficiencies:
             nutrient_description = f"Leaf tissue analysis revealed {len(nutrient_deficiencies)} significant nutrient deficiencies affecting palm physiological functions. "
 
-            # Add detailed leaf nutrient status
+            # Add detailed leaf nutrient status using correct averages
             leaf_details = []
-            if leaf_analysis_details:
-                for nutrient, details in leaf_analysis_details.items():
-                    if details['status'] != 'Optimal':
-                        leaf_details.append(f"{nutrient.title()}: {details['value']:.2f} {details['unit']} ({details['status']}, optimal: {details['optimal_range']})")
+            if leaf_averages:
+                # Use the same MPOB standards as the Step 1 tables
+                leaf_mpob_standards = {
+                    'N (%)': (2.6, 3.2),
+                    'P (%)': (0.16, 0.22),
+                    'K (%)': (1.3, 1.7),
+                    'Mg (%)': (0.3, 0.5),
+                    'Ca (%)': (0.8, 1.2),
+                    'B (mg/kg)': (18, 28),
+                    'Cu (mg/kg)': (6.0, 10.0),
+                    'Zn (mg/kg)': (15, 25)
+                }
+
+                for param, avg_val in leaf_averages.items():
+                    # Get MPOB optimal range for this parameter (param is already the display name)
+                    optimal_range = leaf_mpob_standards.get(param)
+                    if optimal_range:
+                        opt_min, opt_max = optimal_range
+                        # Determine status based on average vs optimal range
+                        if opt_min <= avg_val <= opt_max:
+                            status = "Optimal"
+                        elif avg_val < opt_min:
+                            status = "Low"
+                        else:
+                            status = "High"
+                        opt_display = f"{opt_min}-{opt_max}"
+
+                        # Determine unit
+                        unit = ""
+                        if 'mg/kg' in param:
+                            unit = "mg/kg"
+                        elif '%' in param:
+                            unit = "%"
+
+                        if status != "Optimal":
+                            leaf_details.append(f"{param}: {avg_val:.2f} {unit} ({status}, optimal: {opt_display})")
 
             if leaf_details:
                 nutrient_description += f"Critical measurements: {'; '.join(leaf_details)}. "
@@ -4675,7 +4832,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                 if roi_info:
                     economic_description += f"Investment scenario analysis: {'; '.join(roi_info)}. High investment scenarios typically achieve payback within 2-3 years with sustained benefits."
 
-            consolidated_findings.append({
+                consolidated_findings.append({
                 'title': 'Economic Impact Assessment',
                 'description': economic_description,
                 'category': 'economic_impact'
@@ -6365,7 +6522,7 @@ def display_step5_economic_forecast(analysis_data):
                     st.markdown("#### 📋 Summary")
                 st.markdown(
                     f'<div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #e8f5e8, #ffffff); border-left: 4px solid #28a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">'
-                    f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{summary_text.strip()}</p>'
+                        f'<p style="margin: 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">{summary_text.strip()}</p>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
@@ -6531,19 +6688,19 @@ def display_formatted_economic_tables(formatted_text):
         # 1. <tables> wrapper with <table title="...">
         # 2. Bare <table title="...">
         # 3. Bare <table> without title
-
+        
         tables = []
-
+        
         # Pattern 1: <tables> wrapper with titled tables
         tables_wrapper_pattern = r'<tables>\s*<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>\s*</tables>'
         tables_wrapper_matches = re.findall(tables_wrapper_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
         tables.extend(tables_wrapper_matches)
-
+        
         # Pattern 2: Bare titled tables (not inside <tables> wrapper)
         bare_titled_pattern = r'(?<!<tables>\s*)<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>(?!\s*</tables>)'
         bare_titled_matches = re.findall(bare_titled_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
         tables.extend(bare_titled_matches)
-
+        
         # Pattern 3: Untitled tables as fallback
         if not tables:
             untitled = re.findall(r'<table[^>]*>([\s\S]*?)</table>', formatted_text, re.DOTALL | re.IGNORECASE)
@@ -7757,7 +7914,7 @@ def display_enhanced_step_result(step_result, step_number):
         return
     
     analysis_data = step_result
-    
+
     # Debug: Log the structure of analysis_data
     logger.info(f"Step {step_number} analysis_data keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
     if 'key_findings' in analysis_data:
@@ -11912,53 +12069,53 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
             except Exception as e:
                 logger.error(f"❌ Error processing soil averages: {str(e)}")
                 st.error("Error processing soil parameter averages")
-            
-            # Display all individual soil sample values - BULLETPROOF VERSION
-            soil_samples_key = 'all_samples' if 'all_samples' in soil_params else 'samples'
-            if soil_samples_key in soil_params and soil_params[soil_samples_key]:
-                st.markdown("#### 🌱 All Soil Sample Values")
-                soil_samples_data = []
-                try:
-                    for sample in soil_params[soil_samples_key]:
-                        if isinstance(sample, dict):
-                            # Create comprehensive sample row with both Sample ID and LabNo./SampleNo
-                            sample_row = {
-                                'Sample ID': str(sample.get('sample_no', 'Unknown')),
-                                'LabNo./SampleNo': str(sample.get('lab_no', sample.get('sample_no', 'Unknown')))
-                            }
-                            # Add all parameter values
-                            for param in soil_params['parameter_statistics'].keys():
-                                sample_row[param] = str(sample.get(param, 'N/A'))
-                            soil_samples_data.append(sample_row)
-                        else:
-                            logger.warning(f"Invalid soil sample: {sample}")
-                    
-                    # BULLETPROOF DataFrame creation
-                    if soil_samples_data:
-                        # Final validation: ensure all items are valid dictionaries
-                        valid_samples_data = []
-                        for item in soil_samples_data:
-                            if isinstance(item, dict):
-                                valid_samples_data.append(item)
-                            else:
-                                logger.warning(f"Invalid soil sample item: {item}")
-                        
-                        if valid_samples_data:
-                            try:
-                                df_soil_samples = pd.DataFrame(valid_samples_data)
-                                logger.info(f"✅ Created soil samples DataFrame with shape: {df_soil_samples.shape}")
-                                st.dataframe(df_soil_samples, width='stretch')
-                            except Exception as df_error:
-                                logger.error(f"❌ Soil samples DataFrame creation failed: {str(df_error)}")
-                                st.error("Unable to display soil samples table")
-                        else:
-                            st.warning("No valid soil sample data available")
+
+        # Display all individual soil sample values - BULLETPROOF VERSION
+        soil_samples_key = 'all_samples' if 'all_samples' in soil_params else 'samples'
+        if soil_samples_key in soil_params and soil_params[soil_samples_key]:
+            st.markdown("#### 🌱 All Soil Sample Values")
+            soil_samples_data = []
+            try:
+                for sample in soil_params[soil_samples_key]:
+                    if isinstance(sample, dict):
+                        # Create comprehensive sample row with both Sample ID and LabNo./SampleNo
+                        sample_row = {
+                            'Sample ID': str(sample.get('sample_no', 'Unknown')),
+                            'LabNo./SampleNo': str(sample.get('lab_no', sample.get('sample_no', 'Unknown')))
+                        }
+                        # Add all parameter values
+                        for param in soil_params['parameter_statistics'].keys():
+                            sample_row[param] = str(sample.get(param, 'N/A'))
+                        soil_samples_data.append(sample_row)
                     else:
-                        st.warning("No soil sample data available")
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error processing soil samples: {str(e)}")
-                    st.error("Error processing soil samples")
+                        logger.warning(f"Invalid soil sample: {sample}")
+
+                # BULLETPROOF DataFrame creation
+                if soil_samples_data:
+                    # Final validation: ensure all items are valid dictionaries
+                    valid_samples_data = []
+                    for item in soil_samples_data:
+                        if isinstance(item, dict):
+                            valid_samples_data.append(item)
+                        else:
+                            logger.warning(f"Invalid soil sample item: {item}")
+
+                    if valid_samples_data:
+                        try:
+                            df_soil_samples = pd.DataFrame(valid_samples_data)
+                            logger.info(f"✅ Created soil samples DataFrame with shape: {df_soil_samples.shape}")
+                            st.dataframe(df_soil_samples, width='stretch')
+                        except Exception as df_error:
+                            logger.error(f"❌ Soil samples DataFrame creation failed: {str(df_error)}")
+                            st.error("Unable to display soil samples table")
+                    else:
+                        st.warning("No valid soil sample data available")
+                else:
+                    st.warning("No soil sample data available")
+
+            except Exception as e:
+                logger.error(f"❌ Error processing soil samples: {str(e)}")
+                st.error("Error processing soil samples")
         
         # Display leaf data table - BULLETPROOF VERSION
         if leaf_params and 'parameter_statistics' in leaf_params:
@@ -12022,46 +12179,46 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                 st.error("Error processing leaf analysis summary")
             
             # Display leaf averages prominently - extract from parameter_statistics
-            st.markdown("#### 🍃 Leaf Parameter Averages")
-            avg_data = []
-            try:
-                # Extract averages from parameter_statistics structure
-                for param, stats in leaf_params['parameter_statistics'].items():
-                    if isinstance(stats, dict) and 'average' in stats:
-                        avg_val = stats['average']
-                        # Only include parameters with valid positive values
-                        if isinstance(avg_val, (int, float)) and avg_val > 0:
-                            avg_data.append({
-                                'Parameter': str(param),
-                                'Average Value': f"{avg_val:.3f}"
-                            })
+                st.markdown("#### 🍃 Leaf Parameter Averages")
+                avg_data = []
+                try:
+                    # Extract averages from parameter_statistics structure
+                    for param, stats in leaf_params['parameter_statistics'].items():
+                        if isinstance(stats, dict) and 'average' in stats:
+                            avg_val = stats['average']
+                            # Only include parameters with valid positive values
+                            if isinstance(avg_val, (int, float)) and avg_val > 0:
+                                avg_data.append({
+                                    'Parameter': str(param),
+                                    'Average Value': f"{avg_val:.3f}"
+                                })
 
-                # BULLETPROOF DataFrame creation
-                if avg_data:
-                    # Final validation: ensure all items are valid dictionaries
-                    valid_avg_data = []
-                    for item in avg_data:
-                        if isinstance(item, dict) and len(item) == 2:
-                            valid_avg_data.append(item)
+                    # BULLETPROOF DataFrame creation
+                    if avg_data:
+                        # Final validation: ensure all items are valid dictionaries
+                        valid_avg_data = []
+                        for item in avg_data:
+                            if isinstance(item, dict) and len(item) == 2:
+                                valid_avg_data.append(item)
+                            else:
+                                logger.warning(f"Invalid leaf average item: {item}")
+
+                        if valid_avg_data:
+                            try:
+                                df_avg = pd.DataFrame(valid_avg_data)
+                                logger.info(f"✅ Created leaf averages DataFrame with shape: {df_avg.shape}")
+                                st.dataframe(df_avg, width='stretch')
+                            except Exception as df_error:
+                                logger.error(f"❌ Leaf averages DataFrame creation failed: {str(df_error)}")
+                                st.error("Unable to display leaf parameter averages table")
                         else:
-                            logger.warning(f"Invalid leaf average item: {item}")
-
-                    if valid_avg_data:
-                        try:
-                            df_avg = pd.DataFrame(valid_avg_data)
-                            logger.info(f"✅ Created leaf averages DataFrame with shape: {df_avg.shape}")
-                            st.dataframe(df_avg, width='stretch')
-                        except Exception as df_error:
-                            logger.error(f"❌ Leaf averages DataFrame creation failed: {str(df_error)}")
-                            st.error("Unable to display leaf parameter averages table")
+                            st.warning("No valid leaf average data available")
                     else:
-                        st.warning("No valid leaf average data available")
-                else:
-                    st.warning("No leaf average data available")
+                        st.warning("No leaf average data available")
 
-            except Exception as e:
-                logger.error(f"❌ Error processing leaf averages: {str(e)}")
-                st.error("Error processing leaf parameter averages")
+                except Exception as e:
+                    logger.error(f"❌ Error processing leaf averages: {str(e)}")
+                    st.error("Error processing leaf parameter averages")
             
             # Display all individual leaf sample values - BULLETPROOF VERSION
             leaf_samples_key = 'all_samples' if 'all_samples' in leaf_params else 'samples'
@@ -14561,21 +14718,21 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
         """,
         unsafe_allow_html=True,
     )
-
+    
     # Check for yield forecast data in multiple possible locations
     forecast = None
     if 'yield_forecast' in analysis_data:
         forecast = analysis_data['yield_forecast']
     elif 'analysis' in analysis_data and 'yield_forecast' in analysis_data['analysis']:
         forecast = analysis_data['analysis']['yield_forecast']
-
+        
     if forecast:
         # Filter out any "Missing" text from the forecast data itself
         if isinstance(forecast, dict):
             for key, value in forecast.items():
                 if isinstance(value, str):
                     forecast[key] = filter_step6_net_profit_placeholders(value)
-
+        
         # Show baseline yield. Prefer explicit baseline; fall back to user's economic data
         raw_baseline = forecast.get('baseline_yield')
         baseline_yield = _extract_first_float(raw_baseline, 0.0)
@@ -14609,30 +14766,30 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                     baseline_yield = _extract_first_float(series[0], 0.0)
                     if baseline_yield:
                         break
-
+            
         if baseline_yield > 0:
             st.markdown(f"**Current Yield Baseline:** {baseline_yield:.1f} tonnes/hectare")
             st.markdown("")
-
+        
         try:
             import plotly.graph_objects as go
-
+            
             # Years including baseline (0-5)
             years = list(range(0, 6))
             year_labels = ['Current', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5']
-
+            
             fig = go.Figure()
-
+            
             # Add baseline reference line
             if baseline_yield > 0:
                 fig.add_hline(
-                    y=baseline_yield,
-                    line_dash="dash",
+                    y=baseline_yield, 
+                    line_dash="dash", 
                     line_color="gray",
                     annotation_text=f"Current Baseline: {baseline_yield:.1f} t/ha",
                     annotation_position="top right"
                 )
-
+            
             # Add lines for different investment approaches. Ensure Year 0 matches baseline.
             # Always add all three investment lines, even if data is missing
             investment_scenarios = [
@@ -14640,13 +14797,13 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 ('medium_investment', 'Medium Investment', '#f39c12'),
                 ('low_investment', 'Low Investment', '#27ae60')
             ]
-
+            
             for scenario_key, scenario_name, color in investment_scenarios:
                 scenario_values = [baseline_yield]  # Start with baseline
-
+                
                 if scenario_key in forecast:
                     scenario_data = forecast[scenario_key]
-
+                    
                     if isinstance(scenario_data, list) and len(scenario_data) >= 6:
                         # Old array format
                         if len(scenario_data) >= 1 and isinstance(scenario_data[0], (int, float)) and baseline_yield and scenario_data[0] != baseline_yield:
@@ -14666,7 +14823,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 else:
                     # Generate fallback data if scenario is missing
                     scenario_values = _generate_fallback_values(baseline_yield, scenario_key)
-
+                
                 # Ensure we have exactly 6 values
                 while len(scenario_values) < 6:
                     scenario_values.append(scenario_values[-1] if scenario_values else baseline_yield)
@@ -14676,7 +14833,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 if all(abs(v - scenario_values[0]) < 1e-6 for v in scenario_values):
                     fallback = _generate_fallback_values(baseline_yield, scenario_key)
                     scenario_values = fallback[:6]
-
+                
                 # Create hover text showing ranges where available
                 hover_texts = []
                 for i, year in enumerate(years):
@@ -14707,7 +14864,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                     text=hover_texts,
                     hovertemplate='%{text}<extra></extra>'
                 ))
-
+            
             fig.update_layout(
                 title='5-Year Yield Projection from Current Baseline',
                 xaxis_title='Years',
@@ -14727,7 +14884,7 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                     x=1
                 )
             )
-
+            
             st.plotly_chart(fig, use_container_width=True)
 
         except ImportError:
@@ -14744,9 +14901,9 @@ def display_forecast_graph_content(analysis_data, step_number=None, step_title=N
                 if 'low_investment' in forecast:
                     row['Low Investment'] = f"{forecast['low_investment'][i]:.1f}"
                 forecast_data.append(row)
-
+            
             st.table(forecast_data)
-
+            
             # Add assumptions note as specified in the step instructions
             st.info("📝 **Assumptions:** Projections require yearly follow-up and adaptive adjustments based on actual field conditions and market changes.")
     else:
