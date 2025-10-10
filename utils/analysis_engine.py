@@ -2695,7 +2695,7 @@ class PromptAnalyzer:
             - Step Title: {step['title']}
             - Total Steps in Analysis: {total_step_count}
             - {'CRITICAL: For Step 1 (Data Analysis), when generating "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards", you MUST NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.' if step['number'] == 1 else ''}
-            - {'CRITICAL: For Step 1 (Data Analysis), when generating the Nutrient Gap Analysis table, you MUST determine severity based on percent gap magnitude: Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". The Severity column MUST show a value for ALL rows - do not leave it blank or use "-".' if step['number'] == 1 else ''}
+            - {'CRITICAL: For Step 1 (Data Analysis), when generating the Nutrient Gap Analysis table, you MUST determine severity based on percent gap magnitude: Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". The Severity column MUST show a value for ALL rows - do not leave it blank or use "-". This table format MUST be identical in both PDF and results page outputs.' if step['number'] == 1 else ''}
             - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
             - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Use these EXACT table headers: "Year", "Yield improvement t/ha", "Revenue RM/ha", "Input cost RM/ha", "Net profit RM/ha", "Cumulative net profit RM/ha", "ROI %". Do NOT use old headers like "Yield Improvement (t/ha)" or "Additional Revenue (RM)". Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
             - {'CRITICAL: For Step 6 (Yield Forecast & Projections), you MUST NOT include any net profit forecasts, economic projections, cost-benefit analysis, or financial calculations. Focus ONLY on yield projections and production forecasts in tonnes per hectare. Do NOT mention or calculate any monetary values, ROI, or economic returns.' if step['number'] == 6 else ''}
@@ -2744,7 +2744,7 @@ class PromptAnalyzer:
             - CRITICAL: For "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards", you MUST NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.
             - CRITICAL: For Nutrient Gap Analysis tables, you MUST sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last)
             - CRITICAL: Nutrient Gap Analysis tables must show the most severe deficiencies at the top of the table
-            - CRITICAL: For Nutrient Gap Analysis tables, the Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row.
+            - CRITICAL: For Nutrient Gap Analysis tables, the Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row. Table format MUST be identical in PDF and results page outputs.
             
             FORECAST DETECTION:
             - If the step title or description contains words like "forecast", "projection", "5-year", "yield forecast", "graph", or "chart", you MUST include yield_forecast data
@@ -2785,13 +2785,14 @@ class PromptAnalyzer:
             32. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
             33. MANDATORY: For "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards": DO NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.
             34. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
-            35. MANDATORY: For Nutrient Gap Analysis tables: Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row.
+            35. MANDATORY: For Nutrient Gap Analysis tables: Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row. Table format MUST be identical in PDF and results page outputs.
             36. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
             37. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
             38. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
             39. MANDATORY: Provide format-specific recommendations for data collection improvements and cost optimization
             40. MANDATORY: Include format conversion insights when analyzing mixed-format datasets
             41. MANDATORY: Evaluate parameter completeness and suggest additional tests based on format limitations
+            42. MANDATORY: All table content and formatting MUST be identical between PDF and results page outputs - no differences in columns, data, or structure.
 
             FORMAT-SPECIFIC VALIDATION REQUIREMENTS:
             **SP LAB FORMAT VALIDATION:**
@@ -4580,7 +4581,8 @@ class PromptAnalyzer:
                     unwanted_tables = [
                         'Soil Parameters Summary',
                         'Leaf Parameters Summary',
-                        'Land and Yield Summary'
+                        'Land and Yield Summary',
+                        'Nutrient Gap Analysis: Plantation Average vs. MPOB Standards'
                     ]
                     if table['title'] in unwanted_tables:
                         continue
