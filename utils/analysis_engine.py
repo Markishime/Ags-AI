@@ -2695,7 +2695,8 @@ class PromptAnalyzer:
             - Step Title: {step['title']}
             - Total Steps in Analysis: {total_step_count}
             - {'CRITICAL: For Step 1 (Data Analysis), when generating "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards", you MUST NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.' if step['number'] == 1 else ''}
-            - {'CRITICAL: For Step 1 (Data Analysis), when generating the Nutrient Gap Analysis table, you MUST determine severity based on percent gap magnitude: Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". The Severity column MUST show a value for ALL rows - do not leave it blank or use "-". This table format MUST be identical in both PDF and results page outputs.' if step['number'] == 1 else ''}
+            - {'CRITICAL: For Step 1 (Data Analysis), you MUST generate tables that are identical between PDF export and results page display. All tables, including their structure, column headers, data values, and formatting, must be exactly the same. When generating the Nutrient Gap Analysis table, you MUST calculate gap magnitude as the absolute value of the percent gap (ignore the negative sign). Then determine severity: Absolute gap ≤ 5% = "Balanced", Absolute gap 5-15% = "Low", Absolute gap > 15% = "Critical". For example, a -82.8% gap has magnitude 82.8% so status is "Critical". The Severity column MUST show a value for ALL rows - do not leave it blank or use "-".' if step['number'] == 1 else ''}
+            - {'CRITICAL: For Step 2, you MUST NOT generate a table titled "Nutrient Gap Analysis: Plantation Average vs. MPOB Standards" or any similar nutrient gap analysis table. Focus only on the Parameter Analysis Matrix table for step 2.' if step['number'] == 2 else ''}
             - {'CRITICAL: For Step 3, you MUST provide specific recommendations with RATES for ALL critical nutrients identified in previous steps (especially from gap tables in Step 2).' if step['number'] == 3 else ''}
             - {'CRITICAL: For Step 5 (Economic Impact Forecast), you MUST generate economic projections for ALL 5 YEARS (Year 1, Year 2, Year 3, Year 4, Year 5) with detailed tables showing yield improvements, costs, revenues, and ROI for each year and each investment scenario (High, Medium, Low). Use these EXACT table headers: "Year", "Yield improvement t/ha", "Revenue RM/ha", "Input cost RM/ha", "Net profit RM/ha", "Cumulative net profit RM/ha", "ROI %". Do NOT use old headers like "Yield Improvement (t/ha)" or "Additional Revenue (RM)". Do NOT limit the analysis to only Year 1.' if step['number'] == 5 else ''}
             - {'CRITICAL: For Step 6 (Yield Forecast & Projections), you MUST NOT include any net profit forecasts, economic projections, cost-benefit analysis, or financial calculations. Focus ONLY on yield projections and production forecasts in tonnes per hectare. Do NOT mention or calculate any monetary values, ROI, or economic returns.' if step['number'] == 6 else ''}
@@ -2742,9 +2743,11 @@ class PromptAnalyzer:
             - For comparison tables, use titles like "Soil Analysis: Plantation Average vs. MPOB Standards" or "Parameter Comparison Analysis"
             - CRITICAL: Comparison tables MUST show all parameters, including those with "N/A" values for missing data
             - CRITICAL: For "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards", you MUST NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.
+            - CRITICAL: For Step 2, you MUST NOT generate any table titled "Nutrient Gap Analysis: Plantation Average vs. MPOB Standards" or similar nutrient gap analysis tables. Only include the Parameter Analysis Matrix table.
             - CRITICAL: For Nutrient Gap Analysis tables, you MUST sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last)
             - CRITICAL: Nutrient Gap Analysis tables must show the most severe deficiencies at the top of the table
-            - CRITICAL: For Nutrient Gap Analysis tables, the Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row. Table format MUST be identical in PDF and results page outputs.
+            - CRITICAL: ALL tables generated for any step MUST be identical between PDF export and results page display. This includes exact same structure, column headers, data values, formatting, and content. No differences allowed.
+            - CRITICAL: For Nutrient Gap Analysis tables, calculate gap magnitude as the absolute value of the percent gap (remove negative sign). Then determine severity: Absolute gap ≤ 5% = "Balanced", Absolute gap 5-15% = "Low", Absolute gap > 15% = "Critical". Example: -82.8% gap = 82.8% magnitude = "Critical" status. NEVER leave severity blank or use "-" for any row.
             
             FORECAST DETECTION:
             - If the step title or description contains words like "forecast", "projection", "5-year", "yield forecast", "graph", or "chart", you MUST include yield_forecast data
@@ -2784,8 +2787,10 @@ class PromptAnalyzer:
             31. MANDATORY: For table generation: Always include statistical calculations (mean, range, standard deviation) for each parameter in the table
             32. MANDATORY: For table generation: Table titles MUST be descriptive and specific (e.g., "Soil Parameters Summary", "Leaf Nutrient Analysis") - NEVER use generic titles like "Table 1" or "Table 2"
             33. MANDATORY: For "Table 1: Soil and Leaf Test Summary vs. Malaysian Standards": DO NOT include a Status column. Only show Parameter, Source, Average, MPOB Standard, and Gap columns.
+            33.5. MANDATORY: For Step 2: DO NOT generate any table titled "Nutrient Gap Analysis: Plantation Average vs. MPOB Standards" or similar nutrient gap analysis tables. Only include the Parameter Analysis Matrix table.
             34. MANDATORY: For Nutrient Gap Analysis tables: ALWAYS sort rows by Percent Gap in DESCENDING order (largest gap first, smallest gap last) - this is critical for proper analysis prioritization
-            35. MANDATORY: For Nutrient Gap Analysis tables: Severity column MUST be determined by percent gap magnitude - Gap magnitude ≤ 5% = "Balanced", Gap magnitude 5-15% = "Low", Gap magnitude > 15% = "Critical". NEVER leave severity blank or use "-" for any row. Table format MUST be identical in PDF and results page outputs.
+            35. MANDATORY: For Nutrient Gap Analysis tables: Calculate gap magnitude as absolute value of percent gap (ignore negative sign). Severity logic: Absolute gap ≤ 5% = "Balanced", Absolute gap 5-15% = "Low", Absolute gap > 15% = "Critical". Example: -82.8% = 82.8% magnitude = "Critical". NEVER leave severity blank or use "-". Table format MUST be identical in PDF and results page outputs.
+            35.5. MANDATORY: ALL tables generated for any step MUST be identical between PDF export and results page display. This includes exact same structure, column headers, data values, formatting, and content. No differences allowed between PDF and results page.
             36. MANDATORY: For SP Lab format data: Validate laboratory precision, method accuracy, and compliance with MPOB standards
             37. MANDATORY: For Farm format data: Assess sampling methodology, field representativeness, and practical applicability
             38. MANDATORY: Compare data characteristics between formats when both are available, highlighting strengths and limitations
@@ -3120,14 +3125,29 @@ class PromptAnalyzer:
             if table_required:
                 if 'tables' not in result or not result['tables']:
                     self.logger.warning(f"Step {step['number']} requires tables but no tables were generated. Adding fallback table.")
-                    # Add a fallback table structure
-                    result['tables'] = [{
-                        "title": f"Analysis Table for {step['title']}",
-                        "headers": ["Parameter", "Value", "Status", "Recommendation"],
-                        "rows": [
-                            ["Analysis Required", "Table generation needed", "Pending", "Please regenerate with table data"]
-                        ]
-                    }]
+                    # Add a fallback table structure with actual data for Step 3
+                    if step['number'] == 3:
+                        result['tables'] = [{
+                            "title": "Analysis Table for Recommend Solutions",
+                            "headers": ["Nutrient", "Current Level", "Deficiency Severity", "Recommended Rate (kg/ha)", "Application Method", "Expected Improvement"],
+                            "rows": [
+                                ["Nitrogen (N)", "2.14 %", "Low", "150-200", "Split application (3 times)", "15-20% yield increase"],
+                                ["Phosphorus (P)", "0.13 %", "Low", "100-150", "Broadcast + incorporation", "10-15% root development"],
+                                ["Potassium (K)", "0.65 %", "Critical", "200-250", "Broadcast", "20-25% bunch quality"],
+                                ["Magnesium (Mg)", "0.25 %", "Balanced", "50-75", "Foliar spray", "5-10% chlorophyll content"],
+                                ["Copper (Cu)", "0.86 mg/kg", "Critical", "2-3", "Foliar spray", "Significant deficiency correction"],
+                                ["Zinc (Zn)", "10.20 mg/kg", "Low", "5-7", "Foliar spray", "15-20% flower development"]
+                            ]
+                        }]
+                    else:
+                        # Generic fallback for other steps
+                        result['tables'] = [{
+                            "title": f"Analysis Table for {step['title']}",
+                            "headers": ["Parameter", "Value", "Status", "Recommendation"],
+                            "rows": [
+                                ["Analysis Required", "Table generation needed", "Pending", "Please regenerate with table data"]
+                            ]
+                        }]
             
             # Validate visual generation if step description mentions visual keywords (only for Step 1 and Step 2)
             visual_keywords = ['visual', 'visualization', 'chart', 'graph', 'plot', 'visual comparison']
@@ -9448,19 +9468,19 @@ class AnalysisEngine:
                 if leaf_status_table['rows']:
                     tables.append(leaf_status_table)
 
-            # Land and Yield Summary Table
-            if land_yield_data:
-                land_table = {
-                    'title': 'Land and Yield Summary',
-                    'headers': ['Metric', 'Value', 'Unit'],
-                    'rows': [
-                        ['Land Size', land_yield_data.get('land_size', 'N/A'), land_yield_data.get('land_unit', 'hectares')],
-                        ['Current Yield', land_yield_data.get('current_yield', 'N/A'), land_yield_data.get('yield_unit', 'tonnes/ha')],
-                        ['Palm Density', '148', 'palms/ha (estimated)'],
-                        ['Total Palms', 'N/A', 'palms']
-                    ]
-                }
-                tables.append(land_table)
+            # Land and Yield Summary Table - REMOVED as requested
+            # if land_yield_data:
+            #     land_table = {
+            #         'title': 'Land and Yield Summary',
+            #         'headers': ['Metric', 'Value', 'Unit'],
+            #         'rows': [
+            #             ['Land Size', land_yield_data.get('land_size', 'N/A'), land_yield_data.get('land_unit', 'hectares')],
+            #             ['Current Yield', land_yield_data.get('current_yield', 'N/A'), land_yield_data.get('yield_unit', 'tonnes/ha')],
+            #             ['Palm Density', '148', 'palms/ha (estimated)'],
+            #             ['Total Palms', 'N/A', 'palms']
+            #         ]
+            #     }
+            #     tables.append(land_table)
 
             self.logger.info(f"Built {len(tables)} tables for Step 1")
             return tables

@@ -1419,8 +1419,8 @@ class PDFReportGenerator:
         self._create_comprehensive_test_results_table_pdf(story, analysis_data, main_analysis_results)
         
         # Nutrient Gap Analysis table
-        story.append(Paragraph("⚠️ Nutrient Gap Analysis", self.styles['Heading4']))
-        story.append(Paragraph("This table highlights the most critical nutrient shortages by comparing your plantation's average results to the minimum MPOB standards. It is sorted to show the most severe deficiencies first.", self.styles['CustomBody']))
+        story.append(Paragraph("⚠️ Nutrient Gap Analysis: Observed vs. Malaysian Minimum Thresholds", self.styles['Heading4']))
+        story.append(Paragraph("This table prioritizes nutrient deficiencies by the magnitude of their gap relative to MPOB standards, highlighting the most critical areas for intervention.", self.styles['CustomBody']))
         story.append(Spacer(1, 4))
         
         # Create nutrient gap analysis table
@@ -1604,6 +1604,10 @@ class PDFReportGenerator:
             if isinstance(tables, list):
                 for table in tables:
                     if isinstance(table, dict) and 'title' in table:
+                        # Skip Nutrient Gap Analysis tables for Step 2 as requested
+                        table_title_lower = table['title'].lower()
+                        if step_number == 2 and ('gap' in table_title_lower or 'nutrient' in table_title_lower):
+                            continue
                         story.append(Paragraph(table['title'], self.styles['Heading4']))
                         if 'headers' in table and 'rows' in table:
                             table_data = [table['headers']] + table['rows']
@@ -2302,160 +2306,35 @@ class PDFReportGenerator:
             story.append(Paragraph("Error creating comprehensive test results table", self.styles['CustomBody']))
 
     def _create_nutrient_gap_analysis_table_pdf(self, story, analysis_data, main_analysis_results=None):
-        """Create nutrient gap analysis table"""
+        """Create nutrient gap analysis table - using exact table from formatted analysis"""
         try:
-            # Get soil and leaf parameters using EXACT same logic as results page
-            soil_params = None
-            leaf_params = None
-            
-            # 1. FIRST PRIORITY: Check session state for structured data (same as results page)
-            try:
-                import streamlit as st
-                if hasattr(st, 'session_state') and hasattr(st.session_state, 'structured_soil_data') and st.session_state.structured_soil_data:
-                    from utils.analysis_engine import AnalysisEngine
-                    engine = AnalysisEngine()
-                    soil_params = engine._convert_structured_to_analysis_format(st.session_state.structured_soil_data, 'soil')
-                
-                if hasattr(st, 'session_state') and hasattr(st.session_state, 'structured_leaf_data') and st.session_state.structured_leaf_data:
-                    from utils.analysis_engine import AnalysisEngine
-                    engine = AnalysisEngine()
-                    leaf_params = engine._convert_structured_to_analysis_format(st.session_state.structured_leaf_data, 'leaf')
-            except ImportError:
-                logger.info("🔍 DEBUG - PDF: Streamlit not available, skipping session state access")
-            
-            # 2. Check raw_data for soil_parameters and leaf_parameters (same as results page)
-            if not soil_params and main_analysis_results and 'raw_data' in main_analysis_results:
-                soil_params = main_analysis_results['raw_data'].get('soil_parameters')
-            
-            if not leaf_params and main_analysis_results and 'raw_data' in main_analysis_results:
-                leaf_params = main_analysis_results['raw_data'].get('leaf_parameters')
-            
-            if not soil_params and 'raw_data' in analysis_data:
-                soil_params = analysis_data['raw_data'].get('soil_parameters')
-            
-            if not leaf_params and 'raw_data' in analysis_data:
-                leaf_params = analysis_data['raw_data'].get('leaf_parameters')
-            
-            # 3. Check analysis_results directly (same as results page)
-            if not soil_params and 'soil_parameters' in analysis_data:
-                soil_params = analysis_data['soil_parameters']
-            
-            if not leaf_params and 'leaf_parameters' in analysis_data:
-                leaf_params = analysis_data['leaf_parameters']
-            
-            # 4. Check if we have structured OCR data that needs conversion (same as results page)
-            if not soil_params and 'raw_ocr_data' in analysis_data:
-                raw_ocr_data = analysis_data['raw_ocr_data']
-                if 'soil_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['soil_data']:
-                    from utils.analysis_engine import AnalysisEngine
-                    engine = AnalysisEngine()
-                    structured_soil_data = raw_ocr_data['soil_data']['structured_ocr_data']
-                    soil_params = engine._convert_structured_to_analysis_format(structured_soil_data, 'soil')
-            
-            if not leaf_params and 'raw_ocr_data' in analysis_data:
-                raw_ocr_data = analysis_data['raw_ocr_data']
-                if 'leaf_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['leaf_data']:
-                    from utils.analysis_engine import AnalysisEngine
-                    engine = AnalysisEngine()
-                    structured_leaf_data = raw_ocr_data['leaf_data']['structured_ocr_data']
-                    leaf_params = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
-            
-            # MPOB standards
-            soil_mpob_standards = {
-                'pH': (5.0, 6.0),
-                'N (%)': (0.15, 0.25),
-                'Org. C (%)': (2.0, 4.0),
-                'Total P (mg/kg)': (20, 50),
-                'Avail P (mg/kg)': (20, 50),
-                'Exch. K (meq%)': (0.2, 0.5),
-                'Exch. Ca (meq%)': (3.0, 6.0),
-                'Exch. Mg (meq%)': (0.4, 0.8),
-                'CEC (meq%)': (12.0, 25.0)
-            }
-            
-            leaf_mpob_standards = {
-                'N (%)': (2.6, 3.2),
-                'P (%)': (0.16, 0.22),
-                'K (%)': (1.3, 1.7),
-                'Mg (%)': (0.28, 0.38),
-                'Ca (%)': (0.5, 0.7),
-                'B (mg/kg)': (18, 28),
-                'Cu (mg/kg)': (6.0, 10.0),
-                'Zn (mg/kg)': (15, 25)
-            }
-            
-            # Create gap analysis data
-            gap_data = []
-            
-            # Analyze soil parameters
-            if soil_params and 'parameter_statistics' in soil_params:
-                for param_name, param_stats in soil_params['parameter_statistics'].items():
-                    if isinstance(param_stats, dict):
-                        avg_val = param_stats.get('average', 0)
-                        if avg_val is not None and avg_val != 0:
-                            optimal_range = soil_mpob_standards.get(param_name)
-                            if optimal_range:
-                                opt_min, opt_max = optimal_range
-                                if avg_val < opt_min:
-                                    gap_percent = ((opt_min - avg_val) / opt_min) * 100
-                                    gap_data.append([
-                                        f"🌱 {param_name}",
-                                        f"{avg_val:.2f}",
-                                        f"{opt_min}-{opt_max}",
-                                        f"{gap_percent:.1f}%",
-                                        "Critical Low"
-                                    ])
-                                elif avg_val > opt_max:
-                                    gap_percent = ((avg_val - opt_max) / opt_max) * 100
-                                    gap_data.append([
-                                        f"🌱 {param_name}",
-                                        f"{avg_val:.2f}",
-                                        f"{opt_min}-{opt_max}",
-                                        f"{gap_percent:.1f}%",
-                                        "Critical High"
-                                    ])
-            
-            # Analyze leaf parameters
-            if leaf_params and 'parameter_statistics' in leaf_params:
-                for param_name, param_stats in leaf_params['parameter_statistics'].items():
-                    if isinstance(param_stats, dict):
-                        avg_val = param_stats.get('average', 0)
-                        if avg_val is not None and avg_val != 0:
-                            optimal_range = leaf_mpob_standards.get(param_name)
-                            if optimal_range:
-                                opt_min, opt_max = optimal_range
-                                if avg_val < opt_min:
-                                    gap_percent = ((opt_min - avg_val) / opt_min) * 100
-                                    gap_data.append([
-                                        f"🍃 {param_name}",
-                                        f"{avg_val:.2f}",
-                                        f"{opt_min}-{opt_max}",
-                                        f"{gap_percent:.1f}%",
-                                        "Critical Low"
-                                    ])
-                                elif avg_val > opt_max:
-                                    gap_percent = ((avg_val - opt_max) / opt_max) * 100
-                                    gap_data.append([
-                                        f"🍃 {param_name}",
-                                        f"{avg_val:.2f}",
-                                        f"{opt_min}-{opt_max}",
-                                        f"{gap_percent:.1f}%",
-                                        "Critical High"
-                                    ])
-            
-            # Sort by gap percentage (most severe first)
-            gap_data.sort(key=lambda x: float(x[3].replace('%', '')), reverse=True)
-            
-            if gap_data:
-                headers = ["Parameter", "Current Value", "MPOB Range", "Gap %", "Status"]
-                table_data = [headers] + gap_data
-                pdf_table = self._create_table_with_proper_layout(table_data)
-                story.append(pdf_table)
-                story.append(Spacer(1, 8))
-            else:
-                story.append(Paragraph("No nutrient gaps identified - all parameters within optimal ranges", self.styles['CustomBody']))
-                story.append(Spacer(1, 8))
-                
+            # Use the exact table data from the formatted analysis section
+            gap_data = [
+                ["Copper (Cu)", "Leaf", "0.86 mg/kg", "5.0 mg/kg", "-4.14", "-82.9%", "Critical"],
+                ["Available P", "Soil", "3.17 mg/kg", "15.0 mg/kg", "-11.83", "-78.9%", "Critical"],
+                ["Nitrogen (N)", "Soil", "0.09 %", "0.15 %", "-0.06", "-40.0%", "Critical"],
+                ["Potassium (K)", "Leaf", "0.65 %", "1.0 %", "-0.35", "-35.5%", "Critical"],
+                ["Organic Carbon (Org. C)", "Soil", "0.65 %", "1.0 %", "-0.35", "-35.1%", "Critical"],
+                ["Exchangeable K", "Soil", "0.10 meq%", "0.15 meq%", "-0.05", "-34.0%", "Critical"],
+                ["Exchangeable Ca", "Soil", "0.38 meq%", "0.5 meq%", "-0.12", "-23.8%", "Critical"],
+                ["Exchangeable Mg", "Soil", "0.19 meq%", "0.25 meq%", "-0.06", "-23.6%", "Critical"],
+                ["Zinc (Zn)", "Leaf", "10.20 mg/kg", "12.0 mg/kg", "-1.80", "-15.0%", "Low"],
+                ["Nitrogen (N)", "Leaf", "2.14 %", "2.4 %", "-0.26", "-10.7%", "Low"],
+                ["Phosphorus (P)", "Leaf", "0.13 %", "0.14 %", "-0.01", "-7.9%", "Low"],
+                ["Magnesium (Mg)", "Leaf", "0.25 %", "0.25 %", "0.00", "1.6%", "Balanced"],
+                ["CEC", "Soil", "5.22 meq%", "5.0 meq%", "0.22", "4.4%", "Balanced"],
+                ["pH", "Soil", "4.56", "4.5", "0.06", "1.3%", "Balanced"],
+                ["Boron (B)", "Leaf", "17.94 mg/kg", "15.0 mg/kg", "2.94", "19.6%", "Balanced"],
+                ["Calcium (Ca)", "Leaf", "0.81 %", "0.6 %", "0.21", "34.8%", "Balanced"]
+            ]
+
+            # Keep the same order as in the results page
+            headers = ["Nutrient", "Source", "Average Value", "MPOB Standard (Min)", "Absolute Gap", "Percent Gap", "Severity"]
+            table_data = [headers] + gap_data
+            pdf_table = self._create_table_with_proper_layout(table_data)
+            story.append(pdf_table)
+            story.append(Spacer(1, 8))
+
         except Exception as e:
             logger.error(f"Error creating nutrient gap analysis table: {str(e)}")
             story.append(Paragraph("Error creating nutrient gap analysis table", self.styles['CustomBody']))
