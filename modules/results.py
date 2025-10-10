@@ -664,7 +664,6 @@ def show_results_page():
 
         # Display Executive Summary before Step-by-Step as requested
         display_summary_section(results_data)
-        display_key_findings_section(results_data)  # Key Findings below Executive Summary
         display_step_by_step_results(results_data)
         
         
@@ -5160,122 +5159,6 @@ def _deduplicate_findings(findings_list):
             logger.error(f"Error deduplicating findings: {str(e)}")
             return findings_list[:3]  # Return first 3 as fallback
 
-def display_key_findings_section(results_data):
-    """Display consolidated Findings from analysis results with farmer-friendly formatting"""
-    st.markdown("---")
-    st.markdown("## 🌱 **Consolidated Findings**")
-    st.markdown("*Professional analysis summary of your soil and leaf parameters*")
-
-    # Get analysis data with type checking
-    analysis_results = get_analysis_results_from_data(results_data)
-    
-    # Ensure analysis_results is a dictionary
-    if not isinstance(analysis_results, dict):
-        st.error("❌ Analysis results data format error")
-        return
-    
-    step_results = analysis_results.get('step_by_step_analysis', []) if isinstance(analysis_results, dict) else []
-
-    # Generate consolidated key findings
-    consolidated_findings = generate_consolidated_key_findings(analysis_results, step_results)
-
-    if consolidated_findings:
-        st.markdown("### 📊 **Analysis Summary**")
-        st.markdown("**Analysis results summary**")
-        st.markdown("Compiled into logical sections by merging related findings (e.g., all nutrient deficiencies grouped together). **Total Compiled Findings:** " + str(len(consolidated_findings)))
-        st.markdown("")
-
-        # Display consolidated findings with farmer-friendly formatting
-        for finding in consolidated_findings:
-            title = finding['title']
-            description = finding['description']
-
-            # Clean the description to remove any "Key finding X:" prefixes
-            description = clean_finding_text(description)
-
-            category = finding.get('category', 'general')
-
-            # Determine color based on category
-            color_map = {
-                'soil_health': '#8B4513',      # Brown for soil
-                'nutrient_deficiencies': '#DC3545',  # Red for deficiencies
-                'recommendations': '#28A745',    # Green for recommendations
-                'economic_impact': '#FFC107',     # Yellow for economic
-                'general': '#6C757D'             # Gray for general
-            }
-            border_color = color_map.get(category, '#28a745')
-
-            # Create a styled finding block with category-based colors
-            st.markdown(f"""
-            <div style="
-                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                padding: 25px;
-                border-radius: 15px;
-                margin-bottom: 25px;
-                border-left: 6px solid {border_color};
-                box-shadow: 0 6px 15px rgba(0,0,0,0.1);
-                transition: transform 0.2s;
-            ">
-                <h4 style="color: #2c3e50; margin-top: 0; margin-bottom: 18px; font-weight: 600; font-size: 1.3em;">{title}</h4>
-                <p style="color: #495057; line-height: 1.7; margin-bottom: 0; font-size: 1.05em;">{description}</p>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        # Fallback to default findings if consolidated generation fails
-        st.markdown("### 📋 **Findings**")
-        st.markdown("*Analysis results summary*")
-        st.markdown("**Total Compiled Findings:** 5")
-        st.markdown("")
-
-        # Create default consolidated findings as fallback
-        default_findings = [
-            {
-                'title': '1. Current Soil and Plant Nutritional Status',
-                'description': 'The analysis reveals key nutritional issues affecting soil and plant health based on the available data.',
-                'category': 'nutritional_status'
-            },
-            {
-                'title': '2. Nutrient Imbalances',
-                'description': 'Nutrient imbalances have been identified that may impact plant growth and yield potential.',
-                'category': 'nutrient_imbalances'
-            },
-            {
-                'title': '3. Regenerative Agriculture Recommendations',
-                'description': 'Sustainable agricultural practices are recommended to improve soil health and long-term productivity.',
-                'category': 'regenerative_agriculture'
-            },
-            {
-                'title': '4. Economic Impact Analysis of Investment Scenarios',
-                'description': 'Investment scenarios have been analyzed to determine the most cost-effective approaches for improvement.',
-                'category': 'economic_impact'
-            },
-            {
-                'title': '5. 5-Year Yield Forecasts',
-                'description': 'Long-term yield projections have been calculated based on current conditions and recommended interventions.',
-                'category': 'yield_forecast'
-            }
-        ]
-
-        # Display default findings with farmer-friendly formatting
-        for finding in default_findings:
-            title = finding['title']
-            description = finding['description']
-            category = finding.get('category', 'general')
-            
-            # Create a styled finding block
-            st.markdown(f"""
-                <div style="
-                    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    padding: 20px;
-                    border-radius: 12px;
-                    margin-bottom: 20px;
-                    border-left: 5px solid #28a745;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                ">
-                    <h4 style="color: #2c3e50; margin-top: 0; margin-bottom: 15px;">{title}</h4>
-                    <p style="color: #495057; line-height: 1.6; margin-bottom: 0;">{description}</p>
-                </div>
-                """, unsafe_allow_html=True)
 
 def display_references_section(results_data):
     """Display research references from database and web search"""
