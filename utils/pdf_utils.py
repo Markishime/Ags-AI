@@ -2306,38 +2306,222 @@ class PDFReportGenerator:
             story.append(Paragraph("Error creating comprehensive test results table", self.styles['CustomBody']))
 
     def _create_nutrient_gap_analysis_table_pdf(self, story, analysis_data, main_analysis_results=None):
-        """Create nutrient gap analysis table - using exact table from formatted analysis"""
+        """Create nutrient gap analysis table using dynamic data from parameter statistics"""
         try:
-            # Use the exact table data from the formatted analysis section
-            gap_data = [
-                ["Copper (Cu)", "Leaf", "0.86 mg/kg", "5.0 mg/kg", "-4.14", "-82.9%", "Critical"],
-                ["Available P", "Soil", "3.17 mg/kg", "15.0 mg/kg", "-11.83", "-78.9%", "Critical"],
-                ["Nitrogen (N)", "Soil", "0.09 %", "0.15 %", "-0.06", "-40.0%", "Critical"],
-                ["Potassium (K)", "Leaf", "0.65 %", "1.0 %", "-0.35", "-35.5%", "Critical"],
-                ["Organic Carbon (Org. C)", "Soil", "0.65 %", "1.0 %", "-0.35", "-35.1%", "Critical"],
-                ["Exchangeable K", "Soil", "0.10 meq%", "0.15 meq%", "-0.05", "-34.0%", "Critical"],
-                ["Exchangeable Ca", "Soil", "0.38 meq%", "0.5 meq%", "-0.12", "-23.8%", "Critical"],
-                ["Exchangeable Mg", "Soil", "0.19 meq%", "0.25 meq%", "-0.06", "-23.6%", "Critical"],
-                ["Zinc (Zn)", "Leaf", "10.20 mg/kg", "12.0 mg/kg", "-1.80", "-15.0%", "Low"],
-                ["Nitrogen (N)", "Leaf", "2.14 %", "2.4 %", "-0.26", "-10.7%", "Low"],
-                ["Phosphorus (P)", "Leaf", "0.13 %", "0.14 %", "-0.01", "-7.9%", "Low"],
-                ["Magnesium (Mg)", "Leaf", "0.25 %", "0.25 %", "0.00", "1.6%", "Balanced"],
-                ["CEC", "Soil", "5.22 meq%", "5.0 meq%", "0.22", "4.4%", "Balanced"],
-                ["pH", "Soil", "4.56", "4.5", "0.06", "1.3%", "Balanced"],
-                ["Boron (B)", "Leaf", "17.94 mg/kg", "15.0 mg/kg", "2.94", "19.6%", "Balanced"],
-                ["Calcium (Ca)", "Leaf", "0.81 %", "0.6 %", "0.21", "34.8%", "Balanced"]
-            ]
+            # Get soil and leaf parameters using EXACT same logic as results page
+            soil_params = None
+            leaf_params = None
 
-            # Keep the same order as in the results page
-            headers = ["Nutrient", "Source", "Average Value", "MPOB Standard (Min)", "Absolute Gap", "Percent Gap", "Severity"]
-            table_data = [headers] + gap_data
-            pdf_table = self._create_table_with_proper_layout(table_data)
-            story.append(pdf_table)
-            story.append(Spacer(1, 8))
+            # 1. FIRST PRIORITY: Check session state for structured data (same as results page)
+            try:
+                import streamlit as st
+                if hasattr(st, 'session_state') and hasattr(st.session_state, 'structured_soil_data') and st.session_state.structured_soil_data:
+                    from utils.analysis_engine import AnalysisEngine
+                    engine = AnalysisEngine()
+                    soil_params = engine._convert_structured_to_analysis_format(st.session_state.structured_soil_data, 'soil')
+
+                if hasattr(st, 'session_state') and hasattr(st.session_state, 'structured_leaf_data') and st.session_state.structured_leaf_data:
+                    from utils.analysis_engine import AnalysisEngine
+                    engine = AnalysisEngine()
+                    leaf_params = engine._convert_structured_to_analysis_format(st.session_state.structured_leaf_data, 'leaf')
+            except ImportError:
+                logger.info("🔍 DEBUG - PDF: Streamlit not available, skipping session state access")
+
+            # 2. Check raw_data for soil_parameters and leaf_parameters (same as results page)
+            if not soil_params and main_analysis_results and 'raw_data' in main_analysis_results:
+                soil_params = main_analysis_results['raw_data'].get('soil_parameters')
+
+            if not leaf_params and main_analysis_results and 'raw_data' in main_analysis_results:
+                leaf_params = main_analysis_results['raw_data'].get('leaf_parameters')
+
+            if not soil_params and 'raw_data' in analysis_data:
+                soil_params = analysis_data['raw_data'].get('soil_parameters')
+
+            if not leaf_params and 'raw_data' in analysis_data:
+                leaf_params = analysis_data['raw_data'].get('leaf_parameters')
+
+            # 3. Check analysis_results directly (same as results page)
+            if not soil_params and 'soil_parameters' in analysis_data:
+                soil_params = analysis_data['soil_parameters']
+
+            if not leaf_params and 'leaf_parameters' in analysis_data:
+                leaf_params = analysis_data['leaf_parameters']
+
+            # 4. Check if we have structured OCR data that needs conversion (same as results page)
+            if not soil_params and 'raw_ocr_data' in analysis_data:
+                raw_ocr_data = analysis_data['raw_ocr_data']
+                if 'soil_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['soil_data']:
+                    from utils.analysis_engine import AnalysisEngine
+                    engine = AnalysisEngine()
+                    structured_soil_data = raw_ocr_data['soil_data']['structured_ocr_data']
+                    soil_params = engine._convert_structured_to_analysis_format(structured_soil_data, 'soil')
+
+            if not leaf_params and 'raw_ocr_data' in analysis_data:
+                raw_ocr_data = analysis_data['raw_ocr_data']
+                if 'leaf_data' in raw_ocr_data and 'structured_ocr_data' in raw_ocr_data['leaf_data']:
+                    from utils.analysis_engine import AnalysisEngine
+                    engine = AnalysisEngine()
+                    structured_leaf_data = raw_ocr_data['leaf_data']['structured_ocr_data']
+                    leaf_params = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
+
+            # Define MPOB standards for comparison
+            mpob_standards = {
+                # Soil standards
+                'pH': {'min': 4.5, 'unit': ''},
+                'N (%)': {'min': 0.15, 'unit': '%'},
+                'Org. C (%)': {'min': 1.0, 'unit': '%'},
+                'Avail P (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Total P (mg/kg)': {'min': 20.0, 'unit': 'mg/kg'},
+                'Exch. K (meq%)': {'min': 0.15, 'unit': 'meq%'},
+                'Exch. Ca (meq%)': {'min': 0.5, 'unit': 'meq%'},
+                'Exch. Mg (meq%)': {'min': 0.25, 'unit': 'meq%'},
+                'CEC (meq%)': {'min': 5.0, 'unit': 'meq%'},
+                # Leaf standards
+                'N (%)': {'min': 2.4, 'unit': '%'},
+                'P (%)': {'min': 0.14, 'unit': '%'},
+                'K (%)': {'min': 1.0, 'unit': '%'},
+                'Mg (%)': {'min': 0.25, 'unit': '%'},
+                'Ca (%)': {'min': 0.6, 'unit': '%'},
+                'B (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Cu (mg/kg)': {'min': 5.0, 'unit': 'mg/kg'},
+                'Zn (mg/kg)': {'min': 12.0, 'unit': 'mg/kg'}
+            }
+
+            gap_data = []
+
+            # Calculate gaps for soil parameters
+            if soil_params and 'parameter_statistics' in soil_params:
+                for param_name, param_stats in soil_params['parameter_statistics'].items():
+                    if isinstance(param_stats, dict) and param_name in mpob_standards:
+                        avg_val = param_stats.get('average', 0)
+                        if avg_val is not None:
+                            standard = mpob_standards[param_name]
+                            min_val = standard['min']
+                            unit = standard['unit']
+
+                            # Calculate gap
+                            absolute_gap = avg_val - min_val
+                            percent_gap = (absolute_gap / min_val) * 100 if min_val != 0 else 0
+
+                            # Determine severity
+                            severity = "Balanced"
+                            if percent_gap < -50:
+                                severity = "Critical"
+                            elif percent_gap < -20:
+                                severity = "High"
+                            elif percent_gap < -10:
+                                severity = "Medium"
+                            elif percent_gap < 0:
+                                severity = "Low"
+
+                            # Format display values
+                            if unit:
+                                avg_display = f"{avg_val:.2f} {unit}"
+                                min_display = f"{min_val} {unit}"
+                                abs_gap_display = f"{absolute_gap:+.2f}"
+                            else:
+                                avg_display = f"{avg_val:.2f}"
+                                min_display = f"{min_val}"
+                                abs_gap_display = f"{absolute_gap:+.2f}"
+
+                            percent_display = f"{percent_gap:+.1f}%"
+
+                            gap_data.append([
+                                self._format_param_name(param_name),
+                                "Soil",
+                                avg_display,
+                                min_display,
+                                abs_gap_display,
+                                percent_display,
+                                severity
+                            ])
+
+            # Calculate gaps for leaf parameters
+            if leaf_params and 'parameter_statistics' in leaf_params:
+                for param_name, param_stats in leaf_params['parameter_statistics'].items():
+                    if isinstance(param_stats, dict) and param_name in mpob_standards:
+                        avg_val = param_stats.get('average', 0)
+                        if avg_val is not None:
+                            standard = mpob_standards[param_name]
+                            min_val = standard['min']
+                            unit = standard['unit']
+
+                            # Calculate gap
+                            absolute_gap = avg_val - min_val
+                            percent_gap = (absolute_gap / min_val) * 100 if min_val != 0 else 0
+
+                            # Determine severity
+                            severity = "Balanced"
+                            if percent_gap < -50:
+                                severity = "Critical"
+                            elif percent_gap < -20:
+                                severity = "High"
+                            elif percent_gap < -10:
+                                severity = "Medium"
+                            elif percent_gap < 0:
+                                severity = "Low"
+
+                            # Format display values
+                            if unit:
+                                avg_display = f"{avg_val:.2f} {unit}"
+                                min_display = f"{min_val} {unit}"
+                                abs_gap_display = f"{absolute_gap:+.2f}"
+                            else:
+                                avg_display = f"{avg_val:.2f}"
+                                min_display = f"{min_val}"
+                                abs_gap_display = f"{absolute_gap:+.2f}"
+
+                            percent_display = f"{percent_gap:+.1f}%"
+
+                            gap_data.append([
+                                self._format_param_name(param_name),
+                                "Leaf",
+                                avg_display,
+                                min_display,
+                                abs_gap_display,
+                                percent_display,
+                                severity
+                            ])
+
+            # Sort by severity (Critical first, then High, Medium, Low, Balanced)
+            severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Balanced": 4}
+            gap_data.sort(key=lambda x: (severity_order.get(x[6], 5), -abs(float(x[5].rstrip('%')))))
+
+            if gap_data:
+                headers = ["Nutrient", "Source", "Average Value", "MPOB Standard (Min)", "Absolute Gap", "Percent Gap", "Severity"]
+                table_data = [headers] + gap_data
+                pdf_table = self._create_table_with_proper_layout(table_data)
+                story.append(pdf_table)
+                story.append(Spacer(1, 8))
+            else:
+                story.append(Paragraph("No nutrient gap data available", self.styles['CustomBody']))
+                story.append(Spacer(1, 8))
 
         except Exception as e:
             logger.error(f"Error creating nutrient gap analysis table: {str(e)}")
             story.append(Paragraph("Error creating nutrient gap analysis table", self.styles['CustomBody']))
+
+    def _format_param_name(self, param_name):
+        """Format parameter name for display in tables"""
+        name_mapping = {
+            'N (%)': 'Nitrogen (N)',
+            'P (%)': 'Phosphorus (P)',
+            'K (%)': 'Potassium (K)',
+            'Mg (%)': 'Magnesium (Mg)',
+            'Ca (%)': 'Calcium (Ca)',
+            'Org. C (%)': 'Organic Carbon (Org. C)',
+            'Avail P (mg/kg)': 'Available P',
+            'Total P (mg/kg)': 'Total P',
+            'Exch. K (meq%)': 'Exchangeable K',
+            'Exch. Ca (meq%)': 'Exchangeable Ca',
+            'Exch. Mg (meq%)': 'Exchangeable Mg',
+            'CEC (meq%)': 'CEC',
+            'B (mg/kg)': 'Boron (B)',
+            'Cu (mg/kg)': 'Copper (Cu)',
+            'Zn (mg/kg)': 'Zinc (Zn)',
+            'pH': 'pH'
+        }
+        return name_mapping.get(param_name, param_name)
 
     def _create_nutrient_ratio_analysis_table_pdf(self, story, analysis_data, main_analysis_results=None):
         """Create nutrient ratio analysis table"""
@@ -2404,58 +2588,58 @@ class PDFReportGenerator:
             # Analyze soil ratios
             if soil_params and 'parameter_statistics' in soil_params:
                 param_stats = soil_params['parameter_statistics']
-                
-                # N:P ratio
+
+                # Soil N:P ratio (Nitrogen % vs Total Phosphorus mg/kg)
                 if 'N (%)' in param_stats and 'Total P (mg/kg)' in param_stats:
                     n_val = param_stats['N (%)'].get('average', 0)
                     p_val = param_stats['Total P (mg/kg)'].get('average', 0)
                     if n_val and p_val and n_val != 0 and p_val != 0:
                         ratio = (n_val * 1000) / p_val  # Convert N% to mg/kg for ratio
                         ratio_data.append([
-                            "🌱 N:P Ratio",
+                            "🌱 Soil N:P Ratio (N% : Total P)",
                             f"{ratio:.2f}",
                             "10-20",
                             "Optimal" if 10 <= ratio <= 20 else "Imbalanced"
                         ])
-                
-                # K:Mg ratio
+
+                # Soil K:Mg ratio (Exchangeable Potassium vs Magnesium)
                 if 'Exch. K (meq%)' in param_stats and 'Exch. Mg (meq%)' in param_stats:
                     k_val = param_stats['Exch. K (meq%)'].get('average', 0)
                     mg_val = param_stats['Exch. Mg (meq%)'].get('average', 0)
                     if k_val and mg_val and k_val != 0 and mg_val != 0:
                         ratio = k_val / mg_val
                         ratio_data.append([
-                            "🌱 K:Mg Ratio",
+                            "🌱 Soil K:Mg Ratio (Exch. K : Exch. Mg)",
                             f"{ratio:.2f}",
                             "0.5-1.0",
                             "Optimal" if 0.5 <= ratio <= 1.0 else "Imbalanced"
                         ])
-            
+
             # Analyze leaf ratios
             if leaf_params and 'parameter_statistics' in leaf_params:
                 param_stats = leaf_params['parameter_statistics']
-                
-                # N:P ratio
+
+                # Leaf N:P ratio (Nitrogen % vs Phosphorus %)
                 if 'N (%)' in param_stats and 'P (%)' in param_stats:
                     n_val = param_stats['N (%)'].get('average', 0)
                     p_val = param_stats['P (%)'].get('average', 0)
                     if n_val and p_val and n_val != 0 and p_val != 0:
                         ratio = n_val / p_val
                         ratio_data.append([
-                            "🍃 N:P Ratio",
+                            "🍃 Leaf N:P Ratio (N% : P%)",
                             f"{ratio:.2f}",
                             "12-20",
                             "Optimal" if 12 <= ratio <= 20 else "Imbalanced"
                         ])
-                
-                # K:Mg ratio
+
+                # Leaf K:Mg ratio (Potassium % vs Magnesium %)
                 if 'K (%)' in param_stats and 'Mg (%)' in param_stats:
                     k_val = param_stats['K (%)'].get('average', 0)
                     mg_val = param_stats['Mg (%)'].get('average', 0)
                     if k_val and mg_val and k_val != 0 and mg_val != 0:
                         ratio = k_val / mg_val
                         ratio_data.append([
-                            "🍃 K:Mg Ratio",
+                            "🍃 Leaf K:Mg Ratio (K% : Mg%)",
                             f"{ratio:.2f}",
                             "3.4-6.1",
                             "Optimal" if 3.4 <= ratio <= 6.1 else "Imbalanced"

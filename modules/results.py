@@ -6676,26 +6676,36 @@ def display_formatted_economic_tables(formatted_text):
         formatted_text = re.sub(r'Please regenerate with table data.*?', '', formatted_text, flags=re.IGNORECASE)
 
         # Find all table sections - support multiple patterns:
-        # 1. <tables> wrapper with <table title="...">
-        # 2. Bare <table title="...">
-        # 3. Bare <table> without title
-        
+        # 1. XML-like format with <tables>, <table title="...">, <headers>, <rows>
+        # 2. HTML format with <thead>, <tbody>
+        # 3. Bare tables as fallback
+
         tables = []
-        
-        # Pattern 1: <tables> wrapper with titled tables
-        tables_wrapper_pattern = r'<tables>\s*<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>\s*</tables>'
-        tables_wrapper_matches = re.findall(tables_wrapper_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
-        tables.extend(tables_wrapper_matches)
-        
-        # Pattern 2: Bare titled tables (not inside <tables> wrapper)
-        bare_titled_pattern = r'(?<!<tables>\s*)<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>(?!\s*</tables>)'
-        bare_titled_matches = re.findall(bare_titled_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
-        tables.extend(bare_titled_matches)
-        
-        # Pattern 3: Untitled tables as fallback
+
+        # Pattern 1: XML-like format with <tables> wrapper
+        xml_tables_pattern = r'<tables>\s*<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>\s*</tables>'
+        xml_matches = re.findall(xml_tables_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+        for title, content in xml_matches:
+            tables.append((title, content, 'xml'))
+
+        # Pattern 2: Bare XML-like titled tables
+        if not tables:
+            bare_xml_pattern = r'<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>'
+            bare_xml_matches = re.findall(bare_xml_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+            for title, content in bare_xml_matches:
+                tables.append((title, content, 'xml'))
+
+        # Pattern 3: HTML format as fallback
+        if not tables:
+            html_tables_pattern = r'<table[^>]*title="([^"]*)"[^>]*>([\s\S]*?)</table>'
+            html_matches = re.findall(html_tables_pattern, formatted_text, re.DOTALL | re.IGNORECASE)
+            for title, content in html_matches:
+                tables.append((title, content, 'html'))
+
+        # Pattern 4: Untitled tables as final fallback
         if not tables:
             untitled = re.findall(r'<table[^>]*>([\s\S]*?)</table>', formatted_text, re.DOTALL | re.IGNORECASE)
-            tables = [(f"Table {i+1}", t) for i, t in enumerate(untitled)]
+            tables = [(f"Table {i+1}", t, 'unknown') for i, t in enumerate(untitled)]
 
         # If no tables found after filtering, show a helpful message
         if not tables:
@@ -6709,54 +6719,23 @@ def display_formatted_economic_tables(formatted_text):
             """)
             return
 
-        for i, (title, table_content) in enumerate(tables):
+        for i, (title, table_content, format_type) in enumerate(tables):
             st.markdown(f"#### 📋 {title}")
 
-            # Extract headers and rows
-            thead_pattern = r'<thead[^>]*>(.*?)</thead>'
-            tbody_pattern = r'<tbody[^>]*>(.*?)</tbody>'
-
-            thead_match = re.search(thead_pattern, table_content, re.DOTALL | re.IGNORECASE)
-            tbody_match = re.search(tbody_pattern, table_content, re.DOTALL | re.IGNORECASE)
-
-            if thead_match and tbody_match:
-                # Parse headers
-                header_row = re.findall(r'<th[^>]*>(.*?)</th>', thead_match.group(1), re.DOTALL | re.IGNORECASE)
-                headers = [re.sub(r'<[^>]+>', '', h).strip() for h in header_row]
-
-                # Parse rows
-                rows = []
-                row_matches = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_match.group(1), re.DOTALL | re.IGNORECASE)
-                for row_match in row_matches:
-                    cells = re.findall(r'<td[^>]*>(.*?)</td>', row_match, re.DOTALL | re.IGNORECASE)
-                    clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
-                    if clean_cells:
-                        rows.append(clean_cells)
-
-                if headers and rows:
-                    df = pd.DataFrame(rows, columns=headers)
-                    apply_table_styling()
-                    st.dataframe(df, width='stretch')
-                else:
-                    st.markdown("No data found in table.")
+            if format_type == 'xml':
+                # Parse XML-like format
+                success = _parse_xml_table_format(table_content)
+                if not success:
+                    st.markdown("Error parsing XML table format.")
+            elif format_type == 'html':
+                # Parse HTML format
+                success = _parse_html_table_format(table_content)
+                if not success:
+                    st.markdown("Error parsing HTML table format.")
             else:
-                # Try naive row parsing without explicit thead/tbody
-                row_matches = re.findall(r'<tr[^>]*>([\s\S]*?)</tr>', table_content, re.DOTALL | re.IGNORECASE)
-                rows = []
-                for row_match in row_matches:
-                    cells = re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', row_match, re.DOTALL | re.IGNORECASE)
-                    clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
-                    if clean_cells:
-                        rows.append(clean_cells)
-                if rows:
-                    # Use first row as header if plausible
-                    headers = rows[0]
-                    body = rows[1:] if len(rows) > 1 else []
-                    import pandas as pd
-                    df = pd.DataFrame(body, columns=headers if body else None)
-                    apply_table_styling()
-                    st.dataframe(df, width='stretch')
-                else:
+                # Try both formats
+                success = _parse_xml_table_format(table_content) or _parse_html_table_format(table_content)
+                if not success:
                     st.markdown("Table format not recognized.")
 
             st.markdown("")
@@ -6764,6 +6743,101 @@ def display_formatted_economic_tables(formatted_text):
     except Exception as e:
         logger.error(f"Error displaying formatted economic tables: {e}")
         st.error("Error displaying economic tables")
+
+
+def _parse_xml_table_format(table_content):
+    """Parse XML-like table format with <headers>, <rows>, <cell> tags."""
+    try:
+        import pandas as pd
+        import re
+
+        # Extract headers
+        headers_section = re.search(r'<headers>(.*?)</headers>', table_content, re.DOTALL | re.IGNORECASE)
+        headers = []
+        if headers_section:
+            header_matches = re.findall(r'<header>(.*?)</header>', headers_section.group(1), re.DOTALL | re.IGNORECASE)
+            headers = [re.sub(r'<[^>]+>', '', h).strip() for h in header_matches]
+
+        # Extract rows
+        rows_section = re.search(r'<rows>(.*?)</rows>', table_content, re.DOTALL | re.IGNORECASE)
+        rows = []
+        if rows_section:
+            row_matches = re.findall(r'<row>(.*?)</row>', rows_section.group(1), re.DOTALL | re.IGNORECASE)
+            for row_match in row_matches:
+                cell_matches = re.findall(r'<cell>(.*?)</cell>', row_match, re.DOTALL | re.IGNORECASE)
+                clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cell_matches]
+                if clean_cells:
+                    rows.append(clean_cells)
+
+        if headers and rows:
+            df = pd.DataFrame(rows, columns=headers)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+            return True
+
+        return False
+
+    except Exception as e:
+        logger.error(f"Error parsing XML table format: {e}")
+        return False
+
+
+def _parse_html_table_format(table_content):
+    """Parse HTML table format with <thead>, <tbody>, <th>, <td> tags."""
+    try:
+        import pandas as pd
+        import re
+
+        # Extract headers and rows
+        thead_pattern = r'<thead[^>]*>(.*?)</thead>'
+        tbody_pattern = r'<tbody[^>]*>(.*?)</tbody>'
+
+        thead_match = re.search(thead_pattern, table_content, re.DOTALL | re.IGNORECASE)
+        tbody_match = re.search(tbody_pattern, table_content, re.DOTALL | re.IGNORECASE)
+
+        if thead_match and tbody_match:
+            # Parse headers
+            header_row = re.findall(r'<th[^>]*>(.*?)</th>', thead_match.group(1), re.DOTALL | re.IGNORECASE)
+            headers = [re.sub(r'<[^>]+>', '', h).strip() for h in header_row]
+
+            # Parse rows
+            rows = []
+            row_matches = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_match.group(1), re.DOTALL | re.IGNORECASE)
+            for row_match in row_matches:
+                cells = re.findall(r'<td[^>]*>(.*?)</td>', row_match, re.DOTALL | re.IGNORECASE)
+                clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
+                if clean_cells:
+                    rows.append(clean_cells)
+
+            if headers and rows:
+                df = pd.DataFrame(rows, columns=headers)
+                apply_table_styling()
+                st.dataframe(df, width='stretch')
+                return True
+
+        # Try naive row parsing without explicit thead/tbody
+        row_matches = re.findall(r'<tr[^>]*>([\s\S]*?)</tr>', table_content, re.DOTALL | re.IGNORECASE)
+        rows = []
+        for row_match in row_matches:
+            cells = re.findall(r'<t[hd][^>]*>([\s\S]*?)</t[hd]>', row_match, re.DOTALL | re.IGNORECASE)
+            clean_cells = [re.sub(r'<[^>]+>', '', cell).strip() for cell in cells]
+            if clean_cells:
+                rows.append(clean_cells)
+
+        if rows:
+            # Use first row as header if plausible
+            headers = rows[0]
+            body = rows[1:] if len(rows) > 1 else []
+            df = pd.DataFrame(body, columns=headers if body else None)
+            apply_table_styling()
+            st.dataframe(df, width='stretch')
+            return True
+
+        return False
+
+    except Exception as e:
+        logger.error(f"Error parsing HTML table format: {e}")
+        return False
 
 def _clean_step1_llm_noise(text: str) -> str:
     """Remove noisy LLM scaffolding lines from Step 1 detailed analysis.
