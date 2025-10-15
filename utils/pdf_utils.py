@@ -637,13 +637,13 @@ class PDFReportGenerator:
                 ph_data = soil_stats.get('pH', {})
                 if ph_data:
                     ph_avg = ph_data.get('average', 0)
-                    if ph_avg > 0 and ph_avg < 5.5:
+                    if ph_avg > 0 and ph_avg < 4.5:
                         executive_sections.append(f"Critical soil pH deficiency detected at {ph_avg:.2f}, which severely limits nutrient availability and can cause stunted root growth, reduced nutrient uptake, and increased susceptibility to root diseases in oil palm trees.")
                         executive_sections.append("Low soil pH affects oil palm by reducing the solubility of essential nutrients like phosphorus and micronutrients, leading to chlorosis, poor fruit development, and decreased oil content in fruit bunches.")
                         executive_sections.append("pH deficiency in oil palm plantations can result in aluminum toxicity, which damages root systems and impairs water absorption, ultimately causing premature leaf senescence and reduced photosynthetic capacity.")
                         executive_sections.append("Immediate pH correction through liming is essential to prevent long-term soil degradation and maintain the plantation's productive lifespan.")
                         ph_messages_added = True
-                    elif ph_avg > 0 and ph_avg >= 5.5 and ph_avg <= 7.0:
+                    elif ph_avg > 0 and ph_avg >= 4.5 and ph_avg <= 6.0:
                         executive_sections.append(f"Soil pH levels at {ph_avg:.2f} are within optimal ranges, supporting proper nutrient availability and root development in the oil palm plantation.")
                         ph_messages_added = True
 
@@ -1100,13 +1100,13 @@ class PDFReportGenerator:
                 ph_data = soil_stats.get('pH', {})
                 if ph_data:
                     ph_avg = ph_data.get('average', 0)
-                    if ph_avg > 0 and ph_avg < 5.5:
+                    if ph_avg > 0 and ph_avg < 4.5:
                         summary_sentences.append(f"Critical soil pH deficiency detected at {ph_avg:.2f}, which severely limits nutrient availability and can cause stunted root growth, reduced nutrient uptake, and increased susceptibility to root diseases in oil palm trees.")
                         summary_sentences.append("Low soil pH affects oil palm by reducing the solubility of essential nutrients like phosphorus and micronutrients, leading to chlorosis, poor fruit development, and decreased oil content in fruit bunches.")
                         summary_sentences.append("pH deficiency in oil palm plantations can result in aluminum toxicity, which damages root systems and impairs water absorption, ultimately causing premature leaf senescence and reduced photosynthetic capacity.")
                         summary_sentences.append("Immediate pH correction through liming is essential to prevent long-term soil degradation and maintain the plantation's productive lifespan.")
                         ph_messages_added = True
-                    elif ph_avg > 0 and ph_avg >= 5.5 and ph_avg <= 7.0:
+                    elif ph_avg > 0 and ph_avg >= 4.5 and ph_avg <= 6.0:
                         summary_sentences.append(f"Soil pH levels at {ph_avg:.2f} are within optimal ranges, supporting proper nutrient availability and root development in the oil palm plantation.")
                         ph_messages_added = True
 
@@ -1686,7 +1686,7 @@ class PDFReportGenerator:
             
             # MPOB standards (matching results page)
             soil_mpob_standards = {
-                'pH': (5.0, 6.0),
+                'pH': (4.5, 6.0),
                 'N (%)': (0.15, 0.25),
                 'Nitrogen (%)': (0.15, 0.25),
                 'Org. C (%)': (2.0, 4.0),
@@ -1694,7 +1694,7 @@ class PDFReportGenerator:
                 'Total P (mg/kg)': (20, 50),
                 'Avail P (mg/kg)': (20, 50),
                 'Available P (mg/kg)': (20, 50),
-                'Exch. K (meq%)': (0.2, 0.5),
+                'Exch. K (meq%)': (0.15, 0.30),
                 'Exch. Ca (meq%)': (3.0, 6.0),
                 'Exch. Mg (meq%)': (0.4, 0.8),
                 'CEC (meq%)': (12.0, 25.0),
@@ -1702,9 +1702,9 @@ class PDFReportGenerator:
             }
             
             leaf_mpob_standards = {
-                'N (%)': (2.6, 3.2),
+                'N (%)': (2.4, 2.8),
                 'P (%)': (0.16, 0.22),
-                'K (%)': (1.3, 1.7),
+                'K (%)': (1.0, 1.3),
                 'Mg (%)': (0.28, 0.38),
                 'Ca (%)': (0.5, 0.7),
                 'B (mg/kg)': (18, 28),
@@ -1989,7 +1989,7 @@ class PDFReportGenerator:
             
             # EXACT MPOB standards from results page
             soil_mpob_standards = {
-                'pH': (5.0, 6.0),
+                'pH': (4.5, 6.0),
                 'N (%)': (0.15, 0.25),
                 'Nitrogen (%)': (0.15, 0.25),
                 'Org. C (%)': (2.0, 4.0),
@@ -1997,7 +1997,7 @@ class PDFReportGenerator:
                 'Total P (mg/kg)': (20, 50),
                 'Avail P (mg/kg)': (20, 50),
                 'Available P (mg/kg)': (20, 50),
-                'Exch. K (meq%)': (0.2, 0.5),
+                'Exch. K (meq%)': (0.15, 0.30),
                 'Exch. Ca (meq%)': (3.0, 6.0),
                 'Exch. Mg (meq%)': (0.4, 0.8),
                 'CEC (meq%)': (12.0, 25.0),
@@ -2005,9 +2005,9 @@ class PDFReportGenerator:
             }
             
             leaf_mpob_standards = {
-                'N (%)': (2.6, 3.2),
+                'N (%)': (2.4, 2.8),
                 'P (%)': (0.16, 0.22),
-                'K (%)': (1.3, 1.7),
+                'K (%)': (1.0, 1.3),
                 'Mg (%)': (0.28, 0.38),
                 'Ca (%)': (0.5, 0.7),
                 'B (mg/kg)': (18, 28),
@@ -2063,7 +2063,7 @@ class PDFReportGenerator:
                     if 'mg/kg' in param_name:
                         unit = "mg/kg"
                     elif 'meq%' in param_name:
-                        unit = "meq%"
+                        unit = "meq/100 g"
                     elif '%' in param_name:
                         unit = "%"
                     
@@ -2133,7 +2133,7 @@ class PDFReportGenerator:
                     if 'mg/kg' in param_name:
                         unit = "mg/kg"
                     elif 'meq%' in param_name:
-                        unit = "meq%"
+                        unit = "meq/100 g"
                     elif '%' in param_name:
                         unit = "%"
                     
@@ -2365,56 +2365,171 @@ class PDFReportGenerator:
                     leaf_params = engine._convert_structured_to_analysis_format(structured_leaf_data, 'leaf')
 
             # Define MPOB standards for comparison
-            mpob_standards = {
-                # Soil standards
-                'pH': {'min': 4.5, 'unit': ''},
+            soil_mpob_standards = {
+                'pH': {'min': 4.5, 'max': 5.5, 'unit': ''},
                 'N (%)': {'min': 0.15, 'unit': '%'},
+                'Nitrogen (%)': {'min': 0.15, 'unit': '%'},
                 'Org. C (%)': {'min': 1.0, 'unit': '%'},
+                'Organic Carbon (%)': {'min': 1.0, 'unit': '%'},
                 'Avail P (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
-                'Total P (mg/kg)': {'min': 20.0, 'unit': 'mg/kg'},
-                'Exch. K (meq%)': {'min': 0.15, 'unit': 'meq%'},
-                'Exch. Ca (meq%)': {'min': 0.5, 'unit': 'meq%'},
-                'Exch. Mg (meq%)': {'min': 0.25, 'unit': 'meq%'},
-                'CEC (meq%)': {'min': 5.0, 'unit': 'meq%'},
-                # Leaf standards
+                'Available P (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Total P (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Total Phosphorus (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Total_P (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Total_P_mg_kg': {'min': 15.0, 'unit': 'mg/kg'},
+                'Exch. K (meq/100 g)': {'min': 0.15, 'unit': 'meq/100 g'},
+                'Exchangeable K (meq/100 g)': {'min': 0.15, 'unit': 'meq/100 g'},
+                'Exch. Ca (meq/100 g)': {'min': 0.5, 'unit': 'meq/100 g'},
+                'Exchangeable Ca (meq/100 g)': {'min': 0.5, 'unit': 'meq/100 g'},
+                'Exch. Mg (meq/100 g)': {'min': 0.25, 'unit': 'meq/100 g'},
+                'Exchangeable Mg (meq/100 g)': {'min': 0.25, 'unit': 'meq/100 g'},
+                'CEC (meq/100 g)': {'min': 5.0, 'unit': 'meq/100 g'},
+                'Cation Exchange Capacity (meq%)': {'min': 5.0, 'unit': 'meq/100 g'}
+            }
+
+            leaf_mpob_standards = {
                 'N (%)': {'min': 2.4, 'unit': '%'},
+                'Nitrogen (%)': {'min': 2.4, 'unit': '%'},
                 'P (%)': {'min': 0.14, 'unit': '%'},
+                'Phosphorus (%)': {'min': 0.14, 'unit': '%'},
                 'K (%)': {'min': 1.0, 'unit': '%'},
+                'Potassium (%)': {'min': 1.0, 'unit': '%'},
                 'Mg (%)': {'min': 0.25, 'unit': '%'},
+                'Magnesium (%)': {'min': 0.25, 'unit': '%'},
                 'Ca (%)': {'min': 0.6, 'unit': '%'},
-                'B (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Calcium (%)': {'min': 0.6, 'unit': '%'},
+                'B (mg/kg)': {'min': 10.0, 'unit': 'mg/kg'},
+                'Boron (mg/kg)': {'min': 10.0, 'unit': 'mg/kg'},
                 'Cu (mg/kg)': {'min': 5.0, 'unit': 'mg/kg'},
-                'Zn (mg/kg)': {'min': 12.0, 'unit': 'mg/kg'}
+                'Copper (mg/kg)': {'min': 5.0, 'unit': 'mg/kg'},
+                'Zn (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'},
+                'Zinc (mg/kg)': {'min': 15.0, 'unit': 'mg/kg'}
             }
 
             gap_data = []
 
-            # Calculate gaps for soil parameters
+            # Calculate gaps for soil parameters (prefer Available P over Total P)
+            phosphorus_processed = set()
             if soil_params and 'parameter_statistics' in soil_params:
+                # First pass: Handle phosphorus parameters with preference for Available P
+                avail_p_keys = ['Avail P (mg/kg)', 'Available P (mg/kg)']
+                total_p_keys = ['Total P (mg/kg)', 'Total Phosphorus (mg/kg)', 'Total_P (mg/kg)', 'Total_P_mg_kg']
+
+                # Check if Available P data exists
+                avail_p_available = any(key in soil_params['parameter_statistics'] for key in avail_p_keys)
+
+                if avail_p_available:
+                    # Use Available P, skip Total P
+                    for param_name in avail_p_keys:
+                        if param_name in soil_params['parameter_statistics'] and param_name in soil_mpob_standards:
+                            param_stats = soil_params['parameter_statistics'][param_name]
+                            if isinstance(param_stats, dict):
+                                avg_val = param_stats.get('average', 0)
+                                if avg_val is not None:
+                                    standard = soil_mpob_standards[param_name]
+                                    min_val = standard['min']
+                                    unit = standard['unit']
+
+                                    percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
+                                    absolute_gap = avg_val - min_val
+
+                                    if abs(percent_gap) <= 5:
+                                        severity = "Balanced"
+                                    elif abs(percent_gap) <= 15:
+                                        severity = "Low"
+                                    else:
+                                        severity = "Critical"
+
+                                    if unit:
+                                        avg_display = f"{avg_val:.2f} {unit}"
+                                        min_display = f"{min_val} {unit}"
+                                        abs_gap_display = f"{absolute_gap:+.2f}"
+                                    else:
+                                        avg_display = f"{avg_val:.2f}"
+                                        min_display = f"{min_val}"
+                                        abs_gap_display = f"{absolute_gap:+.2f}"
+
+                                    percent_display = f"{percent_gap:+.1f}%"
+
+                                    gap_data.append([
+                                        self._format_param_name(param_name),
+                                        "Soil",
+                                        avg_display,
+                                        min_display,
+                                        abs_gap_display,
+                                        percent_display,
+                                        severity
+                                    ])
+                                    phosphorus_processed.add('phosphorus')
+                                    break
+                else:
+                    # No Available P, check for Total P
+                    for param_name in total_p_keys:
+                        if param_name in soil_params['parameter_statistics'] and param_name in soil_mpob_standards:
+                            param_stats = soil_params['parameter_statistics'][param_name]
+                            if isinstance(param_stats, dict):
+                                avg_val = param_stats.get('average', 0)
+                                if avg_val is not None:
+                                    standard = soil_mpob_standards[param_name]
+                                    min_val = standard['min']
+                                    unit = standard['unit']
+
+                                    percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
+                                    absolute_gap = avg_val - min_val
+
+                                    if abs(percent_gap) <= 5:
+                                        severity = "Balanced"
+                                    elif abs(percent_gap) <= 15:
+                                        severity = "Low"
+                                    else:
+                                        severity = "Critical"
+
+                                    if unit:
+                                        avg_display = f"{avg_val:.2f} {unit}"
+                                        min_display = f"{min_val} {unit}"
+                                        abs_gap_display = f"{absolute_gap:+.2f}"
+                                    else:
+                                        avg_display = f"{avg_val:.2f}"
+                                        min_display = f"{min_val}"
+                                        abs_gap_display = f"{absolute_gap:+.2f}"
+
+                                    percent_display = f"{percent_gap:+.1f}%"
+
+                                    gap_data.append([
+                                        self._format_param_name(param_name),
+                                        "Soil",
+                                        avg_display,
+                                        min_display,
+                                        abs_gap_display,
+                                        percent_display,
+                                        severity
+                                    ])
+                                    phosphorus_processed.add('phosphorus')
+                                    break
+
+                # Second pass: Handle remaining non-phosphorus parameters
                 for param_name, param_stats in soil_params['parameter_statistics'].items():
-                    if isinstance(param_stats, dict) and param_name in mpob_standards:
+                    # Skip phosphorus parameters if already processed
+                    if any(p_key in param_name for p_key in ['Total P', 'Avail P', 'Available P']):
+                        continue
+
+                    if isinstance(param_stats, dict) and param_name in soil_mpob_standards:
                         avg_val = param_stats.get('average', 0)
                         if avg_val is not None:
-                            standard = mpob_standards[param_name]
+                            standard = soil_mpob_standards[param_name]
                             min_val = standard['min']
                             unit = standard['unit']
 
-                            # Calculate gap
+                            percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
                             absolute_gap = avg_val - min_val
-                            percent_gap = (absolute_gap / min_val) * 100 if min_val != 0 else 0
 
-                            # Determine severity
-                            severity = "Balanced"
-                            if percent_gap < -50:
-                                severity = "Critical"
-                            elif percent_gap < -20:
-                                severity = "High"
-                            elif percent_gap < -10:
-                                severity = "Medium"
-                            elif percent_gap < 0:
+                            if abs(percent_gap) <= 5:
+                                severity = "Balanced"
+                            elif abs(percent_gap) <= 15:
                                 severity = "Low"
+                            else:
+                                severity = "Critical"
 
-                            # Format display values
                             if unit:
                                 avg_display = f"{avg_val:.2f} {unit}"
                                 min_display = f"{min_val} {unit}"
@@ -2439,27 +2554,24 @@ class PDFReportGenerator:
             # Calculate gaps for leaf parameters
             if leaf_params and 'parameter_statistics' in leaf_params:
                 for param_name, param_stats in leaf_params['parameter_statistics'].items():
-                    if isinstance(param_stats, dict) and param_name in mpob_standards:
+                    if isinstance(param_stats, dict) and param_name in leaf_mpob_standards:
                         avg_val = param_stats.get('average', 0)
                         if avg_val is not None:
-                            standard = mpob_standards[param_name]
+                            standard = leaf_mpob_standards[param_name]
                             min_val = standard['min']
                             unit = standard['unit']
 
-                            # Calculate gap
+                            # Calculate gap as deviation from minimum (negative for deficiencies, positive for excesses)
+                            percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
                             absolute_gap = avg_val - min_val
-                            percent_gap = (absolute_gap / min_val) * 100 if min_val != 0 else 0
 
-                            # Determine severity
-                            severity = "Balanced"
-                            if percent_gap < -50:
-                                severity = "Critical"
-                            elif percent_gap < -20:
-                                severity = "High"
-                            elif percent_gap < -10:
-                                severity = "Medium"
-                            elif percent_gap < 0:
+                            # Determine severity based on gap magnitude
+                            if abs(percent_gap) <= 5:
+                                severity = "Balanced"
+                            elif abs(percent_gap) <= 15:
                                 severity = "Low"
+                            else:
+                                severity = "Critical"
 
                             # Format display values
                             if unit:
@@ -2483,9 +2595,26 @@ class PDFReportGenerator:
                                 severity
                             ])
 
-            # Sort by severity (Critical first, then High, Medium, Low, Balanced)
-            severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Balanced": 4}
-            gap_data.sort(key=lambda x: (severity_order.get(x[6], 5), -abs(float(x[5].rstrip('%')))))
+            # Multi-pass sorting for guaranteed correct order (same as results page)
+            severity_order = {"Critical": 0, "Low": 1, "Balanced": 2}
+
+            # Separate by severity
+            critical_data = [row for row in gap_data if row[6] == 'Critical']
+            low_data = [row for row in gap_data if row[6] == 'Low']
+            balanced_data = [row for row in gap_data if row[6] == 'Balanced']
+            unknown_data = [row for row in gap_data if row[6] not in ['Critical', 'Low', 'Balanced']]
+
+            # Sort each group by gap magnitude descending
+            def sort_by_gap_descending_pdf(row_list):
+                return sorted(row_list, key=lambda x: -abs(float(x[5].rstrip('%').replace('+', '').replace('-', ''))))
+
+            critical_data = sort_by_gap_descending_pdf(critical_data)
+            low_data = sort_by_gap_descending_pdf(low_data)
+            balanced_data = sort_by_gap_descending_pdf(balanced_data)
+            unknown_data = sort_by_gap_descending_pdf(unknown_data)
+
+            # Combine in priority order
+            gap_data = critical_data + low_data + balanced_data + unknown_data
 
             if gap_data:
                 headers = ["Nutrient", "Source", "Average Value", "MPOB Standard (Min)", "Absolute Gap", "Percent Gap", "Severity"]
@@ -2589,18 +2718,7 @@ class PDFReportGenerator:
             if soil_params and 'parameter_statistics' in soil_params:
                 param_stats = soil_params['parameter_statistics']
 
-                # Soil N:P ratio (Nitrogen % vs Total Phosphorus mg/kg)
-                if 'N (%)' in param_stats and 'Total P (mg/kg)' in param_stats:
-                    n_val = param_stats['N (%)'].get('average', 0)
-                    p_val = param_stats['Total P (mg/kg)'].get('average', 0)
-                    if n_val and p_val and n_val != 0 and p_val != 0:
-                        ratio = (n_val * 1000) / p_val  # Convert N% to mg/kg for ratio
-                        ratio_data.append([
-                            "🌱 Soil N:P Ratio (N% : Total P)",
-                            f"{ratio:.2f}",
-                            "10-20",
-                            "Optimal" if 10 <= ratio <= 20 else "Imbalanced"
-                        ])
+                # Soil N:P ratio disabled - units are incompatible (N in % vs P in mg/kg)
 
                 # Soil K:Mg ratio (Exchangeable Potassium vs Magnesium)
                 if 'Exch. K (meq%)' in param_stats and 'Exch. Mg (meq%)' in param_stats:
@@ -2619,18 +2737,7 @@ class PDFReportGenerator:
             if leaf_params and 'parameter_statistics' in leaf_params:
                 param_stats = leaf_params['parameter_statistics']
 
-                # Leaf N:P ratio (Nitrogen % vs Phosphorus %)
-                if 'N (%)' in param_stats and 'P (%)' in param_stats:
-                    n_val = param_stats['N (%)'].get('average', 0)
-                    p_val = param_stats['P (%)'].get('average', 0)
-                    if n_val and p_val and n_val != 0 and p_val != 0:
-                        ratio = n_val / p_val
-                        ratio_data.append([
-                            "🍃 Leaf N:P Ratio (N% : P%)",
-                            f"{ratio:.2f}",
-                            "12-20",
-                            "Optimal" if 12 <= ratio <= 20 else "Imbalanced"
-                        ])
+                # Leaf N:P ratio disabled - units are incompatible (N in % vs P in % but context suggests different interpretation)
 
                 # Leaf K:Mg ratio (Potassium % vs Magnesium %)
                 if 'K (%)' in param_stats and 'Mg (%)' in param_stats:
@@ -2641,8 +2748,8 @@ class PDFReportGenerator:
                         ratio_data.append([
                             "🍃 Leaf K:Mg Ratio (K% : Mg%)",
                             f"{ratio:.2f}",
-                            "3.4-6.1",
-                            "Optimal" if 3.4 <= ratio <= 6.1 else "Imbalanced"
+                            "0.5-1.0",
+                            "Optimal" if 0.5 <= ratio <= 1.0 else "Imbalanced"
                         ])
             
             if ratio_data:
@@ -2664,14 +2771,14 @@ class PDFReportGenerator:
         try:
             # Create quick guide data for deficient nutrients
             guide_data = [
-                ["🌱 pH", "4.0-5.5", "Critical for nutrient availability", "Apply lime if <4.0, sulfur if >5.5"],
+                ["🌱 pH", "4.5-5.5", "Critical for nutrient availability", "Apply lime if <4.5"],
                 ["🌱 N (%)", "0.15-0.25", "Essential for growth", "Apply nitrogen fertilizer"],
                 ["🌱 P (mg/kg)", "20-50", "Root development", "Apply phosphate fertilizer"],
-                ["🌱 K (meq%)", "0.2-0.5", "Fruit quality", "Apply potash fertilizer"],
+                ["🌱 K (meq%)", "0.15-0.30", "Fruit quality", "Apply potash fertilizer"],
                 ["🌱 Mg (meq%)", "0.4-0.8", "Chlorophyll production", "Apply magnesium sulfate"],
-                ["🍃 N (%)", "2.6-3.2", "Leaf growth", "Increase nitrogen application"],
+                ["🍃 N (%)", "2.4-2.8", "Leaf growth", "Increase nitrogen application"],
                 ["🍃 P (%)", "0.16-0.22", "Energy transfer", "Increase phosphate application"],
-                ["🍃 K (%)", "1.3-1.7", "Fruit development", "Increase potash application"],
+                ["🍃 K (%)", "1.0-1.3", "Fruit development", "Increase potash application"],
                 ["🍃 B (mg/kg)", "18-28", "Cell division", "Apply boron fertilizer"],
                 ["🍃 Zn (mg/kg)", "15-25", "Enzyme function", "Apply zinc sulfate"]
             ]
@@ -3322,14 +3429,14 @@ class PDFReportGenerator:
             ph_value = soil_params['pH'].get('average', 0)
             
             if ph_value > 0:
-                if ph_value < 5.5:
+                if ph_value < 4.5:
                     findings.append({
-                        'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development.",
+                        'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 4.5-5.5. This acidic condition severely limits nutrient availability and root development.",
                         'source': 'Soil Analysis - pH'
                     })
-                elif ph_value > 7.5:
+                elif ph_value > 5.5:
                     findings.append({
-                        'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
+                        'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 4.5-5.5. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
                         'source': 'Soil Analysis - pH'
                     })
                 else:
@@ -3412,12 +3519,12 @@ class PDFReportGenerator:
                 if leaf_n > 0:
                     if leaf_n < 2.6:
                         findings.append({
-                            'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below MPOB optimal range of 2.6-3.2%. This indicates poor nitrogen uptake and affects photosynthesis.",
+                            'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below MPOB optimal range of 2.4-2.8%. This indicates poor nitrogen uptake and affects photosynthesis.",
                             'source': 'Leaf Analysis - Nitrogen'
                         })
                     elif leaf_n > 3.2:
                         findings.append({
-                            'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above MPOB optimal range of 2.6-3.2%. This may cause nutrient imbalances and delayed maturity.",
+                            'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above MPOB optimal range of 2.4-2.8%. This may cause nutrient imbalances and delayed maturity.",
                             'source': 'Leaf Analysis - Nitrogen'
                         })
                     else:
@@ -5872,7 +5979,7 @@ class PDFReportGenerator:
 
         year1_data = [
             ['Scenario', 'Yield improvement t/ha', 'Input cost RM/ha', 'Revenue RM/ha', 'Net profit RM/ha', 'Year-1 ROI %'],
-            ['High', '4.0 - 5.5', '2,402 - 2,882', '2,600 - 4,125', '-282 - 1,723', '-9.8% to 60.0% ¹ ²'],
+            ['High', '4.5 - 6.0', '2,402 - 2,882', '2,600 - 4,125', '-282 - 1,723', '-9.8% to 60.0% ¹ ²'],
             ['Medium', '2.5 - 4.0', '1,883 - 2,258', '1,625 - 3,000', '-633 - 1,117', '-28.0% to 59.3% ²'],
             ['Low', '1.5 - 2.5', '1,364 - 1,633', '975 - 1,875', '-658 - 511', '-40.3% to 37.5% ²']
         ]
@@ -8074,6 +8181,11 @@ class PDFReportGenerator:
                     s = str(val).strip()
                     if not s:
                         return None
+                    # Handle special cases for missing/detection limit values
+                    s_lower = s.lower()
+                    if s_lower in ['n.d.', 'nd', 'not detected', '<1', 'bdl', 'below detection limit']:
+                        return None
+
                     # Remove common non-numeric chars
                     s = s.replace('%', '').replace(',', '')
                     # Extract first numeric fragment
@@ -8497,12 +8609,12 @@ class PDFReportGenerator:
             
             # EXACT MPOB standards from results page
             soil_mpob_standards = {
-                'pH': (5.0, 6.0),
+                'pH': (4.5, 6.0),
                 'N (%)': (0.15, 0.25),
                 'Org. C (%)': (2.0, 4.0),
                 'Total P (mg/kg)': (20, 50),
                 'Avail P (mg/kg)': (20, 50),
-                'Exch. K (meq%)': (0.2, 0.5),
+                'Exch. K (meq%)': (0.15, 0.30),
                 'Exch. Ca (meq%)': (3.0, 6.0),
                 'Exch. Mg (meq%)': (0.4, 0.8),
                 'CEC (meq%)': (12.0, 25.0)
@@ -8616,6 +8728,11 @@ class PDFReportGenerator:
                     s = str(val).strip()
                     if not s:
                         return None
+                    # Handle special cases for missing/detection limit values
+                    s_lower = s.lower()
+                    if s_lower in ['n.d.', 'nd', 'not detected', '<1', 'bdl', 'below detection limit']:
+                        return None
+
                     # Remove common non-numeric chars
                     s = s.replace('%', '').replace(',', '')
                     # Extract first numeric fragment
@@ -9055,9 +9172,9 @@ class PDFReportGenerator:
             
             # EXACT MPOB standards from results page
             leaf_mpob_standards = {
-                'N (%)': (2.6, 3.2),
+                'N (%)': (2.4, 2.8),
                 'P (%)': (0.16, 0.22),
-                'K (%)': (1.3, 1.7),
+                'K (%)': (1.0, 1.3),
                 'Mg (%)': (0.28, 0.38),
                 'Ca (%)': (0.5, 0.7),
                 'B (mg/kg)': (18, 28),

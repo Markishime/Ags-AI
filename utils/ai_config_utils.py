@@ -206,7 +206,7 @@ Apply tags: {tags}
                 {'condition': 'pH < 4.5', 'tags': ['critical', 'soil_property', 'soil_management']},
                 {'condition': 'N < 2.4', 'tags': ['high', 'macronutrient', 'fertilization']},
                 {'condition': 'P < 0.15', 'tags': ['high', 'macronutrient', 'fertilization']},
-                {'condition': 'K < 0.9', 'tags': ['high', 'macronutrient', 'fertilization']}
+                {'condition': 'K < 1.0', 'tags': ['high', 'macronutrient', 'fertilization']}
             ]
         }
     },

@@ -1315,10 +1315,10 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
                     'Organic_Carbon_%': param_stats.get('Organic Carbon (%)', param_stats.get('Org. C (%)', {})).get('average', 0.0),
                     'Total_P_mg_kg': param_stats.get('Total P (mg/kg)', {}).get('average', 0.0),
                     'Available_P_mg_kg': param_stats.get('Available P (mg/kg)', {}).get('average', 0.0),
-                    'Exchangeable_K_meq%': param_stats.get('Exch. K (meq%)', {}).get('average', 0.0),
-                    'Exchangeable_Ca_meq%': param_stats.get('Exch. Ca (meq%)', {}).get('average', 0.0),
-                    'Exchangeable_Mg_meq%': param_stats.get('Exch. Mg (meq%)', {}).get('average', 0.0),
-                    'CEC_meq%': param_stats.get('C.E.C (meq%)', {}).get('average', 0.0)
+                    'Exchangeable_K_meq/100 g': param_stats.get('Exch. K (meq/100 g)', {}).get('average', 0.0),
+                    'Exchangeable_Ca_meq/100 g': param_stats.get('Exch. Ca (meq/100 g)', {}).get('average', 0.0),
+                    'Exchangeable_Mg_meq/100 g': param_stats.get('Exch. Mg (meq/100 g)', {}).get('average', 0.0),
+                    'CEC_meq/100 g': param_stats.get('C.E.C (meq/100 g)', {}).get('average', 0.0)
                 }
                 transformed_soil_samples.append(transformed_sample)
         else:
@@ -1333,10 +1333,10 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
                         'Organic_Carbon_%': sample.get('Organic Carbon %', sample.get('Org. C %', 0.0)),
                         'Total_P_mg_kg': sample.get('Total P mg/kg', 0.0),
                         'Available_P_mg_kg': sample.get('Available P mg/kg', 0.0),
-                        'Exchangeable_K_meq%': sample.get('Exch. K meq%', 0.0),
-                        'Exchangeable_Ca_meq%': sample.get('Exch. Ca meq%', 0.0),
-                        'Exchangeable_Mg_meq%': sample.get('Exch. Mg meq%', 0.0),
-                        'CEC_meq%': sample.get('C.E.C meq%', 0.0)
+                        'Exchangeable_K_meq/100 g': sample.get('Exch. K meq/100 g', 0.0),
+                        'Exchangeable_Ca_meq/100 g': sample.get('Exch. Ca meq/100 g', 0.0),
+                        'Exchangeable_Mg_meq/100 g': sample.get('Exch. Mg meq/100 g', 0.0),
+                        'CEC_meq/100 g': sample.get('C.E.C meq/100 g', 0.0)
                     }
                     transformed_soil_samples.append(transformed_sample)
 
@@ -1935,11 +1935,11 @@ def display_structured_soil_data(soil_data):
                         
                         # For parameters that shouldn't have 0.0 values, filter them out
                         if col in ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Available P (mg/kg)', 
-                                  'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'C.E.C (meq%)',
-                                  'CEC (meq%)', 'Nitrogen (%)', 'Organic Carbon (%)']:
+                                  'Exch. K (meq/100 g)', 'Exch. Ca (meq/100 g)', 'Exch. Mg (meq/100 g)', 'C.E.C (meq/100 g)',
+                                  'CEC (meq/100 g)', 'Nitrogen (%)', 'Organic Carbon (%)']:
                             # Filter out values that are likely missing (0.0 or very close to 0)
                             # But keep some values for parameters that might legitimately be low
-                            if col in ['Exch. Ca (meq%)', 'Exch. K (meq%)', 'Exch. Mg (meq%)']:
+                            if col in ['Exch. Ca (meq/100 g)', 'Exch. K (meq/100 g)', 'Exch. Mg (meq/100 g)']:
                                 # For exchangeable cations, keep values >= 0.01 (very low threshold)
                                 valid_values = valid_values[valid_values >= 0.01]
                             else:
@@ -2039,11 +2039,11 @@ def display_structured_leaf_data(leaf_data):
                         
                         # For parameters that shouldn't have 0.0 values, filter them out
                         if col in ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Available P (mg/kg)', 
-                                  'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'C.E.C (meq%)',
-                                  'CEC (meq%)', 'Nitrogen (%)', 'Organic Carbon (%)']:
+                                  'Exch. K (meq/100 g)', 'Exch. Ca (meq/100 g)', 'Exch. Mg (meq/100 g)', 'C.E.C (meq/100 g)',
+                                  'CEC (meq/100 g)', 'Nitrogen (%)', 'Organic Carbon (%)']:
                             # Filter out values that are likely missing (0.0 or very close to 0)
                             # But keep some values for parameters that might legitimately be low
-                            if col in ['Exch. Ca (meq%)', 'Exch. K (meq%)', 'Exch. Mg (meq%)']:
+                            if col in ['Exch. Ca (meq/100 g)', 'Exch. K (meq/100 g)', 'Exch. Mg (meq/100 g)']:
                                 # For exchangeable cations, keep values >= 0.01 (very low threshold)
                                 valid_values = valid_values[valid_values >= 0.01]
                             else:
@@ -3078,13 +3078,13 @@ def display_summary_section(results_data):
         if ph_data:
             ph_avg = ph_data.get('average', 0)
             # Only consider pH deficiency if we have valid data (> 0 and reasonable range)
-            if ph_avg > 0 and ph_avg < 5.5:
+            if ph_avg > 0 and ph_avg < 4.5:
                 summary_sentences.append(f"Critical soil pH deficiency detected at {ph_avg:.2f}, which severely limits nutrient availability and can cause stunted root growth, reduced nutrient uptake, and increased susceptibility to root diseases in oil palm trees.")
                 summary_sentences.append(f"Low soil pH affects oil palm by reducing the solubility of essential nutrients like phosphorus and micronutrients, leading to chlorosis, poor fruit development, and decreased oil content in fruit bunches.")
                 summary_sentences.append(f"pH deficiency in oil palm plantations can result in aluminum toxicity, which damages root systems and impairs water absorption, ultimately causing premature leaf senescence and reduced photosynthetic capacity.")
                 summary_sentences.append(f"Immediate pH correction through liming is essential to prevent long-term soil degradation and maintain the plantation's productive lifespan.")
                 ph_messages_added = True
-            elif ph_avg > 0 and ph_avg >= 5.5 and ph_avg <= 7.0:
+            elif ph_avg > 0 and ph_avg >= 4.5 and ph_avg <= 6.0:
                 # Normal pH range - add one concise sentence
                 summary_sentences.append(f"Soil pH levels at {ph_avg:.2f} are within optimal ranges, supporting proper nutrient availability and root development in the oil palm plantation.")
                 ph_messages_added = True
@@ -3107,19 +3107,19 @@ def display_summary_section(results_data):
                 nutrient_sentences_added += 1
 
         # Check for potassium issues
-        k_data = soil_stats.get('Exchangeable_K_meq%', {})
+        k_data = soil_stats.get('Exchangeable_K_meq/100 g', {})
         if k_data and nutrient_sentences_added < 2:
             k_avg = k_data.get('average', 0)
             if k_avg > 0 and k_avg < 0.15:
-                summary_sentences.append(f"Exchangeable potassium deficiency at {k_avg:.2f} meq% (MPOB optimal: 0.15-0.40 meq%) can compromise water balance regulation and reduce oil synthesis in oil palm trees.")
+                summary_sentences.append(f"Exchangeable potassium deficiency at {k_avg:.2f} meq/100 g (MPOB optimal: 0.15-0.40 meq/100 g) can compromise water balance regulation and reduce oil synthesis in oil palm trees.")
                 nutrient_sentences_added += 1
 
         # Check for calcium issues
-        ca_data = soil_stats.get('Exchangeable_Ca_meq%', {})
+        ca_data = soil_stats.get('Exchangeable_Ca_meq/100 g', {})
         if ca_data and nutrient_sentences_added < 2:
             ca_avg = ca_data.get('average', 0)
             if ca_avg > 0 and ca_avg < 2.0:
-                summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq% indicates deficiency (MPOB optimal: 2.0-5.0 meq%), potentially weakening cell walls and reducing palm vigor.")
+                summary_sentences.append(f"Calcium availability at {ca_avg:.2f} meq/100 g indicates deficiency (MPOB optimal: 2.0-5.0 meq/100 g), potentially weakening cell walls and reducing palm vigor.")
                 nutrient_sentences_added += 1
 
     # If no nutrient issues were specifically detected, avoid generic adequacy claims
@@ -3234,7 +3234,7 @@ def calculate_parameter_statistics(samples):
             if param in sample and sample[param] is not None:
                 try:
                     # Convert to float, handling different formats
-                    value = float(str(sample[param]).replace('%', '').replace('mg/kg', '').replace('meq%', '').strip())
+                    value = float(str(sample[param]).replace('%', '').replace('mg/kg', '').replace('meq/100 g', '').strip())
                     values.append(value)
                 except (ValueError, TypeError):
                     continue
@@ -3370,10 +3370,10 @@ def merge_similar_findings(finding1: str, finding2: str) -> str:
         'organic_carbon': ['organic carbon', 'organic_carbon', 'carbon', 'c', 'c%', 'c_%', 'organic_carbon_%'],
         'total_phosphorus': ['total phosphorus', 'total p', 'total_p', 'total phosphorus mg/kg', 'total_p_mg_kg'],
         'available_phosphorus': ['available phosphorus', 'available p', 'available_p', 'available phosphorus mg/kg', 'available_p_mg_kg'],
-        'exchangeable_potassium': ['exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 'exchangeable_k', 'k meq%', 'k_meq%', 'exchangeable_k_meq%'],
-        'exchangeable_calcium': ['exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 'exchangeable_ca', 'ca meq%', 'ca_meq%', 'exchangeable_ca_meq%'],
-        'exchangeable_magnesium': ['exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 'exchangeable_mg', 'mg meq%', 'mg_meq%', 'exchangeable_mg_meq%'],
-        'cec': ['cec', 'cation exchange capacity', 'c.e.c', 'cec meq%', 'cec_meq%'],
+        'exchangeable_potassium': ['exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 'exchangeable_k', 'k meq/100 g', 'k_meq/100 g', 'exchangeable_k_meq/100 g'],
+        'exchangeable_calcium': ['exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 'exchangeable_ca', 'ca meq/100 g', 'ca_meq/100 g', 'exchangeable_ca_meq/100 g'],
+        'exchangeable_magnesium': ['exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 'exchangeable_mg', 'mg meq/100 g', 'mg_meq/100 g', 'exchangeable_mg_meq/100 g'],
+        'cec': ['cec', 'cation exchange capacity', 'c.e.c', 'cec meq/100 g', 'cec_meq/100 g'],
         
         # Leaf Parameters (8)
         'leaf_nitrogen': ['leaf nitrogen', 'leaf n', 'leaf_n', 'n%', 'n_%', 'nitrogen%', 'nitrogen_%'],
@@ -3495,10 +3495,10 @@ def group_and_merge_findings_by_parameter(findings_list):
         'organic_carbon': ['organic carbon', 'organic_carbon', 'carbon', 'c', 'c%', 'c_%', 'organic_carbon_%'],
         'total_phosphorus': ['total phosphorus', 'total p', 'total_p', 'total phosphorus mg/kg', 'total_p_mg_kg'],
         'available_phosphorus': ['available phosphorus', 'available p', 'available_p', 'available phosphorus mg/kg', 'available_p_mg_kg'],
-        'exchangeable_potassium': ['exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 'exchangeable_k', 'k meq%', 'k_meq%', 'exchangeable_k_meq%'],
-        'exchangeable_calcium': ['exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 'exchangeable_ca', 'ca meq%', 'ca_meq%', 'exchangeable_ca_meq%'],
-        'exchangeable_magnesium': ['exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 'exchangeable_mg', 'mg meq%', 'mg_meq%', 'exchangeable_mg_meq%'],
-        'cec': ['cec', 'cation exchange capacity', 'c.e.c', 'cec meq%', 'cec_meq%'],
+        'exchangeable_potassium': ['exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 'exchangeable_k', 'k meq/100 g', 'k_meq/100 g', 'exchangeable_k_meq/100 g'],
+        'exchangeable_calcium': ['exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 'exchangeable_ca', 'ca meq/100 g', 'ca_meq/100 g', 'exchangeable_ca_meq/100 g'],
+        'exchangeable_magnesium': ['exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 'exchangeable_mg', 'mg meq/100 g', 'mg_meq/100 g', 'exchangeable_mg_meq/100 g'],
+        'cec': ['cec', 'cation exchange capacity', 'c.e.c', 'cec meq/100 g', 'cec_meq/100 g'],
         
         # Leaf Parameters (8)
         'leaf_nitrogen': ['leaf nitrogen', 'leaf n', 'leaf_n', 'n%', 'n_%', 'nitrogen%', 'nitrogen_%'],
@@ -3877,14 +3877,14 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
         ph_optimal = mpob.get('soil', {}).get('ph', {}).get('optimal', 6.5)
         
         if ph_value > 0:
-            if ph_value < 5.5:
+            if ph_value < 4.5:
                 findings.append({
-                    'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 5.5-7.0. This acidic condition severely limits nutrient availability and root development.",
+                    'finding': f"Soil pH is critically low at {ph_value:.1f}, significantly below optimal range of 4.5-5.5. This acidic condition severely limits nutrient availability and root development.",
                     'source': 'Soil Analysis - pH'
                 })
             elif ph_value > 7.5:
                 findings.append({
-                    'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 5.5-7.0. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
+                    'finding': f"Soil pH is high at {ph_value:.1f}, above optimal range of 4.5-5.5. This alkaline condition reduces availability of essential micronutrients like iron and zinc.",
                     'source': 'Soil Analysis - pH'
                 })
             else:
@@ -3938,24 +3938,24 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
                 })
     
     # 4. Soil Potassium Analysis
-    if 'Exchangeable_K_meq%' in soil_params and mpob:
-        k_value = soil_params['Exchangeable_K_meq%'].get('average', 0)
+    if 'Exchangeable_K_meq/100 g' in soil_params and mpob:
+        k_value = soil_params['Exchangeable_K_meq/100 g'].get('average', 0)
         k_optimal = mpob.get('soil', {}).get('exchangeable_potassium', {}).get('optimal', 0.3)
         
         if k_value > 0:
             if k_value < k_optimal * 0.6:
                 findings.append({
-                    'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq%, below optimal level of {k_optimal:.2f} meq%. This affects water regulation and disease resistance.",
+                    'finding': f"Exchangeable potassium is deficient at {k_value:.2f} meq/100 g, below optimal level of {k_optimal:.2f} meq/100 g. This affects water regulation and disease resistance.",
                     'source': 'Soil Analysis - Potassium'
                 })
             elif k_value > k_optimal * 1.5:
                 findings.append({
-                    'finding': f"Exchangeable potassium is high at {k_value:.2f} meq%, above optimal level of {k_optimal:.2f} meq%. This may cause nutrient imbalances.",
+                    'finding': f"Exchangeable potassium is high at {k_value:.2f} meq/100 g, above optimal level of {k_optimal:.2f} meq/100 g. This may cause nutrient imbalances.",
                     'source': 'Soil Analysis - Potassium'
                 })
             else:
                 findings.append({
-                    'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq%, within optimal range for healthy plant function.",
+                    'finding': f"Exchangeable potassium is adequate at {k_value:.2f} meq/100 g, within optimal range for healthy plant function.",
                     'source': 'Soil Analysis - Potassium'
                 })
     
@@ -3967,12 +3967,12 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
             if leaf_n > 0:
                 if leaf_n < 2.6:
                     findings.append({
-                        'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.6-3.2%. This indicates poor nitrogen uptake and affects photosynthesis.",
+                        'finding': f"Leaf nitrogen is deficient at {leaf_n:.1f}%, below optimal range of 2.4-2.8%. This indicates poor nitrogen uptake and affects photosynthesis.",
                         'source': 'Leaf Analysis - Nitrogen'
                     })
                 elif leaf_n > 3.2:
                     findings.append({
-                        'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.6-3.2%. This may cause nutrient imbalances and delayed maturity.",
+                        'finding': f"Leaf nitrogen is excessive at {leaf_n:.1f}%, above optimal range of 2.4-2.8%. This may cause nutrient imbalances and delayed maturity.",
                         'source': 'Leaf Analysis - Nitrogen'
                     })
                 else:
@@ -4030,9 +4030,9 @@ def generate_comprehensive_parameter_findings(analysis_results, step_results):
                     leaf_k = leaf_params.get('K_%', {}).get('average', 0)
                     if leaf_k > 0:
                         k_mg_ratio = leaf_k / leaf_mg if leaf_mg > 0 else 0
-                        if k_mg_ratio > 3.0:  # K:Mg ratio too high
+                        if k_mg_ratio > 2.0:  # K:Mg ratio too high
                             findings.append({
-                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}. Kieserite recommended only after GML correction and if K:Mg ratio remains >3.0.",
+                                'finding': f"Leaf magnesium is deficient at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}. Kieserite recommended only after GML correction and if K:Mg ratio remains >2.0.",
                                 'source': 'Leaf Analysis - Magnesium'
                             })
                         else:
@@ -4229,12 +4229,15 @@ def generate_consolidated_key_findings(analysis_results, step_results):
             if ph_avg is not None and ph_avg > 0:  # Only add if we have a valid pH value
                 soil_analysis_details['ph'] = {
                     'value': ph_avg,
-                    'status': 'Low' if ph_avg < 5.5 else 'High' if ph_avg > 6.5 else 'Optimal',
-                    'optimal_range': '5.5-6.5',
+                    'status': 'Low' if ph_avg < 4.5 else 'High' if ph_avg > 5.5 else 'Optimal',
+                    'optimal_range': '4.5-5.5',
                     'unit': 'pH units'
                 }
-                if ph_avg < 5.5:
-                    soil_issues.append(f"Soil pH measured at {ph_avg:.2f} (severely acidic, optimal range: 5.5-6.5). This critical acidity severely limits nutrient availability, particularly phosphorus and micronutrients, and can cause aluminum toxicity to palm roots.")
+                if ph_avg < 4.5:
+                    if ph_avg >= 4.0:  # Moderately low pH
+                        soil_issues.append(f"Soil pH measured at {ph_avg:.2f} (slightly acidic, optimal range: 4.5-5.5). This acidity reduces nutrient availability, particularly phosphorus and micronutrients.")
+                    else:  # Severely low pH
+                        soil_issues.append(f"Soil pH measured at {ph_avg:.2f} (severely acidic, optimal range: 4.5-5.5). This critical acidity severely limits nutrient availability, particularly phosphorus and micronutrients, and can cause aluminum toxicity to palm roots.")
 
             # Extract phosphorus data - try different possible parameter names
             p_avg = None
@@ -4260,7 +4263,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract potassium data - try different possible parameter names
             k_avg = None
-            for k_key in ['Exch. K (meq%)', 'Exchangeable K (meq%)', 'K (meq%)', 'Exchangeable_K_meq%', 'K_meq%', 'Potassium_meq%', 'Exchangeable_K']:
+            for k_key in ['Exch. K (meq/100 g)', 'Exchangeable K (meq/100 g)', 'K (meq/100 g)', 'Exchangeable_K_meq/100 g', 'K_meq/100 g', 'Potassium_meq/100 g', 'Exchangeable_K']:
                 if k_key in soil_stats:
                     k_data = soil_stats[k_key]
                     if isinstance(k_data, dict) and 'average' in k_data:
@@ -4274,15 +4277,15 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                 soil_analysis_details['potassium'] = {
                     'value': k_avg,
                     'status': 'Low' if k_avg < 0.15 else 'Optimal',
-                    'optimal_range': '>0.15 meq%',
-                    'unit': 'meq%'
+                    'optimal_range': '>0.15 meq/100 g',
+                    'unit': 'meq/100 g'
                 }
                 if k_avg < 0.15:
-                    soil_issues.append(f"Exchangeable potassium measured at {k_avg:.2f} meq% (deficient, optimal: >0.15 meq%). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
+                    soil_issues.append(f"Exchangeable potassium measured at {k_avg:.2f} meq/100 g (deficient, optimal: >0.15 meq/100 g). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
 
             # Extract CEC data - try different possible parameter names
             cec_avg = None
-            for cec_key in ['CEC (meq%)', 'CEC (meq%)', 'Cation Exchange Capacity (meq%)', 'CEC_meq%', 'CEC', 'Cation_Exchange_Capacity']:
+            for cec_key in ['CEC (meq/100 g)', 'CEC (meq/100 g)', 'Cation Exchange Capacity (meq/100 g)', 'CEC_meq/100 g', 'CEC', 'Cation_Exchange_Capacity']:
                 if cec_key in soil_stats:
                     cec_data = soil_stats[cec_key]
                     if isinstance(cec_data, dict) and 'average' in cec_data:
@@ -4296,11 +4299,11 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                 soil_analysis_details['cec'] = {
                     'value': cec_avg,
                     'status': 'Low' if cec_avg < 10 else 'Optimal',
-                    'optimal_range': '>10 meq%',
-                    'unit': 'meq%'
+                    'optimal_range': '>10 meq/100 g',
+                    'unit': 'meq/100 g'
                 }
                 if cec_avg < 10:
-                    soil_issues.append(f"Cation exchange capacity measured at {cec_avg:.1f} meq% (low, optimal: >10 meq%). Low CEC indicates poor nutrient retention capacity and may require soil amendment.")
+                    soil_issues.append(f"Cation exchange capacity measured at {cec_avg:.1f} meq/100 g (low, optimal: >10 meq/100 g). Low CEC indicates poor nutrient retention capacity and may require soil amendment.")
 
             # Extract nitrogen data - try different possible parameter names
             n_avg = None
@@ -4340,7 +4343,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract calcium data - try different possible parameter names
             ca_avg = None
-            for ca_key in ['Exch. Ca (meq%)', 'Exchangeable Ca (meq%)', 'Ca (meq%)', 'Exchangeable_Ca_meq%', 'Ca_meq%']:
+            for ca_key in ['Exch. Ca (meq/100 g)', 'Exchangeable Ca (meq/100 g)', 'Ca (meq/100 g)', 'Exchangeable_Ca_meq/100 g', 'Ca_meq/100 g']:
                 if ca_key in soil_stats:
                     ca_data = soil_stats[ca_key]
                     if isinstance(ca_data, dict) and 'average' in ca_data:
@@ -4352,7 +4355,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
             # Extract magnesium data - try different possible parameter names
             mg_avg = None
-            for mg_key in ['Exch. Mg (meq%)', 'Exchangeable Mg (meq%)', 'Mg (meq%)', 'Exchangeable_Mg_meq%', 'Mg_meq%']:
+            for mg_key in ['Exch. Mg (meq/100 g)', 'Exchangeable Mg (meq/100 g)', 'Mg (meq/100 g)', 'Exchangeable_Mg_meq/100 g', 'Mg_meq/100 g']:
                 if mg_key in soil_stats:
                     mg_data = soil_stats[mg_key]
                     if isinstance(mg_data, dict) and 'average' in mg_data:
@@ -4373,12 +4376,15 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         if 'ph' in key.lower():
                             soil_analysis_details['ph'] = {
                                 'value': avg_val,
-                                'status': 'Low' if avg_val < 5.5 else 'High' if avg_val > 6.5 else 'Optimal',
-                                'optimal_range': '5.5-6.5',
+                                'status': 'Low' if avg_val < 4.5 else 'High' if avg_val > 5.5 else 'Optimal',
+                                'optimal_range': '4.5-5.5',
                                 'unit': 'pH units'
                             }
-                            if avg_val < 5.5:
-                                soil_issues.append(f"Soil pH measured at {avg_val:.2f} (severely acidic, optimal range: 5.5-6.5). This critical acidity severely limits nutrient availability, particularly phosphorus and micronutrients, and can cause aluminum toxicity to palm roots.")
+                            if avg_val < 4.5:
+                                if avg_val >= 4.0:  # Moderately low pH
+                                    soil_issues.append(f"Soil pH measured at {avg_val:.2f} (slightly acidic, optimal range: 4.5-5.5). This acidity reduces nutrient availability, particularly phosphorus and micronutrients.")
+                                else:  # Severely low pH
+                                    soil_issues.append(f"Soil pH measured at {avg_val:.2f} (severely acidic, optimal range: 4.5-5.5). This critical acidity severely limits nutrient availability, particularly phosphorus and micronutrients, and can cause aluminum toxicity to palm roots.")
                         elif 'phosphorus' in key.lower() or 'p_' in key.lower():
                             soil_analysis_details['phosphorus'] = {
                                 'value': avg_val,
@@ -4392,11 +4398,11 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                             soil_analysis_details['potassium'] = {
                                 'value': avg_val,
                                 'status': 'Low' if avg_val < 0.15 else 'Optimal',
-                                'optimal_range': '>0.15 meq%',
-                                'unit': 'meq%'
+                                'optimal_range': '>0.15 meq/100 g',
+                                'unit': 'meq/100 g'
                             }
                             if avg_val < 0.15:
-                                soil_issues.append(f"Exchangeable potassium measured at {avg_val:.2f} meq% (deficient, optimal: >0.15 meq%). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
+                                soil_issues.append(f"Exchangeable potassium measured at {avg_val:.2f} meq/100 g (deficient, optimal: >0.15 meq/100 g). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
 
         # As a last resort, try to extract values from step results text
         if not soil_analysis_details and step_results:
@@ -4423,12 +4429,15 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                             if ph_val > 0 and ph_val < 14:  # Valid pH range
                                 soil_analysis_details['ph'] = {
                                     'value': ph_val,
-                                    'status': 'Low' if ph_val < 5.5 else 'High' if ph_val > 6.5 else 'Optimal',
-                                    'optimal_range': '5.5-6.5',
+                                    'status': 'Low' if ph_val < 4.5 else 'High' if ph_val > 5.5 else 'Optimal',
+                                    'optimal_range': '4.5-5.5',
                                     'unit': 'pH units'
                                 }
-                                if ph_val < 5.5:
-                                    soil_issues.append(f"Soil pH measured at {ph_val:.2f} (severely acidic, optimal range: 5.5-6.5). This critical acidity severely limits nutrient availability, particularly phosphorus and micronutrients, and can cause aluminum toxicity to palm roots.")
+                                if ph_val < 4.5:
+                                    if ph_val >= 4.0:  # Moderately low pH
+                                        soil_issues.append(f"Soil pH measured at {ph_val:.2f} (slightly acidic, optimal range: 4.5-5.5). This acidity reduces nutrient availability, particularly phosphorus and micronutrients.")
+                                    else:  # Severely low pH
+                                        soil_issues.append(f"Soil pH measured at {ph_val:.2f} (severely acidic, optimal range: 4.5-5.5). This critical acidity severely limits nutrient availability, particularly phosphorus and micronutrients, and can cause aluminum toxicity to palm roots.")
                         except ValueError:
                             pass
 
@@ -4458,15 +4467,15 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                     #     try:
                     #         k_val = float(k_matches[0])
                     #         if k_val > 0:
-                    #             logger.warning(f"⚠️ Using text-parsed potassium value: {k_val} meq%")
+                    #             logger.warning(f"⚠️ Using text-parsed potassium value: {k_val} meq/100 g")
                     #             soil_analysis_details['potassium'] = {
                     #                 'value': k_val,
                     #                 'status': 'Low' if k_val < 0.15 else 'Optimal',
-                    #                 'optimal_range': '>0.15 meq%',
-                    #                 'unit': 'meq%'
+                    #                 'optimal_range': '>0.15 meq/100 g',
+                    #                 'unit': 'meq/100 g'
                     #             }
                     #             if k_val < 0.15:
-                    #                 soil_issues.append(f"Exchangeable potassium measured at {k_val:.2f} meq% (deficient, optimal: >0.15 meq%). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
+                    #                 soil_issues.append(f"Exchangeable potassium measured at {k_val:.2f} meq/100 g (deficient, optimal: >0.15 meq/100 g). Potassium deficiency affects water regulation, disease resistance, and fruit quality in oil palm.")
                     #     except ValueError:
                     #         pass
 
@@ -4496,11 +4505,11 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                 leaf_analysis_details['nitrogen'] = {
                     'value': n_avg,
                     'status': 'Low' if n_avg < 2.6 else 'High' if n_avg > 3.2 else 'Optimal',
-                    'optimal_range': '2.6-3.2%',
+                    'optimal_range': '2.4-2.8%',
                     'unit': '%'
                 }
                 if n_avg < 2.6:
-                    nutrient_deficiencies.append(f"Leaf nitrogen measured at {n_avg:.2f}% (deficient, optimal range: 2.6-3.2%). Nitrogen deficiency causes chlorosis, reduced photosynthesis, and poor fruit development in oil palm.")
+                    nutrient_deficiencies.append(f"Leaf nitrogen measured at {n_avg:.2f}% (deficient, optimal range: 2.4-2.8%). Nitrogen deficiency causes chlorosis, reduced photosynthesis, and poor fruit development in oil palm.")
 
             # Extract phosphorus data - try different possible parameter names
             p_avg = None
@@ -4648,11 +4657,11 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                                 leaf_analysis_details['nitrogen'] = {
                                     'value': n_val,
                                     'status': 'Low' if n_val < 2.6 else 'High' if n_val > 3.2 else 'Optimal',
-                                    'optimal_range': '2.6-3.2%',
+                                    'optimal_range': '2.4-2.8%',
                                     'unit': '%'
                                 }
                                 if n_val < 2.6:
-                                    nutrient_deficiencies.append(f"Leaf nitrogen measured at {n_val:.2f}% (deficient, optimal range: 2.6-3.2%). Nitrogen deficiency causes chlorosis, reduced photosynthesis, and poor fruit development in oil palm.")
+                                    nutrient_deficiencies.append(f"Leaf nitrogen measured at {n_val:.2f}% (deficient, optimal range: 2.4-2.8%). Nitrogen deficiency causes chlorosis, reduced photosynthesis, and poor fruit development in oil palm.")
                         except ValueError:
                             pass
 
@@ -4786,7 +4795,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
             if soil_averages:
                 # Use the same MPOB standards as the Step 1 tables
                 soil_mpob_standards = {
-                    'pH': (5.0, 6.0),
+                    'pH': (4.5, 6.0),
                     'N (%)': (0.15, 0.25),
                     'Nitrogen (%)': (0.15, 0.25),
                     'Organic Carbon (%)': (2.0, 4.0),
@@ -4794,14 +4803,14 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                     'Total P (mg/kg)': (400, 800),
                     'Available P (mg/kg)': (15, 30),
                     'Avail P (mg/kg)': (15, 30),
-                    'Exchangeable K (meq%)': (0.15, 0.3),
-                    'Exch. K (meq%)': (0.15, 0.3),
-                    'Exchangeable Ca (meq%)': (2.0, 8.0),
-                    'Exch. Ca (meq%)': (2.0, 8.0),
-                    'Exchangeable Mg (meq%)': (0.8, 2.0),
-                    'Exch. Mg (meq%)': (0.8, 2.0),
-                    'CEC (meq%)': (12.0, 25.0),
-                    'C.E.C (meq%)': (12.0, 25.0)
+                    'Exchangeable K (meq/100 g)': (0.15, 0.30),
+                    'Exch. K (meq/100 g)': (0.15, 0.30),
+                    'Exchangeable Ca (meq/100 g)': (2.0, 8.0),
+                    'Exch. Ca (meq/100 g)': (2.0, 8.0),
+                    'Exchangeable Mg (meq/100 g)': (0.8, 2.0),
+                    'Exch. Mg (meq/100 g)': (0.8, 2.0),
+                    'CEC (meq/100 g)': (12.0, 25.0),
+                    'C.E.C (meq/100 g)': (12.0, 25.0)
                 }
 
                 for param, avg_val in soil_averages.items():
@@ -4822,8 +4831,8 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                         unit = ""
                         if 'mg/kg' in param:
                             unit = "mg/kg"
-                        elif 'meq%' in param:
-                            unit = "meq%"
+                        elif 'meq/100 g' in param:
+                            unit = "meq/100 g"
                         elif '%' in param:
                             unit = "%"
 
@@ -4997,7 +5006,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
 
                 # Check pH
                 ph_data = soil_stats.get('pH', {})
-                if ph_data and ph_data.get('average', 0) < 5.5:
+                if ph_data and ph_data.get('average', 0) < 4.5:
                     soil_issues.append("Soil pH is critically low, severely limiting nutrient availability")
 
                 # Check phosphorus
@@ -5006,7 +5015,7 @@ def generate_consolidated_key_findings(analysis_results, step_results):
                     soil_issues.append("Available phosphorus is deficient, limiting root development")
 
                 # Check potassium
-                k_data = soil_stats.get('Exchangeable_K_meq%', {})
+                k_data = soil_stats.get('Exchangeable_K_meq/100 g', {})
                 if k_data and k_data.get('average', 0) < 0.15:
                     soil_issues.append("Exchangeable potassium is low, affecting plant water regulation")
 
@@ -5409,7 +5418,7 @@ def _is_corrupted_soil_issue(issue):
     current_value = issue.get('current_value', 0)
 
     # Check 1: non-pH parameter has pH optimal range
-    if parameter != 'pH' and optimal_range == '4.0-5.5':
+    if parameter != 'pH' and optimal_range == '4.5-5.5':
         return True
 
     # Check 2: all values are 0.0 (indicates data corruption)
@@ -5436,12 +5445,12 @@ def display_formatted_soil_issue(issue, issue_number):
         return
 
     # Additional corruption check to prevent display of malformed data
-    # Filter out issues where non-pH parameters have pH optimal ranges (4.0-5.5)
+    # Filter out issues where non-pH parameters have pH optimal ranges (4.5-5.5)
     parameter = issue.get('parameter', '')
     optimal_range = issue.get('optimal_range', '')
     current_value = issue.get('current_value', 0)
 
-    if parameter != 'pH' and optimal_range == '4.0-5.5':
+    if parameter != 'pH' and optimal_range == '4.5-5.5':
         st.warning(f"⚠️ Filtered out corrupted soil issue for {parameter}: incorrect pH optimal range applied")
         return
 
@@ -5862,7 +5871,8 @@ def display_enhanced_step_result(step_result, step_number):
     if step_num == 5:
         try:
             display_step5_economic_forecast(analysis_data)
-            return  # Exit early if special handling succeeds
+            # Continue to general display logic to ensure all tables are shown
+            # Don't return early to allow additional table display
         except Exception as e:
             logger.error(f"Step 5 special handling failed: {str(e)}", exc_info=True)
             st.error(f"Error displaying Step 5 economic forecast: {str(e)}")
@@ -6429,8 +6439,8 @@ def display_step5_economic_forecast(analysis_data):
         if not economic_forecast:
             economic_forecast = analysis_data.get('data', {}).get('economic_forecast', {})
 
-        # Always try to display structured tables first (these are generated by the analysis engine)
-        tables_displayed = False
+        # ALWAYS display ALL available tables first (guaranteed display)
+        all_tables_displayed = 0
         if 'tables' in analysis_data and analysis_data['tables']:
             st.markdown("### 📊 **Economic Analysis Tables**")
             tables = analysis_data['tables']
@@ -6438,12 +6448,37 @@ def display_step5_economic_forecast(analysis_data):
                 for i, table_data in enumerate(tables, 1):
                     if table_data and isinstance(table_data, dict):
                         display_table(table_data, f"Economic Table {i}")
-                        tables_displayed = True
+                        all_tables_displayed += 1
 
-        # If structured tables were displayed, also show economic forecast if available
-        if tables_displayed and economic_forecast and economic_forecast.get('scenarios'):
+        # Also check for tables in other locations
+        if 'result' in analysis_data and isinstance(analysis_data['result'], dict):
+            if 'tables' in analysis_data['result'] and analysis_data['result']['tables']:
+                if all_tables_displayed == 0:
+                    st.markdown("### 📊 **Economic Analysis Tables**")
+                result_tables = analysis_data['result']['tables']
+                if isinstance(result_tables, list) and result_tables:
+                    for i, table_data in enumerate(result_tables, all_tables_displayed + 1):
+                        if table_data and isinstance(table_data, dict):
+                            display_table(table_data, f"Economic Table {i}")
+                            all_tables_displayed += 1
+
+        # If no tables found yet, try economic forecast scenarios as main tables
+        if all_tables_displayed == 0 and economic_forecast and economic_forecast.get('scenarios'):
+            st.markdown("### 📊 **Economic Analysis Tables**")
             scenarios = economic_forecast['scenarios']
-            additional_tables_shown = 0
+            for scenario_name, scenario_data in scenarios.items():
+                if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
+                    yearly_data = scenario_data['yearly_data']
+                    if yearly_data and len(yearly_data) > 0:
+                        # Display accurate table from backend data
+                        display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
+                        all_tables_displayed += 1
+
+        # As final fallback, ensure we display economic forecast tables
+        if all_tables_displayed == 0 and economic_forecast and economic_forecast.get('scenarios'):
+            st.markdown("### 📊 **Economic Forecast Tables**")
+            scenarios = economic_forecast['scenarios']
+            forecast_tables_shown = 0
 
             for scenario_name, scenario_data in scenarios.items():
                 if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
@@ -6452,30 +6487,14 @@ def display_step5_economic_forecast(analysis_data):
                     if yearly_data and len(yearly_data) > 0:
                         # Display accurate table from backend data
                         display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
-                        additional_tables_shown += 1
+                        forecast_tables_shown += 1
+                        all_tables_displayed += 1
 
-            if additional_tables_shown > 0:
-                st.info("📈 Additional detailed economic projections displayed above.")
-
-        # If no structured tables were found, try economic forecast data
-        elif economic_forecast and economic_forecast.get('scenarios'):
-            scenarios = economic_forecast['scenarios']
-            tables_shown = 0
-
-            for scenario_name, scenario_data in scenarios.items():
-                if isinstance(scenario_data, dict) and 'yearly_data' in scenario_data:
-                    yearly_data = scenario_data['yearly_data']
-
-                    if yearly_data and len(yearly_data) > 0:
-                        # Display accurate table from backend data
-                        display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
-                        tables_shown += 1
-
-            if tables_shown == 0:
+            if forecast_tables_shown == 0:
                 st.warning("⚠️ Economic forecast scenarios found but no valid yearly data to display")
 
         # As a last resort, try formatted analysis
-        if not tables_displayed and not (economic_forecast and economic_forecast.get('scenarios')):
+        if all_tables_displayed == 0:
             if 'formatted_analysis' in analysis_data and analysis_data['formatted_analysis']:
                 st.markdown("### 📊 **Economic Analysis Tables (Formatted)**")
                 st.info("📋 Displaying formatted economic analysis from analysis text.")
@@ -6498,6 +6517,19 @@ def display_step5_economic_forecast(analysis_data):
 
         # Show completion message
         st.info("📊 **Economic Impact Analysis Complete** - All projections and ROI calculations are displayed in the tables above.")
+
+        # CRITICAL: Ensure ALL tables are displayed (including non-economic ones)
+        # This prevents tables from being missed in Step 5 display
+        if all_tables_displayed > 0:
+            st.markdown("### 📋 **Complete Analysis Tables**")
+            # Force display of any additional tables that might exist
+            if 'tables' in analysis_data and isinstance(analysis_data['tables'], list):
+                for i, table_data in enumerate(analysis_data['tables'], 1):
+                    if isinstance(table_data, dict) and table_data:
+                        try:
+                            display_table(table_data, f"Analysis Table {i}")
+                        except Exception as table_error:
+                            logger.warning(f"Could not display additional table {i}: {table_error}")
 
         # Optional: Show only a clean summary if it exists and is safe
         if 'summary' in analysis_data and analysis_data['summary']:
@@ -7154,7 +7186,7 @@ def filter_known_sections_from_text(text):
         "Item 0: {",
         '"parameter": "pH"',
         '"current_value": 0.0',
-        '"optimal_range": "4.0-5.5"',
+        '"optimal_range": "4.5-5.5"',
         '"status": "Deficient"',
         '"severity": "Critical"',
         '"impact": "Primary impacts: Aluminum toxicity"',
@@ -9195,10 +9227,10 @@ def create_actual_vs_optimal_viz(parameter_stats, parameter_type):
                 'Organic_Carbon_%': 'Organic Carbon %',
                 'Total_P_mg_kg': 'Total P (mg/kg)',
                 'Available_P_mg_kg': 'Available P (mg/kg)',
-                'Exchangeable_K_meq%': 'Exch. K (meq%)',
-                'Exchangeable_Ca_meq%': 'Exch. Ca (meq%)',
-                'Exchangeable_Mg_meq%': 'Exch. Mg (meq%)',
-                'CEC_meq%': 'CEC (meq%)'
+                'Exchangeable_K_meq/100 g': 'Exch. K (meq/100 g)',
+                'Exchangeable_Ca_meq/100 g': 'Exch. Ca (meq/100 g)',
+                'Exchangeable_Mg_meq/100 g': 'Exch. Mg (meq/100 g)',
+                'CEC_meq/100 g': 'CEC (meq/100 g)'
             }
         else:  # leaf
             param_mapping = {
@@ -9234,13 +9266,13 @@ def create_actual_vs_optimal_viz(parameter_stats, parameter_type):
                             optimal_val = 30
                         elif param_key == 'Available_P_mg_kg':
                             optimal_val = 22
-                        elif param_key == 'Exchangeable_K_meq%':
+                        elif param_key == 'Exchangeable_K_meq/100 g':
                             optimal_val = 0.20
-                        elif param_key == 'Exchangeable_Ca_meq%':
+                        elif param_key == 'Exchangeable_Ca_meq/100 g':
                             optimal_val = 3.0
-                        elif param_key == 'Exchangeable_Mg_meq%':
+                        elif param_key == 'Exchangeable_Mg_meq/100 g':
                             optimal_val = 1.15
-                        elif param_key == 'CEC_meq%':
+                        elif param_key == 'CEC_meq/100 g':
                             optimal_val = 12.0
                     else:  # leaf
                         # Use correct MPOB leaf standards
@@ -10951,23 +10983,23 @@ def extract_soil_data_with_robust_mapping(analysis_data):
             'avail_p_mg_kg': 'Avail P (mg/kg)', 'p_avail': 'Avail P (mg/kg)',
             
             # Exchangeable Potassium variations
-            'exch_k': 'Exch. K (meq%)', 'exchangeable_k': 'Exch. K (meq%)', 'ek': 'Exch. K (meq%)',
-            'soil_exch_k': 'Exch. K (meq%)', 'k_exchangeable': 'Exch. K (meq%)', 'exch_k_meq': 'Exch. K (meq%)',
-            'k_exch': 'Exch. K (meq%)', 'exchangeable_potassium': 'Exch. K (meq%)',
+            'exch_k': 'Exch. K (meq/100 g)', 'exchangeable_k': 'Exch. K (meq/100 g)', 'ek': 'Exch. K (meq/100 g)',
+            'soil_exch_k': 'Exch. K (meq/100 g)', 'k_exchangeable': 'Exch. K (meq/100 g)', 'exch_k_meq': 'Exch. K (meq/100 g)',
+            'k_exch': 'Exch. K (meq/100 g)', 'exchangeable_potassium': 'Exch. K (meq/100 g)',
             
             # Exchangeable Calcium variations
-            'exch_ca': 'Exch. Ca (meq%)', 'exchangeable_ca': 'Exch. Ca (meq%)', 'eca': 'Exch. Ca (meq%)',
-            'soil_exch_ca': 'Exch. Ca (meq%)', 'ca_exchangeable': 'Exch. Ca (meq%)', 'exch_ca_meq': 'Exch. Ca (meq%)',
-            'ca_exch': 'Exch. Ca (meq%)', 'exchangeable_calcium': 'Exch. Ca (meq%)',
+            'exch_ca': 'Exch. Ca (meq/100 g)', 'exchangeable_ca': 'Exch. Ca (meq/100 g)', 'eca': 'Exch. Ca (meq/100 g)',
+            'soil_exch_ca': 'Exch. Ca (meq/100 g)', 'ca_exchangeable': 'Exch. Ca (meq/100 g)', 'exch_ca_meq': 'Exch. Ca (meq/100 g)',
+            'ca_exch': 'Exch. Ca (meq/100 g)', 'exchangeable_calcium': 'Exch. Ca (meq/100 g)',
             
             # Exchangeable Magnesium variations
-            'exch_mg': 'Exch. Mg (meq%)', 'exchangeable_mg': 'Exch. Mg (meq%)', 'emg': 'Exch. Mg (meq%)',
-            'soil_exch_mg': 'Exch. Mg (meq%)', 'mg_exchangeable': 'Exch. Mg (meq%)', 'exch_mg_meq': 'Exch. Mg (meq%)',
-            'mg_exch': 'Exch. Mg (meq%)', 'exchangeable_magnesium': 'Exch. Mg (meq%)',
+            'exch_mg': 'Exch. Mg (meq/100 g)', 'exchangeable_mg': 'Exch. Mg (meq/100 g)', 'emg': 'Exch. Mg (meq/100 g)',
+            'soil_exch_mg': 'Exch. Mg (meq/100 g)', 'mg_exchangeable': 'Exch. Mg (meq/100 g)', 'exch_mg_meq': 'Exch. Mg (meq/100 g)',
+            'mg_exch': 'Exch. Mg (meq/100 g)', 'exchangeable_magnesium': 'Exch. Mg (meq/100 g)',
             
             # CEC variations
-            'cec': 'CEC (meq%)', 'cation_exchange_capacity': 'CEC (meq%)', 'cec_meq': 'CEC (meq%)',
-            'soil_cec': 'CEC (meq%)', 'exchange_capacity': 'CEC (meq%)', 'c_e_c': 'CEC (meq%)'
+            'cec': 'CEC (meq/100 g)', 'cation_exchange_capacity': 'CEC (meq/100 g)', 'cec_meq': 'CEC (meq/100 g)',
+            'soil_cec': 'CEC (meq/100 g)', 'exchange_capacity': 'CEC (meq/100 g)', 'c_e_c': 'CEC (meq/100 g)'
         }
         
         # Search locations in order of priority
@@ -11271,23 +11303,23 @@ def create_soil_vs_mpob_visualization_with_robust_mapping(analysis_data):
                 'Org. C (%)': 0.62,
                 'Total P (mg/kg)': 111.80,
                 'Avail P (mg/kg)': 2.30,
-                'Exch. K (meq%)': 0.10,
-                'Exch. Ca (meq%)': 0.30,
-                'Exch. Mg (meq%)': 0.16,
-                'CEC (meq%)': 6.16
+                'Exch. K (meq/100 g)': 0.10,
+                'Exch. Ca (meq/100 g)': 0.30,
+                'Exch. Mg (meq/100 g)': 0.16,
+                'CEC (meq/100 g)': 6.16
             }
         
         # EXACT MPOB standards from the table (these are the recommended values)
         soil_mpob_standards = {
-            'pH': (5.0, 6.0),
+            'pH': (4.5, 6.0),
             'N (%)': (0.15, 0.25),
             'Org. C (%)': (2.0, 4.0),
             'Total P (mg/kg)': (20, 50),
             'Avail P (mg/kg)': (20, 50),
-            'Exch. K (meq%)': (0.2, 0.5),
-            'Exch. Ca (meq%)': (3.0, 6.0),
-            'Exch. Mg (meq%)': (0.4, 0.8),
-            'CEC (meq%)': (12.0, 25.0)
+            'Exch. K (meq/100 g)': (0.15, 0.30),
+            'Exch. Ca (meq/100 g)': (3.0, 6.0),
+            'Exch. Mg (meq/100 g)': (0.4, 0.8),
+            'CEC (meq/100 g)': (12.0, 25.0)
         }
 
         categories = []
@@ -11637,7 +11669,7 @@ def create_sample_step1_visualizations():
             'title': '🌱 Soil Nutrient Status (Average vs. MPOB Standard)',
             'subtitle': 'Demonstration of soil nutrient analysis visualization',
             'data': {
-                'categories': ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)', 'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)'],
+                'categories': ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)', 'Exch. K (meq/100 g)', 'Exch. Ca (meq/100 g)', 'Exch. Mg (meq/100 g)', 'CEC (meq/100 g)'],
                 'series': [
                     {'name': 'Average Values', 'values': [4.15, 0.09, 0.62, 111.80, 2.30, 0.10, 0.30, 0.16, 6.16], 'color': '#3498db'},
                     {'name': 'MPOB Standard', 'values': [5.5, 0.2, 3.0, 35.0, 35.0, 0.35, 4.5, 0.6, 18.5], 'color': '#e74c3c'}
@@ -11713,7 +11745,7 @@ def create_soil_vs_mpob_visualization(soil_params):
 
         # Use the exact MPOB standards from provided data
         soil_mpob_standards = {
-            'pH': (5.0, 6.0),
+            'pH': (4.5, 6.0),
             'N (%)': (0.15, 0.25),
             'Nitrogen (%)': (0.15, 0.25),
             'Org. C (%)': (2.0, 4.0),
@@ -11721,11 +11753,11 @@ def create_soil_vs_mpob_visualization(soil_params):
             'Total P (mg/kg)': (20, 50),
             'Avail P (mg/kg)': (20, 50),
             'Available P (mg/kg)': (20, 50),
-            'Exch. K (meq%)': (0.2, 0.5),
-            'Exch. Ca (meq%)': (3.0, 6.0),
-            'Exch. Mg (meq%)': (0.4, 0.8),
-            'CEC (meq%)': (12.0, 25.0),
-            'C.E.C (meq%)': (12.0, 25.0)
+                    'Exch. K (meq/100 g)': (0.15, 0.30),
+            'Exch. Ca (meq/100 g)': (3.0, 6.0),
+            'Exch. Mg (meq/100 g)': (0.4, 0.8),
+            'CEC (meq/100 g)': (12.0, 25.0),
+            'C.E.C (meq/100 g)': (12.0, 25.0)
         }
 
         categories = []
@@ -11907,7 +11939,7 @@ def create_soil_leaf_comparison_visualization(soil_params, leaf_params):
     """Create soil vs leaf parameter comparison visualization"""
     try:
         # Get key parameters for comparison
-        soil_key_params = ['pH', 'Nitrogen_%', 'Available_P_mg_kg', 'Exchangeable_K_meq%']
+        soil_key_params = ['pH', 'Nitrogen_%', 'Available_P_mg_kg', 'Exchangeable_K_meq/100 g']
         leaf_key_params = ['N_%', 'P_%', 'K_%', 'Mg_%']
 
         categories = []
@@ -11925,7 +11957,7 @@ def create_soil_leaf_comparison_visualization(soil_params, leaf_params):
                         value = float(param_data) if isinstance(param_data, (int, float)) else 0
 
                     if value > 0:
-                        display_name = param.replace('_', ' ').replace('%', '(%)').replace('mg_kg', '(mg/kg)').replace('meq', '(meq%)')
+                        display_name = param.replace('_', ' ').replace('%', '(%)').replace('mg_kg', '(mg/kg)').replace('meq', '(meq/100 g)')
                         categories.append(f"Soil {display_name}")
                         soil_values.append(value)
                         leaf_values.append(0)  # No leaf value for this
@@ -12708,7 +12740,7 @@ def display_nutrient_status_tables(analysis_data):
         
         # EXACT MPOB standards from results page
         soil_mpob_standards = {
-            'pH': (5.0, 6.0),
+            'pH': (4.5, 6.0),
             'N (%)': (0.15, 0.25),
             'Nitrogen (%)': (0.15, 0.25),
             'Org. C (%)': (2.0, 4.0),
@@ -12716,11 +12748,11 @@ def display_nutrient_status_tables(analysis_data):
             'Total P (mg/kg)': (20, 50),
             'Avail P (mg/kg)': (20, 50),
             'Available P (mg/kg)': (20, 50),
-            'Exch. K (meq%)': (0.2, 0.5),
-            'Exch. Ca (meq%)': (3.0, 6.0),
-            'Exch. Mg (meq%)': (0.4, 0.8),
-            'CEC (meq%)': (12.0, 25.0),
-            'C.E.C (meq%)': (12.0, 25.0)
+                    'Exch. K (meq/100 g)': (0.15, 0.30),
+            'Exch. Ca (meq/100 g)': (3.0, 6.0),
+            'Exch. Mg (meq/100 g)': (0.4, 0.8),
+            'CEC (meq/100 g)': (12.0, 25.0),
+            'C.E.C (meq/100 g)': (12.0, 25.0)
         }
         
         leaf_mpob_standards = {
@@ -12759,9 +12791,17 @@ def display_nutrient_status_tables(analysis_data):
                             if opt_min <= avg_val <= opt_max:
                                 status = "Optimal"
                             elif avg_val < opt_min:
-                                status = "Critical Low"
+                                # For pH, use "Low" for values just below minimum threshold
+                                if param_name in ['pH', 'pH_Value', 'PH', 'soil_pH'] and avg_val >= opt_min - 0.5:
+                                    status = "Low"
+                                else:
+                                    status = "Critical Low"
                             else:
-                                status = "Critical High"
+                                # For pH, use "High" for values just above maximum threshold
+                                if param_name in ['pH', 'pH_Value', 'PH', 'soil_pH'] and avg_val <= opt_max + 0.5:
+                                    status = "High"
+                                else:
+                                    status = "Critical High"
                         else:
                             status = "N.D."
                     else:
@@ -12782,8 +12822,8 @@ def display_nutrient_status_tables(analysis_data):
                     unit = ""
                     if 'mg/kg' in param_name:
                         unit = "mg/kg"
-                    elif 'meq%' in param_name:
-                        unit = "meq%"
+                    elif 'meq/100 g' in param_name:
+                        unit = "meq/100 g"
                     elif '%' in param_name:
                         unit = "%"
                     
@@ -12857,9 +12897,17 @@ def display_nutrient_status_tables(analysis_data):
                             if opt_min <= avg_val <= opt_max:
                                 status = "Optimal"
                             elif avg_val < opt_min:
-                                status = "Critical Low"
+                                # For pH, use "Low" for values just below minimum threshold
+                                if param_name in ['pH', 'pH_Value', 'PH', 'soil_pH'] and avg_val >= opt_min - 0.5:
+                                    status = "Low"
+                                else:
+                                    status = "Critical Low"
                             else:
-                                status = "Critical High"
+                                # For pH, use "High" for values just above maximum threshold
+                                if param_name in ['pH', 'pH_Value', 'PH', 'soil_pH'] and avg_val <= opt_max + 0.5:
+                                    status = "High"
+                                else:
+                                    status = "Critical High"
                         else:
                             status = "N.D."
                     else:
@@ -12880,8 +12928,8 @@ def display_nutrient_status_tables(analysis_data):
                     unit = ""
                     if 'mg/kg' in param_name:
                         unit = "mg/kg"
-                    elif 'meq%' in param_name:
-                        unit = "meq%"
+                    elif 'meq/100 g' in param_name:
+                        unit = "meq/100 g"
                     elif '%' in param_name:
                         unit = "%"
                     
@@ -12959,8 +13007,8 @@ def display_overall_results_summary_table(analysis_data):
             s = soil_params['parameter_statistics']
             rows.append({'Category': 'Soil', 'Parameter': 'pH', 'Average': f"{find_avg(s, ['pH']):.2f}" if find_avg(s, ['pH']) is not None else 'N.D.'})
             rows.append({'Category': 'Soil', 'Parameter': 'Avail P (mg/kg)', 'Average': f"{find_avg(s, ['Avail P (mg/kg)','Available P (mg/kg)','Avail P','Available P']):.2f}" if find_avg(s, ['Avail P (mg/kg)','Available P (mg/kg)','Avail P','Available P']) is not None else 'N.D.'})
-            rows.append({'Category': 'Soil', 'Parameter': 'Exch. K (meq%)', 'Average': f"{find_avg(s, ['Exch. K (meq%)','Exchangeable K (meq%)','Exch K (meq%)']):.2f}" if find_avg(s, ['Exch. K (meq%)','Exchangeable K (meq%)','Exch K (meq%)']) is not None else 'N.D.'})
-            rows.append({'Category': 'Soil', 'Parameter': 'CEC (meq%)', 'Average': f"{find_avg(s, ['CEC (meq%)','CEC']):.2f}" if find_avg(s, ['CEC (meq%)','CEC']) is not None else 'N.D.'})
+            rows.append({'Category': 'Soil', 'Parameter': 'Exch. K (meq/100 g)', 'Average': f"{find_avg(s, ['Exch. K (meq/100 g)','Exchangeable K (meq/100 g)','Exch K (meq/100 g)']):.2f}" if find_avg(s, ['Exch. K (meq/100 g)','Exchangeable K (meq/100 g)','Exch K (meq/100 g)']) is not None else 'N.D.'})
+            rows.append({'Category': 'Soil', 'Parameter': 'CEC (meq/100 g)', 'Average': f"{find_avg(s, ['CEC (meq/100 g)','CEC']):.2f}" if find_avg(s, ['CEC (meq/100 g)','CEC']) is not None else 'N.D.'})
 
         if leaf_params and isinstance(leaf_params, dict) and 'parameter_statistics' in leaf_params:
             l = leaf_params['parameter_statistics']
@@ -12990,31 +13038,147 @@ def display_nutrient_gap_analysis_table(analysis_data):
             leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
 
         soil_min = {
+            'pH': 4.5,
+            'N (%)': 0.15,
+            'Nitrogen (%)': 0.15,
+            'Org. C (%)': 2.0,
+            'Organic Carbon (%)': 2.0,
+            'Total P (mg/kg)': 15.0,
+            'Total Phosphorus (mg/kg)': 15.0,
+            'Total_P (mg/kg)': 15.0,
+            'Total_P_mg_kg': 15.0,
             'Avail P (mg/kg)': 20.0,
-            'Exch. K (meq%)': 0.2,
-            'Exch. Ca (meq%)': 3.0,
-            'Exch. Mg (meq%)': 0.4,
-            'CEC (meq%)': 12.0,
+            'Available P (mg/kg)': 20.0,
+            'Exch. K (meq/100 g)': 0.15,
+            'Exchangeable K (meq/100 g)': 0.15,
+            'Exch. Ca (meq%)': 2.0,
+            'Exchangeable Ca (meq%)': 2.0,
+            'Exch. Mg (meq%)': 0.5,
+            'Exchangeable Mg (meq%)': 0.5,
+            'CEC (meq%)': 8.0,
+            'Cation Exchange Capacity (meq%)': 8.0,
         }
         leaf_min = {
-            'N (%)': 2.6,
-            'P (%)': 0.16,
-            'K (%)': 1.3,
-            'Mg (%)': 0.28,
-            'Cu (mg/kg)': 6.0,
+            'N (%)': 2.4,
+            'Nitrogen (%)': 2.4,
+            'P (%)': 0.15,
+            'Phosphorus (%)': 0.15,
+            'K (%)': 1.0,
+            'Potassium (%)': 1.0,
+            'Mg (%)': 0.25,
+            'Magnesium (%)': 0.25,
+            'Ca (%)': 0.5,
+            'Calcium (%)': 0.5,
+            'B (mg/kg)': 10.0,
+            'Boron (mg/kg)': 10.0,
+            'Cu (mg/kg)': 5.0,
+            'Copper (mg/kg)': 5.0,
             'Zn (mg/kg)': 15.0,
+            'Zinc (mg/kg)': 15.0,
         }
 
         rows = []
         def add_gaps(param_stats, thresholds, source):
+            # Handle phosphorus parameters specially - prefer Available P over Total P
+            phosphorus_handled = False
+            if source == 'Soil' and isinstance(param_stats, dict):
+                # Check if Available P data exists
+                avail_p_keys = ['Avail P (mg/kg)', 'Available P (mg/kg)', 'Avail P', 'Available P']
+                total_p_keys = ['Total P (mg/kg)', 'Total Phosphorus (mg/kg)', 'Total_P (mg/kg)', 'Total_P_mg_kg']
+
+                avail_p_found = False
+                for key in avail_p_keys:
+                    if key in param_stats and param_stats[key].get('average') is not None:
+                        avail_p_found = True
+                        break
+
+                if avail_p_found:
+                    # Use Available P, skip Total P
+                    for name in avail_p_keys:
+                        if name in thresholds and name in param_stats:
+                            item = param_stats.get(name, {})
+                            avg = item.get('average')
+                            minimum = thresholds[name]
+                            if isinstance(avg, (int, float)):
+                                gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
+                                gap_magnitude = abs(gap)
+
+                                if gap_magnitude <= 5:
+                                    severity = "Balanced"
+                                elif gap_magnitude <= 15:
+                                    severity = "Low"
+                                else:
+                                    severity = "Critical"
+
+                                rows.append({
+                                    'Source': source,
+                                    'Parameter': name,
+                                    'Observed': f"{avg:.2f}",
+                                    'Minimum': f"{minimum}",
+                                    'Percent Gap': f"{gap:+.1f}%",
+                                    'Severity': severity
+                                })
+                                phosphorus_handled = True
+                                break
+                else:
+                    # No Available P, check for Total P
+                    for name in total_p_keys:
+                        if name in thresholds and name in param_stats:
+                            item = param_stats.get(name, {})
+                            avg = item.get('average')
+                            minimum = thresholds[name]
+                            if isinstance(avg, (int, float)):
+                                gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
+                                gap_magnitude = abs(gap)
+
+                                if gap_magnitude <= 5:
+                                    severity = "Balanced"
+                                elif gap_magnitude <= 15:
+                                    severity = "Low"
+                                else:
+                                    severity = "Critical"
+
+                                rows.append({
+                                    'Source': source,
+                                    'Parameter': name,
+                                    'Observed': f"{avg:.2f}",
+                                    'Minimum': f"{minimum}",
+                                    'Percent Gap': f"{gap:+.1f}%",
+                                    'Severity': severity
+                                })
+                                phosphorus_handled = True
+                                break
+
+            # Process remaining parameters (skip phosphorus if already handled)
             for name, minimum in thresholds.items():
+                if phosphorus_handled and source == 'Soil' and any(p_key in name for p_key in ['Total P', 'Avail P', 'Available P']):
+                    continue  # Skip phosphorus parameters if already handled
+
                 avg = None
                 if isinstance(param_stats, dict):
                     item = param_stats.get(name, {})
                     avg = item.get('average')
                 if isinstance(avg, (int, float)):
-                    gap = ((minimum - avg) / minimum) * 100.0 if minimum > 0 and avg < minimum else 0.0
-                    rows.append({'Source': source, 'Parameter': name, 'Observed': f"{avg:.2f}", 'Minimum': f"{minimum}", 'Percent Gap': f"{gap:.0f}%" if gap > 0 else '0%'})
+                    # Calculate gap as deviation from minimum (negative for deficiencies, positive for excesses)
+                    gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
+                    gap_magnitude = abs(gap)  # Use absolute value for magnitude-based severity
+
+                    # Determine severity based on gap magnitude
+                    if gap_magnitude <= 5:
+                        severity = "Balanced"
+                    elif gap_magnitude <= 15:
+                        severity = "Low"
+                    else:
+                        severity = "Critical"
+
+                    rows.append({
+                        'Source': source,
+                        'Parameter': name,
+                        'Observed': f"{avg:.2f}",
+                        'Minimum': f"{minimum}",
+                        'Percent Gap': f"{gap:+.1f}%",  # Always show the actual gap with sign and 1 decimal place
+                        'Severity': severity
+                    })
 
         if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
             add_gaps(soil_params['parameter_statistics'], soil_min, 'Soil')
@@ -13022,15 +13186,43 @@ def display_nutrient_gap_analysis_table(analysis_data):
             add_gaps(leaf_params['parameter_statistics'], leaf_min, 'Leaf')
 
         if rows:
-            # Sort by Percent Gap descending
+            # Sort by severity (Critical first, then Low, then Balanced), then by gap magnitude (largest first)
             try:
-                def parse_pct(x):
+                severity_order = {"Critical": 0, "Low": 1, "Balanced": 2}
+
+                # Extract gap magnitude for sorting (remove % and + sign, take absolute value)
+                def get_gap_magnitude(row):
                     try:
-                        return float(x.replace('%',''))
-                    except Exception:
+                        gap_str = row.get('Percent Gap', '0.0%')
+                        # Remove % and + signs, then convert to float
+                        clean_gap = gap_str.replace('%', '').replace('+', '').replace('-', '')
+                        gap_val = float(clean_gap)
+                        return gap_val  # Return positive value (already absolute)
+                    except Exception as e:
+                        logger.warning(f"Error parsing gap magnitude for {row.get('Parameter', 'Unknown')}: {gap_str}, error: {e}")
                         return 0.0
-                rows.sort(key=lambda r: parse_pct(r.get('Percent Gap','0%')), reverse=True)
-            except Exception:
+
+                # Multi-pass sorting for guaranteed correct order
+                # First, separate rows by severity
+                critical_rows = [r for r in rows if r.get('Severity') == 'Critical']
+                low_rows = [r for r in rows if r.get('Severity') == 'Low']
+                balanced_rows = [r for r in rows if r.get('Severity') == 'Balanced']
+                unknown_rows = [r for r in rows if r.get('Severity') not in ['Critical', 'Low', 'Balanced']]
+
+                # Sort each group by gap magnitude descending
+                def sort_by_gap_descending(row_list):
+                    return sorted(row_list, key=lambda r: -get_gap_magnitude(r))
+
+                critical_rows = sort_by_gap_descending(critical_rows)
+                low_rows = sort_by_gap_descending(low_rows)
+                balanced_rows = sort_by_gap_descending(balanced_rows)
+                unknown_rows = sort_by_gap_descending(unknown_rows)
+
+                # Combine in priority order: Critical, Low, Balanced, Unknown
+                rows = critical_rows + low_rows + balanced_rows + unknown_rows
+
+            except Exception as e:
+                logger.error(f"Nutrient gap analysis sorting failed: {e}")
                 pass
             st.markdown("#### Nutrient Gap Analysis: Observed vs. Malaysian Minimum Thresholds")
             df = pd.DataFrame(rows)
@@ -13059,10 +13251,10 @@ def display_soil_ratio_table(analysis_data):
             s = soil_params['parameter_statistics']
             # Accept alias keys
             rk = None
-            for k_alias in ['Exch. K (meq%)','Exchangeable K (meq%)','Exch K (meq%)']:
+            for k_alias in ['Exch. K (meq/100 g)','Exchangeable K (meq/100 g)','Exch K (meq/100 g)']:
                 rk = (s.get(k_alias, {}) or {}).get('average') if rk is None else rk
             rmg = None
-            for mg_alias in ['Exch. Mg (meq%)','Exchangeable Mg (meq%)','Exch Mg (meq%)']:
+            for mg_alias in ['Exch. Mg (meq/100 g)','Exchangeable Mg (meq/100 g)','Exch Mg (meq/100 g)']:
                 rmg = (s.get(mg_alias, {}) or {}).get('average') if rmg is None else rmg
             r = ratio(rk, rmg)
 
@@ -13129,8 +13321,8 @@ def display_ratio_analysis_tables(analysis_data):
         rows = []
         if soil_params and isinstance(soil_params, dict) and 'parameter_statistics' in soil_params:
             s = soil_params['parameter_statistics']
-            rk = (s.get('Exch. K (meq%)', {}) or {}).get('average')
-            rmg = (s.get('Exch. Mg (meq%)', {}) or {}).get('average')
+            rk = (s.get('Exch. K (meq/100 g)', {}) or {}).get('average')
+            rmg = (s.get('Exch. Mg (meq/100 g)', {}) or {}).get('average')
             r = ratio(rk, rmg)
             rows.append({'Category': 'Soil', 'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'})
 
@@ -13160,19 +13352,43 @@ def display_deficient_nutrient_quick_guide(analysis_data):
             leaf_params = (analysis_data.get('raw_data', {}) or {}).get('leaf_parameters') or analysis_data.get('leaf_parameters')
 
         soil_min = {
+            'pH': 4.5,
+            'N (%)': 0.15,
+            'Nitrogen (%)': 0.15,
+            'Org. C (%)': 2.0,
+            'Organic Carbon (%)': 2.0,
+            'Total P (mg/kg)': 15.0,
+            'Total Phosphorus (mg/kg)': 15.0,
+            'Total_P (mg/kg)': 15.0,
+            'Total_P_mg_kg': 15.0,
             'Avail P (mg/kg)': 20.0,
-            'Exch. K (meq%)': 0.2,
-            'Exch. Ca (meq%)': 3.0,
-            'Exch. Mg (meq%)': 0.4,
-            'CEC (meq%)': 12.0,
+            'Available P (mg/kg)': 20.0,
+            'Exch. K (meq/100 g)': 0.15,
+            'Exchangeable K (meq/100 g)': 0.15,
+            'Exch. Ca (meq%)': 2.0,
+            'Exchangeable Ca (meq%)': 2.0,
+            'Exch. Mg (meq%)': 0.5,
+            'Exchangeable Mg (meq%)': 0.5,
+            'CEC (meq%)': 8.0,
+            'Cation Exchange Capacity (meq%)': 8.0,
         }
         leaf_min = {
-            'N (%)': 2.6,
-            'P (%)': 0.16,
-            'K (%)': 1.3,
-            'Mg (%)': 0.28,
-            'Cu (mg/kg)': 6.0,
+            'N (%)': 2.4,
+            'Nitrogen (%)': 2.4,
+            'P (%)': 0.15,
+            'Phosphorus (%)': 0.15,
+            'K (%)': 1.0,
+            'Potassium (%)': 1.0,
+            'Mg (%)': 0.25,
+            'Magnesium (%)': 0.25,
+            'Ca (%)': 0.5,
+            'Calcium (%)': 0.5,
+            'B (mg/kg)': 10.0,
+            'Boron (mg/kg)': 10.0,
+            'Cu (mg/kg)': 5.0,
+            'Copper (mg/kg)': 5.0,
             'Zn (mg/kg)': 15.0,
+            'Zinc (mg/kg)': 15.0,
         }
 
         rows = []
@@ -15685,10 +15901,10 @@ def create_mpob_standards_comparison_viz(soil_params, leaf_params):
                 'Organic_Carbon_%': ('Organic Carbon %', 'organic_carbon'),
                 'Total_P_mg_kg': ('Total P (mg/kg)', 'total_phosphorus'),
                 'Available_P_mg_kg': ('Available P (mg/kg)', 'available_phosphorus'),
-                'Exchangeable_K_meq%': ('Exch. K (meq%)', 'exchangeable_potassium'),
-                'Exchangeable_Ca_meq%': ('Exch. Ca (meq%)', 'exchangeable_calcium'),
-                'Exchangeable_Mg_meq%': ('Exch. Mg (meq%)', 'exchangeable_magnesium'),
-                'CEC_meq%': ('CEC (meq%)', 'cec')
+                'Exchangeable_K_meq/100 g': ('Exch. K (meq/100 g)', 'exchangeable_potassium'),
+                'Exchangeable_Ca_meq/100 g': ('Exch. Ca (meq/100 g)', 'exchangeable_calcium'),
+                'Exchangeable_Mg_meq/100 g': ('Exch. Mg (meq/100 g)', 'exchangeable_magnesium'),
+                'CEC_meq/100 g': ('CEC (meq/100 g)', 'cec')
             }
             
             for param_key, (display_name, mpob_key) in soil_mapping.items():
@@ -15817,10 +16033,10 @@ def create_nutrient_deficiency_heatmap(soil_params, leaf_params):
                 'Organic_Carbon_%': 'organic_carbon',
                 'Total_P_mg_kg': 'total_phosphorus',
                 'Available_P_mg_kg': 'available_phosphorus',
-                'Exchangeable_K_meq%': 'exchangeable_potassium',
-                'Exchangeable_Ca_meq%': 'exchangeable_calcium',
-                'Exchangeable_Mg_meq%': 'exchangeable_magnesium',
-                'CEC_meq%': 'cec'
+                'Exchangeable_K_meq/100 g': 'exchangeable_potassium',
+                'Exchangeable_Ca_meq/100 g': 'exchangeable_calcium',
+                'Exchangeable_Mg_meq/100 g': 'exchangeable_magnesium',
+                'CEC_meq/100 g': 'cec'
             }
             
             for param_key, mpob_key in soil_mapping.items():
@@ -15952,9 +16168,9 @@ def create_soil_ph_comparison_viz(soil_params):
         if not ph_values:
             return None
         
-        # MPOB optimal pH range: 4.5-6.5, minimum 4.5
+        # MPOB optimal pH range: 4.5-5.5, minimum 4.5
         mpob_optimal_min = 4.5
-        mpob_optimal_max = 6.5
+        mpob_optimal_max = 5.5
         
         # Create sample labels (S1, S2, etc.)
         sample_labels = [f"S{i+1}" for i in range(len(ph_values))]
@@ -16022,10 +16238,10 @@ def create_nutrient_deficiency_bar_viz(soil_params, leaf_params):
                 'Organic_Carbon_%': 'organic_carbon',
                 'Total_P_mg_kg': 'total_phosphorus',
                 'Available_P_mg_kg': 'available_phosphorus',
-                'Exchangeable_K_meq%': 'exchangeable_potassium',
-                'Exchangeable_Ca_meq%': 'exchangeable_calcium',
-                'Exchangeable_Mg_meq%': 'exchangeable_magnesium',
-                'CEC_meq%': 'cec'
+                'Exchangeable_K_meq/100 g': 'exchangeable_potassium',
+                'Exchangeable_Ca_meq/100 g': 'exchangeable_calcium',
+                'Exchangeable_Mg_meq/100 g': 'exchangeable_magnesium',
+                'CEC_meq/100 g': 'cec'
             }
             
             for param_key, mpob_key in soil_mapping.items():
@@ -16638,7 +16854,6 @@ def display_nutrient_ratio_diagram(data, title, options=None):
         <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #17a2b8;">
             <h5 style="color: #2c3e50; margin: 0 0 10px 0;">📊 Ratio Interpretation Guide</h5>
             <ul style="margin: 0; padding-left: 20px; color: #495057;">
-                <li><strong>N:P Ratio:</strong> Indicates nitrogen to phosphorus balance (optimal: 8-15)</li>
                 <li><strong>N:K Ratio:</strong> Shows nitrogen to potassium balance (optimal: 1-2.5)</li>
                 <li><strong>Ca:Mg Ratio:</strong> Reflects calcium to magnesium balance (optimal: 2-4)</li>
                 <li><strong>K:Mg Ratio:</strong> Indicates potassium to magnesium balance (optimal: 0.2-0.6)</li>
@@ -16672,12 +16887,6 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
         status_icon = "❌"
     
     ratio_descriptions = {
-        'N:P': {
-            'description': 'Nitrogen to Phosphorus balance',
-            'soil_optimal': '10-15',
-            'leaf_optimal': '8-12',
-            'impact': 'Affects plant growth and nutrient uptake efficiency'
-        },
         'N:K': {
             'description': 'Nitrogen to Potassium balance',
             'soil_optimal': '1-2',
@@ -16692,8 +16901,8 @@ def get_ratio_interpretation(ratio_name, current_value, optimal_range):
         },
         'K:Mg': {
             'description': 'Potassium to Magnesium balance',
-            'soil_optimal': '0.2-0.5',
-            'leaf_optimal': '0.3-0.6',
+            'soil_optimal': '0.5-1.0',
+            'leaf_optimal': '0.5-1.0',
             'impact': 'Influences enzyme activity and protein synthesis'
         },
         'C:N': {

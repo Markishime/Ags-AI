@@ -718,7 +718,7 @@ Low | Year 1 | 2.0 - 3.5 | 1,777 - 2,177 | 1,300 - 2,625 | -877 - 848 | -40% to 
 Low | Year 2 | 2.5 - 4.0 | 888 - 1,088 | 1,625 - 3,000 | 287 - 1,912 | 48% to 95%
 Low | Year 3 | 3.0 - 4.5 | 444 - 544 | 1,950 - 3,375 | 1,406 - 2,831 | 95% to 140%
 Low | Year 4 | 3.5 - 5.0 | 222 - 272 | 2,275 - 3,750 | 2,003 - 3,478 | 140% to 185%
-Low | Year 5 | 4.0 - 5.5 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
+Low | Year 5 | 4.5 - 6.0 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
 
 Footnote: RM values are approximate and represent recent historical price and cost ranges.
 Disclaimer: Actual ROI depends on field conditions and may be lower than estimates.
@@ -1046,7 +1046,7 @@ Table 18: Low Investment Scenario - Year 5 Economic Impact
 
 Scenario | Yield improvement t/ha | Input cost RM/ha | Revenue RM/ha | Net profit RM/ha | Year-5 ROI (%)
 ---------|-----------------------------------|-------------------------------|---------------------------|-------------------|----------------
-Low | 4.0 - 5.5 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
+Low | 4.5 - 6.0 | 111 - 136 | 2,600 - 4,125 | 2,464 - 3,989 | 185% to 230%
 
 Step 6: Forecast Graph
 Generate yield projection graph (5 years):

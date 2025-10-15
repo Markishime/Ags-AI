@@ -1251,7 +1251,7 @@ def _generate_comprehensive_parameter_findings(analysis_data, step_results):
                 leaf_k = leaf_params.get('K_%', {}).get('average', 0)
                 if leaf_k > 0:
                     k_mg_ratio = leaf_k / leaf_mg if leaf_mg > 0 else 0
-                    if k_mg_ratio > 3.5:  # Problematic ratio
+                    if k_mg_ratio > 2.0:  # Problematic ratio
                         critical_findings.append({
                             'finding': f"Leaf magnesium is critically low at {leaf_mg:.2f}% with high K:Mg ratio of {k_mg_ratio:.1f}, requiring magnesium supplementation."
                         })

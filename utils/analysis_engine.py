@@ -555,6 +555,10 @@ class DataProcessor:
             if isinstance(value, (int, float)):
                 return float(value) if not pd.isna(value) else None
             elif isinstance(value, str):
+                s_lower = value.lower().strip()
+                # Handle detection limit values and missing values
+                if s_lower in ['n.d.', 'nd', 'not detected', '<1', 'bdl', 'below detection limit']:
+                    return None  # Treat as missing value
                 # Remove common non-numeric characters
                 clean_str = re.sub(r'[^\d\.-]', '', value.strip())
                 if clean_str:
@@ -1034,7 +1038,7 @@ class DataProcessor:
             
             # Calculate RAW averages from original samples BEFORE any processing
             parameter_names = ['pH', 'N (%)', 'Org. C (%)', 'Total P (mg/kg)', 'Avail P (mg/kg)',
-                             'Exch. K (meq%)', 'Exch. Ca (meq%)', 'Exch. Mg (meq%)', 'CEC (meq%)']
+                             'Exch. K (meq/100 g)', 'Exch. Ca (meq/100 g)', 'Exch. Mg (meq/100 g)', 'CEC (meq/100 g)']
 
             # Calculate raw averages from original unprocessed samples
             raw_averages = {}
@@ -1565,7 +1569,7 @@ class StandardsComparator:
             # Enhanced soil standards based on actual MPOB recommendations for Malaysian oil palm
             self.enhanced_soil_standards = {
                 'pH': {
-                    'optimal': (4.0, 5.5),
+                    'optimal': (4.5, 6.0),
                     'acceptable': (3.5, 6.0),
                     'critical_low': 3.5,
                     'critical_high': 6.5,
@@ -1762,25 +1766,8 @@ class StandardsComparator:
         try:
             balance_analysis = []
 
-            # Check N:P ratio consistency
-            soil_n = soil_params.get('parameter_statistics', {}).get('Nitrogen_%', {}).get('average', 0)
-            soil_p = soil_params.get('parameter_statistics', {}).get('Available_P_mg_kg', {}).get('average', 0)
-            leaf_n = leaf_params.get('parameter_statistics', {}).get('N_%', {}).get('average', 0)
-            leaf_p = leaf_params.get('parameter_statistics', {}).get('P_%', {}).get('average', 0)
-
-            if soil_n > 0 and soil_p > 0 and leaf_n > 0 and leaf_p > 0:
-                # Convert soil P to percentage for ratio comparison
-                soil_p_percent = soil_p / 10000  # mg/kg to %
-                soil_np_ratio = soil_n / soil_p_percent
-                leaf_np_ratio = leaf_n / leaf_p
-
-                balance_analysis.append({
-                    'ratio_type': 'N:P Balance',
-                    'soil_ratio': soil_np_ratio,
-                    'leaf_ratio': leaf_np_ratio,
-                    'consistency': 'Good' if abs(soil_np_ratio - leaf_np_ratio) < 2 else 'Poor',
-                    'interpretation': self._interpret_nutrient_ratio('NP', soil_np_ratio, leaf_np_ratio)
-                })
+            # N:P ratio DISABLED - units are incompatible (N in % vs P in mg/kg)
+            # This calculation produces meaningless ratios and has been disabled
 
             results['nutrient_balance_analysis'] = balance_analysis
         except Exception as e:
@@ -1885,15 +1872,7 @@ class StandardsComparator:
     def _interpret_nutrient_ratio(self, ratio_type: str, soil_ratio: float, leaf_ratio: float) -> str:
         """Interpret nutrient ratio consistency"""
         try:
-            if ratio_type == 'NP':
-                # For N:P ratio, soil and leaf should be reasonably close
-                ratio_diff = abs(soil_ratio - leaf_ratio)
-                if ratio_diff < 1:
-                    return "Good agreement between soil and leaf N:P ratios"
-                elif ratio_diff < 3:
-                    return "Moderate discrepancy in N:P ratios - investigate further"
-                else:
-                    return "Significant discrepancy in N:P ratios - possible sampling or analysis issue"
+            # N:P ratio interpretation DISABLED - units are incompatible
             return "Ratio analysis completed"
         except Exception:
             return "Unable to analyze ratio"
@@ -1906,7 +1885,7 @@ class StandardsComparator:
             # Enhanced MPOB standards for soil parameters with detailed metadata
             soil_standards = {
                 'pH': {
-                    'min': 4.0, 'max': 5.5, 'optimal': 4.75, 'critical': True,
+                    'min': 4.5, 'max': 6.0, 'optimal': 5.25, 'critical': True,
                     'category': 'Soil Chemistry', 'unit': 'pH units',
                     'causes': {
                         'low': ['High rainfall leaching', 'Organic matter decomposition', 'Excessive nitrogen fertilizer'],
@@ -2153,12 +2132,12 @@ class StandardsComparator:
                     }
 
                     # Filter out corrupted issues where all parameters are incorrectly mapped to pH standards
-                    # This prevents display of malformed data where all parameters show pH optimal range (4.0-5.5)
+                    # This prevents display of malformed data where all parameters show pH optimal range (4.5-6.0)
                     # but are not pH parameters, or where all values are 0.0 indicating data corruption
                     is_corrupted = False
 
                     # Check if non-pH parameter has pH optimal range
-                    if param != 'pH' and f"{min_val}-{max_val}" == "4.0-5.5":
+                    if param != 'pH' and f"{min_val}-{max_val}" == "4.5-6.0":
                         is_corrupted = True
                         self.logger.warning(f"Filtering corrupted soil issue for {param}: incorrect pH optimal range applied to non-pH parameter")
 
@@ -2710,7 +2689,7 @@ class PromptAnalyzer:
             **SP LAB TEST REPORT FORMAT ANALYSIS:**
             - Professional laboratory format with detailed parameter names
             - Sample IDs typically follow pattern like "S218/25", "S219/25"
-            - Parameters include: "Available P (mg/kg)", "Exch. K (meq%)", "Exch. Ca (meq%)", "C.E.C (meq%)"
+            - Parameters include: "Available P (mg/kg)", "Exch. K (meq/100 g)", "Exch. Ca (meq/100 g)", "C.E.C (meq/100 g)"
             - Analysis approach: Focus on precision, laboratory accuracy, and compliance with MPOB standards
             - Quality assessment: Evaluate lab methodology, calibration standards, and analytical precision
             - Recommendations: Suggest laboratory improvements, method validation, and quality control measures
@@ -2718,7 +2697,7 @@ class PromptAnalyzer:
             **FARM SOIL/LEAF TEST DATA FORMAT ANALYSIS:**
             - Farmer-friendly format with simplified parameter names and sample IDs
             - Sample IDs typically follow pattern like "S001", "L001", "S002"
-            - Parameters include: "Avail P (mg/kg)", "Exch. K (meq%)", "CEC (meq%)", "Org. C (%)"
+            - Parameters include: "Avail P (mg/kg)", "Exch. K (meq/100 g)", "CEC (meq/100 g)", "Org. C (%)"
             - Analysis approach: Focus on practical field applications, cost-effectiveness, and actionable insights
             - Quality assessment: Evaluate data completeness, sampling methodology, and field relevance
             - Recommendations: Suggest field sampling improvements, cost-effective testing strategies, and farmer training
@@ -3692,10 +3671,10 @@ class PromptAnalyzer:
             'Organic Carbon (%)': 'Organic_Carbon_%',
             'Total P (mg/kg)': 'Total_P_mg_kg',
             'Available P (mg/kg)': 'Available_P_mg_kg',
-            'Exchangeable K (meq%)': 'Exchangeable_K_meq%',
-            'Exchangeable Ca (meq%)': 'Exchangeable_Ca_meq%',
-            'Exchangeable Mg (meq%)': 'Exchangeable_Mg_meq%',
-            'CEC (meq%)': 'CEC_meq%'
+            'Exchangeable K (meq/100 g)': 'Exchangeable_K_meq/100 g',
+            'Exchangeable Ca (meq/100 g)': 'Exchangeable_Ca_meq/100 g',
+            'Exchangeable Mg (meq/100 g)': 'Exchangeable_Mg_meq/100 g',
+            'CEC (meq/100 g)': 'CEC_meq/100 g'
         }
 
         # Add summary statistics - include ALL standard parameters
@@ -4236,7 +4215,7 @@ class PromptAnalyzer:
         current_yield = land_yield_data.get('current_yield', 22)
         land_size = land_yield_data.get('land_size', 23)
         soil_ph = soil_averages.get('pH', soil_averages.get('ph', 4.81))
-        soil_cec = soil_averages.get('CEC_meq%', soil_averages.get('CEC (meq%)', soil_averages.get('CEC', 2.83)))
+        soil_cec = soil_averages.get('CEC_meq/100 g', soil_averages.get('CEC (meq/100 g)', soil_averages.get('CEC', 2.83)))
 
         text_parts.append("## Summary")
         text_parts.append(f"The analysis, based on average parameter values from {len(soil_averages)} soil and {len(leaf_averages)} leaf samples, reveals agronomic conditions in a {land_size}-hectare oil palm estate. ")
@@ -4255,16 +4234,16 @@ class PromptAnalyzer:
         # Soil Acidity
         if soil_ph:
             text_parts.append("**Soil Acidity (pH {:.3f}):** ".format(soil_ph))
-            if soil_ph < 5.0:
-                text_parts.append("Below the MPOB optimal range (5.0–6.0), causing aluminum (Al³⁺) and manganese (Mn²⁺) toxicity, stunting root growth, and impeding nutrient uptake.")
+            if soil_ph < 4.5:
+                text_parts.append("Below the MPOB optimal range (4.5–6.0), causing aluminum (Al³⁺) and manganese (Mn²⁺) toxicity, stunting root growth, and impeding nutrient uptake.")
             elif soil_ph > 6.0:
-                text_parts.append("Above the MPOB optimal range (5.0–6.0), reducing nutrient availability.")
+                text_parts.append("Above the MPOB optimal range (4.5–6.0), reducing nutrient availability.")
             else:
-                text_parts.append("Within the MPOB optimal range (5.0–6.0).")
+                text_parts.append("Within the MPOB optimal range (4.5–6.0).")
             text_parts.append("")
 
         # Low Cation Exchange Capacity
-        cec_val = soil_averages.get('CEC_meq%', soil_averages.get('CEC (meq%)', soil_averages.get('CEC', None)))
+        cec_val = soil_averages.get('CEC_meq/100 g', soil_averages.get('CEC (meq/100 g)', soil_averages.get('CEC', None)))
         if cec_val:
             text_parts.append("**Cation Exchange Capacity (CEC, {:.3f} meq%):** ".format(cec_val))
             if cec_val < 15:
@@ -4424,8 +4403,8 @@ class PromptAnalyzer:
         
         # Add parameters only if they exist in the data
         if soil_ph:
-            # Calculate gap percentage for pH range 5.0-6.0
-            ph_min, ph_max = 5.0, 6.0
+            # Calculate gap percentage for pH range 4.5-6.0
+            ph_min, ph_max = 4.5, 6.0
             if soil_ph < ph_min:
                 gap_percent = ((ph_min - soil_ph) / ph_min) * 100
             elif soil_ph > ph_max:
@@ -4434,7 +4413,7 @@ class PromptAnalyzer:
                 gap_percent = 0
 
             status = get_status_from_gap(gap_percent)
-            params_data.append(('Soil pH', soil_ph, '5.0–6.0', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 750))
+            params_data.append(('Soil pH', soil_ph, '4.5–6.0', gap_percent, status, 'Critical' if status == 'Critically Low' else 'Low', 750))
         
         if oc_val:
             # Calculate gap percentage for Organic C range 1.5-2.5
@@ -5505,7 +5484,7 @@ class ResultsGenerator:
                         'timeline': 'Apply 3-4 months before next fertilization cycle',
                         'cost_range': 'RM 600-900/ha',
                         'labor_requirements': '2-3 days/100ha with machinery',
-                        'expected_result': 'pH increase to 4.5-5.5 within 6-8 months',
+                        'expected_result': 'pH increase to 4.5-6.0 within 6-8 months',
                         'roi_period': '12-18 months',
                         'yield_impact': '15-25% yield improvement expected'
                     },
@@ -5518,7 +5497,7 @@ class ResultsGenerator:
                         'timeline': 'Apply 4-6 months before next fertilization',
                         'cost_range': 'RM 300-500/ha',
                         'labor_requirements': '1-2 days/100ha',
-                        'expected_result': 'pH increase to 4.2-5.0 within 8-12 months',
+                        'expected_result': 'pH increase to 4.5-6.0 within 8-12 months',
                         'roi_period': '18-24 months',
                         'yield_impact': '10-18% yield improvement expected'
                     },
@@ -5547,7 +5526,7 @@ class ResultsGenerator:
                         'timeline': 'Apply sulfur 4-6 months before planting/fertilization',
                         'cost_range': 'RM 400-650/ha',
                         'labor_requirements': '2-3 days/100ha with machinery',
-                        'expected_result': 'pH reduction to 4.5-5.5 within 8-10 months',
+                        'expected_result': 'pH reduction to 4.5-6.0 within 8-10 months',
                         'roi_period': '12-18 months',
                         'yield_impact': '12-20% yield improvement expected'
                     },
@@ -6643,7 +6622,7 @@ class ResultsGenerator:
         # Standard optimal ranges for oil palm
         optimal_ranges = {
             'soil': {
-                'pH': (4.0, 5.5),
+                'pH': (4.5, 6.0),
                 'organic_carbon': (2.0, 4.0),  # %
                 'total_nitrogen': (0.15, 0.25),  # %
                 'phosphorus': (15, 30),  # mg/kg
@@ -9316,7 +9295,7 @@ class AnalysisEngine:
     def _get_soil_issue_recommendation(self, param_name: str, value: float) -> str:
         """Get recommendation for soil issues"""
         recommendations = {
-            'pH': 'Apply lime to raise pH or sulfur to lower pH based on current level',
+            'pH': 'Apply lime to raise pH to optimal range of 4.5-5.5',
             'organic': 'Add organic matter through compost, mulch, or cover crops',
             'nitrogen': 'Apply nitrogen fertilizer based on soil test recommendations',
             'phosphorus': 'Apply phosphorus fertilizer and ensure proper pH for availability',
@@ -9500,8 +9479,8 @@ class AnalysisEngine:
 
             # Define MPOB standards for comparison with flexible parameter matching (actual Malaysian oil palm standards)
             soil_standards = {
-                'pH': {'min': 4.0, 'max': 5.5, 'optimal': 4.75},
-                'ph': {'min': 4.0, 'max': 5.5, 'optimal': 4.75},
+                'pH': {'min': 4.5, 'max': 6.0, 'optimal': 5.25},
+                'ph': {'min': 4.5, 'max': 6.0, 'optimal': 5.25},
                 'Organic Carbon (%)': {'min': 1.5, 'max': 3.5, 'optimal': 2.5},
                 'Organic Carbon %': {'min': 1.5, 'max': 3.5, 'optimal': 2.5},
                 'Organic_Carbon_%': {'min': 1.5, 'max': 3.5, 'optimal': 2.5},

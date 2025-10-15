@@ -45,7 +45,7 @@ def _parse_dynamic_headers(header_line: str) -> List[str]:
         # Handle "Exch. K", "Exch. Ca", "Exch. Mg" patterns
         elif current.lower() == "exch." and i + 2 < len(headers):
             element = headers[i + 1]
-            unit = headers[i + 2] if headers[i + 2].startswith("(") else "(meq%)"
+            unit = headers[i + 2] if headers[i + 2].startswith("(") else "(meq/100 g)"
             processed_headers.append(f"Exch. {element} {unit}")
             i += 3 if headers[i + 2].startswith("(") else 2
         else:

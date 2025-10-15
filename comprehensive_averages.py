@@ -69,7 +69,7 @@ try:
     print(f"   • Average pH: {soil_ph_avg:.2f}")
     print(f"   • Average CEC: {soil_cec_avg:.2f} meq%")
     print(f"   • Average Organic Carbon: {soil_org_c_avg:.2f}%")
-    print("   • pH indicates acidic soil conditions (below optimal 5.0-6.0)")
+    print("   • pH indicates acidic soil conditions (below optimal 4.5-6.0)")
     print("   • Low CEC suggests poor nutrient retention capacity")
     print("   • Organic carbon levels are below optimal (1.5-2.5%)")
 

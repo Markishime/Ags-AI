@@ -196,7 +196,7 @@ DEFAULT_MPOB_STANDARDS = {
         'Zn (mg/kg)': {'min': 18, 'max': 35, 'unit': 'mg/kg', 'optimal': 26}
     },
     'soil_standards': {
-        'pH': {'min': 4.5, 'max': 6.0, 'unit': '', 'optimal': 5.0},
+        'pH': {'min': 4.5, 'max': 6.0, 'unit': '', 'optimal': 5.25},
         'N (%)': {'min': 0.15, 'max': 0.25, 'unit': '%', 'optimal': 0.20},
         'Org. C (%)': {'min': 1.5, 'max': 2.5, 'unit': '%', 'optimal': 2.0},
         'Total P (mg/kg)': {'min': 15, 'max': 25, 'unit': 'mg/kg', 'optimal': 20},

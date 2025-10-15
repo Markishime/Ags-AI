@@ -911,7 +911,7 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
                     # Use the exact structure from sp_lab_test_report.json
                     sp_lab_data = {
                         "S218/25": {
-                            "pH": 5.0,
+                            "pH": 4.5,
                             "Nitrogen (%)": 0.1,
                             "Organic Carbon (%)": 0.89,
                             "Total P (mg/kg)": 59,

@@ -18,10 +18,10 @@ class ParameterStandardizer:
             'organic_carbon': 'Org. C (%)',
             'total_phosphorus': 'Total P (mg/kg)',
             'available_phosphorus': 'Avail P (mg/kg)',
-            'exchangeable_potassium': 'Exch. K (meq%)',
-            'exchangeable_calcium': 'Exch. Ca (meq%)',
-            'exchangeable_magnesium': 'Exch. Mg (meq%)',
-            'cec': 'CEC (meq%)'
+            'exchangeable_potassium': 'Exch. K (meq/100 g)',
+            'exchangeable_calcium': 'Exch. Ca (meq/100 g)',
+            'exchangeable_magnesium': 'Exch. Mg (meq/100 g)',
+            'cec': 'CEC (meq/100 g)'
         }
         
         self.STANDARD_LEAF_PARAMS = {
@@ -69,34 +69,42 @@ class ParameterStandardizer:
             ],
             
             # Exchangeable Potassium variations
-            'Exch. K (meq%)': [
-                'exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k', 
+            'Exch. K (meq/100 g)': [
+                'exchangeable potassium', 'exch k', 'exch_k', 'exchangeable k',
                 'exchangeable_k', 'k meq%', 'k_meq%', 'exchangeable_k_meq%',
                 'exch. k (meq%)', 'exch k (meq%)', 'exch. k meq%', 'exch k meq%',
-                'exch k (cmol/kg)', 'exch. k (cmol/kg)', 'exch k cmol/kg', 'exch. k cmol/kg'
+                'exch k (cmol/kg)', 'exch. k (cmol/kg)', 'exch k cmol/kg', 'exch. k cmol/kg',
+                'k meq/100 g', 'k_meq/100 g', 'exchangeable_k_meq/100 g',
+                'exch. k (meq/100 g)', 'exch k (meq/100 g)', 'exch. k meq/100 g', 'exch k meq/100 g'
             ],
-            
+
             # Exchangeable Calcium variations
-            'Exch. Ca (meq%)': [
-                'exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca', 
+            'Exch. Ca (meq/100 g)': [
+                'exchangeable calcium', 'exch ca', 'exch_ca', 'exchangeable ca',
                 'exchangeable_ca', 'ca meq%', 'ca_meq%', 'exchangeable_ca_meq%',
                 'exch. ca (meq%)', 'exch ca (meq%)', 'exch. ca meq%', 'exch ca meq%',
-                'exch ca (cmol/kg)', 'exch. ca (cmol/kg)', 'exch ca cmol/kg', 'exch. ca cmol/kg'
+                'exch ca (cmol/kg)', 'exch. ca (cmol/kg)', 'exch ca cmol/kg', 'exch. ca cmol/kg',
+                'ca meq/100 g', 'ca_meq/100 g', 'exchangeable_ca_meq/100 g',
+                'exch. ca (meq/100 g)', 'exch ca (meq/100 g)', 'exch. ca meq/100 g', 'exch ca meq/100 g'
             ],
-            
+
             # Exchangeable Magnesium variations
-            'Exch. Mg (meq%)': [
-                'exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg', 
+            'Exch. Mg (meq/100 g)': [
+                'exchangeable magnesium', 'exch mg', 'exch_mg', 'exchangeable mg',
                 'exchangeable_mg', 'mg meq%', 'mg_meq%', 'exchangeable_mg_meq%',
                 'exch. mg (meq%)', 'exch mg (meq%)', 'exch. mg meq%', 'exch mg meq%',
-                'exch mg (cmol/kg)', 'exch. mg (cmol/kg)', 'exch mg cmol/kg', 'exch. mg cmol/kg'
+                'exch mg (cmol/kg)', 'exch. mg (cmol/kg)', 'exch mg cmol/kg', 'exch. mg cmol/kg',
+                'mg meq/100 g', 'mg_meq/100 g', 'exchangeable_mg_meq/100 g',
+                'exch. mg (meq/100 g)', 'exch mg (meq/100 g)', 'exch. mg meq/100 g', 'exch mg meq/100 g'
             ],
-            
+
             # CEC variations
-            'CEC (meq%)': [
+            'CEC (meq/100 g)': [
                 'cec', 'cation exchange capacity', 'c.e.c', 'cec meq%', 'cec_meq%',
                 'cec (meq%)', 'c.e.c (meq%)', 'c.e.c meq%', 'cec (cmol/kg)', 'cec cmol/kg',
-                'C.E.C (meq%)', 'CEC (meq%)'
+                'C.E.C (meq%)', 'CEC (meq%)', 'cec meq/100 g', 'cec_meq/100 g',
+                'cec (meq/100 g)', 'c.e.c (meq/100 g)', 'c.e.c meq/100 g',
+                'C.E.C (meq/100 g)', 'CEC (meq/100 g)'
             ],
             
             # Leaf parameter variations
@@ -223,10 +231,10 @@ class ParameterStandardizer:
                 'Org. C (%)': 'Organic Carbon (%)',
                 'Total P (mg/kg)': 'Total P (mg/kg)',
                 'Avail P (mg/kg)': 'Available P (mg/kg)',
-                'Exch. K (meq%)': 'Exchangeable K (meq%)',
-                'Exch. Ca (meq%)': 'Exchangeable Ca (meq%)',
-                'Exch. Mg (meq%)': 'Exchangeable Mg (meq%)',
-                'CEC (meq%)': 'CEC (meq%)'
+                'Exch. K (meq/100 g)': 'Exchangeable K (meq/100 g)',
+                'Exch. Ca (meq/100 g)': 'Exchangeable Ca (meq/100 g)',
+                'Exch. Mg (meq/100 g)': 'Exchangeable Mg (meq/100 g)',
+                'CEC (meq/100 g)': 'CEC (meq/100 g)'
             }
         else:  # leaf
             return {

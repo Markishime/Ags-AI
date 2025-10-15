@@ -160,7 +160,7 @@ class ConfigManager:
         # Create default MPOB standards based on official MPOB oil palm optimal values
         # 9 Soil parameters - matching analysis file parameter names
         default_soil_standards = {
-            "pH": MPOBStandard("pH", 5.0, 6.5, "pH units", 5.8, "Soil pH level for optimal oil palm growth", True),
+            "pH": MPOBStandard("pH", 4.5, 5.5, "pH units", 5.0, "Soil pH level for optimal oil palm growth", True),
             "N (%)": MPOBStandard("N (%)", 0.15, 0.25, "%", 0.20, "Total nitrogen content in soil", True),
             "Org. C (%)": MPOBStandard("Org. C (%)", 2.0, 4.0, "%", 3.0, "Organic carbon content in soil", True),
             "Total P (mg/kg)": MPOBStandard("Total P (mg/kg)", 15.0, 30.0, "mg/kg", 22.5, "Total phosphorus content", True),
@@ -173,9 +173,9 @@ class ConfigManager:
         
         # 8 Leaf parameters - matching analysis file parameter names
         default_leaf_standards = {
-            "N (%)": MPOBStandard("N (%)", 2.5, 3.5, "%", 3.0, "Leaf nitrogen content (frond 17)", True),
+            "N (%)": MPOBStandard("N (%)", 2.4, 2.8, "%", 2.6, "Leaf nitrogen content (frond 17)", True),
             "P (%)": MPOBStandard("P (%)", 0.15, 0.25, "%", 0.20, "Leaf phosphorus content (frond 17)", True),
-            "K (%)": MPOBStandard("K (%)", 1.0, 1.5, "%", 1.25, "Leaf potassium content (frond 17)", True),
+            "K (%)": MPOBStandard("K (%)", 1.0, 1.3, "%", 1.15, "Leaf potassium content (frond 17)", True),
             "Ca (%)": MPOBStandard("Ca (%)", 0.5, 1.0, "%", 0.75, "Leaf calcium content (frond 17)", False),
             "Mg (%)": MPOBStandard("Mg (%)", 0.25, 0.50, "%", 0.375, "Leaf magnesium content (frond 17)", False),
             "B (mg/kg)": MPOBStandard("B (mg/kg)", 10.0, 25.0, "mg/kg", 17.5, "Leaf boron content (frond 17)", False),
