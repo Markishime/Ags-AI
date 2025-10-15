@@ -13115,10 +13115,8 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                # Severity logic mirrored from PDF: sign first, then absolute bands
-                                if gap >= 0:
-                                    severity = "Balanced"
-                                elif gap_magnitude <= 5:
+                                # Severity strictly by absolute percent gap
+                                if gap_magnitude <= 5:
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13147,10 +13145,8 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                # Severity logic mirrored from PDF
-                                if gap >= 0:
-                                    severity = "Balanced"
-                                elif gap_magnitude <= 5:
+                                # Severity strictly by absolute percent gap
+                                if gap_magnitude <= 5:
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13183,10 +13179,8 @@ def display_nutrient_gap_analysis_table(analysis_data):
                     gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                     gap_magnitude = abs(gap)  # Use absolute value for magnitude-based severity
 
-                    # Severity logic mirrored from PDF util implementation
-                    if gap >= 0:
-                        severity = "Balanced"
-                    elif gap_magnitude <= 5:
+                    # Severity strictly by absolute percent gap (deficit or excess treated equally)
+                    if gap_magnitude <= 5:
                         severity = "Balanced"
                     elif gap_magnitude <= 15:
                         severity = "Low"
