@@ -2529,7 +2529,10 @@ class PDFReportGenerator:
                             percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
                             absolute_gap = avg_val - min_val
 
-                            if abs(percent_gap) <= 5:
+                            # Positive gaps (excesses) should not be critical
+                            if percent_gap >= 0:
+                                severity = "Balanced"
+                            elif abs(percent_gap) <= 5:
                                 severity = "Balanced"
                             elif abs(percent_gap) <= 15:
                                 severity = "Low"
@@ -2571,8 +2574,10 @@ class PDFReportGenerator:
                             percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
                             absolute_gap = avg_val - min_val
 
-                            # Determine severity based on gap magnitude
-                            if abs(percent_gap) <= 5:
+                            # Positive gaps (excesses) should not be critical
+                            if percent_gap >= 0:
+                                severity = "Balanced"
+                            elif abs(percent_gap) <= 5:
                                 severity = "Balanced"
                             elif abs(percent_gap) <= 15:
                                 severity = "Low"
@@ -2610,14 +2615,18 @@ class PDFReportGenerator:
             balanced_data = [row for row in gap_data if row[6] == 'Balanced']
             unknown_data = [row for row in gap_data if row[6] not in ['Critical', 'Low', 'Balanced']]
 
-            # Sort each group by gap magnitude descending
-            def sort_by_gap_descending_pdf(row_list):
-                return sorted(row_list, key=lambda x: -abs(float(x[5].rstrip('%').replace('+', '').replace('-', ''))))
+            # Sort each group: deficiencies first by magnitude desc, then excesses by magnitude desc
+            def sort_group_pdf(rows_in_group):
+                deficiencies = [r for r in rows_in_group if float(r[5].rstrip('%')) < 0]
+                excesses = [r for r in rows_in_group if float(r[5].rstrip('%')) >= 0]
+                deficiencies_sorted = sorted(deficiencies, key=lambda x: -abs(float(x[5].rstrip('%').replace('+', '').replace('-', ''))))
+                excesses_sorted = sorted(excesses, key=lambda x: -abs(float(x[5].rstrip('%').replace('+', '').replace('-', ''))))
+                return deficiencies_sorted + excesses_sorted
 
-            critical_data = sort_by_gap_descending_pdf(critical_data)
-            low_data = sort_by_gap_descending_pdf(low_data)
-            balanced_data = sort_by_gap_descending_pdf(balanced_data)
-            unknown_data = sort_by_gap_descending_pdf(unknown_data)
+            critical_data = sort_group_pdf(critical_data)
+            low_data = sort_group_pdf(low_data)
+            balanced_data = sort_group_pdf(balanced_data)
+            unknown_data = sort_group_pdf(unknown_data)
 
             # Combine in priority order
             gap_data = critical_data + low_data + balanced_data + unknown_data

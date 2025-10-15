@@ -13130,8 +13130,8 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                     'Parameter': name,
                                     'Average Value': f"{avg:.2f}",
                                     'MPOB Minimum': f"{minimum:.2f}",
-                                    'Gap (%)': f"{gap:+.1f}%",
-                                    'Magnitude (%)': f"{gap_magnitude:.1f}%",
+                                    'Gap (%)': f"{gap:+.1f}",
+                                    'Magnitude (%)': f"{gap_magnitude:.1f}",
                                     'Severity': severity
                                 })
                                 phosphorus_handled = True
@@ -13162,8 +13162,8 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                     'Parameter': name,
                                     'Average Value': f"{avg:.2f}",
                                     'MPOB Minimum': f"{minimum:.2f}",
-                                    'Gap (%)': f"{gap:+.1f}%",
-                                    'Magnitude (%)': f"{gap_magnitude:.1f}%",
+                                    'Gap (%)': f"{gap:+.1f}",
+                                    'Magnitude (%)': f"{gap_magnitude:.1f}",
                                     'Severity': severity
                                 })
                                 phosphorus_handled = True
@@ -13216,17 +13216,16 @@ def display_nutrient_gap_analysis_table(analysis_data):
                 # Extract gap magnitude for sorting
                 def get_gap_magnitude(row):
                     try:
-                        mag_str = row.get('Magnitude (%)', '0.0%')
-                        clean_mag = mag_str.replace('%', '').replace('+', '').replace('-', '')
-                        return float(clean_mag)
+                        mag_str = row.get('Magnitude (%)', '0.0')
+                        return float(mag_str)
                     except Exception as e:
                         logger.warning(f"Error parsing gap magnitude for {row.get('Parameter', 'Unknown')}: {row.get('Magnitude (%)')}, error: {e}")
                         return 0.0
 
                 def is_deficiency(row):
                     try:
-                        gap_str = row.get('Gap (%)', '0.0%')
-                        val = float(gap_str.replace('%', ''))
+                        gap_str = row.get('Gap (%)', '0.0')
+                        val = float(gap_str)
                         return val < 0
                     except Exception:
                         return False
@@ -13257,10 +13256,16 @@ def display_nutrient_gap_analysis_table(analysis_data):
             except Exception as e:
                 logger.error(f"Nutrient gap analysis sorting failed: {e}")
                 pass
-            st.markdown("#### Table 5: Nutrient Gap Analysis: Plantation Average vs. MPOB Standards")
+            st.markdown("#### Table 3: Nutrient Gap Analysis: Plantation Average vs. MPOB Standards")
             df = pd.DataFrame(rows)
+            # Rename columns to match user expectations
+            df = df.rename(columns={
+                'Average Value': 'Average',
+                'Gap (%)': 'Percent Gap (%)',
+                'Magnitude (%)': 'Gap Magnitude (%)'
+            })
             # Reorder columns to match expected output
-            desired_cols = ['Parameter', 'Source', 'Average Value', 'MPOB Minimum', 'Gap (%)', 'Magnitude (%)', 'Severity']
+            desired_cols = ['Parameter', 'Source', 'Average', 'MPOB Minimum', 'Percent Gap (%)', 'Gap Magnitude (%)', 'Severity']
             existing_cols = [c for c in desired_cols if c in df.columns]
             df = df[existing_cols]
             apply_table_styling()
