@@ -13113,11 +13113,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 rows.append({
                                     'Source': source,
                                     'Parameter': name,
-                                    'Average': f"{avg:.2f}",
-                                    'MPOB Minimum': f"{minimum}",
-                                    'Gap': f"{avg - minimum:.3f}",
-                                    'Percent Gap': f"{gap:+.1f}%",
-                                    'Gap Magnitude (%)': f"{gap_magnitude:.1f}",
+                                    'Average Value': f"{avg:.2f}",
+                                    'MPOB Minimum': f"{minimum:.2f}",
+                                    'Gap (%)': f"{gap:+.1f}%",
+                                    'Magnitude (%)': f"{gap_magnitude:.1f}%",
                                     'Severity': severity
                                 })
                                 phosphorus_handled = True
@@ -13143,11 +13142,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 rows.append({
                                     'Source': source,
                                     'Parameter': name,
-                                    'Average': f"{avg:.2f}",
-                                    'MPOB Minimum': f"{minimum}",
-                                    'Gap': f"{avg - minimum:.3f}",
-                                    'Percent Gap': f"{gap:+.1f}%",
-                                    'Gap Magnitude (%)': f"{gap_magnitude:.1f}",
+                                    'Average Value': f"{avg:.2f}",
+                                    'MPOB Minimum': f"{minimum:.2f}",
+                                    'Gap (%)': f"{gap:+.1f}%",
+                                    'Magnitude (%)': f"{gap_magnitude:.1f}%",
                                     'Severity': severity
                                 })
                                 phosphorus_handled = True
@@ -13178,11 +13176,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                     rows.append({
                         'Source': source,
                         'Parameter': name,
-                        'Average': f"{avg:.2f}",
-                        'MPOB Minimum': f"{minimum}",
-                        'Gap': f"{avg - minimum:.3f}",
-                        'Percent Gap': f"{gap:+.1f}%",
-                        'Gap Magnitude (%)': f"{gap_magnitude:.1f}",
+                        'Average Value': f"{avg:.2f}",
+                        'MPOB Minimum': f"{minimum:.2f}",
+                        'Gap (%)': f"{gap:+.1f}%",
+                        'Magnitude (%)': f"{gap_magnitude:.1f}%",
                         'Severity': severity
                     })
 
@@ -13192,21 +13189,27 @@ def display_nutrient_gap_analysis_table(analysis_data):
             add_gaps(leaf_params['parameter_statistics'], leaf_min, 'Leaf')
 
         if rows:
-            # Sort by severity (Critical first, then Low, then Balanced), then by gap magnitude (largest first)
+            # Sort by severity, then deficiencies before excesses, each by magnitude desc
             try:
                 severity_order = {"Critical": 0, "Low": 1, "Balanced": 2}
 
-                # Extract gap magnitude for sorting (remove % and + sign, take absolute value)
+                # Extract gap magnitude for sorting
                 def get_gap_magnitude(row):
                     try:
-                        gap_str = row.get('Percent Gap', '0.0%')
-                        # Remove % and + signs, then convert to float
-                        clean_gap = gap_str.replace('%', '').replace('+', '').replace('-', '')
-                        gap_val = float(clean_gap)
-                        return gap_val  # Return positive value (already absolute)
+                        mag_str = row.get('Magnitude (%)', '0.0%')
+                        clean_mag = mag_str.replace('%', '').replace('+', '').replace('-', '')
+                        return float(clean_mag)
                     except Exception as e:
-                        logger.warning(f"Error parsing gap magnitude for {row.get('Parameter', 'Unknown')}: {gap_str}, error: {e}")
+                        logger.warning(f"Error parsing gap magnitude for {row.get('Parameter', 'Unknown')}: {row.get('Magnitude (%)')}, error: {e}")
                         return 0.0
+
+                def is_deficiency(row):
+                    try:
+                        gap_str = row.get('Gap (%)', '0.0%')
+                        val = float(gap_str.replace('%', ''))
+                        return val < 0
+                    except Exception:
+                        return False
 
                 # Multi-pass sorting for guaranteed correct order
                 # First, separate rows by severity
@@ -13215,14 +13218,18 @@ def display_nutrient_gap_analysis_table(analysis_data):
                 balanced_rows = [r for r in rows if r.get('Severity') == 'Balanced']
                 unknown_rows = [r for r in rows if r.get('Severity') not in ['Critical', 'Low', 'Balanced']]
 
-                # Sort each group by gap magnitude descending
-                def sort_by_gap_descending(row_list):
-                    return sorted(row_list, key=lambda r: -get_gap_magnitude(r))
+                # Sort each group: deficiencies first by magnitude desc, then excesses by magnitude desc
+                def sort_group(rows_in_group):
+                    deficiencies = [r for r in rows_in_group if is_deficiency(r)]
+                    excesses = [r for r in rows_in_group if not is_deficiency(r)]
+                    deficiencies_sorted = sorted(deficiencies, key=lambda r: -get_gap_magnitude(r))
+                    excesses_sorted = sorted(excesses, key=lambda r: -get_gap_magnitude(r))
+                    return deficiencies_sorted + excesses_sorted
 
-                critical_rows = sort_by_gap_descending(critical_rows)
-                low_rows = sort_by_gap_descending(low_rows)
-                balanced_rows = sort_by_gap_descending(balanced_rows)
-                unknown_rows = sort_by_gap_descending(unknown_rows)
+                critical_rows = sort_group(critical_rows)
+                low_rows = sort_group(low_rows)
+                balanced_rows = sort_group(balanced_rows)
+                unknown_rows = sort_group(unknown_rows)
 
                 # Combine in priority order: Critical, Low, Balanced, Unknown
                 rows = critical_rows + low_rows + balanced_rows + unknown_rows
@@ -13230,8 +13237,12 @@ def display_nutrient_gap_analysis_table(analysis_data):
             except Exception as e:
                 logger.error(f"Nutrient gap analysis sorting failed: {e}")
                 pass
-            st.markdown("#### Table 3: Nutrient Gap Analysis: Plantation Average vs. MPOB Standards")
+            st.markdown("#### Table 5: Nutrient Gap Analysis: Plantation Average vs. MPOB Standards")
             df = pd.DataFrame(rows)
+            # Reorder columns to match expected output
+            desired_cols = ['Parameter', 'Source', 'Average Value', 'MPOB Minimum', 'Gap (%)', 'Magnitude (%)', 'Severity']
+            existing_cols = [c for c in desired_cols if c in df.columns]
+            df = df[existing_cols]
             apply_table_styling()
             st.dataframe(df, width='stretch')
     except Exception as e:
