@@ -1,15 +1,22 @@
-## Architecture
+## Architecture (plain language)
 
-- `app.py`: Streamlit entrypoint and page routing
-- `modules/`:
-  - `results.py`: renders step results, incl. Nutrient Gap table (Step 1)
-  - `dashboard.py`, `upload.py`, `history.py`, `admin.py`, `config_management.py`
-- `utils/`:
-  - `analysis_engine.py`: step orchestration and rules; computes tables
-  - `pdf_utils.py`: PDF report generation
-  - `auth_utils.py`, `firebase_config.py`: auth support with Firebase SDK
-  - `ocr_utils.py`, `parsing_utils.py`: I/O and formatting
-  - `parameter_standardizer.py`, `reference_search.py`: data normalization/search
-- `json/`, `leaf/`, `soil/`: sample inputs and generated outputs
-- Key rule: Nutrient Gap Analysis sorts by severity and magnitude; results and PDF use identical logic.
+Think of the app as three parts:
+
+1) The App (what you see)
+- `app.py` starts the Streamlit web app and shows pages
+- `modules/` contains the pages and sections (upload, dashboard, results)
+
+2) The Engine (how results are calculated)
+- `utils/analysis_engine.py` turns your data into averages, gaps, and tables
+- `modules/results.py` draws the tables, including the Nutrient Gap Analysis
+- `utils/pdf_utils.py` makes the PDF report with the same tables
+
+3) Helpers (supporting tools)
+- `utils/auth_utils.py`, `utils/firebase_config.py` handle login if enabled
+- `utils/ocr_utils.py`, `utils/parsing_utils.py` help read files
+- `utils/parameter_standardizer.py` keeps parameter names consistent
+
+Data samples live in `json/`, and generated example outputs are in `leaf/` and `soil/`.
+
+Important: The Nutrient Gap table is sorted with Critical issues at the top, then Low, then Balanced, using the size of the gap.
 
