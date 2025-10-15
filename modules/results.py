@@ -13115,10 +13115,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                # Positive gaps (excesses) should not be critical
-                                if gap >= 0:
+                                # Determine severity based on gap from MPOB minimum
+                                if gap >= -5:  # Within 5% of minimum (above or slightly below) = Balanced
                                     severity = "Balanced"
-                                elif gap_magnitude <= 5:
+                                elif gap >= -15:  # Slightly below (5-15% deficit) = Low
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13147,10 +13147,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                # Positive gaps (excesses) should not be critical
-                                if gap >= 0:
+                                # Determine severity based on gap from MPOB minimum
+                                if gap >= -5:  # Within 5% of minimum (above or slightly below) = Balanced
                                     severity = "Balanced"
-                                elif gap_magnitude <= 5:
+                                elif gap >= -15:  # Slightly below (5-15% deficit) = Low
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13183,10 +13183,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                     gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                     gap_magnitude = abs(gap)  # Use absolute value for magnitude-based severity
 
-                    # Positive gaps (excesses) should not be critical
-                    if gap >= 0:
+                    # Determine severity based on gap from MPOB minimum
+                    if gap >= -5:  # Within 5% of minimum (above or slightly below) = Balanced
                         severity = "Balanced"
-                    elif gap_magnitude <= 5:
+                    elif gap >= -15:  # Slightly below (5-15% deficit) = Low
                         severity = "Balanced"
                     elif gap_magnitude <= 15:
                         severity = "Low"
@@ -13237,18 +13237,14 @@ def display_nutrient_gap_analysis_table(analysis_data):
                 balanced_rows = [r for r in rows if r.get('Severity') == 'Balanced']
                 unknown_rows = [r for r in rows if r.get('Severity') not in ['Critical', 'Low', 'Balanced']]
 
-                # Sort each group: deficiencies first by magnitude desc, then excesses by magnitude desc
-                def sort_group(rows_in_group):
-                    deficiencies = [r for r in rows_in_group if is_deficiency(r)]
-                    excesses = [r for r in rows_in_group if not is_deficiency(r)]
-                    deficiencies_sorted = sorted(deficiencies, key=lambda r: -get_gap_magnitude(r))
-                    excesses_sorted = sorted(excesses, key=lambda r: -get_gap_magnitude(r))
-                    return deficiencies_sorted + excesses_sorted
+                # Sort each severity group by magnitude descending (most severe gaps first)
+                def sort_by_magnitude_desc(rows_in_group):
+                    return sorted(rows_in_group, key=lambda r: -get_gap_magnitude(r))
 
-                critical_rows = sort_group(critical_rows)
-                low_rows = sort_group(low_rows)
-                balanced_rows = sort_group(balanced_rows)
-                unknown_rows = sort_group(unknown_rows)
+                critical_rows = sort_by_magnitude_desc(critical_rows)
+                low_rows = sort_by_magnitude_desc(low_rows)
+                balanced_rows = sort_by_magnitude_desc(balanced_rows)
+                unknown_rows = sort_by_magnitude_desc(unknown_rows)
 
                 # Combine in priority order: Critical, Low, Balanced, Unknown
                 rows = critical_rows + low_rows + balanced_rows + unknown_rows
