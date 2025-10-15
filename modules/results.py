@@ -13115,10 +13115,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                # Determine severity based on gap from MPOB minimum
-                                if gap >= -5:  # Within 5% of minimum (above or slightly below) = Balanced
+                                # Severity logic mirrored from PDF: sign first, then absolute bands
+                                if gap >= 0:
                                     severity = "Balanced"
-                                elif gap >= -15:  # Slightly below (5-15% deficit) = Low
+                                elif gap_magnitude <= 5:
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13147,10 +13147,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                # Determine severity based on gap from MPOB minimum
-                                if gap >= -5:  # Within 5% of minimum (above or slightly below) = Balanced
+                                # Severity logic mirrored from PDF
+                                if gap >= 0:
                                     severity = "Balanced"
-                                elif gap >= -15:  # Slightly below (5-15% deficit) = Low
+                                elif gap_magnitude <= 5:
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13183,10 +13183,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                     gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                     gap_magnitude = abs(gap)  # Use absolute value for magnitude-based severity
 
-                    # Determine severity based on gap from MPOB minimum
-                    if gap >= -5:  # Within 5% of minimum (above or slightly below) = Balanced
+                    # Severity logic mirrored from PDF util implementation
+                    if gap >= 0:
                         severity = "Balanced"
-                    elif gap >= -15:  # Slightly below (5-15% deficit) = Low
+                    elif gap_magnitude <= 5:
                         severity = "Balanced"
                     elif gap_magnitude <= 15:
                         severity = "Low"
