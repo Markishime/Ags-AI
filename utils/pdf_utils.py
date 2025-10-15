@@ -2396,8 +2396,8 @@ class PDFReportGenerator:
                 'Potassium (%)': {'min': 1.0, 'unit': '%'},
                 'Mg (%)': {'min': 0.25, 'unit': '%'},
                 'Magnesium (%)': {'min': 0.25, 'unit': '%'},
-                'Ca (%)': {'min': 0.6, 'unit': '%'},
-                'Calcium (%)': {'min': 0.6, 'unit': '%'},
+                'Ca (%)': {'min': 0.5, 'unit': '%'},
+                'Calcium (%)': {'min': 0.5, 'unit': '%'},
                 'B (mg/kg)': {'min': 10.0, 'unit': 'mg/kg'},
                 'Boron (mg/kg)': {'min': 10.0, 'unit': 'mg/kg'},
                 'Cu (mg/kg)': {'min': 5.0, 'unit': 'mg/kg'},
@@ -2433,7 +2433,10 @@ class PDFReportGenerator:
                                     percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
                                     absolute_gap = avg_val - min_val
 
-                                    if abs(percent_gap) <= 5:
+                                    # Positive gaps (excesses) should not be critical
+                                    if percent_gap >= 0:
+                                        severity = "Balanced"
+                                    elif abs(percent_gap) <= 5:
                                         severity = "Balanced"
                                     elif abs(percent_gap) <= 15:
                                         severity = "Low"
@@ -2477,7 +2480,10 @@ class PDFReportGenerator:
                                     percent_gap = ((avg_val - min_val) / min_val) * 100 if min_val != 0 else 0
                                     absolute_gap = avg_val - min_val
 
-                                    if abs(percent_gap) <= 5:
+                                    # Positive gaps (excesses) should not be critical
+                                    if percent_gap >= 0:
+                                        severity = "Balanced"
+                                    elif abs(percent_gap) <= 5:
                                         severity = "Balanced"
                                     elif abs(percent_gap) <= 15:
                                         severity = "Low"

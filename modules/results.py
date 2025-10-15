@@ -13067,7 +13067,7 @@ def display_nutrient_gap_analysis_table(analysis_data):
             'Exchangeable Ca (meq/100 g)': 0.50,
             'Exch. Mg (meq/100 g)': 0.25,
             'Exchangeable Mg (meq/100 g)': 0.25,
-            'CEC (meq%)': 8.0,
+            'CEC (meq%)': 5.0,
             'Cation Exchange Capacity (meq%)': 8.0,
         }
         leaf_min = {
@@ -13115,7 +13115,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                if gap_magnitude <= 5:
+                                # Positive gaps (excesses) should not be critical
+                                if gap >= 0:
+                                    severity = "Balanced"
+                                elif gap_magnitude <= 5:
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13144,7 +13147,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                                 gap_magnitude = abs(gap)
 
-                                if gap_magnitude <= 5:
+                                # Positive gaps (excesses) should not be critical
+                                if gap >= 0:
+                                    severity = "Balanced"
+                                elif gap_magnitude <= 5:
                                     severity = "Balanced"
                                 elif gap_magnitude <= 15:
                                     severity = "Low"
@@ -13177,8 +13183,10 @@ def display_nutrient_gap_analysis_table(analysis_data):
                     gap = ((avg - minimum) / minimum) * 100.0 if minimum > 0 else 0.0
                     gap_magnitude = abs(gap)  # Use absolute value for magnitude-based severity
 
-                    # Determine severity based on gap magnitude
-                    if gap_magnitude <= 5:
+                    # Positive gaps (excesses) should not be critical
+                    if gap >= 0:
+                        severity = "Balanced"
+                    elif gap_magnitude <= 5:
                         severity = "Balanced"
                     elif gap_magnitude <= 15:
                         severity = "Low"
@@ -13398,7 +13406,7 @@ def display_deficient_nutrient_quick_guide(analysis_data):
             'Exchangeable Ca (meq/100 g)': 0.50,
             'Exch. Mg (meq/100 g)': 0.25,
             'Exchangeable Mg (meq/100 g)': 0.25,
-            'CEC (meq%)': 8.0,
+            'CEC (meq%)': 5.0,
             'Cation Exchange Capacity (meq%)': 8.0,
         }
         leaf_min = {
