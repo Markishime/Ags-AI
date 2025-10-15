@@ -13047,30 +13047,30 @@ def display_nutrient_gap_analysis_table(analysis_data):
             'Total Phosphorus (mg/kg)': 15.0,
             'Total_P (mg/kg)': 15.0,
             'Total_P_mg_kg': 15.0,
-            'Avail P (mg/kg)': 20.0,
-            'Available P (mg/kg)': 20.0,
-            'Exch. K (meq/100 g)': 0.15,
-            'Exchangeable K (meq/100 g)': 0.15,
-            'Exch. Ca (meq%)': 2.0,
-            'Exchangeable Ca (meq%)': 2.0,
-            'Exch. Mg (meq%)': 0.5,
-            'Exchangeable Mg (meq%)': 0.5,
+            'Avail P (mg/kg)': 15.0,
+            'Available P (mg/kg)': 15.0,
+            'Exch. K (meq/100 g)': 0.20,
+            'Exchangeable K (meq/100 g)': 0.20,
+            'Exch. Ca (meq/100 g)': 0.50,
+            'Exchangeable Ca (meq/100 g)': 0.50,
+            'Exch. Mg (meq/100 g)': 0.25,
+            'Exchangeable Mg (meq/100 g)': 0.25,
             'CEC (meq%)': 8.0,
             'Cation Exchange Capacity (meq%)': 8.0,
         }
         leaf_min = {
             'N (%)': 2.4,
             'Nitrogen (%)': 2.4,
-            'P (%)': 0.15,
-            'Phosphorus (%)': 0.15,
+            'P (%)': 0.14,
+            'Phosphorus (%)': 0.14,
             'K (%)': 1.0,
             'Potassium (%)': 1.0,
             'Mg (%)': 0.25,
             'Magnesium (%)': 0.25,
             'Ca (%)': 0.5,
             'Calcium (%)': 0.5,
-            'B (mg/kg)': 10.0,
-            'Boron (mg/kg)': 10.0,
+            'B (mg/kg)': 15.0,
+            'Boron (mg/kg)': 15.0,
             'Cu (mg/kg)': 5.0,
             'Copper (mg/kg)': 5.0,
             'Zn (mg/kg)': 15.0,
@@ -13113,9 +13113,11 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 rows.append({
                                     'Source': source,
                                     'Parameter': name,
-                                    'Observed': f"{avg:.2f}",
-                                    'Minimum': f"{minimum}",
+                                    'Average': f"{avg:.2f}",
+                                    'MPOB Minimum': f"{minimum}",
+                                    'Gap': f"{avg - minimum:.3f}",
                                     'Percent Gap': f"{gap:+.1f}%",
+                                    'Gap Magnitude (%)': f"{gap_magnitude:.1f}",
                                     'Severity': severity
                                 })
                                 phosphorus_handled = True
@@ -13141,9 +13143,11 @@ def display_nutrient_gap_analysis_table(analysis_data):
                                 rows.append({
                                     'Source': source,
                                     'Parameter': name,
-                                    'Observed': f"{avg:.2f}",
-                                    'Minimum': f"{minimum}",
+                                    'Average': f"{avg:.2f}",
+                                    'MPOB Minimum': f"{minimum}",
+                                    'Gap': f"{avg - minimum:.3f}",
                                     'Percent Gap': f"{gap:+.1f}%",
+                                    'Gap Magnitude (%)': f"{gap_magnitude:.1f}",
                                     'Severity': severity
                                 })
                                 phosphorus_handled = True
@@ -13174,9 +13178,11 @@ def display_nutrient_gap_analysis_table(analysis_data):
                     rows.append({
                         'Source': source,
                         'Parameter': name,
-                        'Observed': f"{avg:.2f}",
-                        'Minimum': f"{minimum}",
-                        'Percent Gap': f"{gap:+.1f}%",  # Always show the actual gap with sign and 1 decimal place
+                        'Average': f"{avg:.2f}",
+                        'MPOB Minimum': f"{minimum}",
+                        'Gap': f"{avg - minimum:.3f}",
+                        'Percent Gap': f"{gap:+.1f}%",
+                        'Gap Magnitude (%)': f"{gap_magnitude:.1f}",
                         'Severity': severity
                     })
 
@@ -13224,7 +13230,7 @@ def display_nutrient_gap_analysis_table(analysis_data):
             except Exception as e:
                 logger.error(f"Nutrient gap analysis sorting failed: {e}")
                 pass
-            st.markdown("#### Nutrient Gap Analysis: Observed vs. Malaysian Minimum Thresholds")
+            st.markdown("#### Table 3: Nutrient Gap Analysis: Plantation Average vs. MPOB Standards")
             df = pd.DataFrame(rows)
             apply_table_styling()
             st.dataframe(df, width='stretch')
@@ -13361,30 +13367,30 @@ def display_deficient_nutrient_quick_guide(analysis_data):
             'Total Phosphorus (mg/kg)': 15.0,
             'Total_P (mg/kg)': 15.0,
             'Total_P_mg_kg': 15.0,
-            'Avail P (mg/kg)': 20.0,
-            'Available P (mg/kg)': 20.0,
-            'Exch. K (meq/100 g)': 0.15,
-            'Exchangeable K (meq/100 g)': 0.15,
-            'Exch. Ca (meq%)': 2.0,
-            'Exchangeable Ca (meq%)': 2.0,
-            'Exch. Mg (meq%)': 0.5,
-            'Exchangeable Mg (meq%)': 0.5,
+            'Avail P (mg/kg)': 15.0,
+            'Available P (mg/kg)': 15.0,
+            'Exch. K (meq/100 g)': 0.20,
+            'Exchangeable K (meq/100 g)': 0.20,
+            'Exch. Ca (meq/100 g)': 0.50,
+            'Exchangeable Ca (meq/100 g)': 0.50,
+            'Exch. Mg (meq/100 g)': 0.25,
+            'Exchangeable Mg (meq/100 g)': 0.25,
             'CEC (meq%)': 8.0,
             'Cation Exchange Capacity (meq%)': 8.0,
         }
         leaf_min = {
             'N (%)': 2.4,
             'Nitrogen (%)': 2.4,
-            'P (%)': 0.15,
-            'Phosphorus (%)': 0.15,
+            'P (%)': 0.14,
+            'Phosphorus (%)': 0.14,
             'K (%)': 1.0,
             'Potassium (%)': 1.0,
             'Mg (%)': 0.25,
             'Magnesium (%)': 0.25,
             'Ca (%)': 0.5,
             'Calcium (%)': 0.5,
-            'B (mg/kg)': 10.0,
-            'Boron (mg/kg)': 10.0,
+            'B (mg/kg)': 15.0,
+            'Boron (mg/kg)': 15.0,
             'Cu (mg/kg)': 5.0,
             'Copper (mg/kg)': 5.0,
             'Zn (mg/kg)': 15.0,
