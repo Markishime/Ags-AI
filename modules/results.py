@@ -5862,11 +5862,23 @@ def display_enhanced_step_result(step_result, step_number):
         return
 
     # Special handling for STEP 5 - Economic Impact Forecast
-    step_num = None
-    try:
-        step_num = int(step_number)
-    except (ValueError, TypeError):
-        step_num = step_number
+    def _normalize_step_number(value):
+        try:
+            return int(value)
+        except Exception:
+            pass
+        # Try to extract a leading number (handles 'STEP 5', 'Step 5: ...', '5.', '5 - ...')
+        try:
+            import re
+            text = str(value)
+            m = re.search(r"(^|\b)(?:step\s*)?(\d+)(?=[\s:\-\.])?", text, re.IGNORECASE)
+            if m:
+                return int(m.group(2))
+        except Exception:
+            pass
+        return value
+
+    step_num = _normalize_step_number(step_number)
 
     if step_num == 5:
         try:
