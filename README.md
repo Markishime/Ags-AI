@@ -33,3 +33,5 @@ Your browser will open at `http://localhost:8501`. Use the Upload page to add yo
 
 ### Need help deploying?
 - Step‑by‑step guides for Local, Streamlit Cloud, and Docker are in `DEPLOYMENT.md`.
+
+> **Runs successfully on my machine as of Oct 16, 2025** ([https://github.com/Markishime/Ags-AI](https://github.com/Markishime/Ags-AI) @ 88be584 v1.0). To start on a clean Windows machine: follow the Quickstart steps above (Python venv + `pip install -r requirements.txt` + `streamlit run app.py`).
