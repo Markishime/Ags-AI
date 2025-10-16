@@ -79,6 +79,33 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Hide Streamlit branding in production deployments
+try:
+    is_production = (
+        os.getenv('ENV', '').lower() in ('prod', 'production') or
+        (hasattr(st, 'secrets') and str(st.secrets.get('environment', '')).lower() in ('prod', 'production'))
+    )
+    if is_production:
+        st.markdown(
+            """
+            <style>
+            /* Default Streamlit UI chrome */
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+
+            /* Community Cloud "Hosted with Streamlit" badge */
+            a[class*="viewerBadge_link__"] {display: none !important;}
+            div[class*="viewerBadge_container__"] {display: none !important;}
+            /* Fallback: any Streamlit-hosting anchor in bottom container */
+            [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+except Exception:
+    pass
+
 # Custom CSS for better styling
 st.markdown("""
 <style>
@@ -130,21 +157,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Hide Streamlit default branding (header/footer/hosting badge)
-st.markdown(
-    """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    [data-testid="stAppViewBlockContainer"] div:nth-child(1) div:nth-child(1) div:nth-child(2) div {
-        display: none !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 def restore_authentication_state():
     """Restore authentication state from browser storage"""
