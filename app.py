@@ -131,6 +131,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Hide Streamlit default branding (header/footer/hosting badge)
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    [data-testid="stAppViewBlockContainer"] div:nth-child(1) div:nth-child(1) div:nth-child(2) div {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 def restore_authentication_state():
     """Restore authentication state from browser storage"""
     try:
