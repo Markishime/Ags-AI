@@ -16,11 +16,7 @@ if utils_dir not in sys.path:
 
 # Import utilities
 from firebase_config import initialize_firebase, initialize_admin_codes
-from auth_utils import (
-    login_user, register_user, reset_password, 
-    logout_user, is_logged_in, is_admin, admin_signup, admin_signup_with_code,
-    finalize_password_reset
-)
+from translations import translate, t, get_language, set_language, toggle_language
 import json
 from datetime import datetime
 
@@ -158,188 +154,94 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def restore_authentication_state():
-    """Restore authentication state from browser storage"""
-    try:
-        # Check if there's stored authentication data in query params
-        auth_token = st.query_params.get('auth_token')
-        user_id = st.query_params.get('user_id')
-        user_email = st.query_params.get('user_email')
-        
-        if auth_token and user_id and user_email:
-            # Restore authentication state
-            st.session_state.authenticated = True
-            st.session_state.user_id = user_id
-            st.session_state.user_email = user_email
-            st.session_state.user_name = st.query_params.get('user_name', '')
-            st.session_state.user_role = st.query_params.get('user_role', 'user')
-            
-            # Reconstruct user_info
-            st.session_state.user_info = {
-                'uid': user_id,
-                'email': user_email,
-                'name': st.query_params.get('user_name', ''),
-                'role': st.query_params.get('user_role', 'user')
-            }
-            
-            # Clear query params to avoid showing them in URL
-            st.query_params.clear()
-            
-    except Exception as e:
-        pass  # Silently handle errors during restoration
-
-def store_authentication_state(user_info):
-    """Store authentication state persistently"""
-    try:
-        # Store user information in session state
-        st.session_state.authenticated = True
-        st.session_state.user_id = user_info.get('uid')
-        st.session_state.user_email = user_info.get('email')
-        st.session_state.user_name = user_info.get('name')
-        st.session_state.user_role = user_info.get('role', 'user')
-        st.session_state.user_info = user_info
-        
-        # Store authentication data in query params for persistence across page refreshes
-        st.query_params.update({
-            'auth_token': f"auth_{user_info.get('uid', '')}_{int(time.time())}",
-            'user_id': user_info.get('uid', ''),
-            'user_email': user_info.get('email', ''),
-            'user_name': user_info.get('name', ''),
-            'user_role': user_info.get('role', 'user')
-        })
-        
-    except Exception as e:
-        pass  # Silently handle errors during storage
-
-def clear_authentication_state():
-    """Clear authentication state and query params"""
-    try:
-        # Clear session state
-        st.session_state.authenticated = False
-        st.session_state.user_id = None
-        st.session_state.user_email = None
-        st.session_state.user_name = None
-        st.session_state.user_role = 'user'
-        st.session_state.user_info = None
-        
-        # Clear query params
-        st.query_params.clear()
-    except Exception as e:
-        pass
+# Authentication functions removed - no longer needed
 
 def initialize_app():
     """Initialize the application"""
     # Initialize Firebase
     if not initialize_firebase():
-        st.error("Failed to initialize Firebase. Please check your configuration.")
+        st.error(t('status_error', default='Error') + ": Failed to initialize Firebase. Please check your configuration.")
         st.stop()
     
     # Initialize admin codes
     default_admin_code = initialize_admin_codes()
     
     # Initialize session state
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    if 'user_id' not in st.session_state:
-        st.session_state.user_id = None
-    if 'user_email' not in st.session_state:
-        st.session_state.user_email = None
-    if 'user_role' not in st.session_state:
-        st.session_state.user_role = 'user'
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'home'
     
-    # Check for persistent authentication using browser session storage
-    if not st.session_state.authenticated:
-        # Try to restore authentication from browser storage
-        restore_authentication_state()
-
-    # If reset token present in URL, route to reset page only when on home (don't override sidebar nav)
-    try:
-        reset_token = st.query_params.get('reset_token')
-        if reset_token:
-            if st.session_state.current_page == 'home':
-                st.session_state.current_page = 'reset_password'
-                st.session_state.reset_token = reset_token
-                # Do not clear query params yet; reset page may rely on it
-    except Exception:
-        pass
+    # Initialize language (default to Malaysian)
+    if 'language' not in st.session_state:
+        st.session_state.language = 'ms'
 
 def show_header():
-    """Display application header"""
-    st.markdown("""
-    <div class="main-header">
-        <h1>🌴 AGS AI Assistant</h1>
-        <p>Advanced Oil Palm Cultivation Analysis System</p>
-    </div>
-    """, unsafe_allow_html=True)
+    """Display application header with language toggle"""
+    # Language toggle in header
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        st.markdown(f"""
+        <div class="main-header">
+            <h1>🌴 {t('app_title')}</h1>
+            <p>{t('app_subtitle')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        current_lang = get_language()
+        lang_label = t('malay') if current_lang == 'en' else t('english')
+        lang_icon = "🇲🇾" if current_lang == 'en' else "🇬🇧"
+        
+        if st.button(f"{lang_icon} {lang_label}", use_container_width=True, key="lang_toggle"):
+            toggle_language()
+            st.rerun()
 
 def show_sidebar():
     """Display sidebar navigation"""
     with st.sidebar:
         # Logo and title
-        st.markdown("""
+        st.markdown(f"""
         <div class="sidebar-logo">
             <h2>🌴 AGS AI</h2>
-            <p>Smart Agriculture Assistant</p>
+            <p>{t('app_subtitle')}</p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Check if user is logged in
-        if st.session_state.authenticated:
-            # User info
-            st.success(f"Welcome, {st.session_state.user_email}!")
-            st.write(f"Role: {st.session_state.user_role.title()}")
-            
-            st.divider()
-            
-            # Navigation buttons for authenticated users
-            if st.button("🏠 Dashboard", use_container_width=True):
-                st.session_state.current_page = 'dashboard'
-                st.rerun()
-            
-            if st.button("📤 Analyze Files", use_container_width=True):
-                st.session_state.current_page = 'upload'
-                st.rerun()
-            
-            if st.button("📋 Analysis History", use_container_width=True):
-                st.session_state.current_page = 'history'
-                st.rerun()
-            
-            # Admin panel button for admin users
-            if st.session_state.user_role == 'admin':
-                if st.button("⚙️ Admin Panel", use_container_width=True):
-                    st.session_state.current_page = 'admin'
-                    st.rerun()
-            
-            st.divider()
-            
-            if st.button("🚪 Logout", use_container_width=True, type="secondary"):
-                logout_user()
-                clear_authentication_state()
-                st.session_state.current_page = 'home'
-                st.rerun()
+        st.divider()
         
-        else:
-            # Limited options for non-logged users
-            if st.button("🔑 Login", use_container_width=True):
-                st.session_state.current_page = 'login'
-                st.rerun()
-            
-            if st.button("📝 Register", use_container_width=True):
-                st.session_state.current_page = 'register'
-                st.rerun()
-            
-            if st.button("🔧 Admin Registration", use_container_width=True):
-                st.session_state.current_page = 'admin_register'
-                st.rerun()
-            
-            
-            st.divider()
-            
-            # Information for non-logged users
-            st.info("📋 Please log in to access upload and analysis features.")
+        # Navigation buttons
+        if st.button(t('nav_home'), use_container_width=True):
+            st.session_state.current_page = 'home'
+            st.rerun()
         
+        if st.button(t('nav_dashboard'), use_container_width=True):
+            st.session_state.current_page = 'dashboard'
+            st.rerun()
+        
+        if st.button(t('nav_analyze'), use_container_width=True):
+            st.session_state.current_page = 'upload'
+            st.rerun()
+        
+        if st.button(t('nav_history'), use_container_width=True):
+            st.session_state.current_page = 'history'
+            st.rerun()
+        
+        # Admin panel button
+        if st.button(t('nav_admin'), use_container_width=True):
+            st.session_state.current_page = 'admin'
+            st.rerun()
+        
+        st.divider()
+        
+        # Language toggle in sidebar too
+        current_lang = get_language()
+        lang_label = t('malay') if current_lang == 'en' else t('english')
+        lang_icon = "🇲🇾" if current_lang == 'en' else "🇬🇧"
+        
+        if st.button(f"{lang_icon} {lang_label}", use_container_width=True, key="sidebar_lang_toggle"):
+            toggle_language()
+            st.rerun()
        
 
 def show_home_page():
@@ -349,393 +251,48 @@ def show_home_page():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
+        st.markdown(f"""
         <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px; margin: 1rem 0; border-left: 4px solid #2E8B57;">
-            <h3 style="color: #2E8B57; margin-top: 0;">What this tool does:</h3>
+            <h3 style="color: #2E8B57; margin-top: 0;">{t('home_what_title')}</h3>
             <ul style="color: #333; line-height: 1.8;">
-                <li>Reads your soil and leaf test reports</li>
-                <li>Analyzes the data using AI</li>
-                <li>Gives you farming recommendations</li>
-                <li>Shows yield predictions for your plantation</li>
+                <li>{t('home_what_1')}</li>
+                <li>{t('home_what_2')}</li>
+                <li>{t('home_what_3')}</li>
+                <li>{t('home_what_4')}</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div style="background-color: #f8f9fa; padding: 2rem; border-radius: 10px; margin: 1rem 0; border-left: 4px solid #2E8B57;">
-            <h3 style="color: #2E8B57; margin-top: 0;">How to use it:</h3>
+            <h3 style="color: #2E8B57; margin-top: 0;">{t('home_how_title')}</h3>
             <ol style="color: #333; line-height: 1.8;">
-                <li>Create an account or login</li>
-                <li>Upload your test reports</li>
-                <li>Enter your farm details</li>
-                <li>Get your analysis results</li>
+                <li>{t('home_how_1')}</li>
+                <li>{t('home_how_2')}</li>
+                <li>{t('home_how_3')}</li>
+                <li>{t('home_how_4')}</li>
             </ol>
         </div>
         """, unsafe_allow_html=True)
     
     # Simple call to action
-    st.markdown("""
+    st.markdown(f"""
     <div style="text-align: center; padding: 2rem; background: #f0f8ff; border-radius: 10px; margin: 2rem 0; border: 2px solid #2E8B57;">
-        <h3 style="color: #2E8B57; margin-bottom: 1rem;">Ready to get started?</h3>
-        <p style="color: #333; margin-bottom: 2rem;">Upload your oil palm test reports and get helpful farming advice.</p>
+        <h3 style="color: #2E8B57; margin-bottom: 1rem;">{t('home_ready')}</h3>
+        <p style="color: #333; margin-bottom: 2rem;">{t('home_ready_desc')}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # Simple buttons
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        if st.button("🔑 Login to Your Account", use_container_width=True, type="primary"):
-            st.session_state.current_page = 'login'
-            st.rerun()
-    
-    with col_b:
-        if st.button("📝 Create New Account", use_container_width=True):
-            st.session_state.current_page = 'register'
-            st.rerun()
-    
-
-def show_login_page():
-    """Display login page"""
-    st.markdown("""
-    <div class="auth-container">
-    """, unsafe_allow_html=True)
-    
-    st.subheader("🔑 Login to Your Account")
-    
-    with st.form("login_form"):
-        email = st.text_input("📧 Email", placeholder="Enter your email")
-        password = st.text_input("🔒 Password", type="password", placeholder="Enter your password")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            login_button = st.form_submit_button("🔑 Login", use_container_width=True, type="primary")
-        
-        with col2:
-            if st.form_submit_button("🔙 Back to Home", use_container_width=True):
-                st.session_state.current_page = 'home'
-                st.rerun()
-    
-    if login_button:
-        if email and password:
-            with st.spinner("Logging in..."):
-                result = login_user(email, password)
-                if result.get('success', False):
-                    # Store user information persistently
-                    user_info = result.get('user_info', {})
-                    store_authentication_state(user_info)
-                    
-                    st.success("Login successful!")
-                    
-                    # Redirect based on user role
-                    if user_info.get('role') == 'admin':
-                        st.session_state.current_page = 'admin'
-                    else:
-                        st.session_state.current_page = 'dashboard'
-                    
-                    st.rerun()
-                else:
-                    st.error(result.get('message', 'Invalid email or password. Please try again.'))
-        else:
-            st.error("Please enter both email and password.")
-    
-    st.divider()
-    
-    # Additional options
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("📝 Create Account", use_container_width=True):
-            st.session_state.current_page = 'register'
-            st.rerun()
-    
-    with col2:
-        if st.button("🔄 Forgot Password", use_container_width=True):
-            st.session_state.current_page = 'forgot_password'
-            st.rerun()
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-
-def show_register_page():
-    """Display registration page"""
-    st.markdown("""
-    <div class="auth-container">
-    """, unsafe_allow_html=True)
-    
-    st.subheader("📝 Create Your Account")
-    
-    with st.form("register_form"):
-        name = st.text_input("👤 Full Name", placeholder="Enter your full name")
-        email = st.text_input("📧 Email", placeholder="Enter your email")
-        password = st.text_input("🔒 Password", type="password", placeholder="Create a password")
-        confirm_password = st.text_input("🔒 Confirm Password", type="password", placeholder="Confirm your password")
-        
-        # Additional fields
-        company = st.text_input("🏢 Company/Organization (Optional)", placeholder="Your company name")
-        
-        # Terms and conditions
-        agree_terms = st.checkbox("I agree to the Terms of Service and Privacy Policy")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            register_button = st.form_submit_button("📝 Create Account", use_container_width=True, type="primary")
-        
-        with col2:
-            if st.form_submit_button("🔙 Back to Home", use_container_width=True):
-                st.session_state.current_page = 'home'
-                st.rerun()
-    
-    if register_button:
-        if not agree_terms:
-            st.error("Please agree to the Terms of Service and Privacy Policy.")
-        elif not all([name, email, password, confirm_password]):
-            st.error("Please fill in all required fields.")
-        elif password != confirm_password:
-            st.error("Passwords do not match.")
-        elif len(password) < 6:
-            st.error("Password must be at least 6 characters long.")
-        else:
-            with st.spinner("Creating account..."):
-                if register_user(email, password, name, company, ""):
-                    st.success("Account created successfully! Please log in.")
-                    st.session_state.current_page = 'login'
-                    st.rerun()
-                else:
-                    st.error("Failed to create account. Email may already be in use.")
-    
-    st.divider()
-    
-    # Link to login
-    if st.button("🔑 Already have an account? Login", use_container_width=True):
-        st.session_state.current_page = 'login'
+    # Simple button to start
+    if st.button(t('home_start'), use_container_width=True, type="primary"):
+        st.session_state.current_page = 'upload'
         st.rerun()
     
-    st.markdown("</div>", unsafe_allow_html=True)
 
-def show_admin_register_page():
-    """Display admin registration page"""
-    st.markdown("""
-    <div class="auth-container">
-    """, unsafe_allow_html=True)
-    
-    st.subheader("🔧 Create Admin Account")
-    st.info("Register as an administrator to access advanced system features.")
-    
-    with st.form("admin_register_form"):
-        name = st.text_input("👤 Full Name *", placeholder="Enter your full name")
-        email = st.text_input("📧 Email *", placeholder="Enter your email")
-        password = st.text_input("🔒 Password *", type="password", placeholder="Create a password (min 8 characters)")
-        confirm_password = st.text_input("🔒 Confirm Password *", type="password", placeholder="Confirm your password")
-        
-        # Required admin code field
-        admin_code = st.text_input("🔑 Admin Code *", type="password", placeholder="Enter admin access code")
-        
-        # Optional organization field
-        organization = st.text_input("🏢 Organization (Optional)", placeholder="Your organization name")
-        
-        # Terms and conditions
-        agree_terms = st.checkbox("I agree to the Terms of Service and Privacy Policy *")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            register_button = st.form_submit_button("🔧 Create Admin Account", use_container_width=True, type="primary")
-        
-        with col2:
-            if st.form_submit_button("🔙 Back to Home", use_container_width=True):
-                st.session_state.current_page = 'home'
-                st.rerun()
-    
-    if register_button:
-        # Form validation
-        if not agree_terms:
-            st.error("Please agree to the Terms of Service and Privacy Policy.")
-        elif not all([name.strip(), email.strip(), password, confirm_password, admin_code.strip()]):
-            st.error("Please fill in all required fields (marked with *).")
-        elif password != confirm_password:
-            st.error("Passwords do not match.")
-        elif len(password) < 8:
-            st.error("Password must be at least 8 characters long.")
-        elif not '@' in email or not '.' in email:
-            st.error("Please enter a valid email address.")
-        else:
-            with st.spinner("Creating admin account..."):
-                result = admin_signup_with_code(email, password, name, organization, admin_code)
-                
-                if result.get('success', False):
-                    st.success("Admin account created successfully! You can now log in.")
-                    st.session_state.current_page = 'login'
-                    st.rerun()
-                else:
-                    st.error(result.get('message', 'Failed to create admin account.'))
-    
-    st.divider()
-    
-    # Links to other pages
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🔑 Already have an account? Login", use_container_width=True):
-            st.session_state.current_page = 'login'
-            st.rerun()
-    
-    with col2:
-        if st.button("📝 Register as User", use_container_width=True):
-            st.session_state.current_page = 'register'
-            st.rerun()
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+# Authentication pages removed - no longer needed
 
-def show_forgot_password_page():
-    """Display forgot password page"""
-    st.markdown("""
-    <div class="auth-container">
-    """, unsafe_allow_html=True)
-    
-    st.subheader("🔄 Reset Your Password")
-    
-    st.info("Enter your email address and we'll send you instructions to reset your password.")
-    st.caption("If you don't see the email in your inbox within a few minutes, please check your Spam/Junk folder.")
-    
-    with st.form("forgot_password_form"):
-        email = st.text_input("📧 Email", placeholder="Enter your email")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            reset_button = st.form_submit_button("🔄 Send Reset Link", use_container_width=True, type="primary")
-        
-        with col2:
-            if st.form_submit_button("🔙 Back to Login", use_container_width=True):
-                st.session_state.current_page = 'login'
-                st.rerun()
-    
-    if reset_button:
-        if email:
-            with st.spinner("Generating reset link..."):
-                result = reset_password(email)
-                # reset_password returns dict in our utils; keep backward compat
-                if isinstance(result, dict):
-                    link = result.get('reset_link')
-                    if result.get('success'):
-                        st.success("Password reset link sent to your email!")
-                    else:
-                        st.error(result.get('message', 'Failed to send reset email.'))
-                    if link:
-                        st.info("Copy this link if email hasn't arrived yet:")
-                        st.code(link)
-                else:
-                    if result:
-                        st.success("Password reset link sent to your email!")
-                    else:
-                        st.error("Failed to send reset link.")
-        else:
-            st.error("Please enter your email address.")
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-
-def show_reset_password_page(token: str):
-    """Display AGS-themed reset password UI for users coming from email link"""
-    st.markdown(
-        """
-        <div class="auth-container">
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div style="background: linear-gradient(90deg, #2E8B57 0%, #228B22 100%); padding: 1rem; border-radius: 10px; text-align: center; color: white; margin-bottom: 1rem;">
-            <h3 style="margin: 0;">🌴 AGS AI Assistant</h3>
-            <p style="margin: 4px 0 0 0;">Set a new password</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not token:
-        st.error("Invalid or missing reset link. Please request a new password reset.")
-        if st.button("🔙 Back to Forgot Password", use_container_width=True):
-            st.session_state.current_page = 'forgot_password'
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    with st.form("reset_pw_form"):
-        new_pw = st.text_input("🔒 New Password", type="password")
-        confirm_pw = st.text_input("🔒 Confirm New Password", type="password")
-        submitted = st.form_submit_button("✅ Update Password", use_container_width=True, type="primary")
-
-    if submitted:
-        if not new_pw or not confirm_pw:
-            st.error("Please fill in both password fields.")
-        elif new_pw != confirm_pw:
-            st.error("Passwords do not match.")
-        elif len(new_pw) < 6:
-            st.error("Password must be at least 6 characters long.")
-        else:
-            with st.spinner("Updating password..."):
-                result = finalize_password_reset(token, new_pw)
-                if result.get('success'):
-                    st.success("Your password has been updated. Please log in.")
-                    if st.button("🔑 Go to Login", use_container_width=True):
-                        # Clear reset token from session and URL before navigating
-                        try:
-                            if 'reset_token' in st.session_state:
-                                del st.session_state['reset_token']
-                            st.query_params.clear()
-                        except Exception:
-                            pass
-                        st.session_state.current_page = 'login'
-                        st.rerun()
-                else:
-                    st.error(result.get('message', 'Failed to update password.'))
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-
-def show_settings_page():
-    """Display user settings page"""
-    st.title("⚙️ Account Settings")
-    
-    # User profile settings
-    st.subheader("👤 Profile Information")
-    
-    # This would load current user data from Firebase
-    with st.form("profile_form"):
-        name = st.text_input("Full Name", value="John Doe")
-        email = st.text_input("Email", value=st.session_state.user_email, disabled=True)
-        company = st.text_input("Company/Organization", value="")
-        phone = st.text_input("Phone Number", value="")
-        location = st.text_input("Location", value="")
-        
-        if st.form_submit_button("💾 Save Changes", type="primary"):
-            st.success("Profile updated successfully!")
-    
-    st.divider()
-    
-    # Notification preferences
-    st.subheader("🔔 Notification Preferences")
-    
-    email_notifications = st.checkbox("Email notifications for analysis completion", value=True)
-    weekly_summary = st.checkbox("Weekly analysis summary", value=False)
-    system_updates = st.checkbox("System updates and announcements", value=True)
-    
-    if st.button("💾 Save Notification Preferences", type="primary"):
-        st.success("Notification preferences saved!")
-    
-    st.divider()
-    
-    # Security settings
-    st.subheader("🔒 Security")
-    
-    if st.button("🔄 Change Password", use_container_width=True):
-        st.info("Password change functionality would be implemented here.")
-    
-    if st.button("🗑️ Delete Account", use_container_width=True, type="secondary"):
-        st.warning("Account deletion functionality would be implemented here.")
+# Settings page removed - authentication no longer required
 
 def show_upload_page():
     """Display upload page"""
@@ -743,24 +300,24 @@ def show_upload_page():
         from modules.upload import show_upload_page as upload_page
         upload_page()
     except ImportError:
-        st.error("Upload module not available")
-        st.info("Please contact support if this issue persists.")
+        st.error(t('status_error') + ": " + t('upload_error', default='Upload module not available'))
+        st.info(t('status_info') + ": " + t('upload_error', default='Please contact support if this issue persists.'))
 
 def show_results_page():
     """Display results page"""
     if results_page_func is not None:
         results_page_func()
     else:
-        st.error("❌ Results module not available")
-        st.info("💡 **Tip:** Please contact support if this issue persists.")
+        st.error(t('status_error') + ": " + t('results_no_results', default='Results module not available'))
+        st.info(t('status_info') + ": " + t('results_no_results', default='Please contact support if this issue persists.'))
 
 def show_history_page():
     """Display history page"""
     if history_page_func is not None:
         history_page_func()
     else:
-        st.error("❌ History module not available")
-        st.info("💡 **Tip:** Please contact support if this issue persists.")
+        st.error(t('status_error') + ": " + t('history_no_history', default='History module not available'))
+        st.info(t('status_info') + ": " + t('history_no_history', default='Please contact support if this issue persists.'))
 
 def show_dashboard():
     """Display dashboard page"""
@@ -768,16 +325,16 @@ def show_dashboard():
         from modules.dashboard import show_dashboard as dashboard_page
         dashboard_page()
     except ImportError:
-        st.error("Dashboard module not available")
-        st.info("Please contact support if this issue persists.")
+        st.error(t('status_error') + ": Dashboard module not available")
+        st.info(t('status_info') + ": Please contact support if this issue persists.")
 
 def show_admin_panel():
     """Display admin panel"""
     if admin_panel_func is not None:
         admin_panel_func()
     else:
-        st.error("❌ Admin module not available")
-        st.info("💡 **Tip:** Please contact support if this issue persists.")
+        st.error(t('status_error') + ": " + t('admin_restricted', default='Admin module not available'))
+        st.info(t('status_info') + ": " + t('admin_restricted', default='Please contact support if this issue persists.'))
 
 def main():
     """Main application function"""
@@ -795,73 +352,37 @@ def main():
     
     if current_page == 'home':
         show_home_page()
-    elif current_page == 'login':
-        show_login_page()
-    elif current_page == 'register':
-        show_register_page()
-    elif current_page == 'admin_register':
-        show_admin_register_page()
-    elif current_page == 'forgot_password':
-        show_forgot_password_page()
-    elif current_page == 'reset_password':
-        token = st.session_state.get('reset_token') or st.query_params.get('reset_token')
-        show_reset_password_page(token)
     elif current_page == 'upload':
-        # Require authentication for upload/analyze functionality
-        if st.session_state.authenticated:
-            show_upload_page()
-        else:
-            st.warning("🔒 Please log in to upload and analyze files.")
-            st.session_state.current_page = 'login'
-            show_login_page()
+        show_upload_page()
     elif current_page == 'results':
-        # Require authentication for results functionality
-        if st.session_state.authenticated:
-            if results_page_func is not None:
-                results_page_func()
-            else:
-                st.error("❌ Results module not available")
-                st.info("💡 **Tip:** Please contact support if this issue persists.")
+        if results_page_func is not None:
+            results_page_func()
         else:
-            st.warning("🔒 Please log in to view analysis results.")
-            st.session_state.current_page = 'login'
-            show_login_page()
+            st.error(t('status_error') + ": " + t('results_no_results'))
+            st.info(t('status_info') + ": " + t('results_no_results', default='Please contact support if this issue persists.'))
     elif current_page == 'history':
-        # Require authentication for history functionality
-        if st.session_state.authenticated:
-            if history_page_func is not None:
-                history_page_func()
-            else:
-                st.error("❌ History module not available")
-                st.info("💡 **Tip:** Please contact support if this issue persists.")
+        if history_page_func is not None:
+            history_page_func()
         else:
-            st.warning("🔒 Please log in to view analysis history.")
-            st.session_state.current_page = 'login'
-            show_login_page()
-    elif current_page == 'dashboard' and st.session_state.authenticated:
+            st.error(t('status_error') + ": " + t('history_no_history'))
+            st.info(t('status_info') + ": " + t('history_no_history', default='Please contact support if this issue persists.'))
+    elif current_page == 'dashboard':
         show_dashboard()
-    elif current_page == 'admin' and st.session_state.authenticated and is_admin(st.session_state.user_id):
+    elif current_page == 'admin':
         if admin_panel_func is not None:
             admin_panel_func()
         else:
-            st.error("❌ Admin module not available")
-            st.info("💡 **Tip:** Please contact support if this issue persists.")
-    elif current_page == 'settings' and st.session_state.authenticated:
-        show_settings_page()
+            st.error(t('status_error') + ": " + t('admin_restricted'))
+            st.info(t('status_info') + ": " + t('admin_restricted', default='Please contact support if this issue persists.'))
     else:
-        # Default to home if page not found or not authenticated for restricted pages
-        if current_page in ['dashboard', 'admin', 'settings'] and not st.session_state.authenticated:
-            st.warning("🔒 Please log in to access this page.")
-            st.session_state.current_page = 'login'
-            show_login_page()
-        else:
-            st.session_state.current_page = 'home'
-            show_home_page()
+        # Default to home if page not found
+        st.session_state.current_page = 'home'
+        show_home_page()
     
     # Footer
-    st.markdown("""
+    st.markdown(f"""
     <div class="footer">
-        <p>© 2025 AGS AI Assistant | Advanced Oil Palm Cultivation Analysis System</p>
+        <p>{t('footer_copyright')}</p>
     </div>
     """, unsafe_allow_html=True)
 

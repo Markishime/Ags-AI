@@ -490,11 +490,11 @@ def show_results_page():
         # Responsive button layout
         col1, col2 = st.columns([1, 1])
         with col1:
-            if st.button("🔑 Login", type="primary", width='stretch'):
+            if st.button("🔑 Login", type="primary", use_container_width=True):
                 st.session_state.current_page = 'login'
                 st.rerun()
         with col2:
-            if st.button("📝 Register", width='stretch'):
+            if st.button("📝 Register", use_container_width=True):
                 st.session_state.current_page = 'register'
                 st.rerun()
         return
@@ -505,7 +505,7 @@ def show_results_page():
     # Button row below the title
     button_col1, button_col2, button_col3 = st.columns([1, 1, 1])
     with button_col1:
-        if st.button("🔄 Refresh", type="secondary", width='stretch'):
+        if st.button("🔄 Refresh", type="secondary", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     with button_col2:
@@ -673,7 +673,7 @@ def show_results_page():
         
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("📥 Download PDF Report", type="primary", width='stretch'):
+            if st.button("📥 Download PDF Report", type="primary", use_container_width=True):
                 try:
                     # Generate PDF
                     with st.spinner("🔄 Generating PDF report..."):
@@ -1632,15 +1632,15 @@ def display_no_results_message():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📤 Analyze Files", type="primary", width='stretch'):
+        if st.button("📤 Analyze Files", type="primary", use_container_width=True):
             st.session_state.current_page = 'upload'
             st.rerun()
     with col2:
-        if st.button("📊 Dashboard", width='stretch'):
+        if st.button("📊 Dashboard", use_container_width=True):
             st.session_state.current_page = 'dashboard'
             st.rerun()
     with col3:
-        if st.button("📈 History", width='stretch'):
+        if st.button("📈 History", use_container_width=True):
             st.session_state.current_page = 'history'
             st.rerun()
 
@@ -1914,7 +1914,7 @@ def display_structured_soil_data(soil_data):
             cols = ['Sample ID'] + [col for col in df.columns if col != 'Sample ID']
             df = df[cols]
 
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
             
             # Show summary statistics
             st.markdown("#### 📈 Summary Statistics")
@@ -1968,7 +1968,7 @@ def display_structured_soil_data(soil_data):
                         logger.error(f"❌ Summary DataFrame creation failed: {str(df_error)}")
                         st.error("Unable to display soil summary table")
                         return
-                    st.dataframe(summary_df, width='stretch')
+                    st.dataframe(summary_df, use_container_width=True)
         else:
             st.warning("No sample data found in structured format")
 
@@ -2018,7 +2018,7 @@ def display_structured_leaf_data(leaf_data):
             cols = ['Sample ID'] + [col for col in df.columns if col != 'Sample ID']
             df = df[cols]
             
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
             
             # Show summary statistics
             st.markdown("#### 📈 Summary Statistics")
@@ -2072,7 +2072,7 @@ def display_structured_leaf_data(leaf_data):
                         logger.error(f"❌ Summary DataFrame creation failed: {str(df_error)}")
                         st.error("Unable to display leaf summary table")
                         return
-                    st.dataframe(summary_df, width='stretch')
+                    st.dataframe(summary_df, use_container_width=True)
         else:
             st.warning("No sample data found in structured format")
 
@@ -2510,7 +2510,7 @@ def display_raw_soil_data(soil_data):
             logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
             st.error("Unable to display soil data table")
             return
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
         
         # Show summary
         st.info(f"📊 **Total Samples:** {len(samples)}")
@@ -2533,7 +2533,7 @@ def display_raw_soil_data(soil_data):
                 
                 if stats_data:
                     stats_df = pd.DataFrame(stats_data)
-                    st.dataframe(stats_df, width='stretch')
+                    st.dataframe(stats_df, use_container_width=True)
     else:
         st.warning("📋 No soil data available.")
 
@@ -2584,7 +2584,7 @@ def display_raw_leaf_data(leaf_data):
             logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
             st.error("Unable to display leaf data table")
             return
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
         
         # Show summary
         st.info(f"📊 **Total Samples:** {len(samples)}")
@@ -2607,7 +2607,7 @@ def display_raw_leaf_data(leaf_data):
                 
                 if stats_data:
                     stats_df = pd.DataFrame(stats_data)
-                    st.dataframe(stats_df, width='stretch')
+                    st.dataframe(stats_df, use_container_width=True)
     else:
         st.warning("📋 No leaf data available.")
 
@@ -2665,7 +2665,7 @@ def display_soil_data_table(soil_data):
             if summary_data:
                 df = pd.DataFrame(summary_data)
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
             
             # Display individual sample data
             all_samples = soil_data.get('all_samples', []) if isinstance(soil_data, dict) else []
@@ -2673,7 +2673,7 @@ def display_soil_data_table(soil_data):
                 st.markdown("### 📋 Individual Sample Data")
                 df_samples = pd.DataFrame(all_samples)
                 apply_table_styling()
-                st.dataframe(df_samples, width='stretch')
+                st.dataframe(df_samples, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -2716,7 +2716,7 @@ def display_soil_data_table(soil_data):
             if summary_data:
                 df = pd.DataFrame(summary_data)
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -2760,7 +2760,7 @@ def display_soil_data_table(soil_data):
                     if summary_data:
                         df_stats = pd.DataFrame(summary_data)
                         apply_table_styling()
-                        st.dataframe(df_stats, width='stretch')
+                        st.dataframe(df_stats, use_container_width=True)
                 
                 # Display individual sample data
                 st.markdown("### 📋 Individual Sample Data")
@@ -2771,7 +2771,7 @@ def display_soil_data_table(soil_data):
                 if df_data:
                     df = pd.DataFrame(df_data)
                     apply_table_styling()
-                    st.dataframe(df, width='stretch')
+                    st.dataframe(df, use_container_width=True)
                 else:
                     st.info("📋 No sample data found in soil analysis.")
             else:
@@ -2787,7 +2787,7 @@ def display_soil_data_table(soil_data):
                     st.error("Unable to display soil extracted data table")
                     return
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
             else:
                 st.info("📋 No soil parameters extracted.")
         else:
@@ -2851,7 +2851,7 @@ def display_leaf_data_table(leaf_data):
             if summary_data:
                 df = pd.DataFrame(summary_data)
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
             
             # Display individual sample data
             all_samples = leaf_data.get('all_samples', []) if isinstance(leaf_data, dict) else []
@@ -2859,7 +2859,7 @@ def display_leaf_data_table(leaf_data):
                 st.markdown("### 📋 Individual Sample Data")
                 df_samples = pd.DataFrame(all_samples)
                 apply_table_styling()
-                st.dataframe(df_samples, width='stretch')
+                st.dataframe(df_samples, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -2902,7 +2902,7 @@ def display_leaf_data_table(leaf_data):
             if summary_data:
                 df = pd.DataFrame(summary_data)
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
         else:
             st.info("📋 No parameter statistics available.")
     
@@ -2946,7 +2946,7 @@ def display_leaf_data_table(leaf_data):
                     if summary_data:
                         df_stats = pd.DataFrame(summary_data)
                         apply_table_styling()
-                        st.dataframe(df_stats, width='stretch')
+                        st.dataframe(df_stats, use_container_width=True)
                 
                 # Display individual sample data
                 st.markdown("### 📋 Individual Sample Data")
@@ -2957,7 +2957,7 @@ def display_leaf_data_table(leaf_data):
                 if df_data:
                     df = pd.DataFrame(df_data)
                     apply_table_styling()
-                    st.dataframe(df, width='stretch')
+                    st.dataframe(df, use_container_width=True)
                 else:
                     st.info("📋 No sample data found in leaf analysis.")
             else:
@@ -2973,7 +2973,7 @@ def display_leaf_data_table(leaf_data):
                     st.error("Unable to display leaf extracted data table")
                     return
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
             else:
                 st.info("📋 No leaf parameters extracted.")
         else:
@@ -6226,7 +6226,7 @@ def display_table(table_data, title):
                 return
             logger.info(f"✅ Created table DataFrame for '{title}' with shape: {df.shape}")
             st.markdown(f"### {title}")
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
             
             if 'note' in table_data:
                 st.markdown(f"*Note: {table_data['note']}*")
@@ -6689,7 +6689,7 @@ def display_economic_yearly_table(scenario_name, yearly_data, economic_forecast)
         st.markdown("*Per hectare calculations*")
 
         apply_table_styling()
-        st.dataframe(df, width='stretch', use_container_width=True)
+        st.dataframe(df, use_container_width=True)
 
         st.markdown("")
 
@@ -6816,7 +6816,7 @@ def _parse_xml_table_format(table_content):
         if headers and rows:
             df = pd.DataFrame(rows, columns=headers)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
             return True
 
         return False
@@ -6856,7 +6856,7 @@ def _parse_html_table_format(table_content):
             if headers and rows:
                 df = pd.DataFrame(rows, columns=headers)
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
                 return True
 
         # Try naive row parsing without explicit thead/tbody
@@ -6874,7 +6874,7 @@ def _parse_html_table_format(table_content):
             body = rows[1:] if len(rows) > 1 else []
             df = pd.DataFrame(body, columns=headers if body else None)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
             return True
 
         return False
@@ -6995,7 +6995,7 @@ def _extract_and_render_markdown_tables(raw_text: str) -> str:
                 df = pd.DataFrame(rows, columns=headers)
                 apply_table_styling()
                 st.markdown(f"#### 📋 {title}")
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
                 st.markdown("")  # Add spacing
             except Exception as e:
                 logger.error(f"Error rendering table '{title}': {e}")
@@ -7932,7 +7932,7 @@ def display_references_section(results_data):
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("📥 Download PDF Report", type="primary", width='stretch'):
+        if st.button("📥 Download PDF Report", type="primary", use_container_width=True):
             try:
                 # Generate PDF
                 with st.spinner("🔄 Generating PDF report..."):
@@ -8274,7 +8274,7 @@ def display_enhanced_step_result(step_result, step_number):
                         df = pd.DataFrame(parsed_rows, columns=table['headers'])
                         logger.info(f"✅ Created table DataFrame for '{table['title']}' with shape: {df.shape}")
                         apply_table_styling()
-                        st.dataframe(df, width='stretch')
+                        st.dataframe(df, use_container_width=True)
                     else:
                         st.warning(f"No valid data found for table '{table['title']}'")
                         
@@ -8911,7 +8911,7 @@ def display_data_table(table_data, title):
         
         # Display the table
         st.markdown(f"### {title}")
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
         
     except Exception as e:
         logger.error(f"Error displaying table {title}: {e}")
@@ -12166,7 +12166,7 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                         try:
                             df_avg = pd.DataFrame(valid_avg_data)
                             logger.info(f"✅ Created soil averages DataFrame with shape: {df_avg.shape}")
-                            st.dataframe(df_avg, width='stretch')
+                            st.dataframe(df_avg, use_container_width=True)
                         except Exception as df_error:
                             logger.error(f"❌ Soil averages DataFrame creation failed: {str(df_error)}")
                             st.error("Unable to display soil parameter averages table")
@@ -12213,7 +12213,7 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                         try:
                             df_soil_samples = pd.DataFrame(valid_samples_data)
                             logger.info(f"✅ Created soil samples DataFrame with shape: {df_soil_samples.shape}")
-                            st.dataframe(df_soil_samples, width='stretch')
+                            st.dataframe(df_soil_samples, use_container_width=True)
                         except Exception as df_error:
                             logger.error(f"❌ Soil samples DataFrame creation failed: {str(df_error)}")
                             st.error("Unable to display soil samples table")
@@ -12274,7 +12274,7 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                         try:
                             df_leaf = pd.DataFrame(valid_leaf_data)
                             logger.info(f"✅ Created leaf data DataFrame with shape: {df_leaf.shape}")
-                            st.dataframe(df_leaf, width='stretch')
+                            st.dataframe(df_leaf, use_container_width=True)
                         except Exception as df_error:
                             logger.error(f"❌ Leaf data DataFrame creation failed: {str(df_error)}")
                             st.error("Unable to display leaf analysis summary table")
@@ -12316,7 +12316,7 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                             try:
                                 df_avg = pd.DataFrame(valid_avg_data)
                                 logger.info(f"✅ Created leaf averages DataFrame with shape: {df_avg.shape}")
-                                st.dataframe(df_avg, width='stretch')
+                                st.dataframe(df_avg, use_container_width=True)
                             except Exception as df_error:
                                 logger.error(f"❌ Leaf averages DataFrame creation failed: {str(df_error)}")
                                 st.error("Unable to display leaf parameter averages table")
@@ -12363,7 +12363,7 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                             try:
                                 df_leaf_samples = pd.DataFrame(valid_samples_data)
                                 logger.info(f"✅ Created leaf samples DataFrame with shape: {df_leaf_samples.shape}")
-                                st.dataframe(df_leaf_samples, width='stretch')
+                                st.dataframe(df_leaf_samples, use_container_width=True)
                             except Exception as df_error:
                                 logger.error(f"❌ Leaf samples DataFrame creation failed: {str(df_error)}")
                                 st.error("Unable to display leaf samples table")
@@ -12417,7 +12417,7 @@ def display_comprehensive_data_tables(soil_params, leaf_params):
                 try:
                     df_summary = pd.DataFrame(summary_data)
                     logger.info(f"✅ Created summary DataFrame with shape: {df_summary.shape}")
-                    st.dataframe(df_summary, width='stretch')
+                    st.dataframe(df_summary, use_container_width=True)
                 except Exception as df_error:
                     logger.error(f"❌ Summary DataFrame creation failed: {str(df_error)}")
                     logger.error(f"🔍 Summary data: {summary_data}")
@@ -12451,7 +12451,7 @@ def display_table(table_data):
             # Display with borders and proper formatting
             st.dataframe(
                 df,
-                width='stretch',
+                use_container_width=True,
                 hide_index=True
             )
         
@@ -12676,7 +12676,7 @@ def display_data_echo_table(analysis_data):
                 
                 st.dataframe(
                     df,
-                    width='stretch',
+                    use_container_width=True,
                     hide_index=True
                 )
             else:
@@ -12870,7 +12870,7 @@ def display_nutrient_status_tables(analysis_data):
                             df_soil = pd.DataFrame(valid_soil_data)
                             logger.info(f"✅ Created soil DataFrame with shape: {df_soil.shape}")
                             apply_table_styling()
-                            st.dataframe(df_soil, width='stretch')
+                            st.dataframe(df_soil, use_container_width=True)
                         except Exception as df_error:
                             logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
                             logger.error(f"🔍 Data: {valid_soil_data}")
@@ -12976,7 +12976,7 @@ def display_nutrient_status_tables(analysis_data):
                             df_leaf = pd.DataFrame(valid_leaf_data)
                             logger.info(f"✅ Created leaf DataFrame with shape: {df_leaf.shape}")
                             apply_table_styling()
-                            st.dataframe(df_leaf, width='stretch')
+                            st.dataframe(df_leaf, use_container_width=True)
                         except Exception as df_error:
                             logger.error(f"❌ DataFrame creation failed: {str(df_error)}")
                             logger.error(f"🔍 Data: {valid_leaf_data}")
@@ -13033,7 +13033,7 @@ def display_overall_results_summary_table(analysis_data):
         if rows:
             df = pd.DataFrame(rows)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
         else:
             st.info("No summary data available to display.")
     except Exception as e:
@@ -13259,7 +13259,7 @@ def display_nutrient_gap_analysis_table(analysis_data):
             existing_cols = [c for c in desired_cols if c in df.columns]
             df = df[existing_cols]
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         logger.error(f"Error in display_nutrient_gap_analysis_table: {e}")
 
@@ -13294,7 +13294,7 @@ def display_soil_ratio_table(analysis_data):
             rows = [{'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'}]
             df = pd.DataFrame(rows)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         logger.error(f"Error in display_soil_ratio_table: {e}")
 
@@ -13328,7 +13328,7 @@ def display_leaf_ratio_table(analysis_data):
             rows = [{'Ratio': 'K:Mg', 'Value': f"{r:.2f}" if isinstance(r, (int,float)) else 'N.D.'}]
             df = pd.DataFrame(rows)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         logger.error(f"Error in display_leaf_ratio_table: {e}")
 
@@ -13369,7 +13369,7 @@ def display_ratio_analysis_tables(analysis_data):
             st.markdown("#### Soil and Leaf Nutrient Ratio Analysis")
             df = pd.DataFrame(rows)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         logger.error(f"Error in display_ratio_analysis_tables: {e}")
 
@@ -13442,7 +13442,7 @@ def display_deficient_nutrient_quick_guide(analysis_data):
             st.markdown("#### Deficient Nutrient Parameter Quick Guide")
             df = pd.DataFrame(rows)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
     except Exception as e:
         logger.error(f"Error in display_deficient_nutrient_quick_guide: {e}")
 
@@ -14142,7 +14142,7 @@ def display_analysis_tables(tables_data, step_title="Data Tables"):
 
                     # Apply consistent styling
                     apply_table_styling()
-                    st.dataframe(df, width='stretch')
+                    st.dataframe(df, use_container_width=True)
 
                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -14385,7 +14385,7 @@ def display_step3_solution_recommendations(analysis_data):
                 import pandas as pd
                 df = pd.DataFrame(table['rows'], columns=table['headers'])
                 apply_table_styling()
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
     # 3b. SPECIFIC RECOMMENDATIONS - render as cards with dynamic month/weather adjustments
@@ -14522,7 +14522,7 @@ def display_step3_solution_recommendations(analysis_data):
                             # Create a DataFrame for better display
                             import pandas as pd
                             df = pd.DataFrame(item['rows'], columns=item['headers'])
-                            st.dataframe(df, width='stretch')
+                            st.dataframe(df, use_container_width=True)
                             st.markdown("")
                         else:
                             st.markdown(f"- **Item {idx}:**")
@@ -14971,7 +14971,7 @@ def display_economic_impact_content(analysis_data):
             "Investment Level", "Total Investment (RM)", "Expected Return (RM)", "ROI (%)", "Payback Period"
         ])
         apply_table_styling()
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
 
         # Also try to display any additional tables from analysis data
         display_analysis_tables(analysis_data.get('tables'), "Economic Analysis Data Tables")
@@ -15364,7 +15364,7 @@ def display_economic_forecast(economic_forecast):
         if scenarios_data:
             df = pd.DataFrame(scenarios_data)
             apply_table_styling()
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
 
 def display_recommendations_details(analysis_data):
     """Display detailed recommendations"""
@@ -15434,7 +15434,7 @@ def display_economic_analysis(analysis_data):
     if scenarios_data:
         df = pd.DataFrame(scenarios_data)
         apply_table_styling()
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
         
         # Summary metrics
         st.markdown("### 📊 Economic Summary")
@@ -15538,7 +15538,7 @@ def display_forecast_visualization(analysis_data):
         
         df = pd.DataFrame(table_data)
         apply_table_styling()
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, use_container_width=True)
 
 def display_multi_axis_chart(data, title, options):
     """Display multi-axis chart visualization"""
@@ -16552,7 +16552,7 @@ def _removed_display_print_dialog(results_data):
                 st.markdown(f"• Yield Forecast: {'✅' if results_data.get('yield_forecast') else '❌'}")
             
             # Generate PDF button
-            if st.button("🖨️ Generate PDF", type="primary", width='stretch'):
+            if st.button("🖨️ Generate PDF", type="primary", use_container_width=True):
                 with st.spinner("🔄 Generating PDF report..."):
                     try:
                         # Generate PDF with selected options

@@ -156,15 +156,15 @@ def display_admin_shortcuts():
     """Show quick admin actions instead of recent system issues"""
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📝 Create Prompt Template", width='stretch'):
+        if st.button("📝 Create Prompt Template", use_container_width=True):
             st.session_state.current_page = 'admin'
             st.rerun()
     with col2:
-        if st.button("📚 Add Reference Doc", width='stretch'):
+        if st.button("📚 Add Reference Doc", use_container_width=True):
             st.session_state.current_page = 'admin'
             st.rerun()
     with col3:
-        if st.button("⚙️ Advanced Settings", width='stretch'):
+        if st.button("⚙️ Advanced Settings", use_container_width=True):
             st.session_state.current_page = 'admin'
             st.rerun()
 
@@ -209,7 +209,7 @@ def show_user_management():
                 })
             
             df = pd.DataFrame(user_data)
-            st.dataframe(df, width='stretch')
+            st.dataframe(df, use_container_width=True)
             
             # User actions
             st.subheader("User Actions")
@@ -1293,7 +1293,7 @@ def show_reference_materials_config():
         else:
             st.warning("📚 No reference documents found")
     with col2:
-        if st.button("🔄 Refresh", key="refresh_docs", width='stretch'):
+        if st.button("🔄 Refresh", key="refresh_docs", use_container_width=True):
             st.rerun()
     
     st.divider()
@@ -1416,7 +1416,7 @@ def show_reference_materials_config():
         st.write("**Bulk Document Operations**")
     
         # Export documents
-        if st.button("📤 Export All Documents", width='stretch'):
+        if st.button("📤 Export All Documents", use_container_width=True):
             if documents:
                 export_data = []
                 for doc in documents:
@@ -1452,7 +1452,7 @@ def show_reference_materials_config():
                 data = json.load(uploaded_file)
                 if isinstance(data, list):
                     st.success(f"📄 Found {len(data)} documents in file")
-                    if st.button("📥 Import Documents", width='stretch'):
+                    if st.button("📥 Import Documents", use_container_width=True):
                         imported_count = 0
                         for doc_data in data:
                             if save_reference_document(doc_data):
@@ -1467,10 +1467,10 @@ def show_reference_materials_config():
         # Bulk delete
         if filtered_documents:
             st.write("**Bulk Actions**")
-            if st.button("🗑️ Delete Filtered Documents", width='stretch', type="secondary"):
+            if st.button("🗑️ Delete Filtered Documents", use_container_width=True, type="secondary"):
                 if len(filtered_documents) > 0:
                     st.warning(f"⚠️ This will delete {len(filtered_documents)} document(s). This action cannot be undone!")
-                    if st.button("✅ Confirm Delete", width='stretch', type="primary"):
+                    if st.button("✅ Confirm Delete", use_container_width=True, type="primary"):
                         deleted_count = 0
                         for doc in filtered_documents:
                             if delete_reference_document(doc['id']):
@@ -1551,19 +1551,19 @@ def show_reference_materials_config():
                 
                     with col2:
                         # Enhanced action buttons
-                        if st.button("✏️ Edit", key=f"edit_doc_{i}", width='stretch'):
+                        if st.button("✏️ Edit", key=f"edit_doc_{i}", use_container_width=True):
                             st.session_state.editing_document = doc
                             st.rerun()
                     
-                        if st.button("👁️ View", key=f"view_doc_{i}", width='stretch'):
+                        if st.button("👁️ View", key=f"view_doc_{i}", use_container_width=True):
                             st.session_state.viewing_document = doc
                             st.rerun()
                         
-                        if st.button("📋 Copy", key=f"copy_doc_{i}", width='stretch'):
+                        if st.button("📋 Copy", key=f"copy_doc_{i}", use_container_width=True):
                             # Copy document data to clipboard (simulated)
                             st.success("📋 Document data copied to clipboard!")
                         
-                        if st.button("🗑️ Delete", key=f"delete_doc_{i}", width='stretch', type="secondary"):
+                        if st.button("🗑️ Delete", key=f"delete_doc_{i}", use_container_width=True, type="secondary"):
                             if delete_reference_document(doc['id']):
                                 st.success("✅ Document deleted!")
                                 st.rerun()
@@ -1587,7 +1587,7 @@ def show_reference_materials_config():
             
             if table_data:
                 df = pd.DataFrame(table_data)
-                st.dataframe(df, width='stretch')
+                st.dataframe(df, use_container_width=True)
     
     elif documents and not filtered_documents:
         st.warning("🔍 No documents match your current filters. Try adjusting your search criteria.")
@@ -1616,12 +1616,12 @@ def show_reference_materials_config():
                 st.write(f"**Tags:** {tag_badges}")
         
         with col2:
-            if st.button("✏️ Edit Document", width='stretch'):
+            if st.button("✏️ Edit Document", use_container_width=True):
                 st.session_state.editing_document = viewing_doc
                 del st.session_state.viewing_document
                 st.rerun()
             
-            if st.button("❌ Close", width='stretch'):
+            if st.button("❌ Close", use_container_width=True):
                 del st.session_state.viewing_document
                 st.rerun()
     
