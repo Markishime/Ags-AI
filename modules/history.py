@@ -18,22 +18,6 @@ logger = logging.getLogger(__name__)
 
 def show_history_page():
     """Main history page - displays past analysis results"""
-    # Check authentication
-    if not st.session_state.get('authenticated', False):
-        st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📋 Analysis History</h1>', unsafe_allow_html=True)
-        st.warning("🔒 Please log in to view analysis history.")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔑 Login", type="primary"):
-                st.session_state.current_page = 'login'
-                st.rerun()
-        with col2:
-            if st.button("📝 Register"):
-                st.session_state.current_page = 'register'
-                st.rerun()
-        return
-    
     st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📋 Analysis History</h1>', unsafe_allow_html=True)
     
     # Display analysis history

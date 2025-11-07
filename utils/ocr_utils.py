@@ -1074,6 +1074,50 @@ class TesseractProcessor:
     
     def __init__(self):
         self.available = TESSERACT_AVAILABLE
+        self._configure_tesseract_path()
+    
+    def _configure_tesseract_path(self):
+        """Configure Tesseract executable path from secrets or environment"""
+        if not TESSERACT_AVAILABLE:
+            return
+        
+        try:
+            import streamlit as st
+            # Try to get path from secrets
+            if hasattr(st, 'secrets') and st.secrets is not None:
+                try:
+                    tesseract_path = st.secrets.get('ocr', {}).get('tesseract_path')
+                    if tesseract_path and os.path.exists(tesseract_path):
+                        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                        logger.info(f"Tesseract path configured from secrets: {tesseract_path}")
+                        return
+                except Exception as e:
+                    logger.debug(f"Could not read tesseract_path from secrets: {e}")
+        except ImportError:
+            pass
+        
+        # Try common Windows installation paths
+        common_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            r"C:\Users\{}\AppData\Local\Programs\Tesseract-OCR\tesseract.exe".format(os.getenv('USERNAME', '')),
+        ]
+        
+        for path in common_paths:
+            if os.path.exists(path):
+                pytesseract.pytesseract.tesseract_cmd = path
+                logger.info(f"Tesseract path auto-detected: {path}")
+                return
+        
+        # Try to find tesseract in PATH
+        try:
+            import shutil
+            tesseract_cmd = shutil.which('tesseract')
+            if tesseract_cmd:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+                logger.info(f"Tesseract found in PATH: {tesseract_cmd}")
+        except Exception:
+            pass
     
     def process_document(self, file_path: str) -> Optional[Dict]:
         """Process document with Tesseract OCR"""

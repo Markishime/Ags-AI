@@ -482,23 +482,6 @@ def show_results_page():
     # Add responsive CSS styling
     add_responsive_css()
     
-    # Check authentication
-    if not st.session_state.get('authenticated', False):
-        st.markdown('<h1 class="main-title">🔍 Analysis Results</h1>', unsafe_allow_html=True)
-        st.warning("🔒 Please log in to view analysis results.")
-        
-        # Responsive button layout
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("🔑 Login", type="primary", use_container_width=True):
-                st.session_state.current_page = 'login'
-                st.rerun()
-        with col2:
-            if st.button("📝 Register", use_container_width=True):
-                st.session_state.current_page = 'register'
-                st.rerun()
-        return
-    
     # Responsive page header with centered title and buttons below
     st.markdown('<h1 class="main-title" style="text-align: center;">🔍 Analysis Results</h1>', unsafe_allow_html=True)
     
@@ -756,12 +739,12 @@ def load_latest_results():
             }
             return results_data
         
-        # If no stored results, try to load from Firestore
+        # If no stored results, try to load from Firestore (optional - only if user is logged in)
         db = get_firestore_client()
         user_email = st.session_state.get('user_email')
         user_id = st.session_state.get('user_id')
         
-        if not user_email:
+        if not user_email and not user_id:
             return None
         
         # Query for the latest analysis results from Firestore
@@ -827,8 +810,10 @@ def store_analysis_to_firestore(analysis_results, result_id):
         user_email = st.session_state.get('user_email')
         user_id = st.session_state.get('user_id')
         
-        if not user_email or not user_id:
-            raise Exception("User authentication not available")
+        # Skip saving to Firestore if user is not authenticated (anonymous users)
+        if not user_email and not user_id:
+            logger.info("Skipping Firestore storage - user not authenticated (anonymous user)")
+            return False
         
         # Create the document data structure for Firestore
         current_time = datetime.now()
@@ -1466,8 +1451,8 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
             step_indicator.text(f"📋 Step {current_step} of {total_steps}")
         
         user_email = st.session_state.get('user_email')
-        if not user_email:
-            return {'success': False, 'message': 'User email not found'}
+        user_id = st.session_state.get('user_id', 'anonymous')
+        # Note: user_email is optional - anonymous users can still use analysis
         
         # Skip Firestore data preparation to avoid nested entity errors
         # Results will be displayed directly in the results page
@@ -1567,7 +1552,8 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
         display_data = {
             'success': True,
             'id': result_id,
-            'user_email': user_email,
+            'user_email': user_email or None,  # Optional for anonymous users
+            'user_id': user_id,
             'timestamp': datetime.now(),
             'status': 'completed',
             'report_types': ['soil', 'leaf'],

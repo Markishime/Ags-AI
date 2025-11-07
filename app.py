@@ -36,11 +36,6 @@ if modules_dir not in sys.path:
 
 # Import pages with robust fallbacks
 try:
-    from modules.dashboard import show_dashboard
-except Exception:
-    from dashboard import show_dashboard
-
-try:
     from modules.upload import show_upload_page
 except Exception:
     from upload import show_upload_page
@@ -176,26 +171,39 @@ def initialize_app():
 
 def show_header():
     """Display application header with language toggle"""
-    # Language toggle in header
-    col1, col2 = st.columns([5, 1])
+    # Check if we're on the homepage
+    current_page = st.session_state.get('current_page', 'home')
+    is_homepage = current_page == 'home'
     
-    with col1:
+    if is_homepage:
+        # On homepage, show header without language toggle
         st.markdown(f"""
         <div class="main-header">
             <h1>🌴 {t('app_title')}</h1>
             <p>{t('app_subtitle')}</p>
         </div>
         """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        current_lang = get_language()
-        lang_label = t('malay') if current_lang == 'en' else t('english')
-        lang_icon = "🇲🇾" if current_lang == 'en' else "🇬🇧"
+    else:
+        # On other pages, show header with language toggle
+        col1, col2 = st.columns([5, 1])
         
-        if st.button(f"{lang_icon} {lang_label}", use_container_width=True, key="lang_toggle"):
-            toggle_language()
-            st.rerun()
+        with col1:
+            st.markdown(f"""
+            <div class="main-header">
+                <h1>🌴 {t('app_title')}</h1>
+                <p>{t('app_subtitle')}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            current_lang = get_language()
+            lang_label = t('malay') if current_lang == 'en' else t('english')
+            lang_icon = "🇲🇾" if current_lang == 'en' else "🇬🇧"
+            
+            if st.button(f"{lang_icon} {lang_label}", use_container_width=True, key="lang_toggle"):
+                toggle_language()
+                st.rerun()
 
 def show_sidebar():
     """Display sidebar navigation"""
@@ -215,10 +223,6 @@ def show_sidebar():
             st.session_state.current_page = 'home'
             st.rerun()
         
-        if st.button(t('nav_dashboard'), use_container_width=True):
-            st.session_state.current_page = 'dashboard'
-            st.rerun()
-        
         if st.button(t('nav_analyze'), use_container_width=True):
             st.session_state.current_page = 'upload'
             st.rerun()
@@ -230,6 +234,11 @@ def show_sidebar():
         # Admin panel button
         if st.button(t('nav_admin'), use_container_width=True):
             st.session_state.current_page = 'admin'
+            st.rerun()
+        
+        # Help Us Improve button
+        if st.button(t('nav_help_improve'), use_container_width=True):
+            st.session_state.current_page = 'help_improve'
             st.rerun()
         
         st.divider()
@@ -319,13 +328,13 @@ def show_history_page():
         st.error(t('status_error') + ": " + t('history_no_history', default='History module not available'))
         st.info(t('status_info') + ": " + t('history_no_history', default='Please contact support if this issue persists.'))
 
-def show_dashboard():
-    """Display dashboard page"""
+def show_help_improve_page():
+    """Display Help Us Improve page"""
     try:
-        from modules.dashboard import show_dashboard as dashboard_page
-        dashboard_page()
+        from modules.dashboard import display_help_us_improve_tab
+        display_help_us_improve_tab()
     except ImportError:
-        st.error(t('status_error') + ": Dashboard module not available")
+        st.error(t('status_error') + ": Help Us Improve module not available")
         st.info(t('status_info') + ": Please contact support if this issue persists.")
 
 def show_admin_panel():
@@ -366,14 +375,14 @@ def main():
         else:
             st.error(t('status_error') + ": " + t('history_no_history'))
             st.info(t('status_info') + ": " + t('history_no_history', default='Please contact support if this issue persists.'))
-    elif current_page == 'dashboard':
-        show_dashboard()
     elif current_page == 'admin':
         if admin_panel_func is not None:
             admin_panel_func()
         else:
             st.error(t('status_error') + ": " + t('admin_restricted'))
             st.info(t('status_info') + ": " + t('admin_restricted', default='Please contact support if this issue persists.'))
+    elif current_page == 'help_improve':
+        show_help_improve_page()
     else:
         # Default to home if page not found
         st.session_state.current_page = 'home'

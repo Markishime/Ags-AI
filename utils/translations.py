@@ -19,10 +19,10 @@ TRANSLATIONS = {
         
         # Navigation
         'nav_home': 'Home',
-        'nav_dashboard': 'Dashboard',
         'nav_analyze': 'Analyze Files',
         'nav_history': 'Analysis History',
         'nav_admin': 'Admin Panel',
+        'nav_help_improve': '💬 Help Us Improve',
         'nav_upload': 'Upload',
         
         # Home Page
@@ -134,10 +134,10 @@ TRANSLATIONS = {
         
         # Navigation
         'nav_home': 'Laman Utama',
-        'nav_dashboard': 'Papan Pemuka',
         'nav_analyze': 'Analisa Fail',
         'nav_history': 'Sejarah Analisis',
         'nav_admin': 'Panel Admin',
+        'nav_help_improve': '💬 Bantu Kami Meningkatkan',
         'nav_upload': 'Muat Naik',
         
         # Home Page

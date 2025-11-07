@@ -7,6 +7,8 @@ import json
 import tempfile
 import time
 import re
+import hashlib
+import platform
 
 # Add utils to path
 utils_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils')
@@ -37,24 +39,51 @@ except Exception:
         st.error(f"Import error (config_manager): {e}")
         st.stop()
 
+def get_machine_id():
+    """Generate a persistent machine identifier that persists across sessions"""
+    if 'machine_id' not in st.session_state:
+        machine_id_file = os.path.join(os.path.expanduser('~'), '.ags_ai_machine_id')
+        machine_id = None
+        
+        # Try to read existing machine ID from file
+        try:
+            if os.path.exists(machine_id_file):
+                with open(machine_id_file, 'r') as f:
+                    machine_id = f.read().strip()
+                    if machine_id and len(machine_id) == 16:
+                        # Valid existing ID
+                        st.session_state.machine_id = machine_id
+                        return machine_id
+        except Exception:
+            pass
+        
+        # Generate new machine ID based on system information
+        machine_info = {
+            'platform': platform.platform(),
+            'system': platform.system(),
+            'processor': platform.processor(),
+            'node': platform.node(),  # Network name
+        }
+        
+        # Create a hash from machine info
+        machine_string = json.dumps(machine_info, sort_keys=True)
+        machine_id = hashlib.md5(machine_string.encode()).hexdigest()[:16]  # 16 char ID
+        
+        # Save to file for persistence
+        try:
+            with open(machine_id_file, 'w') as f:
+                f.write(machine_id)
+        except Exception:
+            # If file write fails, still use the generated ID
+            pass
+        
+        # Store in session state
+        st.session_state.machine_id = machine_id
+    
+    return st.session_state.machine_id
+
 def show_upload_page():
     """Main upload page - focused only on file upload and preview"""
-    # Check authentication at page level
-    if not st.session_state.get('authenticated', False):
-        st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
-        st.warning("🔒 Please log in to access upload features.")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔑 Login", type="primary", use_container_width=True):
-                st.session_state.current_page = 'login'
-                st.rerun()
-        with col2:
-            if st.button("📝 Register", use_container_width=True):
-                st.session_state.current_page = 'register'
-                st.rerun()
-        return
-    
     st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
     st.markdown("### Upload your soil and leaf analysis reports for comprehensive AI-powered analysis")
     
@@ -302,153 +331,75 @@ def display_structured_leaf_data(leaf_data: dict) -> None:
 def show_ocr_preview(file, file_type: str, container_type: str) -> None:
     """Enhanced OCR preview with step-by-step processing display"""
     
-    with st.expander("🔍 OCR Data Processing & Preview", expanded=True):
-        # Processing status indicators
-        status_container = st.container()
-        
-        # Add refresh button and timestamp
-        col_refresh, col_timestamp = st.columns([1, 3])
-        with col_refresh:
-            refresh_ocr = st.button("🔄 Refresh OCR", 
-                                  key=f"refresh_{container_type}_ocr", 
-                                  help="Re-process the image with OCR")
-        with col_timestamp:
-            st.caption(f"Last processed: {datetime.now().strftime('%H:%M:%S')}")
-        
-        # Perform OCR processing quietly without step indicators
+    # Header section (removed expander to avoid nesting issues)
+    st.markdown("### 🔍 OCR Data Processing & Preview")
+    
+    # Processing status indicators
+    status_container = st.container()
+    
+    # Add refresh button and timestamp
+    col_refresh, col_timestamp = st.columns([1, 3])
+    with col_refresh:
+        refresh_ocr = st.button("🔄 Refresh OCR", 
+                              key=f"refresh_{container_type}_ocr", 
+                              help="Re-process the image with OCR")
+    with col_timestamp:
+        st.caption(f"Last processed: {datetime.now().strftime('%H:%M:%S')}")
+    
+    # Perform OCR processing quietly without step indicators
+    try:
+        # Create temporary file
+        file_ext = os.path.splitext(file.name)[1].lower()
+        is_image = file_ext in ['.png', '.jpg', '.jpeg']
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+            if is_image:
+                image = Image.open(file)
+                image.save(tmp_file.name)
+            else:
+                tmp_file.write(file.getvalue())
+            tmp_file_path = tmp_file.name
+
+        # Perform OCR extraction
+        ocr_result = extract_data_from_image(tmp_file_path)
+
+        # Clean up temporary file
         try:
-            # Create temporary file
-            file_ext = os.path.splitext(file.name)[1].lower()
-            is_image = file_ext in ['.png', '.jpg', '.jpeg']
+            time.sleep(0.1)
+            os.unlink(tmp_file_path)
+        except (PermissionError, FileNotFoundError):
+            pass
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-                if is_image:
-                    image = Image.open(file)
-                    image.save(tmp_file.name)
-                else:
-                    tmp_file.write(file.getvalue())
-                tmp_file_path = tmp_file.name
+        success = ocr_result.get('success', False)
 
-            # Perform OCR extraction
-            ocr_result = extract_data_from_image(tmp_file_path)
+        if success:
+            tables = ocr_result.get('tables', [])
+            if tables:
+                detected_type = tables[0].get('type', 'unknown')
 
-            # Clean up temporary file
-            try:
-                time.sleep(0.1)
-                os.unlink(tmp_file_path)
-            except (PermissionError, FileNotFoundError):
-                pass
+                # Check content type match
+                if detected_type.lower() == container_type.lower():
+                    samples = tables[0].get('samples', [])
 
-            success = ocr_result.get('success', False)
+                    # Check if samples are empty objects
+                    samples_are_empty = samples and all(isinstance(s, dict) and not s for s in samples)
 
-            if success:
-                tables = ocr_result.get('tables', [])
-                if tables:
-                    detected_type = tables[0].get('type', 'unknown')
-
-                    # Check content type match
-                    if detected_type.lower() == container_type.lower():
-                        samples = tables[0].get('samples', [])
-
-                        # Check if samples are empty objects
-                        samples_are_empty = samples and all(isinstance(s, dict) and not s for s in samples)
-
-                        # Store raw text in session state for fallback analysis
-                        raw_text = ocr_result.get('raw_data', {}).get('text', '')
-                        if container_type == 'soil':
-                            st.session_state.raw_soil_text = raw_text
-                        else:
-                            st.session_state.raw_leaf_text = raw_text
-
-                        st.info("🔄 Processing data through OCR text analysis for consistent results...")
-
-                        # For Excel files, we need to generate raw text from the extracted samples
-                        # to ensure same processing as images/PDFs
-                        file_ext = os.path.splitext(file.name)[1].lower()
-                        if file_ext in ['.xlsx', '.xls']:
-                            if samples and not samples_are_empty:
-                                # Generate raw text from samples for Excel files to match OCR processing
-                                # Format: "S001: pH: 5.26 N (%): 0.07 Org. C (%): 0.58 ..."
-                                raw_text_lines = []
-                                for i, sample in enumerate(samples, 1):
-                                    sample_id = sample.get('sample_id', sample.get('Sample No.', sample.get('Lab No.', f'S{i:03d}')))
-                                    # Ensure sample_id is a string
-                                    sample_id = str(sample_id) if sample_id is not None else f'S{i:03d}'
-
-                                    # For leaf data, use 'L' prefix instead of 'S'
-                                    if container_type == 'leaf':
-                                        # Remove 'L' or 'P' prefix if it exists and ensure 3-digit format
-                                        if sample_id.startswith(('L', 'P')) and sample_id[1:].isdigit():
-                                            sample_num = int(sample_id[1:])
-                                            sample_id = f'L{sample_num:03d}'
-                                        elif sample_id.isdigit():
-                                            sample_id = f'L{int(sample_id):03d}'
-                                        else:
-                                            sample_id = f'L{i:03d}'
-                                    else:
-                                        # For soil data, use 'S' prefix
-                                        if sample_id.startswith('S') and sample_id[1:].isdigit():
-                                            sample_num = int(sample_id[1:])
-                                            sample_id = f'S{sample_num:03d}'
-                                        elif sample_id.isdigit():
-                                            sample_id = f'S{int(sample_id):03d}'
-                                        else:
-                                            sample_id = f'S{i:03d}'
-
-                                    param_values = []
-                                    for key, value in sample.items():
-                                        if key not in ['sample_id', 'Sample No.', 'Lab No.'] and value is not None:
-                                            # Format value as string
-                                            if isinstance(value, (int, float)):
-                                                param_values.append(str(value))
-                                            else:
-                                                param_values.append(str(value))
-
-                                    if param_values:
-                                        # Join all parameter values with spaces to match OCR format
-                                        values_text = ' '.join(param_values)
-                                        raw_text_lines.append(f"{sample_id}: {values_text}")
-
-                                if raw_text_lines:
-                                    raw_text = "\n".join(raw_text_lines)
-                                    # Update session state with generated raw text
-                                    if container_type == 'soil':
-                                        st.session_state.raw_soil_text = raw_text
-                                    else:
-                                        st.session_state.raw_leaf_text = raw_text
-                                else:
-                                    st.warning(f"No parameter data found in {container_type} Excel file samples")
-                            else:
-                                st.warning(f"No valid samples found in {container_type} Excel file (samples: {len(samples) if samples else 0}, empty: {samples_are_empty if 'samples_are_empty' in locals() else 'unknown'})")
-
-                        # Fallback to raw text parsing (same path as images/PDFs)
-                        if not raw_text and ocr_result.get('text'):
-                            raw_text = ocr_result['text']
-
-                        if raw_text:
-                            # Store raw text in session state for analysis
-                            if container_type == 'soil':
-                                st.session_state.raw_soil_text = raw_text
-                            else:
-                                st.session_state.raw_leaf_text = raw_text
-                            _show_raw_text_as_json(raw_text, container_type, ocr_result)
-                        else:
-                            st.error("No data could be extracted from the uploaded file")
-
+                    # Store raw text in session state for fallback analysis
+                    raw_text = ocr_result.get('raw_data', {}).get('text', '')
+                    if container_type == 'soil':
+                        st.session_state.raw_soil_text = raw_text
                     else:
-                        st.error(f"**Content Type Mismatch Detected!**")
-                        st.warning(f"🔍 **Detected:** {detected_type.title()} analysis report")
-                        st.warning(f"📁 **Expected:** {container_type.title()} analysis report")
+                        st.session_state.raw_leaf_text = raw_text
 
-                        # Try to fall back to raw text parsing even for type mismatch
-                        raw_text = ocr_result.get('raw_data', {}).get('text', '')
-                        if not raw_text and ocr_result.get('text'):
-                            raw_text = ocr_result['text']
+                    st.info("🔄 Processing data through OCR text analysis for consistent results...")
 
-                        # For Excel files with type mismatch, generate raw text from samples
-                        file_ext = os.path.splitext(file.name)[1].lower()
-                        if (file_ext in ['.xlsx', '.xls'] and 'samples' in locals() and samples and
-                            'samples_are_empty' in locals() and not samples_are_empty and not raw_text):
+                    # For Excel files, we need to generate raw text from the extracted samples
+                    # to ensure same processing as images/PDFs
+                    file_ext = os.path.splitext(file.name)[1].lower()
+                    if file_ext in ['.xlsx', '.xls']:
+                        if samples and not samples_are_empty:
+                            # Generate raw text from samples for Excel files to match OCR processing
+                            # Format: "S001: pH: 5.26 N (%): 0.07 Org. C (%): 0.58 ..."
                             raw_text_lines = []
                             for i, sample in enumerate(samples, 1):
                                 sample_id = sample.get('sample_id', sample.get('Sample No.', sample.get('Lab No.', f'S{i:03d}')))
@@ -491,28 +442,197 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
 
                             if raw_text_lines:
                                 raw_text = "\n".join(raw_text_lines)
-
-                        if raw_text:
-                            # Store raw text in session state for fallback analysis
-                            if container_type == 'soil':
-                                st.session_state.raw_soil_text = raw_text
+                                # Update session state with generated raw text
+                                if container_type == 'soil':
+                                    st.session_state.raw_soil_text = raw_text
+                                else:
+                                    st.session_state.raw_leaf_text = raw_text
                             else:
-                                st.session_state.raw_leaf_text = raw_text
-                            st.info("🔄 **Attempting raw text parsing despite type mismatch...**")
-                            _show_raw_text_as_json(raw_text, container_type, ocr_result)
+                                st.warning(f"No parameter data found in {container_type} Excel file samples")
                         else:
-                            if container_type.lower() == 'soil':
-                                st.info("💡 **Please upload a soil analysis report in this container.**")
-                                st.info("🍃 **For leaf analysis, use the Leaf Analysis container on the right.**")
+                            st.warning(f"No valid samples found in {container_type} Excel file (samples: {len(samples) if samples else 0}, empty: {samples_are_empty if 'samples_are_empty' in locals() else 'unknown'})")
+
+                    # Fallback to raw text parsing (same path as images/PDFs)
+                    if not raw_text and ocr_result.get('text'):
+                        raw_text = ocr_result['text']
+
+                    if raw_text:
+                        # Store raw text in session state for analysis
+                        if container_type == 'soil':
+                            st.session_state.raw_soil_text = raw_text
+                        else:
+                            st.session_state.raw_leaf_text = raw_text
+                        
+                        # For Excel files with successfully extracted samples, use them directly
+                        # instead of re-parsing to preserve all samples
+                        if file_ext in ['.xlsx', '.xls'] and samples and not samples_are_empty:
+                            # Convert extracted samples to structured format directly
+                            structured_data = {}
+                            samples_data = {}
+                            
+                            for sample in samples:
+                                sample_id = sample.get('sample_id', sample.get('Sample No.', sample.get('Lab No.', '')))
+                                if not sample_id:
+                                    continue
+                                
+                                # Ensure sample_id is a string
+                                sample_id = str(sample_id) if sample_id is not None else ''
+                                
+                                # For leaf data, use 'L' or 'P' prefix format
+                                if container_type == 'leaf':
+                                    # Keep original format if it starts with P (SP Lab format)
+                                    if sample_id.startswith('P') and '/' in sample_id:
+                                        pass  # Keep as is (e.g., P220/25)
+                                    elif sample_id.startswith(('L', 'P')) and sample_id[1:].isdigit():
+                                        sample_num = int(sample_id[1:])
+                                        sample_id = f'L{sample_num:03d}'
+                                    elif sample_id.isdigit():
+                                        sample_id = f'L{int(sample_id):03d}'
+                                    else:
+                                        # Try to extract number from sample_id
+                                        num_match = re.search(r'(\d+)', sample_id)
+                                        if num_match:
+                                            sample_id = f'L{int(num_match.group(1)):03d}'
+                                        else:
+                                            continue
+                                else:
+                                    # For soil data, use 'S' prefix
+                                    if sample_id.startswith('S') and sample_id[1:].isdigit():
+                                        sample_num = int(sample_id[1:])
+                                        sample_id = f'S{sample_num:03d}'
+                                    elif sample_id.isdigit():
+                                        sample_id = f'S{int(sample_id):03d}'
+                                    else:
+                                        # Try to extract number from sample_id
+                                        num_match = re.search(r'(\d+)', sample_id)
+                                        if num_match:
+                                            sample_id = f'S{int(num_match.group(1)):03d}'
+                                        else:
+                                            continue
+                                
+                                # Extract sample data (exclude metadata keys)
+                                sample_data = {}
+                                for key, value in sample.items():
+                                    if key not in ['sample_id', 'Sample No.', 'Lab No.', 'sample_no', 'lab_no'] and value is not None:
+                                        try:
+                                            # Try to convert to float if numeric
+                                            if isinstance(value, (int, float)):
+                                                sample_data[key] = float(value)
+                                            elif isinstance(value, str):
+                                                # Try to parse numeric strings
+                                                cleaned = re.sub(r'[^\d\.\-]', '', value)
+                                                if cleaned:
+                                                    sample_data[key] = float(cleaned)
+                                                else:
+                                                    sample_data[key] = value
+                                            else:
+                                                sample_data[key] = value
+                                        except (ValueError, TypeError):
+                                            sample_data[key] = value
+                                
+                                if sample_data:
+                                    samples_data[sample_id] = sample_data
+                            
+                            # Determine container key
+                            if container_type == 'soil':
+                                if any('SP' in str(sid).upper() or 'LAB' in str(sid).upper() for sid in samples_data.keys()):
+                                    container_key = "SP_Lab_Test_Report"
+                                else:
+                                    container_key = "Farm_Soil_Test_Data"
                             else:
-                                st.info("💡 **Please upload a leaf analysis report in this container.**")
-                                st.info("🌱 **For soil analysis, use the Soil Analysis container on the left.**")
+                                if any('P' in str(sid) and '/' in str(sid) for sid in samples_data.keys()):
+                                    container_key = "SP_Lab_Test_Report"
+                                else:
+                                    container_key = "Farm_Leaf_Test_Data"
+                            
+                            structured_data[container_key] = samples_data
+                            
+                            # Display structured data directly
+                            st.markdown("### 📝 Raw Extracted Text Data")
+                            st.markdown("#### 📊 Structured OCR Data (JSON Format)")
+                            st.markdown(f"**✅ Extracted {len(samples_data)} samples directly from {container_type} file**")
+                            
+                            try:
+                                import json
+                                formatted_json = json.dumps(structured_data, indent=2, ensure_ascii=False)
+                                st.code(formatted_json, language="json")
+                            except Exception as e:
+                                st.json(structured_data)
+                            
+                            # Store structured data in session state
+                            if container_type == 'soil':
+                                st.session_state.structured_soil_data = structured_data
+                            else:
+                                st.session_state.structured_leaf_data = structured_data
+                            
+                            st.info("💡 **AI Analysis Ready**: The structured data above will be used for comprehensive step-by-step analysis.")
+                            
+                            # Show raw text for reference
+                            st.markdown("#### 🔍 Raw OCR Text (Reference Only)")
+                            st.code(raw_text, language="text")
+                            st.caption(f"Raw text length: {len(raw_text)} characters | Container: {container_type}")
+                        else:
+                            # For images/PDFs or when Excel extraction failed, use raw text parsing
+                            _show_raw_text_as_json(raw_text, container_type, ocr_result)
+                    else:
+                        st.error("No data could be extracted from the uploaded file")
 
                 else:
-                    # Try to get raw text for fallback processing
+                    st.error(f"**Content Type Mismatch Detected!**")
+                    st.warning(f"🔍 **Detected:** {detected_type.title()} analysis report")
+                    st.warning(f"📁 **Expected:** {container_type.title()} analysis report")
+
+                    # Try to fall back to raw text parsing even for type mismatch
                     raw_text = ocr_result.get('raw_data', {}).get('text', '')
                     if not raw_text and ocr_result.get('text'):
                         raw_text = ocr_result['text']
+
+                    # For Excel files with type mismatch, generate raw text from samples
+                    file_ext = os.path.splitext(file.name)[1].lower()
+                    if (file_ext in ['.xlsx', '.xls'] and 'samples' in locals() and samples and
+                        'samples_are_empty' in locals() and not samples_are_empty and not raw_text):
+                        raw_text_lines = []
+                        for i, sample in enumerate(samples, 1):
+                            sample_id = sample.get('sample_id', sample.get('Sample No.', sample.get('Lab No.', f'S{i:03d}')))
+                            # Ensure sample_id is a string
+                            sample_id = str(sample_id) if sample_id is not None else f'S{i:03d}'
+
+                            # For leaf data, use 'L' prefix instead of 'S'
+                            if container_type == 'leaf':
+                                # Remove 'L' or 'P' prefix if it exists and ensure 3-digit format
+                                if sample_id.startswith(('L', 'P')) and sample_id[1:].isdigit():
+                                    sample_num = int(sample_id[1:])
+                                    sample_id = f'L{sample_num:03d}'
+                                elif sample_id.isdigit():
+                                    sample_id = f'L{int(sample_id):03d}'
+                                else:
+                                    sample_id = f'L{i:03d}'
+                            else:
+                                # For soil data, use 'S' prefix
+                                if sample_id.startswith('S') and sample_id[1:].isdigit():
+                                    sample_num = int(sample_id[1:])
+                                    sample_id = f'S{sample_num:03d}'
+                                elif sample_id.isdigit():
+                                    sample_id = f'S{int(sample_id):03d}'
+                                else:
+                                    sample_id = f'S{i:03d}'
+
+                            param_values = []
+                            for key, value in sample.items():
+                                if key not in ['sample_id', 'Sample No.', 'Lab No.'] and value is not None:
+                                    # Format value as string
+                                    if isinstance(value, (int, float)):
+                                        param_values.append(str(value))
+                                    else:
+                                        param_values.append(str(value))
+
+                            if param_values:
+                                # Join all parameter values with spaces to match OCR format
+                                values_text = ' '.join(param_values)
+                                raw_text_lines.append(f"{sample_id}: {values_text}")
+
+                        if raw_text_lines:
+                            raw_text = "\n".join(raw_text_lines)
 
                     if raw_text:
                         # Store raw text in session state for fallback analysis
@@ -520,10 +640,32 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
                             st.session_state.raw_soil_text = raw_text
                         else:
                             st.session_state.raw_leaf_text = raw_text
+                        st.info("🔄 **Attempting raw text parsing despite type mismatch...**")
                         _show_raw_text_as_json(raw_text, container_type, ocr_result)
                     else:
-                        st.error("No data could be extracted from the uploaded file")
-        except Exception as e:
+                        if container_type.lower() == 'soil':
+                            st.info("💡 **Please upload a soil analysis report in this container.**")
+                            st.info("🍃 **For leaf analysis, use the Leaf Analysis container on the right.**")
+                        else:
+                            st.info("💡 **Please upload a leaf analysis report in this container.**")
+                            st.info("🌱 **For soil analysis, use the Soil Analysis container on the left.**")
+
+            else:
+                # Try to get raw text for fallback processing
+                raw_text = ocr_result.get('raw_data', {}).get('text', '')
+                if not raw_text and ocr_result.get('text'):
+                    raw_text = ocr_result['text']
+
+                if raw_text:
+                    # Store raw text in session state for fallback analysis
+                    if container_type == 'soil':
+                        st.session_state.raw_soil_text = raw_text
+                    else:
+                        st.session_state.raw_leaf_text = raw_text
+                    _show_raw_text_as_json(raw_text, container_type, ocr_result)
+                else:
+                    st.error("No data could be extracted from the uploaded file")
+    except Exception as e:
             # Provide better error messages
             if 'ocr_result' in locals() and ocr_result:
                 error_msg = ocr_result.get('error', str(e)) if ocr_result.get('error') else str(e)
@@ -536,23 +678,15 @@ def show_ocr_preview(file, file_type: str, container_type: str) -> None:
 
             st.error(f"**OCR Error:** {error_msg}")
 
-            # Show error details
-            with st.expander("❌ Error Details", expanded=False):
-                st.code(f"Exception: {str(e)}\nError Message: {error_msg}\nFile: {file.name}\nContainer: {container_type}", language="text")
+            # Show error details (using markdown instead of expander to avoid nesting)
+            st.markdown("**❌ Error Details:**")
+            st.code(f"Exception: {str(e)}\nError Message: {error_msg}\nFile: {file.name}\nContainer: {container_type}", language="text")
 
 def upload_section():
     """Handle file upload and preview with enhanced OCR processing"""
     
     # Get UI configuration
     ui_config = get_ui_config()
-    
-    # Check authentication before allowing upload
-    if not st.session_state.get('authenticated', False):
-        st.warning("🔒 Please log in to upload files.")
-        if st.button("🔑 Login to Continue", type="primary", use_container_width=True):
-            st.session_state.current_page = 'login'
-            st.rerun()
-        return
     
     st.markdown("### 📁 Upload SP LAB Test Reports")
     st.info("💡 **Tip:** Upload both soil and leaf analysis reports for comprehensive analysis.")
@@ -575,28 +709,28 @@ def upload_section():
             'palm_density': 148
         }
     
-    # Load saved land & yield data from Firestore if user is authenticated
-    if st.session_state.get('authenticated', False) and st.session_state.get('user_id'):
-        try:
-            from utils.firebase_config import get_firestore_client
-            db = get_firestore_client()
-            if db:
-                user_ref = db.collection('users').document(st.session_state['user_id'])
-                user_doc = user_ref.get()
-                if user_doc.exists:
-                    user_data = user_doc.to_dict()
-                    if 'land_yield_data' in user_data:
-                        saved_data = user_data['land_yield_data']
-                        if (st.session_state.land_yield_data['land_size'] == 0 and 
-                            st.session_state.land_yield_data['current_yield'] == 0):
-                            st.session_state.land_yield_data.update({
-                                'land_size': saved_data.get('land_size', 0),
-                                'land_unit': saved_data.get('land_unit', 'hectares'),
-                                'current_yield': saved_data.get('current_yield', 0),
-                                'yield_unit': saved_data.get('yield_unit', 'tonnes/hectare')
-                            })
-        except Exception:
-            pass
+    # Load saved land & yield data from Firestore using machine ID
+    try:
+        from utils.firebase_config import get_firestore_client
+        db = get_firestore_client()
+        if db:
+            machine_id = get_machine_id()
+            # Use a separate collection for land/yield data
+            land_yield_ref = db.collection('land_yield_data').document(machine_id)
+            land_yield_doc = land_yield_ref.get()
+            if land_yield_doc.exists:
+                saved_data = land_yield_doc.to_dict()
+                if (st.session_state.land_yield_data['land_size'] == 0 and 
+                    st.session_state.land_yield_data['current_yield'] == 0):
+                    st.session_state.land_yield_data.update({
+                        'land_size': saved_data.get('land_size', 0),
+                        'land_unit': saved_data.get('land_unit', 'hectares'),
+                        'current_yield': saved_data.get('current_yield', 0),
+                        'yield_unit': saved_data.get('yield_unit', 'tonnes/hectare'),
+                        'palm_density': saved_data.get('palm_density', 148)
+                    })
+    except Exception:
+        pass
     
     with col1:
         with st.container():
@@ -735,25 +869,26 @@ def upload_section():
                         initialize_firebase()
                         db = get_firestore_client()
                     
-                    if not st.session_state.get('authenticated', False):
-                        st.error("🔒 You must be logged in to save data.")
-                    elif db:
-                        user_id = st.session_state.get('user_id')
-                        if user_id:
-                            user_ref = db.collection('users').document(user_id)
-                            user_ref.update({
-                                'land_yield_data': {
-                                    'land_size': land_size,
-                                    'land_unit': land_unit,
-                                    'current_yield': current_yield,
-                                    'yield_unit': yield_unit,
-                                    'palm_density': palm_density,
-                                    'last_updated': datetime.now()
-                                }
-                            })
-                            st.success("✅ Land & Yield data saved successfully!")
-                        else:
-                            st.error("❌ User ID not found. Please log in again.")
+                    if db:
+                        machine_id = get_machine_id()
+                        # Store in separate collection 'land_yield_data' using machine_id as document ID
+                        land_yield_ref = db.collection('land_yield_data').document(machine_id)
+                        
+                        # Check if document exists to preserve created_at
+                        existing_doc = land_yield_ref.get()
+                        created_at = existing_doc.to_dict().get('created_at', datetime.now()) if existing_doc.exists else datetime.now()
+                        
+                        land_yield_ref.set({
+                            'land_size': land_size,
+                            'land_unit': land_unit,
+                            'current_yield': current_yield,
+                            'yield_unit': yield_unit,
+                            'palm_density': palm_density,
+                            'machine_id': machine_id,
+                            'last_updated': datetime.now(),
+                            'created_at': created_at
+                        }, merge=True)
+                        st.success("✅ Land & Yield data saved successfully!")
                     else:
                         st.error("❌ Database connection not available.")
                 except Exception as e:
@@ -768,15 +903,9 @@ def upload_section():
     soil_uploaded = st.session_state.soil_file is not None
     leaf_uploaded = st.session_state.leaf_file is not None
     land_yield_provided = land_size > 0 and current_yield > 0
-    user_authenticated = st.session_state.get('authenticated', False)
     
     if soil_uploaded and leaf_uploaded and land_yield_provided:
-        if not user_authenticated:
-            st.error("🔒 Authentication required to analyze reports.")
-            if st.button("🔑 Login to Analyze", type="primary", use_container_width=True):
-                st.session_state.current_page = 'login'
-                st.rerun()
-        elif st.button("🚀 Start Comprehensive Analysis", type="primary", use_container_width=True, key="start_analysis"):
+        if st.button("🚀 Start Comprehensive Analysis", type="primary", use_container_width=True, key="start_analysis"):
             st.session_state.analysis_data = {
                 'soil_file': st.session_state.soil_file,
                 'leaf_file': st.session_state.leaf_file,
@@ -792,8 +921,6 @@ def upload_section():
             st.info("• Upload a leaf analysis report")
         if not land_yield_provided:
             st.info("• Provide land size and current yield data")
-        if not user_authenticated:
-            st.info("• Log in to proceed with analysis")
         st.button("🚀 Start Comprehensive Analysis", disabled=True, use_container_width=True, key="start_analysis_disabled")
 
 def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> dict:
@@ -1033,8 +1160,10 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
             if not samples_data:
                 all_numbers = re.findall(r'(\d+\.?\d*)', all_text)
                 if len(all_numbers) >= 27:  # At least 3 samples × 9 parameters
-                    for i in range(min(12, len(all_numbers) // 9)):  # Create up to 12 samples
-                        sample_id = "03d"
+                    # Create up to 12 samples
+                    num_samples = min(12, len(all_numbers) // 9)
+                    for i in range(num_samples):
+                        sample_id = f"S{i+1:03d}"  # Fixed: was "03d", now generates S001, S002, etc.
                         sample_data = {}
                         start_idx = i * 9
                         for j, param in enumerate(soil_params):
@@ -1126,8 +1255,11 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
             else:
                 matches = []
 
-            # Process found samples
-            for match in matches[:12]:  # Limit to first 12 samples
+            # Process found samples - ensure we get all 12 samples
+            processed_count = 0
+            for match in matches:
+                if processed_count >= 12:  # Stop after 12 samples
+                    break
                 sample_num, sample_values = match
                 sample_id = f"L{sample_num.zfill(3)}"
 
@@ -1146,6 +1278,7 @@ def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> di
 
                     if sample_data and any(v != 0.0 for v in sample_data.values()):
                         samples_data[sample_id] = sample_data
+                        processed_count += 1
 
             # Strategy 4: Exact SP Lab parsing for leaf data using the provided raw text structure
             if not samples_data:
@@ -1376,31 +1509,31 @@ def _show_raw_text_as_json(raw_text: str, container_type: str, ocr_result: dict 
     structured_data = format_raw_text_as_structured_json(raw_text, container_type)
 
     # Raw Extracted Text Data - display as structured JSON
-    with st.expander("📝 Raw Extracted Text Data", expanded=True):
-        st.markdown("### 📊 Structured OCR Data (JSON Format)")
-        st.markdown("**This data will be used by the AI for analysis. Each sample ID contains its parameter values:**")
+    st.markdown("### 📝 Raw Extracted Text Data")
+    st.markdown("#### 📊 Structured OCR Data (JSON Format)")
+    st.markdown("**This data will be used by the AI for analysis. Each sample ID contains its parameter values:**")
 
-        # Display the structured JSON with better formatting
-        try:
-            import json
-            formatted_json = json.dumps(structured_data, indent=2, ensure_ascii=False)
-            st.code(formatted_json, language="json")
-        except Exception as e:
-            # Fallback to st.json if formatting fails
-            st.json(structured_data)
+    # Display the structured JSON with better formatting
+    try:
+        import json
+        formatted_json = json.dumps(structured_data, indent=2, ensure_ascii=False)
+        st.code(formatted_json, language="json")
+    except Exception as e:
+        # Fallback to st.json if formatting fails
+        st.json(structured_data)
 
-        # Store structured data in session state for analysis
-        if container_type == 'soil':
-            st.session_state.structured_soil_data = structured_data
-        else:
-            st.session_state.structured_leaf_data = structured_data
+    # Store structured data in session state for analysis
+    if container_type == 'soil':
+        st.session_state.structured_soil_data = structured_data
+    else:
+        st.session_state.structured_leaf_data = structured_data
 
-        st.info("💡 **AI Analysis Ready**: The structured data above will be used for comprehensive step-by-step analysis.")
+    st.info("💡 **AI Analysis Ready**: The structured data above will be used for comprehensive step-by-step analysis.")
 
-        # Show raw text in a collapsed section for reference
-        with st.expander("🔍 Raw OCR Text (Reference Only)", expanded=False):
-            st.code(raw_text, language="text")
-            st.caption(f"Raw text length: {len(raw_text)} characters | Container: {container_type}")
+    # Show raw text in a section for reference (using markdown instead of expander to avoid nesting)
+    st.markdown("#### 🔍 Raw OCR Text (Reference Only)")
+    st.code(raw_text, language="text")
+    st.caption(f"Raw text length: {len(raw_text)} characters | Container: {container_type}")
 
 
 
@@ -1408,8 +1541,6 @@ if __name__ == "__main__":
     # Initialize session state defaults
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'upload'
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
     if 'user_id' not in st.session_state:
         st.session_state.user_id = None
     if 'analysis_data' not in st.session_state:
