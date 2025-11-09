@@ -6873,11 +6873,17 @@ def _clean_step1_llm_noise(text: str) -> str:
     """Remove noisy LLM scaffolding lines from Step 1 detailed analysis.
     This strips stray lines like Action:, Timeline:, Headers:, Rows:, Detected Formats:, etc.
     Keeps 'Table X: <title>' captions for markdown table titles.
+    Also cleans HTML-like tags and improves formatting.
     """
     try:
         import re
         if not isinstance(text, str):
             return text
+        
+        # First, clean HTML-like tags
+        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'</?[a-z]+[^>]*>', '', text, flags=re.IGNORECASE)
+        
         lines = text.split('\n')
         cleaned = []
         skip_prefixes = (
@@ -6885,7 +6891,9 @@ def _clean_step1_llm_noise(text: str) -> str:
             'Data Format Notes:', 'Headers:', 'Rows:', 'Detected Formats:', 'Format Comparison:',
             'Quality Assessment:', 'Integration Quality:', 'Format Specific Insights:',
             'Cross Format Benefits:', 'Optimal Testing Strategy:', 'Cost Optimization:',
-            'Quality Improvements:', 'Integration Benefits:', 'Visualizations Source:', 'Title:'
+            'Quality Improvements:', 'Integration Benefits:', 'Visualizations Source:', 'Title:',
+            'Sp Lab Advantages:', 'Farm Format Advantages:', 'Recommended Combination:',
+            'Sp Lab Quality Score:', 'Farm Quality Score:', 'Sp Lab Insights:', 'Farm Insights:'
         )
         for ln in lines:
             s = ln.strip()
@@ -6898,10 +6906,18 @@ def _clean_step1_llm_noise(text: str) -> str:
             # Remove stray lines beginning with 'T ' (truncated artifacts)
             if s.startswith('T '):
                 continue
+            # Skip lines that start with any of the skip prefixes
             if any(s.startswith(p) for p in skip_prefixes):
                 continue
+            # Skip lines that are just "N/A" or "Not applicable"
+            if s.upper() in ('N/A', 'NOT APPLICABLE', 'N/A"', 'N/A",'):
+                continue
             cleaned.append(ln)
-        return '\n'.join(cleaned)
+        
+        # Join and clean up multiple consecutive newlines
+        result = '\n'.join(cleaned)
+        result = re.sub(r'\n{3,}', '\n\n', result)  # Replace 3+ newlines with 2
+        return result
     except Exception:
         return text
 
@@ -6909,6 +6925,7 @@ def _extract_and_render_markdown_tables(raw_text: str) -> str:
     """Find GitHub-style markdown tables in text, render them as dataframes, and
     return the text with those table blocks removed to avoid duplication.
     Recognizes optional preceding caption lines like 'Table 1: Title'.
+    Also handles tables that may have been split by <br> tags or other formatting.
     """
     try:
         import re
@@ -6917,6 +6934,9 @@ def _extract_and_render_markdown_tables(raw_text: str) -> str:
             return raw_text
 
         text = raw_text
+        # Clean up any remaining <br> tags that might interfere with table detection
+        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        
         rendered_spans = []
         rendered_count = 0
 
@@ -10750,6 +10770,16 @@ def display_step1_data_analysis(analysis_data):
         except Exception:
             pass
 
+        # Clean HTML-like tags (e.g., <br>, <br/>, <br />) and convert to line breaks
+        try:
+            import re as _re_html
+            # Replace <br>, <br/>, <br /> with actual line breaks
+            detailed_text = _re_html.sub(r'<br\s*/?>', '\n', detailed_text, flags=_re_html.IGNORECASE)
+            # Remove other common HTML tags that might leak through
+            detailed_text = _re_html.sub(r'</?[a-z]+[^>]*>', '', detailed_text, flags=_re_html.IGNORECASE)
+        except Exception:
+            pass
+
         # Unescape common escape sequences that sometimes leak from LLM
         try:
             detailed_text = detailed_text.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"')
@@ -10763,6 +10793,8 @@ def display_step1_data_analysis(analysis_data):
         try:
             import re as _re
             detailed_text = _re.sub(r"Detected Formats:[\s\S]*$", "", detailed_text, flags=_re.IGNORECASE)
+            # Remove other noisy blocks
+            detailed_text = _re.sub(r"Format Comparison:[\s\S]*?Quality Assessment:[\s\S]*?Integration Quality:[\s\S]*?Format Specific Insights:[\s\S]*?Cross Format Benefits:[\s\S]*?$", "", detailed_text, flags=_re.IGNORECASE)
         except Exception:
             pass
 

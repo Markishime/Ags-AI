@@ -32,16 +32,58 @@ def show_admin_panel():
     """Display admin panel"""
     st.title("🔧 Admin Panel")
     
-    # Check if user is logged in and is admin
-    if 'user_id' not in st.session_state:
-        st.error("Please log in to access the admin panel.")
+    # Check if admin is already authenticated via admin code
+    if not st.session_state.get('admin_authenticated', False):
+        st.warning("🔒 Please enter the admin code to access the admin panel.")
+        
+        # Get admin codes from Streamlit secrets
+        admin_codes = []
+        try:
+            if hasattr(st, 'secrets') and 'admin' in st.secrets:
+                admin_codes = st.secrets.admin.get('admin_codes', [])
+                if isinstance(admin_codes, str):
+                    # Handle case where it's a single string instead of list
+                    admin_codes = [admin_codes]
+        except Exception as e:
+            st.error(f"Error reading admin codes from secrets: {str(e)}")
+            return
+        
+        if not admin_codes:
+            st.error("⚠️ No admin codes configured. Please configure admin codes in `.streamlit/secrets.toml` under `[admin]` section.")
+            st.code("""
+[admin]
+admin_codes = ["YOUR_ADMIN_CODE_HERE"]
+            """, language="toml")
+            return
+        
+        # Show admin code input form
+        with st.form("admin_code_form"):
+            st.subheader("Admin Access")
+            admin_code = st.text_input("Enter Admin Code", type="password", help="Enter the admin code to access the admin panel")
+            submit = st.form_submit_button("Access Admin Panel", type="primary")
+            
+            if submit:
+                if admin_code and admin_code.strip() in admin_codes:
+                    st.session_state['admin_authenticated'] = True
+                    st.session_state['admin_code_used'] = admin_code.strip()
+                    st.success("✅ Admin access granted!")
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid admin code. Please try again.")
+        
         return
     
-    user_id = st.session_state['user_id']
+    # Show logout option
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        st.info(f"✅ Admin access granted. Using code: {st.session_state.get('admin_code_used', 'N/A')}")
+    with col2:
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state['admin_authenticated'] = False
+            st.session_state.pop('admin_code_used', None)
+            st.rerun()
     
-    if not is_admin(user_id):
-        st.error("Access denied. Admin privileges required.")
-        return
+    st.divider()
     
     # Admin navigation (Dashboard removed)
     tab1, tab2, tab3, tab4 = st.tabs([
