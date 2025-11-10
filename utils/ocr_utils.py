@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import json
 import tempfile
@@ -25,6 +26,8 @@ try:
     import numpy as np
     TESSERACT_AVAILABLE = True
 except ImportError:
+    Image = None  # type: ignore[assignment]
+    cv2 = None    # type: ignore[assignment]
     TESSERACT_AVAILABLE = False
     logging.warning("Tesseract OCR not available. Install with: pip install pytesseract opencv-python")
 
