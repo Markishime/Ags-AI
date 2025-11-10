@@ -5,7 +5,7 @@ streamlit-lottie==0.0.5
 stqdm==0.0.5
 
 # Firebase Backend
-firebase-admin==6.5.0
+firebase-admin>=6.5.0
 pyrebase4==4.8.0
 
 # OCR and Image Processing

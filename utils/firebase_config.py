@@ -1,10 +1,23 @@
 import os
 import json
-import firebase_admin
-from firebase_admin import credentials, firestore, auth, storage
-from google.cloud.firestore import FieldFilter
 import streamlit as st
 from typing import Optional
+
+# Optional Firebase Admin imports
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore, auth, storage
+    from google.cloud.firestore import FieldFilter
+    FIREBASE_AVAILABLE = True
+except ImportError as e:
+    firebase_admin = None
+    credentials = None
+    firestore = None
+    auth = None
+    storage = None
+    FieldFilter = None
+    FIREBASE_AVAILABLE = False
+    print(f"Warning: Firebase Admin SDK not available: {e}")
 
 # Do not load from .env in deployment; rely on Streamlit secrets only
 
@@ -16,6 +29,10 @@ def initialize_firebase() -> bool:
     Returns:
         bool: True if initialization successful, False otherwise
     """
+    if not FIREBASE_AVAILABLE:
+        print("Firebase Admin SDK is not available. Install with: pip install firebase-admin")
+        return False
+    
     try:
         # Prefer project_id from Streamlit secrets
         project_id = None
@@ -23,7 +40,7 @@ def initialize_firebase() -> bool:
             project_id = st.secrets.firebase.get('project_id')
         
         # Check if Firebase is already initialized
-        if firebase_admin._apps:
+        if firebase_admin and firebase_admin._apps:
             print("Firebase already initialized")
             return True
         
@@ -34,6 +51,10 @@ def initialize_firebase() -> bool:
         
         if firebase_creds:
             print(f"Found Firebase credentials for project: {firebase_creds.get('project_id', 'unknown')}")
+            
+            if not credentials:
+                print("Firebase credentials module not available")
+                return False
             
             # Initialize Firebase with credentials
             cred = credentials.Certificate(firebase_creds)
@@ -49,10 +70,14 @@ def initialize_firebase() -> bool:
                 storage_bucket = f"{firebase_creds.get('project_id')}.firebasestorage.app"
             
             # Initialize Firebase with explicit configuration
-            firebase_admin.initialize_app(cred, {
-                'storageBucket': storage_bucket,
-                'projectId': firebase_creds.get('project_id', project_id or 'agriai-cbd8b')
-            })
+            if firebase_admin:
+                firebase_admin.initialize_app(cred, {
+                    'storageBucket': storage_bucket,
+                    'projectId': firebase_creds.get('project_id', project_id or 'agriai-cbd8b')
+                })
+            else:
+                print("Firebase Admin module not available")
+                return False
             
             # Do not modify global google.auth defaults; rely on initialized app
             
@@ -125,12 +150,14 @@ def get_firestore_client():
     Returns:
         firestore.Client: Firestore client instance
     """
+    if not FIREBASE_AVAILABLE:
+        return None
     try:
         # Ensure Firebase is initialized before creating the client
-        if not firebase_admin._apps:
+        if firebase_admin and not firebase_admin._apps:
             initialize_firebase()
         # Return Firestore client from the initialized Firebase app
-        return firestore.client()
+        return firestore.client() if firestore else None
     except Exception as e:
         # Firebase initialization handled elsewhere, silently return None
         return None
@@ -141,15 +168,17 @@ def get_storage_bucket():
     Returns:
         storage.Bucket: Storage bucket instance
     """
+    if not FIREBASE_AVAILABLE:
+        return None
     try:
         # Get credentials explicitly to avoid metadata service
         firebase_creds = get_firebase_credentials()
-        if firebase_creds:
+        if firebase_creds and credentials:
             cred = credentials.Certificate(firebase_creds)
-            return storage.bucket(credentials=cred)
+            return storage.bucket(credentials=cred) if storage else None
         else:
             # Fallback to default bucket (should work if Firebase is initialized)
-            return storage.bucket()
+            return storage.bucket() if storage else None
     except Exception as e:
         st.error(f"Failed to get Storage bucket: {str(e)}")
         return None
@@ -160,8 +189,10 @@ def get_auth_client():
     Returns:
         auth: Firebase Auth client
     """
+    if not FIREBASE_AVAILABLE:
+        return None
     try:
-        return auth
+        return auth if auth else None
     except Exception as e:
         st.error(f"Failed to get Auth client: {str(e)}")
         return None
@@ -223,7 +254,11 @@ def initialize_admin_codes():
         admin_codes_ref = db.collection(COLLECTIONS['admin_codes'])
         
         # Check if default admin code already exists
-        existing_codes = admin_codes_ref.where(filter=FieldFilter('is_default', '==', True)).limit(1).get()
+        if FieldFilter:
+            existing_codes = admin_codes_ref.where(filter=FieldFilter('is_default', '==', True)).limit(1).get()
+        else:
+            # Fallback if FieldFilter is not available
+            existing_codes = admin_codes_ref.where('is_default', '==', True).limit(1).get()
         
         if existing_codes:
             # Return existing default code

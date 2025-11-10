@@ -14,9 +14,30 @@ utils_dir = os.path.join(repo_root, 'utils')
 if utils_dir not in sys.path:
     sys.path.append(utils_dir)
 
-# Import utilities
-from firebase_config import initialize_firebase, initialize_admin_codes
-from translations import translate, t, get_language, set_language, toggle_language
+# Import utilities with robust error handling
+try:
+    from utils.firebase_config import initialize_firebase, initialize_admin_codes
+except ImportError:
+    try:
+        from firebase_config import initialize_firebase, initialize_admin_codes
+    except ImportError as e:
+        st.error(f"Failed to import firebase_config: {e}")
+        initialize_firebase = None
+        initialize_admin_codes = None
+
+try:
+    from utils.translations import translate, t, get_language, set_language, toggle_language
+except ImportError:
+    try:
+        from translations import translate, t, get_language, set_language, toggle_language
+    except ImportError as e:
+        st.error(f"Failed to import translations: {e}")
+        # Provide fallback functions
+        def translate(text, lang=None): return text
+        def t(key): return key
+        def get_language(): return "en"
+        def set_language(lang): pass
+        def toggle_language(): return "en"
 import json
 from datetime import datetime
 
