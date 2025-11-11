@@ -1,0 +1,13 @@
+[project]
+name = "ags-ai"
+version = "0.0.0"
+requires-python = ">=3.10,<3.13"
+description = "Ags-AI Streamlit app"
+readme = "README.md"
+license = { text = "Proprietary" }
+
+[tool.uv]
+# Ensure uv respects Python constraint on Streamlit Cloud
+python-preference = "managed"
+
+
