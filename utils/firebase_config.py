@@ -30,7 +30,9 @@ def initialize_firebase() -> bool:
         bool: True if initialization successful, False otherwise
     """
     if not FIREBASE_AVAILABLE:
-        print("Firebase Admin SDK is not available. Install with: pip install firebase-admin")
+        error_msg = "Firebase Admin SDK is not installed. Please install it with: pip install firebase-admin"
+        st.error(error_msg)
+        print(error_msg)
         return False
     
     try:
@@ -84,14 +86,49 @@ def initialize_firebase() -> bool:
             print(f"Firebase initialized successfully with storage bucket: {storage_bucket}")
             return True
         else:
-            error_msg = "Firebase credentials not found. Please check your environment variables or Streamlit secrets."
+            # Provide more specific guidance about missing credentials
+            if not hasattr(st, 'secrets'):
+                error_msg = "Streamlit secrets not available. Please ensure you're running in a Streamlit environment."
+            elif 'firebase' not in st.secrets:
+                error_msg = "Firebase section not found in Streamlit secrets. Please add a [firebase] section to your secrets.toml file."
+            else:
+                firebase_secrets = st.secrets.firebase
+                missing_fields = []
+                # Check for required fields (matching the field names used in get_firebase_credentials)
+                if not firebase_secrets.get('project_id'):
+                    missing_fields.append('project_id')
+                if not firebase_secrets.get('firebase_private_key'):
+                    missing_fields.append('firebase_private_key')
+                if not firebase_secrets.get('firebase_client_email'):
+                    missing_fields.append('firebase_client_email')
+                
+                if missing_fields:
+                    error_msg = f"Missing required Firebase credentials in Streamlit secrets: {', '.join(missing_fields)}. Please check your secrets.toml file."
+                else:
+                    error_msg = "Firebase credentials found but failed validation. Please check that your private_key, client_email, and project_id are correct."
+            
             st.error(error_msg)
             print(error_msg)
             return False
             
     except Exception as e:
-        st.error("Failed to initialize Firebase. Please check your configuration.")
-        print(f"Failed to initialize Firebase: {e!r}")
+        error_type = type(e).__name__
+        error_details = str(e)
+        
+        # Provide more specific error messages
+        if "Certificate" in error_type or "private_key" in error_details.lower():
+            error_msg = f"Firebase credential error: Invalid private key or certificate. Please check your Firebase service account credentials in Streamlit secrets."
+        elif "project_id" in error_details.lower() or "project" in error_details.lower():
+            error_msg = f"Firebase project error: {error_details}. Please verify your project_id in Streamlit secrets."
+        elif "already exists" in error_details.lower() or "already initialized" in error_details.lower():
+            # Firebase already initialized - this is actually OK
+            print(f"Firebase already initialized: {error_details}")
+            return True
+        else:
+            error_msg = f"Failed to initialize Firebase: {error_details}. Please check your configuration in Streamlit secrets."
+        
+        st.error(error_msg)
+        print(f"Failed to initialize Firebase ({error_type}): {error_details}")
         return False
 
 def get_firebase_credentials() -> Optional[dict]:
