@@ -1,7 +1,7 @@
 [project]
 name = "ags-ai"
 version = "0.0.0"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.12,<3.13"
 description = "Ags-AI Streamlit app"
 readme = "README.md"
 license = { text = "Proprietary" }
