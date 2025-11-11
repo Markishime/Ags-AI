@@ -745,22 +745,68 @@ def upload_section():
                 key="soil_uploader"
             )
             
+            # Handle file upload - persist in session state
             if soil_file is not None:
+                # Store file in session state and also store file data for persistence
                 st.session_state.soil_file = soil_file
+                # Store file bytes for persistence across reruns (Streamlit Cloud compatibility)
+                try:
+                    st.session_state.soil_file_data = soil_file.getvalue()
+                    st.session_state.soil_file_name = soil_file.name
+                    st.session_state.soil_file_type = soil_file.type
+                except Exception as e:
+                    st.warning(f"Could not cache soil file data: {e}")
+                
                 st.markdown("##### 📄 Uploaded Soil Report")
                 
                 file_ext = os.path.splitext(soil_file.name)[1].lower()
                 is_image = file_ext in ['.png', '.jpg', '.jpeg']
                 
                 if is_image:
-                    soil_image = Image.open(soil_file)
-                    st.image(soil_image, caption="Soil Analysis Report", use_container_width=True)
-                    st.info(f"**File:** {soil_file.name} | **Size:** {soil_file.size:,} bytes | **Format:** {soil_image.format}")
+                    try:
+                        soil_image = Image.open(soil_file)
+                        st.image(soil_image, caption="Soil Analysis Report", use_container_width=True)
+                        st.info(f"**File:** {soil_file.name} | **Size:** {soil_file.size:,} bytes | **Format:** {soil_image.format}")
+                    except Exception as e:
+                        st.error(f"Error displaying soil image: {e}")
+                        st.info(f"**File:** {soil_file.name} | **Size:** {soil_file.size:,} bytes")
                 else:
                     st.info(f"**File:** {soil_file.name} | **Size:** {soil_file.size:,} bytes | **Type:** {file_ext}")
                 
                 # Enhanced OCR preview
                 show_ocr_preview(soil_file, file_ext, 'soil')
+            elif st.session_state.get('soil_file') is not None:
+                # File exists in session state but uploader shows None (after rerun)
+                # Reconstruct file object from cached data if available
+                if 'soil_file_data' in st.session_state and 'soil_file_name' in st.session_state:
+                    try:
+                        from io import BytesIO
+                        # Recreate file-like object from cached data
+                        cached_file = BytesIO(st.session_state.soil_file_data)
+                        cached_file.name = st.session_state.soil_file_name
+                        cached_file.type = st.session_state.get('soil_file_type', 'application/octet-stream')
+                        st.session_state.soil_file = cached_file
+                        
+                        st.markdown("##### 📄 Uploaded Soil Report (Restored)")
+                        file_ext = os.path.splitext(st.session_state.soil_file_name)[1].lower()
+                        is_image = file_ext in ['.png', '.jpg', '.jpeg']
+                        
+                        if is_image:
+                            try:
+                                soil_image = Image.open(cached_file)
+                                st.image(soil_image, caption="Soil Analysis Report", use_container_width=True)
+                                st.info(f"**File:** {st.session_state.soil_file_name} | **Size:** {len(st.session_state.soil_file_data):,} bytes")
+                            except Exception as e:
+                                st.info(f"**File:** {st.session_state.soil_file_name} | **Size:** {len(st.session_state.soil_file_data):,} bytes")
+                        else:
+                            st.info(f"**File:** {st.session_state.soil_file_name} | **Size:** {len(st.session_state.soil_file_data):,} bytes | **Type:** {file_ext}")
+                    except Exception as e:
+                        st.warning(f"Could not restore soil file: {e}")
+                        # Clear invalid cached data
+                        st.session_state.soil_file = None
+                else:
+                    # Show that file was previously uploaded
+                    st.info("✅ Soil file previously uploaded")
     
     with col2:
         with st.container():
@@ -775,22 +821,68 @@ def upload_section():
                 key="leaf_uploader"
             )
             
+            # Handle file upload - persist in session state
             if leaf_file is not None:
+                # Store file in session state and also store file data for persistence
                 st.session_state.leaf_file = leaf_file
+                # Store file bytes for persistence across reruns (Streamlit Cloud compatibility)
+                try:
+                    st.session_state.leaf_file_data = leaf_file.getvalue()
+                    st.session_state.leaf_file_name = leaf_file.name
+                    st.session_state.leaf_file_type = leaf_file.type
+                except Exception as e:
+                    st.warning(f"Could not cache leaf file data: {e}")
+                
                 st.markdown("##### 📄 Uploaded Leaf Report")
                 
                 leaf_ext = os.path.splitext(leaf_file.name)[1].lower()
                 leaf_is_image = leaf_ext in ['.png', '.jpg', '.jpeg']
                 
                 if leaf_is_image:
-                    leaf_image = Image.open(leaf_file)
-                    st.image(leaf_image, caption="Leaf Analysis Report", use_container_width=True)
-                    st.info(f"**File:** {leaf_file.name} | **Size:** {leaf_file.size:,} bytes | **Format:** {leaf_image.format}")
+                    try:
+                        leaf_image = Image.open(leaf_file)
+                        st.image(leaf_image, caption="Leaf Analysis Report", use_container_width=True)
+                        st.info(f"**File:** {leaf_file.name} | **Size:** {leaf_file.size:,} bytes | **Format:** {leaf_image.format}")
+                    except Exception as e:
+                        st.error(f"Error displaying leaf image: {e}")
+                        st.info(f"**File:** {leaf_file.name} | **Size:** {leaf_file.size:,} bytes")
                 else:
                     st.info(f"**File:** {leaf_file.name} | **Size:** {leaf_file.size:,} bytes | **Type:** {leaf_ext}")
                 
                 # Enhanced OCR preview
                 show_ocr_preview(leaf_file, leaf_ext, 'leaf')
+            elif st.session_state.get('leaf_file') is not None:
+                # File exists in session state but uploader shows None (after rerun)
+                # Reconstruct file object from cached data if available
+                if 'leaf_file_data' in st.session_state and 'leaf_file_name' in st.session_state:
+                    try:
+                        from io import BytesIO
+                        # Recreate file-like object from cached data
+                        cached_file = BytesIO(st.session_state.leaf_file_data)
+                        cached_file.name = st.session_state.leaf_file_name
+                        cached_file.type = st.session_state.get('leaf_file_type', 'application/octet-stream')
+                        st.session_state.leaf_file = cached_file
+                        
+                        st.markdown("##### 📄 Uploaded Leaf Report (Restored)")
+                        leaf_ext = os.path.splitext(st.session_state.leaf_file_name)[1].lower()
+                        leaf_is_image = leaf_ext in ['.png', '.jpg', '.jpeg']
+                        
+                        if leaf_is_image:
+                            try:
+                                leaf_image = Image.open(cached_file)
+                                st.image(leaf_image, caption="Leaf Analysis Report", use_container_width=True)
+                                st.info(f"**File:** {st.session_state.leaf_file_name} | **Size:** {len(st.session_state.leaf_file_data):,} bytes")
+                            except Exception as e:
+                                st.info(f"**File:** {st.session_state.leaf_file_name} | **Size:** {len(st.session_state.leaf_file_data):,} bytes")
+                        else:
+                            st.info(f"**File:** {st.session_state.leaf_file_name} | **Size:** {len(st.session_state.leaf_file_data):,} bytes | **Type:** {leaf_ext}")
+                    except Exception as e:
+                        st.warning(f"Could not restore leaf file: {e}")
+                        # Clear invalid cached data
+                        st.session_state.leaf_file = None
+                else:
+                    # Show that file was previously uploaded
+                    st.info("✅ Leaf file previously uploaded")
     
     # Land/Yield Size Data Section
     st.markdown("---")
@@ -899,20 +991,82 @@ def upload_section():
     # Analysis button section
     st.markdown("---")
     
-    # Check requirements
-    soil_uploaded = st.session_state.soil_file is not None
-    leaf_uploaded = st.session_state.leaf_file is not None
+    # Check requirements - validate files are actually accessible
+    soil_uploaded = False
+    leaf_uploaded = False
+    
+    # Check if soil file exists and is valid
+    if st.session_state.get('soil_file') is not None:
+        try:
+            # Try to access file attributes to verify it's valid
+            soil_file_obj = st.session_state.soil_file
+            if hasattr(soil_file_obj, 'name') or hasattr(soil_file_obj, 'getvalue'):
+                soil_uploaded = True
+        except Exception:
+            # If file is invalid, try to restore from cache
+            if 'soil_file_data' in st.session_state:
+                try:
+                    from io import BytesIO
+                    cached_file = BytesIO(st.session_state.soil_file_data)
+                    cached_file.name = st.session_state.get('soil_file_name', 'soil_file')
+                    cached_file.type = st.session_state.get('soil_file_type', 'application/octet-stream')
+                    st.session_state.soil_file = cached_file
+                    soil_uploaded = True
+                except Exception:
+                    soil_uploaded = False
+    
+    # Check if leaf file exists and is valid
+    if st.session_state.get('leaf_file') is not None:
+        try:
+            # Try to access file attributes to verify it's valid
+            leaf_file_obj = st.session_state.leaf_file
+            if hasattr(leaf_file_obj, 'name') or hasattr(leaf_file_obj, 'getvalue'):
+                leaf_uploaded = True
+        except Exception:
+            # If file is invalid, try to restore from cache
+            if 'leaf_file_data' in st.session_state:
+                try:
+                    from io import BytesIO
+                    cached_file = BytesIO(st.session_state.leaf_file_data)
+                    cached_file.name = st.session_state.get('leaf_file_name', 'leaf_file')
+                    cached_file.type = st.session_state.get('leaf_file_type', 'application/octet-stream')
+                    st.session_state.leaf_file = cached_file
+                    leaf_uploaded = True
+                except Exception:
+                    leaf_uploaded = False
+    
     land_yield_provided = land_size > 0 and current_yield > 0
     
     if soil_uploaded and leaf_uploaded and land_yield_provided:
         if st.button("🚀 Start Comprehensive Analysis", type="primary", use_container_width=True, key="start_analysis"):
-            st.session_state.analysis_data = {
-                'soil_file': st.session_state.soil_file,
-                'leaf_file': st.session_state.leaf_file,
-                'land_yield_data': st.session_state.land_yield_data
-            }
-            st.session_state.current_page = 'results'
-            st.rerun()
+            # Ensure files are valid before passing to analysis
+            try:
+                soil_file = st.session_state.soil_file
+                leaf_file = st.session_state.leaf_file
+                
+                # Verify files are accessible
+                if not hasattr(soil_file, 'getvalue') and 'soil_file_data' in st.session_state:
+                    from io import BytesIO
+                    soil_file = BytesIO(st.session_state.soil_file_data)
+                    soil_file.name = st.session_state.get('soil_file_name', 'soil_file')
+                    soil_file.type = st.session_state.get('soil_file_type', 'application/octet-stream')
+                
+                if not hasattr(leaf_file, 'getvalue') and 'leaf_file_data' in st.session_state:
+                    from io import BytesIO
+                    leaf_file = BytesIO(st.session_state.leaf_file_data)
+                    leaf_file.name = st.session_state.get('leaf_file_name', 'leaf_file')
+                    leaf_file.type = st.session_state.get('leaf_file_type', 'application/octet-stream')
+                
+                st.session_state.analysis_data = {
+                    'soil_file': soil_file,
+                    'leaf_file': leaf_file,
+                    'land_yield_data': st.session_state.land_yield_data
+                }
+                st.session_state.current_page = 'results'
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error preparing files for analysis: {str(e)}")
+                st.info("Please try uploading the files again.")
     else:
         st.warning("⚠️ **Requirements for Analysis:**")
         if not soil_uploaded:
