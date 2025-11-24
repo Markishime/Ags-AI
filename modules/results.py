@@ -546,6 +546,67 @@ def show_results_page():
             if results_data and results_data.get('success', False):
                 # Clear progress container
                 progress_container.empty()
+                
+                # Send analysis completion to CropDrive website (if integrated)
+                try:
+                    from utils.cropdrive_integration import send_analysis_complete
+                    
+                    # Extract summary and recommendations from analysis results
+                    analysis_results = get_analysis_results_from_data(results_data)
+                    summary = ""
+                    recommendations_count = 0
+                    
+                    if analysis_results:
+                        step_analysis = analysis_results.get('step_by_step_analysis', [])
+                        if step_analysis:
+                            # Get summary from first step or key findings
+                            for step in step_analysis[:3]:  # Check first 3 steps
+                                if 'summary' in step:
+                                    summary = step['summary'][:200] + "..." if len(step.get('summary', '')) > 200 else step.get('summary', '')
+                                    break
+                                elif 'key_findings' in step:
+                                    findings = step['key_findings']
+                                    if isinstance(findings, list) and findings:
+                                        summary = findings[0][:200] + "..." if len(findings[0]) > 200 else findings[0]
+                                        break
+                            
+                            # Count recommendations
+                            for step in step_analysis:
+                                if 'recommendations' in step:
+                                    recs = step['recommendations']
+                                    if isinstance(recs, list):
+                                        recommendations_count += len(recs)
+                                    elif isinstance(recs, str):
+                                        recommendations_count += len([r for r in recs.split('\n') if r.strip()])
+                    
+                    # Determine analysis type (both soil and leaf)
+                    analysis_type = 'soil'  # Default, but could be 'both' or determined from data
+                    if results_data.get('soil_data') and results_data.get('leaf_data'):
+                        analysis_type = 'both'
+                    elif results_data.get('leaf_data'):
+                        analysis_type = 'leaf'
+                    
+                    # Send completion message
+                    send_analysis_complete(
+                        title=f'Agricultural Analysis - {datetime.now().strftime("%Y-%m-%d %H:%M")}',
+                        analysis_type=analysis_type,
+                        summary=summary or "Comprehensive soil and leaf analysis completed successfully.",
+                        recommendations_count=recommendations_count,
+                        file_url=None,  # Could add URL to PDF if generated
+                        analysis_data={
+                            'resultId': results_data.get('id'),
+                            'timestamp': results_data.get('timestamp').isoformat() if hasattr(results_data.get('timestamp'), 'isoformat') else str(results_data.get('timestamp')),
+                            'status': 'completed'
+                        }
+                    )
+                except ImportError:
+                    # CropDrive integration not available, skip
+                    pass
+                except Exception as e:
+                    # Log error but don't break the app
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"CropDrive integration error: {e}")
             else:
                 st.error(f"❌ Analysis failed: {results_data.get('message', 'Unknown error')}")
                 st.info("💡 **Tip:** Make sure your uploaded files are clear images of soil and leaf analysis reports.")

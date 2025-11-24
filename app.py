@@ -38,6 +38,45 @@ except ImportError:
         def get_language(): return "en"
         def set_language(lang): pass
         def toggle_language(): return "en"
+
+# Import CropDrive integration
+try:
+    from utils.cropdrive_integration import (
+        initialize_integration,
+        send_analysis_complete,
+        is_feature_available,
+        send_feature_restricted,
+        get_user_plan,
+        get_user_id
+    )
+    CROPDRIVE_INTEGRATION_AVAILABLE = True
+except ImportError:
+    try:
+        from cropdrive_integration import (
+            initialize_integration,
+            send_analysis_complete,
+            is_feature_available,
+            send_feature_restricted,
+            get_user_plan,
+            get_user_id
+        )
+        CROPDRIVE_INTEGRATION_AVAILABLE = True
+    except ImportError:
+        CROPDRIVE_INTEGRATION_AVAILABLE = False
+        # Fallback functions
+        def initialize_integration():
+            return 'en', 'none', []
+        def send_analysis_complete(*args, **kwargs):
+            pass
+        def is_feature_available(*args, **kwargs):
+            return True
+        def send_feature_restricted(*args, **kwargs):
+            pass
+        def get_user_plan():
+            return 'none'
+        def get_user_id():
+            return ''
+
 import json
 from datetime import datetime
 
@@ -189,6 +228,35 @@ st.markdown("""
 
 def initialize_app():
     """Initialize the application"""
+    # Initialize CropDrive integration first (if available)
+    # This handles language and user config from parent website
+    if CROPDRIVE_INTEGRATION_AVAILABLE:
+        try:
+            current_lang, user_plan, features = initialize_integration()
+            # Language is set by integration, but ensure it's in session state
+            if 'language' not in st.session_state:
+                st.session_state.language = current_lang
+            else:
+                # Update language if changed via URL params
+                st.session_state.language = current_lang
+        except Exception as e:
+            print(f"Warning: CropDrive integration failed: {e}")
+            # Fallback to default
+            if 'language' not in st.session_state:
+                st.session_state.language = 'en'
+    else:
+        # Fallback: Initialize language from URL params manually
+        try:
+            query_params = st.query_params
+            current_lang = query_params.get('lang', 'en')
+            if current_lang not in ['en', 'ms']:
+                current_lang = 'en'
+            if 'language' not in st.session_state:
+                st.session_state.language = current_lang
+        except Exception:
+            if 'language' not in st.session_state:
+                st.session_state.language = 'en'
+    
     # Initialize Firebase
     if not initialize_firebase():
         st.error(t('status_error', default='Error') + ": Failed to initialize Firebase. Please check your configuration.")
@@ -200,10 +268,6 @@ def initialize_app():
     # Initialize session state
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'home'
-    
-    # Initialize language (default to English for international users)
-    if 'language' not in st.session_state:
-        st.session_state.language = 'en'
 
 def show_header():
     """Display application header"""

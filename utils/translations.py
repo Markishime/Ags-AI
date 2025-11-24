@@ -246,7 +246,16 @@ def set_language(lang: str):
 def toggle_language():
     """Toggle between English and Malaysian"""
     current = get_language()
-    set_language('en' if current == 'ms' else 'ms')
+    new_lang = 'en' if current == 'ms' else 'ms'
+    set_language(new_lang)
+    
+    # If CropDrive integration is available, notify parent window
+    try:
+        from utils.cropdrive_integration import send_language_change
+        send_language_change(new_lang)
+    except (ImportError, AttributeError):
+        # CropDrive integration not available or function doesn't exist
+        pass
 
 def translate(key: str, default: str = None, **kwargs) -> str:
     """
