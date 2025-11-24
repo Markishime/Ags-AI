@@ -3208,9 +3208,8 @@ class PDFReportGenerator:
         
         step_results = analysis_results.get('step_by_step_analysis', [])
         
-        # Generate intelligent key findings with proper deduplication using the same logic as results page
-        from modules.history import _generate_intelligent_key_findings
-        all_key_findings = _generate_intelligent_key_findings(analysis_results, step_results)
+        # Generate intelligent key findings with proper deduplication
+        all_key_findings = self._generate_intelligent_key_findings_pdf_OLD(analysis_results, step_results)
         
         if all_key_findings:
             # Display key findings - exact same format as results page
@@ -3370,7 +3369,7 @@ class PDFReportGenerator:
                 # Combine step findings with existing findings
                 all_key_findings.extend(unique_findings)
         
-        # Note: Comprehensive parameter-specific key findings are now handled by the history module function
+        # Note: Comprehensive parameter-specific key findings are handled by the PDF helper logic
         
         # 4. Extract key findings from other analysis sources
         # Land and yield data

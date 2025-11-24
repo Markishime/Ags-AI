@@ -589,15 +589,15 @@ def display_simple_quick_actions():
             margin-bottom: 1rem;
             box-shadow: 0 4px 15px rgba(65, 105, 225, 0.3);
         ">
-            <h4 style="margin: 0 0 1rem 0; color: white;">📈 {t('dashboard_action_history')}</h4>
+            <h4 style="margin: 0 0 1rem 0; color: white;">📊 {t('dashboard_action_results')}</h4>
             <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">
-                {t('dashboard_action_history_desc')}
+                {t('dashboard_action_results_desc')}
             </p>
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button(t('dashboard_view_history'), use_container_width=True, key="view_history_btn"):
-            st.session_state.current_page = 'history'
+        if st.button(t('dashboard_view_results'), use_container_width=True, key="view_results_btn"):
+            st.session_state.current_page = 'results'
             st.rerun()
 
 def display_simple_user_profile(user_info):
@@ -1562,8 +1562,8 @@ def display_quick_actions_section():
         st.session_state.current_page = 'upload'
         st.rerun()
     
-    if st.button("📈 View History", use_container_width=True, key="quick_view_history_btn"):
-        st.session_state.current_page = 'history'
+    if st.button("📊 View Results", use_container_width=True, key="quick_view_results_btn"):
+        st.session_state.current_page = 'results'
         st.rerun()
     
     st.markdown("---")

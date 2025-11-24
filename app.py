@@ -70,12 +70,6 @@ except Exception as e:
     results_page_func = None
 
 try:
-    from modules.history import show_history_page as history_page_func
-except Exception:
-    print("Warning: Could not import history module")
-    history_page_func = None
-
-try:
     from modules.admin import show_admin_panel as admin_panel_func
 except Exception as e:
     print(f"Warning: Could not import admin module: {e}")
@@ -191,42 +185,13 @@ def initialize_app():
         st.session_state.language = 'en'
 
 def show_header():
-    """Display application header with language toggle"""
-    # Check if we're on the homepage
-    current_page = st.session_state.get('current_page', 'home')
-    is_homepage = current_page == 'home'
-    
-    if is_homepage:
-        # On homepage, show header without language toggle
-        st.markdown(f"""
-        <div class="main-header">
-            <h1>🌴 {t('app_title')}</h1>
-            <p>{t('app_subtitle')}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        # On other pages, show header with language toggle
-        col1, col2 = st.columns([5, 1])
-        
-        with col1:
-            st.markdown(f"""
-            <div class="main-header">
-                <h1>🌴 {t('app_title')}</h1>
-                <p>{t('app_subtitle')}</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            current_lang = get_language()
-            if current_lang == 'en':
-                lang_label = "🇲🇾 Switch to Malay (Bahasa Malaysia)"
-            else:
-                lang_label = "🇬🇧 Switch to English"
-            
-            if st.button(lang_label, use_container_width=True, key="lang_toggle", help="Change the entire assistant to your preferred language"):
-                toggle_language()
-                st.rerun()
+    """Display application header"""
+    st.markdown(f"""
+    <div class="main-header">
+        <h1>🌴 {t('app_title')}</h1>
+        <p>{t('app_subtitle')}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def show_sidebar():
     """Display sidebar navigation"""
@@ -248,10 +213,6 @@ def show_sidebar():
         
         if st.button(t('nav_analyze'), use_container_width=True):
             st.session_state.current_page = 'upload'
-            st.rerun()
-        
-        if st.button(t('nav_history'), use_container_width=True):
-            st.session_state.current_page = 'history'
             st.rerun()
         
         # Admin panel button
@@ -345,14 +306,6 @@ def show_results_page():
         st.error(t('status_error') + ": " + t('results_no_results', default='Results module not available'))
         st.info(t('status_info') + ": " + t('results_no_results', default='Please contact support if this issue persists.'))
 
-def show_history_page():
-    """Display history page"""
-    if history_page_func is not None:
-        history_page_func()
-    else:
-        st.error(t('status_error') + ": " + t('history_no_history', default='History module not available'))
-        st.info(t('status_info') + ": " + t('history_no_history', default='Please contact support if this issue persists.'))
-
 def show_help_improve_page():
     """Display Help Us Improve page"""
     try:
@@ -394,12 +347,6 @@ def main():
         else:
             st.error(t('status_error') + ": " + t('results_no_results'))
             st.info(t('status_info') + ": " + t('results_no_results', default='Please contact support if this issue persists.'))
-    elif current_page == 'history':
-        if history_page_func is not None:
-            history_page_func()
-        else:
-            st.error(t('status_error') + ": " + t('history_no_history'))
-            st.info(t('status_info') + ": " + t('history_no_history', default='Please contact support if this issue persists.'))
     elif current_page == 'admin':
         if admin_panel_func is not None:
             admin_panel_func()

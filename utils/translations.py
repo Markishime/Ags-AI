@@ -20,7 +20,6 @@ TRANSLATIONS = {
         # Navigation
         'nav_home': 'Home',
         'nav_analyze': 'Analyze Files',
-        'nav_history': 'Analysis History',
         'nav_admin': 'Admin Panel',
         'nav_help_improve': '💬 Help Us Improve',
         'nav_upload': 'Upload',
@@ -54,10 +53,10 @@ TRANSLATIONS = {
         'dashboard_actions': 'AI Agriculture Actions',
         'dashboard_action_analyze': 'Analyze Agricultural Reports',
         'dashboard_action_analyze_desc': 'Upload your oil palm soil and leaf test reports for AI analysis',
-        'dashboard_action_history': 'View Analysis History',
-        'dashboard_action_history_desc': 'Review your past agricultural analyses and insights',
+        'dashboard_action_results': 'View Latest Results',
+        'dashboard_action_results_desc': 'Open your most recent AI analysis summary',
         'dashboard_start_analysis': '📤 Start AI Analysis',
-        'dashboard_view_history': '📊 View History',
+        'dashboard_view_results': '📊 View Results',
         'dashboard_profile': 'AI Agriculture Profile',
         'dashboard_status': 'AI Agriculture System Status',
         'dashboard_status_operational': 'AI Agriculture Systems Operational',
@@ -83,9 +82,6 @@ TRANSLATIONS = {
         'results_title': 'Analysis Results',
         'results_no_results': 'No results available',
         
-        # History
-        'history_title': 'Analysis History',
-        'history_no_history': 'No analysis history found',
         
         # Admin
         'admin_title': 'Admin Panel',
@@ -135,7 +131,6 @@ TRANSLATIONS = {
         # Navigation
         'nav_home': 'Laman Utama',
         'nav_analyze': 'Analisa Fail',
-        'nav_history': 'Sejarah Analisis',
         'nav_admin': 'Panel Admin',
         'nav_help_improve': '💬 Bantu Kami Meningkatkan',
         'nav_upload': 'Muat Naik',
@@ -169,10 +164,10 @@ TRANSLATIONS = {
         'dashboard_actions': 'Tindakan Pertanian AI',
         'dashboard_action_analyze': 'Analisa Laporan Pertanian',
         'dashboard_action_analyze_desc': 'Muat naik laporan ujian tanah dan daun kelapa sawit anda untuk analisis AI',
-        'dashboard_action_history': 'Lihat Sejarah Analisis',
-        'dashboard_action_history_desc': 'Semak analisis pertanian dan pandangan anda yang lalu',
+        'dashboard_action_results': 'Lihat Hasil Terkini',
+        'dashboard_action_results_desc': 'Buka ringkasan analisis AI terkini anda',
         'dashboard_start_analysis': '📤 Mula Analisis AI',
-        'dashboard_view_history': '📊 Lihat Sejarah',
+        'dashboard_view_results': '📊 Lihat Hasil',
         'dashboard_profile': 'Profil Pertanian AI',
         'dashboard_status': 'Status Sistem Pertanian AI',
         'dashboard_status_operational': 'Sistem Pertanian AI Beroperasi',
@@ -198,9 +193,6 @@ TRANSLATIONS = {
         'results_title': 'Hasil Analisis',
         'results_no_results': 'Tiada hasil tersedia',
         
-        # History
-        'history_title': 'Sejarah Analisis',
-        'history_no_history': 'Tiada sejarah analisis dijumpai',
         
         # Admin
         'admin_title': 'Panel Admin',

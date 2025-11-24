@@ -690,7 +690,7 @@ def show_results_page():
 def load_latest_results():
     """Load the latest analysis results from Firestore or current analysis from session state"""
     try:
-        # First check if there's a current analysis from history page
+        # First check if there's a current analysis saved in session (from previous view)
         if 'current_analysis' in st.session_state and st.session_state.current_analysis:
             current_analysis = st.session_state.current_analysis
             
@@ -1540,7 +1540,7 @@ def process_new_analysis(analysis_data, progress_bar, status_text, time_estimate
 
         logger.info(f"🔍 DEBUG - Analysis stored successfully in session state")
         
-        # Store in Firestore for history page access
+        # Store in Firestore for future access
         try:
             store_analysis_to_firestore(analysis_results, result_id)
             logger.info(f"✅ Successfully stored analysis {result_id} to Firestore")
@@ -1626,8 +1626,8 @@ def display_no_results_message():
             st.session_state.current_page = 'dashboard'
             st.rerun()
     with col3:
-        if st.button("📈 History", use_container_width=True):
-            st.session_state.current_page = 'history'
+        if st.button("🏠 Back to Home", use_container_width=True):
+            st.session_state.current_page = 'home'
             st.rerun()
 
 def display_results_header(results_data):
