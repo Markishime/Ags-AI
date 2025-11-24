@@ -14,15 +14,7 @@ from utils.firebase_config import get_firestore_client
 def show_config_management():
     """Configuration management page for administrators"""
     
-    # Check authentication and admin role
-    if not st.session_state.get('authenticated', False):
-        st.warning("🔒 Please log in to access configuration management.")
-        return
-    
-    if st.session_state.get('user_role') != 'admin':
-        st.error("🚫 Access denied. Admin privileges required.")
-        return
-    
+    # Authentication is handled by admin panel - no need to check here
     st.title("⚙️ System Configuration Management")
     st.markdown("Manage system-wide configurations including AI models, MPOB standards, economic parameters, OCR settings, and UI preferences.")
     
