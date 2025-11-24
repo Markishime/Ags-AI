@@ -136,20 +136,16 @@ st.markdown(
     /* Hide Streamlit Cloud user avatar/profile button */
     button[title*="Manage app"] {display: none !important;}
     button[title*="Profile"] {display: none !important;}
-    div[data-testid="stHeader"] button {display: none !important;}
-    div[data-testid="stHeader"] a {display: none !important;}
     
     /* Hide Streamlit logo */
     div[data-testid="stHeader"] img {display: none !important;}
     a[href*="streamlit.io"] img {display: none !important;}
     
-    /* Hide user profile menu and avatar */
+    /* Hide user profile menu and avatar - but keep deploy button */
     [data-testid="stHeader"] [data-testid="stDecoration"] {display: none !important;}
-    [data-testid="stHeader"] > div:first-child {display: none !important;}
     
     /* Hide Streamlit Cloud profile link */
     a[href*="streamlit.io/author"] {display: none !important;}
-    a[href*="share.streamlit.io"] {display: none !important;}
     
     /* Community Cloud "Hosted with Streamlit" badge */
     a[class*="viewerBadge_link__"] {display: none !important;}
@@ -158,15 +154,14 @@ st.markdown(
     /* Fallback: any Streamlit-hosting anchor in bottom container */
     [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
     
-    /* Hide header completely */
-    header[data-testid="stHeader"] {display: none !important;}
+    /* Show deploy button - ensure it's visible */
+    button[data-testid="baseButton-secondary"][kind="secondary"] {display: block !important;}
+    .stDeployButton {display: block !important; visibility: visible !important;}
+    button[kind="secondary"]:has-text("Deploy") {display: block !important; visibility: visible !important;}
     
-    /* Additional Streamlit Cloud specific hiding */
-    div[data-testid="stHeader"] {display: none !important;}
-    section[data-testid="stHeader"] {display: none !important;}
-    
-    /* Ensure header space is removed */
-    .stApp > header {display: none !important;}
+    /* Keep header visible but hide specific elements */
+    header[data-testid="stHeader"] {display: flex !important; visibility: visible !important;}
+    div[data-testid="stHeader"] {display: flex !important; visibility: visible !important;}
     </style>
     """,
     unsafe_allow_html=True,
