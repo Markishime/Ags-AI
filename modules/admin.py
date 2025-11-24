@@ -28,6 +28,17 @@ from utils.auth_utils import get_all_users, is_admin, get_user_by_id
 from utils.ai_config_utils import load_ai_configuration, save_ai_configuration, reset_ai_configuration, validate_prompt_template
 from utils.feedback_system import display_feedback_analytics
 
+# Import translations
+try:
+    from utils.translations import t
+except ImportError:
+    try:
+        from translations import t
+    except ImportError:
+        # Fallback translation function
+        def t(key, default=None):
+            return default or key
+
 def show_admin_panel():
     """Display admin panel"""
     st.title(f"🔧 {t('admin_title')}")

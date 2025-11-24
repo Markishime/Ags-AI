@@ -309,6 +309,29 @@ def show_sidebar():
         if st.button(t('nav_help_improve'), use_container_width=True):
             st.session_state.current_page = 'help_improve'
             st.rerun()
+        
+        st.divider()
+        
+        # Deploy button
+        st.markdown("### 🚀 Deploy")
+        deploy_url = st.secrets.get('deployment', {}).get('url', 'https://share.streamlit.io') if hasattr(st, 'secrets') and 'deployment' in st.secrets else 'https://share.streamlit.io'
+        st.markdown(f"""
+        <div style="text-align: center; padding: 1rem;">
+            <a href="{deploy_url}" target="_blank" style="
+                display: inline-block;
+                padding: 0.75rem 1.5rem;
+                background: linear-gradient(135deg, #2E8B57 0%, #32CD32 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 600;
+                box-shadow: 0 4px 15px rgba(46, 139, 87, 0.3);
+                transition: transform 0.2s;
+            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                🚀 Deploy to Cloud
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
        
 
 def show_home_page():
