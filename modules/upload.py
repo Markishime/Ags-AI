@@ -39,6 +39,17 @@ except Exception:
         st.error(f"Import error (config_manager): {e}")
         st.stop()
 
+# Import translations
+try:
+    from utils.translations import t
+except ImportError:
+    try:
+        from translations import t
+    except ImportError:
+        # Fallback translation function
+        def t(key, default=None):
+            return default or key
+
 def get_machine_id():
     """Generate a persistent machine identifier that persists across sessions"""
     if 'machine_id' not in st.session_state:

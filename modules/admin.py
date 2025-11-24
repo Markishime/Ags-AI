@@ -30,12 +30,6 @@ from utils.feedback_system import display_feedback_analytics
 
 def show_admin_panel():
     """Display admin panel"""
-    # Import translations
-    try:
-        from utils.translations import t
-    except ImportError:
-        from translations import t
-    
     st.title(f"🔧 {t('admin_title')}")
     
     # Check if admin is already authenticated via admin code
