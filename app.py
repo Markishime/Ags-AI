@@ -154,6 +154,26 @@ st.markdown(
     /* Fallback: any Streamlit-hosting anchor in bottom container */
     [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
     
+    /* Hide bottom right elements - creator avatar and Streamlit logo */
+    footer {display: none !important; visibility: hidden !important;}
+    footer[data-testid="stFooter"] {display: none !important; visibility: hidden !important;}
+    div[data-testid="stFooter"] {display: none !important; visibility: hidden !important;}
+    
+    /* Hide Streamlit logo and badges in bottom right */
+    .stApp footer {display: none !important;}
+    .stApp > footer {display: none !important;}
+    a[href*="streamlit.io"][target="_blank"]:not([href*="share.streamlit.io/deploy"]) {display: none !important;}
+    
+    /* Hide creator avatar/profile in bottom right */
+    footer img {display: none !important;}
+    footer a img {display: none !important;}
+    [data-testid="stFooter"] img {display: none !important;}
+    [data-testid="stFooter"] a {display: none !important;}
+    
+    /* Hide "Made with Streamlit" and similar badges */
+    footer a[href*="streamlit.io"] {display: none !important;}
+    footer a[href*="share.streamlit.io"] {display: none !important;}
+    
     /* Show deploy button - ensure it's visible */
     button[data-testid="baseButton-secondary"][kind="secondary"] {display: block !important;}
     .stDeployButton {display: block !important; visibility: visible !important;}
@@ -172,11 +192,27 @@ st.markdown("""
 <style>
     .main-header {
         background: linear-gradient(90deg, #2E8B57 0%, #228B22 100%);
-        padding: 1rem;
+        padding: 1.5rem;
         border-radius: 10px;
         margin-bottom: 2rem;
+        margin-top: 1rem;
         text-align: center;
         color: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        position: relative;
+        z-index: 1;
+    }
+    
+    .main-header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+    
+    .main-header p {
+        margin: 0.5rem 0 0 0;
+        font-size: 1.1rem;
+        opacity: 0.95;
     }
     
     .auth-container {
