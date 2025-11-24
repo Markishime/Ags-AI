@@ -271,12 +271,38 @@ def initialize_app():
 
 def show_header():
     """Display application header"""
-    st.markdown(f"""
-    <div class="main-header">
-        <h1>🌴 {t('app_title')}</h1>
-        <p>{t('app_subtitle')}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Add Streamlit Cloud deploy button
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown(f"""
+        <div class="main-header">
+            <h1>🌴 {t('app_title')}</h1>
+            <p>{t('app_subtitle')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        # Get GitHub repository URL from secrets or use default
+        github_repo = 'Markishime/Ags-AI'  # Default repository
+        try:
+            if hasattr(st, 'secrets') and 'github' in st.secrets:
+                github_repo = st.secrets.github.get('repository', github_repo)
+            import os
+            github_repo = os.getenv('GITHUB_REPOSITORY', github_repo)
+        except Exception:
+            pass
+        
+        # Official Streamlit Cloud deploy button
+        st.markdown(f"""
+        <div style="text-align: right; padding-top: 1rem;">
+            <a href="https://share.streamlit.io/deploy?repository={github_repo}" target="_blank" style="text-decoration: none;">
+                <img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" 
+                     alt="Deploy on Streamlit Cloud" 
+                     style="height: 28px; opacity: 0.9; transition: opacity 0.3s;"
+                     onmouseover="this.style.opacity='1'" 
+                     onmouseout="this.style.opacity='0.9'">
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
 
 def show_sidebar():
     """Display sidebar navigation"""
@@ -309,29 +335,6 @@ def show_sidebar():
         if st.button(t('nav_help_improve'), use_container_width=True):
             st.session_state.current_page = 'help_improve'
             st.rerun()
-        
-        st.divider()
-        
-        # Deploy button
-        st.markdown("### 🚀 Deploy")
-        deploy_url = st.secrets.get('deployment', {}).get('url', 'https://share.streamlit.io') if hasattr(st, 'secrets') and 'deployment' in st.secrets else 'https://share.streamlit.io'
-        st.markdown(f"""
-        <div style="text-align: center; padding: 1rem;">
-            <a href="{deploy_url}" target="_blank" style="
-                display: inline-block;
-                padding: 0.75rem 1.5rem;
-                background: linear-gradient(135deg, #2E8B57 0%, #32CD32 100%);
-                color: white;
-                text-decoration: none;
-                border-radius: 8px;
-                font-weight: 600;
-                box-shadow: 0 4px 15px rgba(46, 139, 87, 0.3);
-                transition: transform 0.2s;
-            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                🚀 Deploy to Cloud
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
        
 
 def show_home_page():
