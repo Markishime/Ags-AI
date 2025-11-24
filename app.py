@@ -85,32 +85,53 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Hide Streamlit branding in production deployments
-try:
-    is_production = (
-        os.getenv('ENV', '').lower() in ('prod', 'production') or
-        (hasattr(st, 'secrets') and str(st.secrets.get('environment', '')).lower() in ('prod', 'production'))
-    )
-    if is_production:
-        st.markdown(
-            """
-            <style>
-            /* Default Streamlit UI chrome */
-            #MainMenu {visibility: hidden;}
-            header {visibility: hidden;}
-            footer {visibility: hidden;}
+# Hide Streamlit branding and user profile elements
+st.markdown(
+    """
+    <style>
+    /* Hide Streamlit UI elements */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
 
-            /* Community Cloud "Hosted with Streamlit" badge */
-            a[class*="viewerBadge_link__"] {display: none !important;}
-            div[class*="viewerBadge_container__"] {display: none !important;}
-            /* Fallback: any Streamlit-hosting anchor in bottom container */
-            [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-except Exception:
-    pass
+    /* Hide Streamlit Cloud user avatar/profile button */
+    button[title*="Manage app"] {display: none !important;}
+    button[title*="Profile"] {display: none !important;}
+    div[data-testid="stHeader"] button {display: none !important;}
+    div[data-testid="stHeader"] a {display: none !important;}
+    
+    /* Hide Streamlit logo */
+    div[data-testid="stHeader"] img {display: none !important;}
+    a[href*="streamlit.io"] img {display: none !important;}
+    
+    /* Hide user profile menu and avatar */
+    [data-testid="stHeader"] [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stHeader"] > div:first-child {display: none !important;}
+    
+    /* Hide Streamlit Cloud profile link */
+    a[href*="streamlit.io/author"] {display: none !important;}
+    a[href*="share.streamlit.io"] {display: none !important;}
+    
+    /* Community Cloud "Hosted with Streamlit" badge */
+    a[class*="viewerBadge_link__"] {display: none !important;}
+    div[class*="viewerBadge_container__"] {display: none !important;}
+    
+    /* Fallback: any Streamlit-hosting anchor in bottom container */
+    [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
+    
+    /* Hide header completely */
+    header[data-testid="stHeader"] {display: none !important;}
+    
+    /* Additional Streamlit Cloud specific hiding */
+    div[data-testid="stHeader"] {display: none !important;}
+    section[data-testid="stHeader"] {display: none !important;}
+    
+    /* Ensure header space is removed */
+    .stApp > header {display: none !important;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Custom CSS for better styling
 st.markdown("""
