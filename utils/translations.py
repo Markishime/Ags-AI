@@ -241,9 +241,9 @@ TRANSLATIONS = {
 }
 
 def get_language() -> str:
-    """Get current language from session state, default to 'ms' (Malaysian)"""
+    """Get current language from session state, default to 'en' (English)"""
     if 'language' not in st.session_state:
-        st.session_state.language = 'ms'  # Default to Malaysian
+        st.session_state.language = 'en'  # Default to English for clarity
     return st.session_state.language
 
 def set_language(lang: str):

@@ -186,9 +186,9 @@ def initialize_app():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = 'home'
     
-    # Initialize language (default to Malaysian)
+    # Initialize language (default to English for international users)
     if 'language' not in st.session_state:
-        st.session_state.language = 'ms'
+        st.session_state.language = 'en'
 
 def show_header():
     """Display application header with language toggle"""
@@ -219,10 +219,12 @@ def show_header():
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
             current_lang = get_language()
-            lang_label = t('malay') if current_lang == 'en' else t('english')
-            lang_icon = "🇲🇾" if current_lang == 'en' else "🇬🇧"
+            if current_lang == 'en':
+                lang_label = "🇲🇾 Switch to Malay (Bahasa Malaysia)"
+            else:
+                lang_label = "🇬🇧 Switch to English"
             
-            if st.button(f"{lang_icon} {lang_label}", use_container_width=True, key="lang_toggle"):
+            if st.button(lang_label, use_container_width=True, key="lang_toggle", help="Change the entire assistant to your preferred language"):
                 toggle_language()
                 st.rerun()
 
@@ -266,10 +268,12 @@ def show_sidebar():
         
         # Language toggle in sidebar too
         current_lang = get_language()
-        lang_label = t('malay') if current_lang == 'en' else t('english')
-        lang_icon = "🇲🇾" if current_lang == 'en' else "🇬🇧"
+        if current_lang == 'en':
+            lang_label = "🇲🇾 Switch to Malay (Bahasa Malaysia)"
+        else:
+            lang_label = "🇬🇧 Switch to English"
         
-        if st.button(f"{lang_icon} {lang_label}", use_container_width=True, key="sidebar_lang_toggle"):
+        if st.button(lang_label, use_container_width=True, key="sidebar_lang_toggle", help="Change the entire assistant to your preferred language"):
             toggle_language()
             st.rerun()
        
