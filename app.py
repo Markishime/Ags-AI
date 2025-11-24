@@ -302,38 +302,13 @@ def initialize_app():
 
 def show_header():
     """Display application header"""
-    # Add Streamlit Cloud deploy button
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"""
-        <div class="main-header">
-            <h1>🌴 {t('app_title')}</h1>
-            <p>{t('app_subtitle')}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        # Get GitHub repository URL from secrets or use default
-        github_repo = 'Markishime/Ags-AI'  # Default repository
-        try:
-            if hasattr(st, 'secrets') and 'github' in st.secrets:
-                github_repo = st.secrets.github.get('repository', github_repo)
-            import os
-            github_repo = os.getenv('GITHUB_REPOSITORY', github_repo)
-        except Exception:
-            pass
-        
-        # Official Streamlit Cloud deploy button
-        st.markdown(f"""
-        <div style="text-align: right; padding-top: 1rem;">
-            <a href="https://share.streamlit.io/deploy?repository={github_repo}" target="_blank" style="text-decoration: none;">
-                <img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" 
-                     alt="Deploy on Streamlit Cloud" 
-                     style="height: 28px; opacity: 0.9; transition: opacity 0.3s;"
-                     onmouseover="this.style.opacity='1'" 
-                     onmouseout="this.style.opacity='0.9'">
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+    # Display main header container (deploy button is handled by Streamlit's built-in button)
+    st.markdown(f"""
+    <div class="main-header">
+        <h1>🌴 {t('app_title')}</h1>
+        <p>{t('app_subtitle')}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def show_sidebar():
     """Display sidebar navigation"""
