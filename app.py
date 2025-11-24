@@ -309,19 +309,6 @@ def show_sidebar():
         if st.button(t('nav_help_improve'), use_container_width=True):
             st.session_state.current_page = 'help_improve'
             st.rerun()
-        
-        st.divider()
-        
-        # Language toggle in sidebar too
-        current_lang = get_language()
-        if current_lang == 'en':
-            lang_label = "🇲🇾 Switch to Malay (Bahasa Malaysia)"
-        else:
-            lang_label = "🇬🇧 Switch to English"
-        
-        if st.button(lang_label, use_container_width=True, key="sidebar_lang_toggle", help="Change the entire assistant to your preferred language"):
-            toggle_language()
-            st.rerun()
        
 
 def show_home_page():
