@@ -84,8 +84,14 @@ def get_machine_id():
 
 def show_upload_page():
     """Main upload page - focused only on file upload and preview"""
-    st.markdown('<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📤 Upload SP LAB Reports</h1>', unsafe_allow_html=True)
-    st.markdown("### Upload your soil and leaf analysis reports for comprehensive AI-powered analysis")
+    # Import translations
+    try:
+        from utils.translations import t
+    except ImportError:
+        from translations import t
+    
+    st.markdown(f'<h1 style="color: #2E8B57; text-align: center; font-size: 3rem; font-weight: 700; margin: 1.5rem 0 1rem 0;">📤 {t("upload_title")}</h1>', unsafe_allow_html=True)
+    st.markdown(f"### {t('upload_desc')}")
     
     # Main upload section
     upload_section()
@@ -688,8 +694,14 @@ def upload_section():
     # Get UI configuration
     ui_config = get_ui_config()
     
-    st.markdown("### 📁 Upload SP LAB Test Reports")
-    st.info("💡 **Tip:** Upload both soil and leaf analysis reports for comprehensive analysis.")
+    # Import translations
+    try:
+        from utils.translations import t
+    except ImportError:
+        from translations import t
+    
+    st.markdown(f"### 📁 {t('upload_section_title')}")
+    st.info(f"💡 **{t('upload_tip')}**")
     
     
     # Create separate containers for soil and leaf analysis
@@ -734,14 +746,14 @@ def upload_section():
     
     with col1:
         with st.container():
-            st.markdown("#### 🌱 Soil Analysis")
-            st.markdown("Upload **soil test reports** for nutrient analysis")
-            st.info("📋 **Expected:** Soil analysis with pH, organic carbon, available P, exchangeable cations, etc.")
+            st.markdown(f"#### 🌱 {t('upload_soil_title')}")
+            st.markdown(t('upload_soil_desc'))
+            st.info(f"📋 **{t('upload_soil_expected')}**")
             
             soil_file = st.file_uploader(
-                "Choose soil analysis file",
+                t('upload_soil_file'),
                 type=['png', 'jpg', 'jpeg', 'pdf', 'csv', 'xlsx', 'xls'],
-                help="Upload SP LAB soil analysis reports",
+                help=t('upload_soil_help'),
                 key="soil_uploader"
             )
             
@@ -810,14 +822,14 @@ def upload_section():
     
     with col2:
         with st.container():
-            st.markdown("#### 🍃 Leaf Analysis")
-            st.markdown("Upload **leaf test reports** for nutrient deficiency analysis")
+            st.markdown(f"#### 🍃 {t('upload_leaf_title')}")
+            st.markdown(t('upload_leaf_desc'))
             st.info("📋 **Expected:** Leaf analysis with N%, P%, K%, Mg%, Ca%, B, Cu, Zn content, etc.")
             
             leaf_file = st.file_uploader(
-                "Choose leaf analysis file",
+                t('upload_leaf_file'),
                 type=['png', 'jpg', 'jpeg', 'pdf', 'csv', 'xlsx', 'xls'],
-                help="Upload SP LAB leaf analysis reports",
+                help=t('upload_leaf_help'),
                 key="leaf_uploader"
             )
             
@@ -1038,7 +1050,7 @@ def upload_section():
     land_yield_provided = land_size > 0 and current_yield > 0
     
     if soil_uploaded and leaf_uploaded and land_yield_provided:
-        if st.button("🚀 Start Comprehensive Analysis", type="primary", use_container_width=True, key="start_analysis"):
+        if st.button(f"🚀 {t('upload_start_analysis')}", type="primary", use_container_width=True, key="start_analysis"):
             # Ensure files are valid before passing to analysis
             try:
                 soil_file = st.session_state.soil_file
@@ -1068,14 +1080,14 @@ def upload_section():
                 st.error(f"Error preparing files for analysis: {str(e)}")
                 st.info("Please try uploading the files again.")
     else:
-        st.warning("⚠️ **Requirements for Analysis:**")
+        st.warning(f"⚠️ **{t('upload_requirements')}**")
         if not soil_uploaded:
-            st.info("• Upload a soil analysis report")
+            st.info(f"• {t('upload_need_soil')}")
         if not leaf_uploaded:
-            st.info("• Upload a leaf analysis report")
+            st.info(f"• {t('upload_need_leaf')}")
         if not land_yield_provided:
-            st.info("• Provide land size and current yield data")
-        st.button("🚀 Start Comprehensive Analysis", disabled=True, use_container_width=True, key="start_analysis_disabled")
+            st.info(f"• {t('upload_need_yield')}")
+        st.button(f"🚀 {t('upload_start_analysis')}", disabled=True, use_container_width=True, key="start_analysis_disabled")
 
 def format_raw_text_as_structured_json(raw_text: str, container_type: str) -> dict:
     """Format raw OCR text into structured JSON format by analyzing the content"""
