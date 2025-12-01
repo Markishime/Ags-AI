@@ -125,13 +125,13 @@ st.set_page_config(
 )
 
 # Hide Streamlit branding and user profile elements
-st.markdown(
-    """
-    <style>
+        st.markdown(
+            """
+            <style>
     /* Hide Streamlit UI elements */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
 
     /* Hide Streamlit Cloud user avatar/profile button */
     button[title*="Manage app"] {display: none !important;}
@@ -146,13 +146,13 @@ st.markdown(
     
     /* Hide Streamlit Cloud profile link */
     a[href*="streamlit.io/author"] {display: none !important;}
+
+            /* Community Cloud "Hosted with Streamlit" badge */
+            a[class*="viewerBadge_link__"] {display: none !important;}
+            div[class*="viewerBadge_container__"] {display: none !important;}
     
-    /* Community Cloud "Hosted with Streamlit" badge */
-    a[class*="viewerBadge_link__"] {display: none !important;}
-    div[class*="viewerBadge_container__"] {display: none !important;}
-    
-    /* Fallback: any Streamlit-hosting anchor in bottom container */
-    [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
+            /* Fallback: any Streamlit-hosting anchor in bottom container */
+            [data-testid="stBottomBlockContainer"] a[href*="streamlit.io"] {display: none !important;}
     
     /* Hide bottom right elements - creator avatar and Streamlit logo */
     footer {display: none !important; visibility: hidden !important;}
@@ -182,10 +182,10 @@ st.markdown(
     /* Keep header visible but hide specific elements */
     header[data-testid="stHeader"] {display: flex !important; visibility: visible !important;}
     div[data-testid="stHeader"] {display: flex !important; visibility: visible !important;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # Custom CSS for better styling
 st.markdown("""
@@ -303,12 +303,12 @@ def initialize_app():
 def show_header():
     """Display application header"""
     # Display main header container (deploy button is handled by Streamlit's built-in button)
-    st.markdown(f"""
-    <div class="main-header">
-        <h1>🌴 {t('app_title')}</h1>
-        <p>{t('app_subtitle')}</p>
-    </div>
-    """, unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="main-header">
+                <h1>🌴 {t('app_title')}</h1>
+                <p>{t('app_subtitle')}</p>
+            </div>
+            """, unsafe_allow_html=True)
 
 def show_sidebar():
     """Display sidebar navigation"""
